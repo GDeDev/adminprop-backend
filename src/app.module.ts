@@ -3,7 +3,6 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { ScheduleModule } from '@nestjs/schedule'
 
 import { AppController } from './app.controller'
-import { ExampleModule } from './infrastructure/example/modules/example.module'
 import { AuthModule } from './infrastructure/auth/modules/auth.module'
 import { JwtAuthGuard } from './infrastructure/auth/guards/jwt-auth.guard'
 import { RolesGuard } from './infrastructure/auth/guards/roles.guard'
@@ -27,7 +26,7 @@ import { SharedModule } from './shared/shared.module'
     AppThrottlerModule,
     AuthModule,
     HealthModule,
-    ExampleModule,
+    // Los módulos de cada feature van acá. Ver CLAUDE.md para la estructura.
   ],
   controllers: [AppController],
   providers: [
