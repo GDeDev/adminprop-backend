@@ -1,18 +1,22 @@
 {
-  "name": "{{PROJECT_NAME}}",
-  "version": "0.0.1",
-  "description": "{{PROJECT_DESCRIPTION}}",
-  "author": "{{AUTHOR_NAME}} <{{AUTHOR_EMAIL}}>",
+  "name": "adminprop-backend",
+  "version": "0.1.0",
+  "description": "API de administración de propiedades. NestJS con arquitectura hexagonal, CQRS y autenticación JWT propia.",
+  "author": "GDeDev",
   "private": true,
   "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/{{GITHUB_USERNAME}}/{{PROJECT_NAME}}.git"
+    "url": "https://github.com/GDeDev/adminprop-backend.git"
   },
   "bugs": {
-    "url": "https://github.com/{{GITHUB_USERNAME}}/{{PROJECT_NAME}}/issues"
+    "url": "https://github.com/GDeDev/adminprop-backend/issues"
   },
-  "homepage": "https://github.com/{{GITHUB_USERNAME}}/{{PROJECT_NAME}}#readme",
+  "homepage": "https://github.com/GDeDev/adminprop-backend#readme",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
