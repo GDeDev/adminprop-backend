@@ -3,7 +3,7 @@ import { Environment, validateEnv } from './env.validation'
 const VALID_ENV = {
   NODE_ENV: 'development',
   PORT: '3000',
-  DATABASE_URL: 'mysql://user:pass@localhost:3306/db',
+  DATABASE_URL: 'postgresql://user:pass@localhost:5432/db',
   JWT_ACCESS_SECRET: 'a'.repeat(40),
   JWT_REFRESH_SECRET: 'b'.repeat(40),
 }

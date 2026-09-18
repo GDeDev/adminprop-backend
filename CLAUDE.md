@@ -15,7 +15,7 @@ al código, gana el código y hay que actualizar este archivo.
 
 ## Qué es
 
-API de administración de propiedades. NestJS 11 + Prisma sobre MySQL/MariaDB,
+API de administración de propiedades. NestJS 11 + Prisma sobre PostgreSQL 16,
 arquitectura hexagonal con CQRS y autenticación JWT propia.
 
 A futuro el plan es partirlo en varias APIs. Por eso el módulo de auth está
@@ -32,7 +32,7 @@ npm test                      # unitarios
 npm run test:e2e              # e2e (no necesitan base de datos)
 npx tsc --noEmit              # sólo tipos
 npm run prisma:migrate        # crear y aplicar migración
-npm run docker:dev            # MariaDB + Redis
+npm run docker:dev            # Postgres 16
 ```
 
 Antes de dar por terminado un cambio: `npm run code:check`, `npx tsc --noEmit`,

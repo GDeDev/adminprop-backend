@@ -26,9 +26,11 @@ export interface ModelBehaviour {
   /**
    * Campos con índice único que hay que mutar al borrar lógicamente.
    *
-   * En MySQL **no sirve** un unique compuesto `(email, deletedAt)`: los índices
-   * únicos tratan cada NULL como distinto, así que dos usuarios activos —ambos
-   * con `deletedAt = NULL`— pasarían el constraint. Sería peor que no tenerlo.
+   * **No sirve** un unique compuesto `(email, deletedAt)`: los índices únicos
+   * tratan cada NULL como distinto, así que dos usuarios activos —ambos con
+   * `deletedAt = NULL`— pasarían el constraint. El índice parcial de Postgres
+   * (`WHERE deleted_at IS NULL`) lo resolvería, pero Prisma no lo puede declarar
+   * en el schema.
    *
    * Por eso, al borrar se reescribe el valor como
    * `ana@ejemplo.com#deleted#<id>`: el índice queda honesto y el email se

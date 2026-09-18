@@ -28,7 +28,7 @@ If applicable, add screenshots to help explain your problem.
 - OS: [e.g. macOS, Linux, Windows]
 - Node.js version: [e.g. 18.17.0]
 - NPM/Yarn version: [e.g. 9.6.7]
-- Database: [e.g. MariaDB 10.11]
+- Database: [e.g. PostgreSQL 16]
 
 **Additional context**
 Add any other context about the problem here.

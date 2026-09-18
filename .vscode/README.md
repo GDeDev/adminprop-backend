@@ -117,7 +117,7 @@ Para ejecutar tests:
 
 Para usar Docker:
 1. `Ctrl+Shift+P` → "Tasks: Run Task" → "Docker - Start Development"
-2. Esto iniciará MariaDB y otros servicios necesarios
+2. Esto iniciará Postgres
 
 ---
 

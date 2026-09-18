@@ -14,7 +14,7 @@ beforeEach(() => {
 // test levanta el módulo completo. Son valores descartables, no secretos.
 process.env.NODE_ENV = 'test'
 process.env.DATABASE_URL =
-  process.env.DATABASE_URL ?? 'mysql://test:test@localhost:3306/test'
+  process.env.DATABASE_URL ?? 'postgresql://test:test@localhost:5432/test'
 process.env.JWT_ACCESS_SECRET =
   'test-access-secret-descartable-de-al-menos-32-caracteres'
 process.env.JWT_REFRESH_SECRET =

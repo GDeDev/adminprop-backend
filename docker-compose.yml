@@ -1,44 +1,26 @@
 services:
-  mariadb:
-    image: mariadb:11.2
+  postgres:
+    image: postgres:16-alpine
     restart: unless-stopped
     environment:
       # Sólo para desarrollo local. En cualquier otro entorno, credenciales
-      # reales inyectadas desde afuera.
-      MARIADB_ROOT_PASSWORD: root_password
-      MARIADB_DATABASE: api_development
-      MARIADB_USER: api_user
-      MARIADB_PASSWORD: api_password
+      # reales inyectadas desde afuera (Doppler).
+      POSTGRES_DB: adminprop_development
+      POSTGRES_USER: adminprop
+      POSTGRES_PASSWORD: adminprop
     ports:
-      - '3306:3306'
+      - '5432:5432'
     volumes:
-      - mariadb_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
+      # Crea la base de tests e2e junto con la de desarrollo.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     networks:
       - api_network
     healthcheck:
-      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
-      interval: 10s
+      test: ['CMD-SHELL', 'pg_isready -U adminprop -d adminprop_development']
+      interval: 5s
       timeout: 5s
       retries: 10
-      start_period: 30s
-    profiles: [dev, prod]
-
-  # Todavía no lo usa nadie. Está listo para cuando muevas el rate limiting o
-  # una caché a un storage compartido — ver src/shared/infra/throttler/.
-  redis:
-    image: redis:7.2-alpine
-    restart: unless-stopped
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis_data:/data
-    networks:
-      - api_network
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 3s
-      retries: 5
     profiles: [dev, prod]
 
   api:
@@ -51,22 +33,19 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      DATABASE_URL: mysql://api_user:api_password@mariadb:3306/api_development
+      DATABASE_URL: postgresql://adminprop:adminprop@postgres:5432/adminprop_development
       TRUST_PROXY: 'false'
     ports:
       - '3000:3000'
     depends_on:
-      mariadb:
-        condition: service_healthy
-      redis:
+      postgres:
         condition: service_healthy
     networks:
       - api_network
     profiles: [prod]
 
 volumes:
-  mariadb_data:
-  redis_data:
+  postgres_data:
 
 networks:
   api_network:

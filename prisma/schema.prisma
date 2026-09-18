@@ -1,12 +1,17 @@
 // Prisma schema
 // Docs: https://pris.ly/d/prisma-schema
+//
+// Convenciones (spec Fase 1, sección 2 y 12):
+// - Modelos y campos en camelCase; tablas y columnas en snake_case vía
+//   `@@map` / `@map`.
+// - Ids UUID generados por Postgres (`gen_random_uuid()`), fechas `timestamptz`.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -22,32 +27,32 @@ enum Role {
 }
 
 model User {
-  id           String  @id @default(uuid()) @db.VarChar(36)
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email        String  @unique @db.VarChar(255)
   /// Hash bcrypt. La contraseña en texto plano nunca toca la base ni los logs.
-  passwordHash String  @db.VarChar(255)
-  firstName    String? @db.VarChar(100)
-  lastName     String? @db.VarChar(100)
+  passwordHash String  @map("password_hash") @db.VarChar(255)
+  firstName    String? @map("first_name") @db.VarChar(100)
+  lastName     String? @map("last_name") @db.VarChar(100)
   role         Role    @default(USER)
-  isActive     Boolean @default(true)
+  isActive     Boolean @default(true) @map("is_active")
 
   /// Bloqueo temporal por intentos fallidos, para frenar fuerza bruta contra
   /// una cuenta puntual (el rate limit por IP no alcanza si el atacante rota IPs).
-  failedLoginAttempts Int       @default(0)
-  lockedUntil         DateTime?
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz(3)
 
-  lastLoginAt       DateTime?
+  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz(3)
   /// Permite invalidar los access tokens emitidos antes de un cambio de
   /// contraseña cuando `JWT_VALIDATE_USER_ON_REQUEST=true`.
-  passwordChangedAt DateTime?
+  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamptz(3)
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   /// Soft delete. La extensión de Prisma filtra por `deletedAt: null` sola.
-  deletedAt   DateTime?
-  createdById String?   @db.VarChar(36)
-  updatedById String?   @db.VarChar(36)
-  deletedById String?   @db.VarChar(36)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  deletedById String?   @map("deleted_by_id") @db.Uuid
 
   refreshTokens RefreshToken[]
 
@@ -66,11 +71,11 @@ model User {
 /// los suyos y es el front el que decide cómo mostrarlos (formato de moneda,
 /// resolver un id a su nombre, etc).
 model AuditLog {
-  id String @id @default(uuid()) @db.VarChar(36)
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
   /// Nombre del modelo de Prisma: "User", "Propiedad", ...
   entidad   String      @db.VarChar(64)
-  entidadId String      @db.VarChar(64)
+  entidadId String      @map("entidad_id") @db.VarChar(64)
   accion    AuditAction
 
   /// `{ "precio": { "antes": 120000, "despues": 135000 } }`
@@ -78,14 +83,14 @@ model AuditLog {
   cambios Json?
 
   /// Autor del cambio. Null si lo hizo un proceso automático (seed, cron).
-  usuarioId    String? @db.VarChar(36)
-  usuarioEmail String? @db.VarChar(255)
+  usuarioId    String? @map("usuario_id") @db.Uuid
+  usuarioEmail String? @map("usuario_email") @db.VarChar(255)
 
   /// Permite cruzar el cambio con los logs de la request que lo provocó.
-  correlationId String? @db.VarChar(128)
+  correlationId String? @map("correlation_id") @db.VarChar(128)
   ip            String? @db.VarChar(45)
 
-  creadoEn DateTime @default(now())
+  creadoEn DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
 
   @@index([entidad, entidadId])
   @@index([usuarioId])
@@ -108,24 +113,24 @@ enum AuditAction {
 /// el nuevo por `familyId`; si alguien reusa un token ya rotado, se revoca toda
 /// la familia (señal de robo de token).
 model RefreshToken {
-  id        String @id @default(uuid()) @db.VarChar(36)
-  tokenHash String @unique @db.VarChar(64)
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tokenHash String @unique @map("token_hash") @db.VarChar(64)
 
-  userId String @db.VarChar(36)
+  userId String @map("user_id") @db.Uuid
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   /// Agrupa toda la cadena de rotaciones que nació en un mismo login.
-  familyId String @db.VarChar(36)
+  familyId String @map("family_id") @db.Uuid
 
-  expiresAt    DateTime
-  revokedAt    DateTime?
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(3)
   /// Id del token que lo reemplazó al rotar. Sirve para auditar la cadena.
-  replacedById String?   @db.VarChar(36)
+  replacedById String?   @map("replaced_by_id") @db.Uuid
 
-  userAgent String? @db.VarChar(255)
+  userAgent String? @map("user_agent") @db.VarChar(255)
   ip        String? @db.VarChar(45)
 
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([userId])
   @@index([familyId])
