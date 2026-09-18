@@ -139,6 +139,10 @@ Detalle completo en [docs/ERROR-HANDLING.md](docs/ERROR-HANDLING.md).
   con `get('clave', { infer: true })` — **sin** genérico explícito, que pisa la
   inferencia.
 - Alias `@/` para importar desde `src/`.
+- **Dinero: nunca `number`.** Todo monto pasa por `@/shared/money`
+  (`decimal.js`, `ROUND_HALF_UP` a 2 decimales en cada operación). En los DTOs
+  de entrada, `@IsMoneyAmount()`; hacia afuera, `toMoneyString()`. El frontend
+  no calcula montos: recibe strings y sólo los formatea.
 - Los listados se paginan con `@/shared/pagination`, siempre con `orderBy`
   explícito. Ver [docs/PAGINATION.md](docs/PAGINATION.md).
 - Los repositorios usan **`prisma.db`**, no `prisma` a secas: el primero lleva
