@@ -72,8 +72,15 @@ Para ver los borrados en una consulta puntual:
 ```ts
 import { INCLUDE_DELETED } from '@/infrastructure/prisma/extensions/soft-delete.extension'
 
-await prisma.db.user.findMany({ where: { [INCLUDE_DELETED]: true } })
+await prisma.db.user.findMany({ where: { ...INCLUDE_DELETED, role: 'ADMIN' } })
 ```
+
+Es un objeto que se esparce, no una clave especial. La primera versión usaba un
+`Symbol` como clave, que es más prolijo pero **no funciona**: Prisma serializa
+los argumentos al pasarlos entre extensiones y las claves de tipo Symbol se
+pierden en el camino. Con el objeto, `deletedAt` queda presente en el `where`
+con valor `undefined`, la extensión ve que quien llama ya decidió sobre ese
+campo y no agrega su filtro, y Prisma ignora los `undefined`.
 
 ### El problema del índice único en MySQL
 

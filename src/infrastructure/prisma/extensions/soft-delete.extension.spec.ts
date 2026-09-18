@@ -1,4 +1,4 @@
-import { behaviourFor, DELETED_MARKER } from './auditable-models'
+import { behaviourFor, delegateKey, DELETED_MARKER } from './auditable-models'
 import { markDeletedValue, unmarkDeletedValue } from './soft-delete.extension'
 
 describe('marcado de valores únicos', () => {
@@ -64,5 +64,30 @@ describe('behaviourFor', () => {
 
   it('no rompe con un modelo undefined', () => {
     expect(() => behaviourFor(undefined)).not.toThrow()
+  })
+})
+
+describe('delegateKey', () => {
+  it('convierte el nombre del modelo al del delegate', () => {
+    // Las extensiones reciben 'User' pero el cliente expone 'prisma.user'.
+    // Acceder con el nombre sin convertir devuelve undefined, y el error recién
+    // aparece una llamada después como "Cannot read properties of undefined".
+    // Este bug hizo fallar todos los login contra la base real.
+    expect(delegateKey('User')).toBe('user')
+    expect(delegateKey('AuditLog')).toBe('auditLog')
+    expect(delegateKey('RefreshToken')).toBe('refreshToken')
+  })
+
+  it('deja igual un nombre que ya viene en camelCase', () => {
+    expect(delegateKey('user')).toBe('user')
+  })
+
+  it('cubre todos los modelos configurados', () => {
+    // Si alguien agrega un modelo a MODEL_BEHAVIOUR, su delegate tiene que
+    // resolverse a algo distinto del nombre del modelo.
+    for (const model of ['User', 'RefreshToken', 'AuditLog']) {
+      expect(delegateKey(model)).not.toBe(model)
+      expect(delegateKey(model)[0]).toBe(model[0].toLowerCase())
+    }
   })
 })

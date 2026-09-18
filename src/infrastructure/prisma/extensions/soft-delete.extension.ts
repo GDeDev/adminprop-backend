@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 
 import { RequestContext } from '@/shared/context/request-context'
-import { behaviourFor, DELETED_MARKER } from './auditable-models'
+import { behaviourFor, delegateKey, DELETED_MARKER } from './auditable-models'
 
 /** Operaciones de lectura a las que hay que sumarles el filtro de borrados. */
 const READ_OPERATIONS = new Set([
@@ -14,13 +14,23 @@ const READ_OPERATIONS = new Set([
 ])
 
 /**
- * Bandera para saltearse el filtro en una consulta puntual.
+ * Filtro para incluir también los registros borrados en una consulta.
  *
  * ```ts
- * prisma.user.findMany({ where: { [INCLUDE_DELETED]: true } })
+ * import { INCLUDE_DELETED } from '.../soft-delete.extension'
+ *
+ * await prisma.db.user.findMany({ where: { ...INCLUDE_DELETED, role: 'ADMIN' } })
  * ```
+ *
+ * Funciona porque la extensión respeta cualquier `deletedAt` que ya venga en el
+ * `where`, y Prisma ignora las claves con valor `undefined`. El resultado es
+ * una consulta sin ningún filtro sobre `deletedAt`.
+ *
+ * La primera versión de esto usaba un `Symbol` como clave, que es más prolijo
+ * pero no funciona: Prisma serializa los argumentos al pasarlos entre
+ * extensiones y las claves de tipo Symbol se pierden en el camino.
  */
-export const INCLUDE_DELETED = Symbol('includeDeleted')
+export const INCLUDE_DELETED = { deletedAt: undefined } as const
 
 /** Marca el valor de un campo único como perteneciente a un registro borrado. */
 export function markDeletedValue(value: string, id: string): string {
@@ -53,7 +63,21 @@ export function unmarkDeletedValue(value: string): string {
  *    únicos en un `findUnique`, así que no hay alternativa. En la práctica es
  *    equivalente, pero el plan de la consulta puede diferir.
  */
-export function softDeleteExtension() {
+/**
+ * Referencia tardía al cliente ya extendido.
+ *
+ * Hace falta porque hay una circularidad real: la extensión necesita el cliente
+ * completo, pero el cliente completo se construye aplicando la extensión. Se
+ * resuelve pasando un contenedor vacío y llenándolo justo después.
+ */
+export interface ClientRef {
+  /** Cliente base, sin extensiones. Para las lecturas internas. */
+  base: Record<string, any>
+  /** Cliente con todas las extensiones. Se asigna después de construirlo. */
+  extended?: Record<string, any>
+}
+
+export function softDeleteExtension(ref: ClientRef) {
   return Prisma.defineExtension({
     name: 'soft-delete',
     query: {
@@ -69,24 +93,31 @@ export function softDeleteExtension() {
             return query(withNotDeleted(params))
           }
 
+          const key = delegateKey(model as string)
+          // Las lecturas internas van por el cliente base: ya les aplicamos el
+          // filtro a mano y no queremos que vuelvan a entrar al pipeline.
+          const baseDelegate = ref.base[key]
+          // Las escrituras derivadas van por el cliente extendido, para que la
+          // auditoría las vea. Un `delete` convertido en `update` que corriera
+          // sobre el cliente base no quedaría registrado en el historial.
+          const writeDelegate = (ref.extended ?? ref.base)[key]
+
           // `findUnique` no admite filtros extra: se degrada a `findFirst`.
           if (operation === 'findUnique' || operation === 'findUniqueOrThrow') {
-            const delegate = (this as any)[model as string]
             const fallback =
               operation === 'findUnique' ? 'findFirst' : 'findFirstOrThrow'
 
-            return delegate[fallback](withNotDeleted(params))
+            return baseDelegate[fallback](withNotDeleted(params))
           }
 
           // --- Borrados: marcar en vez de eliminar ------------------------
           if (operation === 'delete' || operation === 'deleteMany') {
-            const delegate = (this as any)[model as string]
             const now = new Date()
             const deletedById = RequestContext.userId ?? null
 
             if (operation === 'delete') {
               // Se lee primero para poder mutar los campos únicos con el id.
-              const current = await delegate.findFirst({
+              const current = await baseDelegate.findFirst({
                 where: params.where,
               })
 
@@ -95,7 +126,7 @@ export function softDeleteExtension() {
                 return query(args)
               }
 
-              return delegate.update({
+              return writeDelegate.update({
                 where: params.where,
                 data: {
                   deletedAt: now,
@@ -105,7 +136,7 @@ export function softDeleteExtension() {
               })
             }
 
-            return delegate.updateMany({
+            return writeDelegate.updateMany({
               where: { ...(params.where ?? {}), deletedAt: null },
               data: { deletedAt: now, deletedById },
             })
@@ -123,16 +154,12 @@ export function softDeleteExtension() {
   })
 }
 
-/** Suma `deletedAt: null` al where, salvo que se pida lo contrario. */
+/** Suma `deletedAt: null` al where, salvo que quien llama ya haya decidido. */
 function withNotDeleted(params: Record<string, any>): Record<string, any> {
   const where = params?.where ?? {}
 
-  if (where[INCLUDE_DELETED]) {
-    const { [INCLUDE_DELETED]: _omit, ...rest } = where
-    return { ...params, where: rest }
-  }
-
-  // Si quien llama ya filtró por deletedAt, se respeta su criterio.
+  // Si el where ya menciona `deletedAt` —con un valor o con `undefined`, que es
+  // lo que hace INCLUDE_DELETED— mandan las instrucciones de quien llamó.
   if ('deletedAt' in where) return params
 
   return { ...params, where: { ...where, deletedAt: null } }

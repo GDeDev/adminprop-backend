@@ -3,7 +3,10 @@ import { PrismaClient } from '@prisma/client'
 
 import { createLogger } from '@/shared/logging/root-logger'
 import { auditExtension } from './extensions/audit.extension'
-import { softDeleteExtension } from './extensions/soft-delete.extension'
+import {
+  ClientRef,
+  softDeleteExtension,
+} from './extensions/soft-delete.extension'
 
 const logger = createLogger('Prisma')
 
@@ -15,9 +18,20 @@ const logger = createLogger('Prisma')
  * registra como DELETE, en vez de perderlo.
  */
 function extendClient(client: PrismaClient) {
-  return client
-    .$extends(softDeleteExtension())
+  // Las extensiones reciben el cliente explícitamente y no usan `this`: en una
+  // extensión de tipo `query`, `this` no es el cliente y el acceso devuelve
+  // `undefined` en silencio.
+  const ref: ClientRef = { base: client as never }
+
+  const extended = client
+    .$extends(softDeleteExtension(ref))
     .$extends(auditExtension(client as never))
+
+  // Cierra la circularidad: soft-delete necesita el cliente completo para que
+  // el `update` en que convierte un `delete` pase también por la auditoría.
+  ref.extended = extended as never
+
+  return extended
 }
 
 export type ExtendedPrismaClient = ReturnType<typeof extendClient>

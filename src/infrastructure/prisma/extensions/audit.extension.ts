@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 
 import { RequestContext } from '@/shared/context/request-context'
 import { createLogger } from '@/shared/logging/root-logger'
-import { behaviourFor } from './auditable-models'
+import { behaviourFor, delegateKey } from './auditable-models'
 
 const logger = createLogger('Audit')
 
@@ -38,9 +38,14 @@ export type AuditDiff = Record<string, FieldChange>
  * salió bien, y su error se loguea sin propagarse: que se caiga la auditoría no
  * puede hacer fallar un alta que el usuario ya dio por hecha. La contrapartida
  * es que el historial puede tener huecos — quedan visibles en los logs.
+ *
+ * Sí se espera a que termine () en vez de dispararla y olvidarla: sin
+ * eso, una lectura inmediatamente posterior puede no ver todavía la fila, y en
+ * un script de vida corta el proceso puede terminar antes de que se escriba.
  */
-export function auditExtension(prisma: {
+export function auditExtension(client: {
   auditLog: { create: (args: any) => Promise<unknown> }
+  [key: string]: any
 }) {
   return Prisma.defineExtension({
     name: 'audit',
@@ -66,7 +71,7 @@ export function auditExtension(prisma: {
               any
             >
 
-            void record(prisma, model, 'CREATE', created?.id, {
+            await record(client, model, 'CREATE', created?.id, {
               diff: onlyDefined(pick(created, behaviour.excludeFromDiff)),
               direction: 'despues',
             })
@@ -76,7 +81,7 @@ export function auditExtension(prisma: {
 
           // ---------------------------------------------------------- UPDATE
           if (operation === 'update') {
-            const delegate = (this as any)[model as string]
+            const delegate = client[delegateKey(model as string)]
             const before = (await delegate.findFirst({
               where: params.where,
             })) as Record<string, any> | null
@@ -95,8 +100,8 @@ export function auditExtension(prisma: {
 
             const diff = buildDiff(before, after, behaviour.excludeFromDiff)
             if (Object.keys(diff).length > 0) {
-              void record(
-                prisma,
+              await record(
+                client,
                 model,
                 isSoftDelete ? 'DELETE' : 'UPDATE',
                 after?.id,
@@ -112,7 +117,7 @@ export function auditExtension(prisma: {
           if (operation === 'delete') {
             const deleted = (await query(args)) as Record<string, any>
 
-            void record(prisma, model, 'DELETE', deleted?.id, {
+            await record(client, model, 'DELETE', deleted?.id, {
               diff: onlyDefined(pick(deleted, behaviour.excludeFromDiff)),
               direction: 'antes',
             })

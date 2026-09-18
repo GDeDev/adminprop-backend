@@ -63,3 +63,16 @@ export function behaviourFor(model: string | undefined): ModelBehaviour {
 
 /** Sufijo con el que se marcan los valores únicos de un registro borrado. */
 export const DELETED_MARKER = '#deleted#'
+
+/**
+ * Traduce el nombre del modelo al de su delegate en el cliente.
+ *
+ * Las extensiones reciben el modelo como lo declara el schema (`User`,
+ * `AuditLog`), pero en el cliente los delegates están en camelCase
+ * (`prisma.user`, `prisma.auditLog`). Acceder con el nombre sin convertir
+ * devuelve `undefined`, y el error recién aparece una llamada después con un
+ * "Cannot read properties of undefined".
+ */
+export function delegateKey(model: string): string {
+  return model.charAt(0).toLowerCase() + model.slice(1)
+}
