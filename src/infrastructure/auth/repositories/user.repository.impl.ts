@@ -19,26 +19,26 @@ export class UserRepositoryImpl extends UserRepository {
   }
 
   async findById(id: string): Promise<User | null> {
-    const row = await this.prisma.user.findUnique({ where: { id } })
+    const row = await this.prisma.db.user.findUnique({ where: { id } })
     return row ? this.toDomain(row) : null
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const row = await this.prisma.user.findUnique({
+    const row = await this.prisma.db.user.findUnique({
       where: { email: normalizeEmail(email) },
     })
     return row ? this.toDomain(row) : null
   }
 
   async existsByEmail(email: string): Promise<boolean> {
-    const count = await this.prisma.user.count({
+    const count = await this.prisma.db.user.count({
       where: { email: normalizeEmail(email) },
     })
     return count > 0
   }
 
   async create(data: CreateUserData): Promise<User> {
-    const row = await this.prisma.user.create({
+    const row = await this.prisma.db.user.create({
       data: {
         email: normalizeEmail(data.email),
         passwordHash: data.passwordHash,
@@ -51,7 +51,7 @@ export class UserRepositoryImpl extends UserRepository {
   }
 
   async changePassword(userId: string, passwordHash: string): Promise<void> {
-    await this.prisma.user.update({
+    await this.prisma.db.user.update({
       where: { id: userId },
       data: {
         passwordHash,
@@ -63,7 +63,7 @@ export class UserRepositoryImpl extends UserRepository {
   }
 
   async rehashPassword(userId: string, passwordHash: string): Promise<void> {
-    await this.prisma.user.update({
+    await this.prisma.db.user.update({
       where: { id: userId },
       data: { passwordHash },
     })
@@ -76,7 +76,7 @@ export class UserRepositoryImpl extends UserRepository {
   ): Promise<void> {
     // El incremento va en una transacción para que dos intentos simultáneos no
     // se pisen el contador (read-modify-write).
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.db.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: userId },
         select: { failedLoginAttempts: true },
@@ -100,7 +100,7 @@ export class UserRepositoryImpl extends UserRepository {
   }
 
   async registerSuccessfulLogin(userId: string): Promise<void> {
-    await this.prisma.user.update({
+    await this.prisma.db.user.update({
       where: { id: userId },
       data: {
         failedLoginAttempts: 0,

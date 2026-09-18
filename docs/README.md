@@ -12,6 +12,7 @@ Arranque, scripts y estructura del proyecto: **[README principal](../README.md)*
 | [ERROR-HANDLING.md](ERROR-HANDLING.md)                   | Formato de errores, códigos, filtros y redacción de logs     |
 | [CONFIGURATION.md](CONFIGURATION.md)                     | Variables de entorno, config tipada y secretos               |
 | [RATE-LIMITING.md](RATE-LIMITING.md)                     | Throttling, perfiles y storage compartido                    |
+| [AUDIT-SOFT-DELETE.md](AUDIT-SOFT-DELETE.md)             | Historial de cambios y borrado lógico                        |
 | [PAGINATION.md](PAGINATION.md)                           | Cómo paginar un listado, con Prisma y en Swagger             |
 | [ENV-SECURITY-NOTICE.md](ENV-SECURITY-NOTICE.md)         | Qué hacer y qué no con los secretos                          |
 | [ADVANCED-LOGGING-SYSTEM.md](ADVANCED-LOGGING-SYSTEM.md) | Logger estructurado                                          |

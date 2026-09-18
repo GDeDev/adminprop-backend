@@ -41,13 +41,64 @@ model User {
   /// contraseña cuando `JWT_VALIDATE_USER_ON_REQUEST=true`.
   passwordChangedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  /// Soft delete. La extensión de Prisma filtra por `deletedAt: null` sola.
+  deletedAt   DateTime?
+  createdById String?   @db.VarChar(36)
+  updatedById String?   @db.VarChar(36)
+  deletedById String?   @db.VarChar(36)
 
   refreshTokens RefreshToken[]
 
   @@index([isActive])
+  @@index([deletedAt])
   @@map("users")
+}
+
+/// Historial de cambios.
+///
+/// Una fila por operación, con sólo los campos que cambiaron y sus valores
+/// antes y después. Guardar el registro entero haría crecer la tabla sin
+/// necesidad y volvería ilegible el diff.
+///
+/// El JSON de `cambios` no tiene esquema fijo a propósito: cada entidad tiene
+/// los suyos y es el front el que decide cómo mostrarlos (formato de moneda,
+/// resolver un id a su nombre, etc).
+model AuditLog {
+  id String @id @default(uuid()) @db.VarChar(36)
+
+  /// Nombre del modelo de Prisma: "User", "Propiedad", ...
+  entidad   String      @db.VarChar(64)
+  entidadId String      @db.VarChar(64)
+  accion    AuditAction
+
+  /// `{ "precio": { "antes": 120000, "despues": 135000 } }`
+  /// En un CREATE sólo lleva "despues"; en un DELETE, sólo "antes".
+  cambios Json?
+
+  /// Autor del cambio. Null si lo hizo un proceso automático (seed, cron).
+  usuarioId    String? @db.VarChar(36)
+  usuarioEmail String? @db.VarChar(255)
+
+  /// Permite cruzar el cambio con los logs de la request que lo provocó.
+  correlationId String? @db.VarChar(128)
+  ip            String? @db.VarChar(45)
+
+  creadoEn DateTime @default(now())
+
+  @@index([entidad, entidadId])
+  @@index([usuarioId])
+  @@index([creadoEn])
+  @@index([correlationId])
+  @@map("audit_logs")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RESTORE
 }
 
 /// Refresh tokens con rotación.

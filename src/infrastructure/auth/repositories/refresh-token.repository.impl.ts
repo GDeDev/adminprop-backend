@@ -14,7 +14,7 @@ export class RefreshTokenRepositoryImpl extends RefreshTokenRepository {
   }
 
   async create(data: CreateRefreshTokenData): Promise<RefreshToken> {
-    const row = await this.prisma.refreshToken.create({
+    const row = await this.prisma.db.refreshToken.create({
       data: {
         tokenHash: data.tokenHash,
         userId: data.userId,
@@ -28,7 +28,7 @@ export class RefreshTokenRepositoryImpl extends RefreshTokenRepository {
   }
 
   async findByTokenHash(tokenHash: string): Promise<RefreshToken | null> {
-    const row = await this.prisma.refreshToken.findUnique({
+    const row = await this.prisma.db.refreshToken.findUnique({
       where: { tokenHash },
     })
     return (row as RefreshToken) ?? null
@@ -38,7 +38,7 @@ export class RefreshTokenRepositoryImpl extends RefreshTokenRepository {
     currentTokenId: string,
     next: CreateRefreshTokenData,
   ): Promise<RefreshToken> {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.db.$transaction(async (tx) => {
       const created = await tx.refreshToken.create({
         data: {
           tokenHash: next.tokenHash,
@@ -68,14 +68,14 @@ export class RefreshTokenRepositoryImpl extends RefreshTokenRepository {
   }
 
   async revokeById(id: string): Promise<void> {
-    await this.prisma.refreshToken.updateMany({
+    await this.prisma.db.refreshToken.updateMany({
       where: { id, revokedAt: null },
       data: { revokedAt: new Date() },
     })
   }
 
   async revokeFamily(familyId: string): Promise<number> {
-    const result = await this.prisma.refreshToken.updateMany({
+    const result = await this.prisma.db.refreshToken.updateMany({
       where: { familyId, revokedAt: null },
       data: { revokedAt: new Date() },
     })
@@ -83,7 +83,7 @@ export class RefreshTokenRepositoryImpl extends RefreshTokenRepository {
   }
 
   async revokeAllForUser(userId: string): Promise<number> {
-    const result = await this.prisma.refreshToken.updateMany({
+    const result = await this.prisma.db.refreshToken.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     })
@@ -91,7 +91,7 @@ export class RefreshTokenRepositoryImpl extends RefreshTokenRepository {
   }
 
   async deleteExpired(before: Date): Promise<number> {
-    const result = await this.prisma.refreshToken.deleteMany({
+    const result = await this.prisma.db.refreshToken.deleteMany({
       where: {
         OR: [{ expiresAt: { lt: before } }, { revokedAt: { lt: before } }],
       },
