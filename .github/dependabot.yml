@@ -1,0 +1,40 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    target-branch: dev
+    commit-message:
+      prefix: chore
+      include: scope
+
+    groups:
+      # Todo el stack de Nest sube junto: sus paquetes tienen peer dependencies
+      # cruzadas y actualizar uno solo rompe la resolución.
+      nestjs:
+        patterns: ['@nestjs/*']
+      prisma:
+        patterns: ['prisma', '@prisma/*']
+      # Las de desarrollo agrupadas en un solo PR: son ruido individualmente.
+      dev-dependencies:
+        dependency-type: development
+        update-types: ['minor', 'patch']
+
+    ignore:
+      # Las majors se evalúan a mano. Ver docs/adr/0001 para el caso de Nest 12:
+      # un salto de major puede traer un cambio de formato de módulo que rompe
+      # los tests, y eso no se decide en un PR automático.
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: monthly
+    target-branch: dev
+    commit-message:
+      prefix: chore

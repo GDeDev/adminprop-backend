@@ -44,6 +44,23 @@ jobs:
       - name: Tipos
         run: npx tsc --noEmit
 
+  security:
+    name: Vulnerabilidades en dependencias
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: npm audit
+        # Sólo alta y crítica: en `moderate` el ruido de dependencias
+        # transitivas hace que el equipo aprenda a ignorar el job, que es peor
+        # que no tenerlo.
+        run: npm audit --audit-level=high
+
   test:
     name: Tests
     runs-on: ubuntu-latest

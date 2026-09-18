@@ -4,7 +4,7 @@ import { Request, Response } from 'express'
 
 import { AppException } from '../../errors/app.exception'
 import { createLogger } from '@/shared/logging/root-logger'
-import { getCorrelationId } from '../middleware/correlation-id.middleware'
+import { getCorrelationId } from '../../context/request-context.middleware'
 
 /**
  * Guard de rate limiting.

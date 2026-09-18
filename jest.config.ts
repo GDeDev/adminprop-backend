@@ -17,6 +17,19 @@ const config: Config = {
     '!main.ts',
   ],
   coverageDirectory: '../coverage',
+
+  // Umbral bajo a propósito: es un piso para que la cobertura no caiga sin que
+  // nadie se entere, no una meta. Subilo a medida que crezca el dominio; poner
+  // un número alto de entrada sólo lleva a escribir tests de relleno.
+  coverageThreshold: {
+    global: {
+      statements: 28,
+      branches: 20,
+      functions: 20,
+      lines: 28,
+    },
+  },
+
   testEnvironment: 'node',
 
   verbose: true,
