@@ -21,7 +21,7 @@ import { getCorrelationId } from '../middleware/correlation-id.middleware'
 export class AppThrottlerGuard extends ThrottlerGuard {
   private readonly logger = new CustomLoggerService('Throttler')
 
-  protected async getTracker(req: Request): Promise<string> {
+  protected override async getTracker(req: Request): Promise<string> {
     // `req.user` lo completa JwtAuthGuard, que corre *después* de este guard,
     // así que sólo está disponible en el segundo request de una sesión en
     // adelante si algún otro middleware lo resolvió antes. Mientras no esté,
@@ -35,7 +35,7 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     return `ip:${forwarded ?? req.ip ?? 'unknown'}`
   }
 
-  protected async throwThrottlingException(
+  protected override async throwThrottlingException(
     context: ExecutionContext,
     detail: ThrottlerLimitDetail,
   ): Promise<void> {

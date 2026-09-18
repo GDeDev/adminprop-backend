@@ -13,11 +13,17 @@
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
-    "strictNullChecks": false,
-    "noImplicitAny": false,
-    "strictBindCallApply": false,
-    "forceConsistentCasingInFileNames": false,
-    "noFallthroughCasesInSwitch": false,
+    "strict": true,
+    // Los decoradores de NestJS y los DTOs de class-validator declaran
+    // propiedades que asigna el framework, no el constructor. Con
+    // strictPropertyInitialization habría que marcar todas con `!`, que es ruido
+    // sin valor: quien las completa es el ValidationPipe.
+    "strictPropertyInitialization": false,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
     "paths": {
       "@/*": ["./src/*"]
     }

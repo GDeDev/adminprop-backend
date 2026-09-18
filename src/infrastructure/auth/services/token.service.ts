@@ -48,7 +48,7 @@ export class TokenService {
     private readonly jwtService: JwtService,
     configService: ConfigService<Configuration, true>,
   ) {
-    this.config = configService.get<JwtConfig>('jwt', { infer: true })
+    this.config = configService.get('jwt', { infer: true })
   }
 
   async signAccessToken(user: User): Promise<SignedAccessToken> {

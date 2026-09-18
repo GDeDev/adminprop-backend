@@ -1,7 +1,10 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 import { ConfigService } from '@nestjs/config'
 
-import { isLocked, toPublicUser } from '@/domain/auth/entities/user.entity'
+import {
+  activeLockUntil,
+  toPublicUser,
+} from '@/domain/auth/entities/user.entity'
 import { AuthErrors } from '@/domain/auth/exceptions/auth.exceptions'
 import { UserRepository } from '@/domain/auth/repositories/user.repository'
 import { AuthTokenIssuer } from '@/infrastructure/auth/services/auth-token-issuer.service'
@@ -22,7 +25,7 @@ export class LoginHandler implements ICommandHandler<LoginCommand, AuthResult> {
     private readonly tokenIssuer: AuthTokenIssuer,
     configService: ConfigService<Configuration, true>,
   ) {
-    this.lockConfig = configService.get<AccountLockConfig>('accountLock', {
+    this.lockConfig = configService.get('accountLock', {
       infer: true,
     })
   }
@@ -41,13 +44,14 @@ export class LoginHandler implements ICommandHandler<LoginCommand, AuthResult> {
       throw AuthErrors.invalidCredentials({ reason: 'unknown_email' })
     }
 
-    if (isLocked(user)) {
+    const lockedUntil = activeLockUntil(user)
+    if (lockedUntil) {
       this.logger.warn('Login rechazado: cuenta bloqueada', {
         operation: 'auth_login_failed',
         reason: 'account_locked',
         userId: user.id,
       })
-      throw AuthErrors.accountLocked(user.lockedUntil)
+      throw AuthErrors.accountLocked(lockedUntil)
     }
 
     const passwordMatches = await this.passwordService.compare(

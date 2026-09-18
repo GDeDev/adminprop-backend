@@ -12,6 +12,7 @@ import { firstValueFrom, Observable } from 'rxjs'
 
 import { InterceptorsHandler } from './interceptors/interceptors-handler'
 import { CustomLoggerService } from '../core/logger.service'
+import { errorMessage, errorStack } from '../core/error-message'
 import { AppException } from '../errors/app.exception'
 import { ErrorCode } from '../errors/error-codes'
 
@@ -53,8 +54,8 @@ export abstract class ApiService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         `No se pudo inicializar el cliente "${this.apiName}"`,
-        error instanceof Error ? error.stack : undefined,
-        { errorMessage: error?.message },
+        errorStack(error),
+        { errorMessage: errorMessage(error) },
       )
       throw error
     }

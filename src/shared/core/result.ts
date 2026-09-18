@@ -38,8 +38,13 @@ export class Result<T, E = undefined> {
     return this.error as E
   }
 
-  public static ok<U>(value?: U): Result<U, undefined> {
-    return new Result<U, undefined>(true, undefined, value)
+  /**
+   * El tipo de error queda abierto (`E`) aunque un `ok` no lleve error: si
+   * estuviera fijo en `undefined`, un `Result.ok()` no sería asignable a una
+   * función que declara devolver `Result<T, MiError>`, que es el caso normal.
+   */
+  public static ok<U, E = undefined>(value?: U): Result<U, E> {
+    return new Result<U, E>(true, undefined, value)
   }
 
   public static fail<U>(error: U): Result<undefined, U> {

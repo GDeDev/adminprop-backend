@@ -33,7 +33,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly userRepository: UserRepository,
     configService: ConfigService<Configuration, true>,
   ) {
-    this.jwtConfig = configService.get<JwtConfig>('jwt', { infer: true })
+    this.jwtConfig = configService.get('jwt', { infer: true })
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

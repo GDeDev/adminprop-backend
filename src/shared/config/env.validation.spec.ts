@@ -70,18 +70,11 @@ describe('validateEnv', () => {
   })
 
   it('junta todos los errores en un solo mensaje', () => {
-    const error = (() => {
-      try {
-        validateEnv({ NODE_ENV: 'development' })
-        return null
-      } catch (e) {
-        return e as Error
-      }
-    })()
-
-    expect(error).not.toBeNull()
-    expect(error.message).toContain('DATABASE_URL')
-    expect(error.message).toContain('JWT_ACCESS_SECRET')
-    expect(error.message).toContain('JWT_REFRESH_SECRET')
+    // No alcanza con que falle: tiene que reportar las TRES variables faltantes
+    // de una, no la primera y listo. Si no, arreglás una, volvés a correr y
+    // aparece la siguiente.
+    expect(() => validateEnv({ NODE_ENV: 'development' })).toThrow(
+      /DATABASE_URL[\s\S]*JWT_ACCESS_SECRET[\s\S]*JWT_REFRESH_SECRET/,
+    )
   })
 })

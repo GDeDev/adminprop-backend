@@ -48,7 +48,18 @@ export function toPublicUser(user: User): PublicUser {
   }
 }
 
-/** ¿La cuenta está bloqueada por intentos fallidos en este momento? */
-export function isLocked(user: User, now: Date = new Date()): boolean {
+/**
+ * Devuelve hasta cuándo está bloqueada la cuenta, o `null` si no lo está.
+ *
+ * Devuelve la fecha y no un booleano a propósito: quien pregunta casi siempre
+ * necesita después mostrarle al usuario hasta cuándo dura el bloqueo, y con un
+ * `boolean` TypeScript no puede saber que `user.lockedUntil` ya no es null.
+ */
+export function activeLockUntil(
+  user: User,
+  now: Date = new Date(),
+): Date | null {
   return user.lockedUntil !== null && user.lockedUntil > now
+    ? user.lockedUntil
+    : null
 }

@@ -3,8 +3,16 @@ import { ThrottleAuth } from './throttle-auth.decorator'
 const THROTTLER_TTL = 'THROTTLER:TTL'
 const THROTTLER_LIMIT = 'THROTTLER:LIMIT'
 
-/** Aplica @ThrottleAuth() a un método y devuelve la metadata resultante. */
-function decorate() {
+type ThrottleDecorator = () => MethodDecorator & ClassDecorator
+
+/**
+ * Aplica un decorador a un método de prueba y devuelve un lector de su
+ * metadata.
+ *
+ * Recibe el decorador por parámetro para poder probar una copia recién
+ * importada del módulo (ver el test de resolución diferida).
+ */
+function decorateWith(decorator: ThrottleDecorator) {
   class Controller {
     handler() {}
   }
@@ -14,12 +22,16 @@ function decorate() {
     'handler',
   )
 
-  ThrottleAuth()(Controller.prototype, 'handler', descriptor)
+  if (!descriptor) {
+    throw new Error('No se pudo obtener el descriptor del método de prueba')
+  }
 
-  const read = (key: string, profile: string) =>
-    Reflect.getMetadata(key + profile, descriptor.value)
+  decorator()(Controller.prototype, 'handler', descriptor)
 
-  return { read }
+  return {
+    read: (key: string, profile: string) =>
+      Reflect.getMetadata(key + profile, descriptor.value),
+  }
 }
 
 describe('ThrottleAuth', () => {
@@ -33,7 +45,7 @@ describe('ThrottleAuth', () => {
   })
 
   it('sobrescribe los tres perfiles globales', () => {
-    const { read } = decorate()
+    const { read } = decorateWith(ThrottleAuth)
 
     // Si sólo pisara uno, un atacante podría operar bajo la ventana más
     // permisiva de los otros dos.
@@ -44,7 +56,7 @@ describe('ThrottleAuth', () => {
   })
 
   it('registra resolvers y no valores fijos', () => {
-    const { read } = decorate()
+    const { read } = decorateWith(ThrottleAuth)
 
     // Esto es lo importante: si fueran números, se habrían congelado al
     // importar el módulo, antes de que ConfigModule cargue el .env.
@@ -58,24 +70,12 @@ describe('ThrottleAuth', () => {
 
     // Se importa con la variable ausente: un decorador ansioso quedaría en 10.
     const { ThrottleAuth: Fresh } = await import('./throttle-auth.decorator')
-
-    class Controller {
-      handler() {}
-    }
-    const descriptor = Object.getOwnPropertyDescriptor(
-      Controller.prototype,
-      'handler',
-    )
-    Fresh()(Controller.prototype, 'handler', descriptor)
+    const { read } = decorateWith(Fresh)
 
     // El .env se carga recién ahora, después de importar el módulo.
     process.env.THROTTLE_AUTH_LIMIT = '3'
 
-    const limit = Reflect.getMetadata(
-      THROTTLER_LIMIT + 'short',
-      descriptor.value,
-    )
-    expect(limit()).toBe(3)
+    expect(read(THROTTLER_LIMIT, 'short')()).toBe(3)
   })
 
   it('usa los defaults si la variable falta o es inválida', async () => {
@@ -84,23 +84,9 @@ describe('ThrottleAuth', () => {
     delete process.env.THROTTLE_AUTH_LIMIT
 
     const { ThrottleAuth: Fresh } = await import('./throttle-auth.decorator')
+    const { read } = decorateWith(Fresh)
 
-    class Controller {
-      handler() {}
-    }
-    const descriptor = Object.getOwnPropertyDescriptor(
-      Controller.prototype,
-      'handler',
-    )
-    Fresh()(Controller.prototype, 'handler', descriptor)
-
-    const ttl = Reflect.getMetadata(THROTTLER_TTL + 'short', descriptor.value)
-    const limit = Reflect.getMetadata(
-      THROTTLER_LIMIT + 'short',
-      descriptor.value,
-    )
-
-    expect(ttl()).toBe(900_000) // 15 minutos en ms
-    expect(limit()).toBe(10)
+    expect(read(THROTTLER_TTL, 'short')()).toBe(900_000) // 15 minutos en ms
+    expect(read(THROTTLER_LIMIT, 'short')()).toBe(10)
   })
 })

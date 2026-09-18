@@ -69,8 +69,8 @@ export class RefreshTokenHandler implements ICommandHandler<
           userId: stored.userId,
           familyId: stored.familyId,
           revokedTokens: revokedCount,
-          ip: command.context.ip,
-          userAgent: command.context.userAgent,
+          ip: command.context.ip ?? undefined,
+          userAgent: command.context.userAgent ?? undefined,
         },
       )
 

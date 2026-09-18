@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import * as bcrypt from 'bcryptjs'
 
-import { Configuration, JwtConfig } from '@/shared/config/configuration'
+import { Configuration } from '@/shared/config/configuration'
 
 /**
  * Límite de bcrypt: ignora todo lo que pase de 72 bytes. Lo cortamos explícito
@@ -26,7 +26,7 @@ export class PasswordService implements OnModuleInit {
   constructor(
     private readonly configService: ConfigService<Configuration, true>,
   ) {
-    const jwt = this.configService.get<JwtConfig>('jwt', { infer: true })
+    const jwt = this.configService.get('jwt', { infer: true })
     this.saltRounds = jwt.bcryptSaltRounds
   }
 

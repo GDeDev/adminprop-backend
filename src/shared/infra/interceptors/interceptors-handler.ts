@@ -76,10 +76,12 @@ export class InterceptorsHandler {
   }
 
   private getServiceConfig(serviceName: string): ServiceInterceptorsConfig {
-    if (!this.serviceConfigurations.has(serviceName)) {
-      this.initializeForService(serviceName)
-    }
-    return this.serviceConfigurations.get(serviceName)
+    const existing = this.serviceConfigurations.get(serviceName)
+    if (existing) return existing
+
+    this.initializeForService(serviceName)
+    // `initializeForService` acaba de crearla, así que siempre está.
+    return this.serviceConfigurations.get(serviceName)!
   }
 
   private setEnabled(

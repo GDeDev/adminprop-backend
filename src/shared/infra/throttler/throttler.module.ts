@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { ThrottlerModule } from '@nestjs/throttler'
 
-import { Configuration, ThrottleConfig } from '../../config/configuration'
+import { Configuration } from '../../config/configuration'
 
 /**
  * Rate limiting global.
@@ -33,7 +33,7 @@ import { Configuration, ThrottleConfig } from '../../config/configuration'
  *
  * ```ts
  * useFactory: (configService: ConfigService<Configuration, true>) => {
- *   const throttle = configService.get<ThrottleConfig>('throttle', { infer: true })
+ *   const throttle = configService.get('throttle', { infer: true })
  *   return {
  *     throttlers: throttle.profiles,
  *     storage: new ThrottlerStorageRedisService(process.env.REDIS_URL),
@@ -48,7 +48,7 @@ import { Configuration, ThrottleConfig } from '../../config/configuration'
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService<Configuration, true>) => {
-        const throttle = configService.get<ThrottleConfig>('throttle', {
+        const throttle = configService.get('throttle', {
           infer: true,
         })
 

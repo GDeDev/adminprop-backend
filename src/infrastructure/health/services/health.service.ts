@@ -6,6 +6,7 @@ import {
   HealthCheckResult,
 } from '@nestjs/terminus'
 import { PrismaService } from '../../prisma/prisma.service'
+import { errorMessage } from '@/shared/core/error-message'
 
 export interface DatabaseHealthIndicator {
   isHealthy(key: string): Promise<{ [key: string]: any }>
@@ -43,7 +44,7 @@ export class CustomHealthService {
           return {
             database: {
               status: 'down',
-              message: `Database connection failed: ${error.message}`,
+              message: `Database connection failed: ${errorMessage(error)}`,
             },
           }
         }
@@ -70,7 +71,7 @@ export class CustomHealthService {
           return {
             database: {
               status: 'down',
-              message: `Database connection failed: ${error.message}`,
+              message: `Database connection failed: ${errorMessage(error)}`,
             },
           }
         }

@@ -28,8 +28,8 @@ export function configureApp(app: NestExpressApplication): AppConfig {
   const logger = new CustomLoggerService('Bootstrap')
   const configService =
     app.get<ConfigService<Configuration, true>>(ConfigService)
-  const appConfig = configService.get<AppConfig>('app', { infer: true })
-  const corsConfig = configService.get<CorsConfig>('cors', { infer: true })
+  const appConfig = configService.get('app', { infer: true })
+  const corsConfig = configService.get('cors', { infer: true })
 
   configureSecurity(app, appConfig, corsConfig, logger)
   configureRequestHandling(app, appConfig)

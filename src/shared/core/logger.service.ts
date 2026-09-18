@@ -41,7 +41,8 @@ export class CustomLoggerService implements LoggerService {
   }
 
   /**
-   * Log levels: error, warn, info, debug, verbose
+   * Niveles, de menos a más verboso. Un mensaje se emite si su nivel es menor o
+   * igual al configurado en `LOG_LEVEL`.
    */
   private static readonly LOG_LEVELS = {
     error: 0,
@@ -49,13 +50,21 @@ export class CustomLoggerService implements LoggerService {
     info: 2,
     debug: 3,
     verbose: 4,
+  } as const
+
+  private static readonly DEFAULT_LEVEL = 2
+
+  /** Resuelve un nivel arbitrario; `LOG_LEVEL` viene del entorno sin validar. */
+  private static levelValue(level: string): number {
+    const levels: Record<string, number> = CustomLoggerService.LOG_LEVELS
+    return levels[level] ?? CustomLoggerService.DEFAULT_LEVEL
   }
 
   private shouldLog(level: string): boolean {
-    const currentLevel =
-      CustomLoggerService.LOG_LEVELS[CustomLoggerService.logLevel] || 2
-    const messageLevel = CustomLoggerService.LOG_LEVELS[level] || 2
-    return messageLevel <= currentLevel
+    return (
+      CustomLoggerService.levelValue(level) <=
+      CustomLoggerService.levelValue(CustomLoggerService.logLevel)
+    )
   }
 
   private formatLog(

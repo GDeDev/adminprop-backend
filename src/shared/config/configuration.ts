@@ -79,6 +79,25 @@ const bool = (value: string | undefined, fallback: boolean): boolean =>
 const str = (value: string | undefined, fallback: string): string =>
   value === undefined || value === '' ? fallback : value
 
+/**
+ * Para las variables sin default, que `env.validation.ts` ya declaró
+ * obligatorias.
+ *
+ * El chequeo es redundante en el camino feliz, y ese es el punto: si alguien
+ * agrega una variable obligatoria acá y se olvida de declararla en la
+ * validación, falla al arrancar con un mensaje claro en vez de propagar un
+ * `undefined` que termina siendo un JWT firmado con secreto vacío.
+ */
+const required = (value: string | undefined, name: string): string => {
+  if (value === undefined || value === '') {
+    throw new Error(
+      `${name} es obligatoria pero no está definida. ` +
+        `Si es nueva, agregala también a EnvironmentVariables en env.validation.ts.`,
+    )
+  }
+  return value
+}
+
 function parseCorsOrigins(raw: string | undefined): string[] | boolean {
   if (!raw || raw.trim() === '') return false
   if (raw.trim() === '*') return true
@@ -112,16 +131,22 @@ export function configuration(): Configuration {
       trustProxy: bool(process.env.TRUST_PROXY, isProduction),
     },
     database: {
-      url: process.env.DATABASE_URL,
+      url: required(process.env.DATABASE_URL, 'DATABASE_URL'),
     },
     jwt: {
-      accessSecret: process.env.JWT_ACCESS_SECRET,
+      accessSecret: required(
+        process.env.JWT_ACCESS_SECRET,
+        'JWT_ACCESS_SECRET',
+      ),
       // El cast es seguro: `env.validation.ts` ya verificó contra
       // DURATION_PATTERN que el valor tenga un formato que `ms` entienda.
       // TypeScript no puede deducirlo de una env var, pero el runtime sí lo
       // garantizó antes de llegar hasta acá.
       accessTtl: str(process.env.JWT_ACCESS_TTL, '15m') as StringValue,
-      refreshSecret: process.env.JWT_REFRESH_SECRET,
+      refreshSecret: required(
+        process.env.JWT_REFRESH_SECRET,
+        'JWT_REFRESH_SECRET',
+      ),
       refreshTtl: str(process.env.JWT_REFRESH_TTL, '7d') as StringValue,
       issuer: str(process.env.JWT_ISSUER, str(process.env.APP_NAME, 'api')),
       audience: str(
