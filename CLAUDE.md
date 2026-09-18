@@ -81,6 +81,9 @@ Para `propiedades`:
 6. `src/infrastructure/propiedades/http/controllers/` y `http/dtos/`.
 7. `src/infrastructure/propiedades/modules/propiedades.module.ts`.
 8. Registrar el módulo en `src/app.module.ts`.
+9. Si la entidad necesita historial de cambios o borrado lógico, declararla en
+   `src/infrastructure/prisma/extensions/auditable-models.ts`. Es opt-in: sin
+   eso no pasa nada.
 
 El controller queda protegido automáticamente: `JwtAuthGuard` es guard global.
 
@@ -128,6 +131,13 @@ Detalle completo en [docs/ERROR-HANDLING.md](docs/ERROR-HANDLING.md).
 - Alias `@/` para importar desde `src/`.
 - Los listados se paginan con `@/shared/pagination`, siempre con `orderBy`
   explícito. Ver [docs/PAGINATION.md](docs/PAGINATION.md).
+- Los repositorios usan **`prisma.db`**, no `prisma` a secas: el primero lleva
+  las extensiones de soft delete y auditoría. Ver
+  [docs/AUDIT-SOFT-DELETE.md](docs/AUDIT-SOFT-DELETE.md).
+- Para loguear: `createLogger('MiClase')` de `@/shared/logging/root-logger`.
+  **pino recibe primero el objeto y después el mensaje**, al revés que Nest:
+  `logger.info({ userId }, 'Login exitoso')`. El `correlationId` y el `userId`
+  se agregan solos desde el `RequestContext`; no hace falta pasarlos.
 
 ### Comentarios
 
@@ -157,8 +167,11 @@ Cosas que están así a propósito y conviene no "simplificar":
   bcrypt descartable para igualar los tiempos.
 - **Los refresh tokens rotan y se guarda su hash.** Reusar uno ya rotado revoca
   toda la familia.
-- **Nada sensible en los logs.** Todo lo que se loguea pasa por `redact()`.
+- **Nada sensible en los logs.** pino redacta por rutas declaradas en
+  `root-logger.ts`. Si agregás un campo sensible con un nombre nuevo, sumalo ahí.
 - **CORS cerrado si no hay `CORS_ORIGINS`.** No lo abras con `*` "para probar".
+- **El `passwordHash` nunca entra al historial de auditoría.** Guardar su "antes
+  y después" sería filtrar material para crackear offline.
 
 ## Git
 
