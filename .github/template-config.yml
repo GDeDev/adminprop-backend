@@ -1,0 +1,35 @@
+# Vulcan NestJS API Template Configuration
+
+name: 'Vulcan - NestJS Hexagonal Architecture API Template'
+description: 'Enterprise-grade NestJS API template with hexagonal architecture, CQRS, Prisma ORM, MariaDB, AWS Secrets Manager, Result pattern, and comprehensive DevOps setup - by Grupo Centaurus'
+template_folder: '.github'
+
+# Template variables that will be replaced when using the template
+template_variables:
+  - name: 'PROJECT_NAME'
+    description: 'Name of your new API project'
+    default: 'my-api'
+
+  - name: 'PROJECT_DESCRIPTION'
+    description: 'Description of your API project'
+    default: 'API built with NestJS hexagonal architecture template'
+
+  - name: 'AUTHOR_NAME'
+    description: 'Author name'
+    default: 'Your Name'
+
+  - name: 'AUTHOR_EMAIL'
+    description: 'Author email'
+    default: 'your.email@example.com'
+
+  - name: 'GITHUB_USERNAME'
+    description: 'Your GitHub username'
+    default: 'your-username'
+
+# Files to be processed for template variable replacement
+template_files:
+  - 'package.json'
+  - 'README.md'
+  - '.env.example'
+  - 'docker-compose.yml'
+  - 'docs/*.md'

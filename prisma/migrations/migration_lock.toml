@@ -1,0 +1,2 @@
+# Este archivo lo administra Prisma. Editalo sólo si cambiás de motor de base.
+provider = "mysql"

@@ -1,0 +1,35 @@
+# Versionado y metadata
+.git
+.github
+.gitignore
+.dockerignore
+.husky
+
+# Dependencias y artefactos de build
+dist
+node_modules
+coverage
+*.tsbuildinfo
+
+# Entorno: NUNCA horneado en la imagen. Los secretos se inyectan en runtime.
+.env
+.env.*
+!.env.example
+
+# No hacen falta en producción
+.editorconfig
+.eslintrc.js
+.prettierrc
+.prettierignore
+.vscode
+Dockerfile
+Dockerfile.dev
+docker-compose.yml
+README.md
+nodemon.json
+jest.config.ts
+lint-staged.config.js
+test
+docs
+scripts
+*.md

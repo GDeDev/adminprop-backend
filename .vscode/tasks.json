@@ -1,0 +1,327 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build Application",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "build"],
+      "group": "build",
+      "problemMatcher": ["$tsc"],
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Start Development Server",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start:dev"],
+      "group": "build",
+      "problemMatcher": ["$tsc"],
+      "isBackground": true,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "options": {
+        "env": {
+          "NODE_ENV": "development"
+        }
+      }
+    },
+    {
+      "label": "Start Debug Server",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start:debug"],
+      "group": "build",
+      "problemMatcher": ["$tsc"],
+      "isBackground": true,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "options": {
+        "env": {
+          "NODE_ENV": "development"
+        }
+      }
+    },
+    {
+      "label": "Start QA Server",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start:prod"],
+      "group": "build",
+      "problemMatcher": [],
+      "isBackground": true,
+      "dependsOn": "Build Application",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "options": {
+        "env": {
+          "NODE_ENV": "qa"
+        }
+      }
+    },
+    {
+      "label": "Start Production Server",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start:prod"],
+      "group": "build",
+      "problemMatcher": [],
+      "isBackground": true,
+      "dependsOn": "Build Application",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "options": {
+        "env": {
+          "NODE_ENV": "production"
+        }
+      }
+    },
+    {
+      "label": "Run Unit Tests",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "test"],
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": true
+      }
+    },
+    {
+      "label": "Run Tests with Coverage",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "test:cov"],
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": true
+      }
+    },
+    {
+      "label": "Run Tests in Watch Mode",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "test:watch"],
+      "group": "test",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": true
+      }
+    },
+    {
+      "label": "Run E2E Tests",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "test:e2e"],
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": true
+      }
+    },
+    {
+      "label": "Generate Test Coverage Report",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "test:cov"],
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": true
+      }
+    },
+    {
+      "label": "Open Coverage Report",
+      "type": "shell",
+      "command": "code",
+      "args": ["coverage/lcov-report/index.html"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      }
+    },
+    {
+      "label": "Docker: Start Development",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "docker:dev"],
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Docker: Start Production",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "docker:prod"],
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Docker: Stop Services",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "docker:down"],
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Prisma: Generate Client",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "prisma:generate"],
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Prisma: Run Migrations",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "prisma:migrate"],
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "🚀 Watch Mode - API Development",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "start:dev"],
+      "group": "build",
+      "problemMatcher": ["$tsc"],
+      "isBackground": true,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "options": {
+        "env": {
+          "NODE_ENV": "development"
+        }
+      },
+      "detail": "Inicia la API en modo watch para desarrollo continuo. Los cambios en el código se recargan automáticamente."
+    },
+    {
+      "label": "Prisma: Open Studio",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "prisma:studio"],
+      "group": "build",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    }
+  ]
+}

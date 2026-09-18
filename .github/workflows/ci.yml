@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Valores descartables sólo para que pase la validación de entorno.
+  # Los secretos reales nunca van en el workflow.
+  NODE_ENV: test
+  DATABASE_URL: mysql://api_user:api_password@127.0.0.1:3306/api_test
+  JWT_ACCESS_SECRET: ci-access-secret-descartable-de-al-menos-32-caracteres
+  JWT_REFRESH_SECRET: ci-refresh-secret-descartable-de-al-menos-32-caracteres
+  BCRYPT_SALT_ROUNDS: '10'
+  THROTTLE_ENABLED: 'false'
+
+jobs:
+  quality:
+    name: Formato, lint y tipos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma generate
+
+      - name: Formato
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint:check
+
+      - name: Tipos
+        run: npx tsc --noEmit
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.2
+        env:
+          MARIADB_ROOT_PASSWORD: root_password
+          MARIADB_DATABASE: api_test
+          MARIADB_USER: api_user
+          MARIADB_PASSWORD: api_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma generate
+
+      - name: Aplicar migraciones
+        run: npx prisma migrate deploy
+
+      - name: Tests unitarios
+        run: npm run test:unit -- --coverage
+
+      - name: Tests e2e
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [quality]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma generate
+      - run: npm run build
+
+      - name: Build de la imagen Docker
+        run: docker build -t api:${{ github.sha }} .

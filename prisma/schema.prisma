@@ -1,0 +1,83 @@
+// Prisma schema
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// Roles de la aplicación.
+///
+/// El modelo es de un rol por usuario, que cubre la mayoría de los casos y se
+/// chequea sin joins. Si algún día necesitás varios roles por usuario,
+/// reemplazá el campo `User.role` por una tabla intermedia `UserRole`: lo único
+/// que hay que tocar además es `UserRepositoryImpl.toDomain()`.
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String  @id @default(uuid()) @db.VarChar(36)
+  email        String  @unique @db.VarChar(255)
+  /// Hash bcrypt. La contraseña en texto plano nunca toca la base ni los logs.
+  passwordHash String  @db.VarChar(255)
+  firstName    String? @db.VarChar(100)
+  lastName     String? @db.VarChar(100)
+  role         Role    @default(USER)
+  isActive     Boolean @default(true)
+
+  /// Bloqueo temporal por intentos fallidos, para frenar fuerza bruta contra
+  /// una cuenta puntual (el rate limit por IP no alcanza si el atacante rota IPs).
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  lastLoginAt       DateTime?
+  /// Permite invalidar los access tokens emitidos antes de un cambio de
+  /// contraseña cuando `JWT_VALIDATE_USER_ON_REQUEST=true`.
+  passwordChangedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  refreshTokens RefreshToken[]
+
+  @@index([isActive])
+  @@map("users")
+}
+
+/// Refresh tokens con rotación.
+///
+/// Guardamos el SHA-256 del token, no el token: si se filtra la base, los
+/// refresh tokens no son usables. Cada refresh rota el token actual y encadena
+/// el nuevo por `familyId`; si alguien reusa un token ya rotado, se revoca toda
+/// la familia (señal de robo de token).
+model RefreshToken {
+  id        String @id @default(uuid()) @db.VarChar(36)
+  tokenHash String @unique @db.VarChar(64)
+
+  userId String @db.VarChar(36)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Agrupa toda la cadena de rotaciones que nació en un mismo login.
+  familyId String @db.VarChar(36)
+
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  /// Id del token que lo reemplazó al rotar. Sirve para auditar la cadena.
+  replacedById String?   @db.VarChar(36)
+
+  userAgent String? @db.VarChar(255)
+  ip        String? @db.VarChar(45)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}

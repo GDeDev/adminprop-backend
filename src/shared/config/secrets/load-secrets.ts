@@ -1,0 +1,65 @@
+import * as dotenv from 'dotenv'
+
+import { EnvSecretsLoader } from './env-secrets.loader'
+import { SecretsLoader } from './secrets-loader.interface'
+
+/** Mismos archivos que levanta `ConfigModule`, en el mismo orden de prioridad. */
+const ENV_FILES = ['.env.local', '.env']
+
+/**
+ * Registro de proveedores de secretos disponibles.
+ *
+ * Para enchufar uno externo:
+ *   1. Implementá `SecretsLoader` en este directorio.
+ *   2. Sumalo acá con su clave.
+ *   3. Agregá la clave al enum `SecretsProvider` de `env.validation.ts`.
+ *   4. Levantá la app con `SECRETS_PROVIDER=<clave>`.
+ */
+const LOADERS: Record<string, () => SecretsLoader> = {
+  env: () => new EnvSecretsLoader(),
+}
+
+/**
+ * Hidrata `process.env` con los secretos del proveedor configurado.
+ *
+ * Se llama en `main.ts` **antes** de `NestFactory.create()`, así los valores ya
+ * están disponibles cuando corre la validación de entorno.
+ *
+ * Los valores que ya existen en `process.env` no se pisan: un override local
+ * siempre gana sobre lo que traiga el proveedor.
+ */
+export async function loadSecrets(): Promise<void> {
+  // Los archivos .env se cargan acá y no sólo en ConfigModule porque esta
+  // función corre antes de instanciar Nest y necesita ver SECRETS_PROVIDER.
+  // `override: false` deja que las variables reales del entorno (docker, k8s,
+  // CI) le ganen siempre al archivo. ConfigModule los vuelve a leer después:
+  // es idempotente.
+  dotenv.config({ path: ENV_FILES, override: false, quiet: true })
+
+  const providerKey = process.env.SECRETS_PROVIDER ?? 'env'
+  const factory = LOADERS[providerKey]
+
+  if (!factory) {
+    throw new Error(
+      `SECRETS_PROVIDER="${providerKey}" desconocido. Disponibles: ${Object.keys(LOADERS).join(', ')}`,
+    )
+  }
+
+  const loader = factory()
+  const secrets = await loader.load()
+  let applied = 0
+
+  for (const [key, value] of Object.entries(secrets)) {
+    if (process.env[key] === undefined && value !== undefined) {
+      process.env[key] = value
+      applied++
+    }
+  }
+
+  if (applied > 0) {
+    // Sólo las claves, nunca los valores.
+    console.log(
+      `[secrets] ${applied} variable(s) cargadas desde el proveedor "${loader.name}"`,
+    )
+  }
+}

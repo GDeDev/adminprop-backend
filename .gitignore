@@ -1,0 +1,85 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment variables
+# Note: Template .env files are included for reference
+# Create .env.local for your real local configuration
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.staging.local
+
+# Personal/real environment files (add your real .env files here)
+# .env.personal
+# .env.real
+
+# Logs
+logs/
+*.log
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# IDE
+# .vscode/settings.json  # Commented out - we want to include VS Code config in template
+# Note: VS Code configuration is included in this template to help developers
+# If you want to customize personal settings, use workspace-specific config
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Prisma
+/generated/prisma
+
+# AWS
+.aws/
+
+# Docker
+.docker/
+
+# Temporary files
+*.tmp
+*.temp

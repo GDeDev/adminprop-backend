@@ -1,0 +1,32 @@
+# Normaliza los finales de línea.
+#
+# Sin esto, cada quien commitea con los finales de su sistema y terminás con
+# diffs de archivos enteros que no cambiaron. `eol=lf` fuerza LF también en el
+# working tree de Windows, que es lo que esperan Docker (alpine), los hooks de
+# git y el CI en Ubuntu.
+* text=auto eol=lf
+
+# Scripts de Windows: tienen que quedar con CRLF o cmd.exe no los interpreta.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Scripts de shell: LF siempre, incluso en Windows.
+*.sh text eol=lf
+
+# Binarios: que git no los toque.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+
+# Archivos generados: se colapsan en los diffs de GitHub y no cuentan para las
+# estadísticas de lenguaje del repo.
+package-lock.json linguist-generated=true -diff

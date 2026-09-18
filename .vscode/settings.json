@@ -1,0 +1,45 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "typescript.preferences.importModuleSpecifierEnding": "minimal",
+  "typescript.suggest.autoImports": true,
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "eslint.validate": [
+    "javascript",
+    "typescript"
+  ],
+  "jest.jestCommandLine": "npm run test --",
+  "jest.runMode": "on-demand",
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/coverage": true,
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/coverage": true,
+    "**/.git": true
+  },
+  "debug.console.fontSize": 14,
+  "debug.console.lineHeight": 20,
+  "debug.openDebug": "openOnDebugBreak",
+  "debug.inlineValues": "on",
+  "debug.showBreakpointsInOverviewRuler": true
+}

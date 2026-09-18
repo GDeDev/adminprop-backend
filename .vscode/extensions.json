@@ -1,0 +1,19 @@
+{
+  "recommendations": [
+    "ms-vscode.vscode-typescript-next",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-eslint",
+    "bradlc.vscode-tailwindcss",
+    "ms-vscode.vscode-json",
+    "orta.vscode-jest",
+    "ms-vscode.vscode-docker",
+    "prisma.prisma",
+    "ms-vscode.vscode-yaml",
+    "redhat.vscode-xml",
+    "ms-vscode.vscode-markdown",
+    "yzhang.markdown-all-in-one",
+    "ms-vscode.vscode-npm-script",
+    "christian-kohler.path-intellisense",
+    "ms-vscode.vscode-gitlens"
+  ]
+}
