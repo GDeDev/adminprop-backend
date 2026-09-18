@@ -23,7 +23,7 @@ cp .env.example .env
 #   openssl rand -base64 48
 
 # 3. Base de datos
-npm run docker:dev            # levanta MariaDB + Redis
+npm run docker:dev            # levanta Postgres 16 (base de dev + base de tests)
 npm run prisma:migrate        # aplica las migraciones
 
 # 4. Primer administrador
@@ -80,7 +80,7 @@ Módulo propio, ver **[docs/AUTH.md](docs/AUTH.md)**.
 
 ### Base de datos
 
-Prisma + MySQL/MariaDB, con migraciones versionadas y seed.
+Prisma + PostgreSQL 16, con migraciones versionadas y seed.
 
 ### Testing
 
@@ -134,7 +134,7 @@ src/
 | `npm run prisma:migrate:deploy` | Aplica migraciones (producción)     |
 | `npm run prisma:seed`           | Crea el administrador inicial       |
 | `npm run prisma:studio`         | GUI de la base                      |
-| `npm run docker:dev`            | MariaDB + Redis                     |
+| `npm run docker:dev`            | Postgres 16                         |
 | `npm run docker:prod`           | Stack completo con la API           |
 
 ---

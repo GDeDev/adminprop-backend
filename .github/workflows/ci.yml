@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, dev]
   pull_request:
-    branches: [main, master, develop]
+    branches: [main, dev]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,7 +14,7 @@ env:
   # Valores descartables sólo para que pase la validación de entorno.
   # Los secretos reales nunca van en el workflow.
   NODE_ENV: test
-  DATABASE_URL: mysql://api_user:api_password@127.0.0.1:3306/api_test
+  DATABASE_URL: postgresql://adminprop:adminprop@127.0.0.1:5432/adminprop_test
   JWT_ACCESS_SECRET: ci-access-secret-descartable-de-al-menos-32-caracteres
   JWT_REFRESH_SECRET: ci-refresh-secret-descartable-de-al-menos-32-caracteres
   BCRYPT_SALT_ROUNDS: '10'
@@ -65,18 +65,17 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     services:
-      mariadb:
-        image: mariadb:11.2
+      postgres:
+        image: postgres:16-alpine
         env:
-          MARIADB_ROOT_PASSWORD: root_password
-          MARIADB_DATABASE: api_test
-          MARIADB_USER: api_user
-          MARIADB_PASSWORD: api_password
+          POSTGRES_DB: adminprop_test
+          POSTGRES_USER: adminprop
+          POSTGRES_PASSWORD: adminprop
         ports:
-          - 3306:3306
+          - 5432:5432
         options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=10s
+          --health-cmd="pg_isready -U adminprop -d adminprop_test"
+          --health-interval=5s
           --health-timeout=5s
           --health-retries=10
 

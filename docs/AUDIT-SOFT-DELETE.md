@@ -82,15 +82,19 @@ pierden en el camino. Con el objeto, `deletedAt` queda presente en el `where`
 con valor `undefined`, la extensión ve que quien llama ya decidió sobre ese
 campo y no agrega su filtro, y Prisma ignora los `undefined`.
 
-### El problema del índice único en MySQL
+### El problema del índice único
 
 Si borrás lógicamente a `ana@ejemplo.com`, la fila sigue ahí ocupando el índice
 único de `email`. Sin resolverlo, ese email no se puede volver a registrar.
 
-La solución habitual —un unique compuesto `(email, deletedAt)`— **no funciona en
-MySQL**: los índices únicos tratan cada `NULL` como distinto, así que dos
-usuarios activos, ambos con `deletedAt = NULL`, pasarían el constraint. Sería
-peor que no tenerlo.
+La solución habitual —un unique compuesto `(email, deletedAt)`— **no funciona**:
+en Postgres (igual que en MySQL) los índices únicos tratan cada `NULL` como
+distinto, así que dos usuarios activos, ambos con `deletedAt = NULL`, pasarían
+el constraint. Sería peor que no tenerlo.
+
+Postgres sí permite un índice único parcial (`WHERE deleted_at IS NULL`), pero
+Prisma no lo puede declarar en `schema.prisma`: quedaría escrito a mano en una
+migración, invisible para el schema y en riesgo de perderse en la próxima.
 
 Por eso, al borrar se reescribe el valor:
 

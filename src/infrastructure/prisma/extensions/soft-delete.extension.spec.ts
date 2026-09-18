@@ -3,7 +3,7 @@ import { markDeletedValue, unmarkDeletedValue } from './soft-delete.extension'
 
 describe('marcado de valores únicos', () => {
   it('marca el valor con el id del registro', () => {
-    // En MySQL un unique compuesto (email, deletedAt) no sirve: los índices
+    // Un unique compuesto (email, deletedAt) no sirve: los índices
     // únicos tratan cada NULL como distinto, así que dos usuarios activos
     // pasarían el constraint. Por eso se muta el valor al borrar.
     const marcado = markDeletedValue('ana@ejemplo.com', 'user-1')

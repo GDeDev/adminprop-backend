@@ -116,7 +116,7 @@ useFactory: (configService: ConfigService<Configuration, true>) => {
 ```
 
 Nada más cambia: el guard y los decoradores `@Throttle()` siguen funcionando
-igual. El `docker-compose.yml` ya trae un Redis levantado esperando.
+igual. Para eso hay que sumar un servicio de Redis al `docker-compose.yml`.
 
 ## Relación con el bloqueo de cuenta
 

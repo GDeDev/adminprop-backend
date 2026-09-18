@@ -87,7 +87,7 @@ Dos detalles que importan:
 
 ### 3. El `orderBy` no es opcional
 
-Sin un orden explícito, MySQL no garantiza que dos consultas devuelvan las filas
+Sin un orden explícito, Postgres no garantiza que dos consultas devuelvan las filas
 en el mismo orden. En la práctica eso significa que un registro puede aparecer
 en la página 1 y también en la 2, y otro no aparecer nunca. Ordená siempre, y
 por algo estable — si el campo puede repetirse, desempatá por `id`:

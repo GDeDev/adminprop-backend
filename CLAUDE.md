@@ -1,11 +1,21 @@
 # CLAUDE.md
 
-Convenciones de este repositorio. Si algo de acá contradice al código, gana el
-código y hay que actualizar este archivo.
+Lineamientos generales del proyecto (fuente única, no se duplican acá):
+
+@../adminprop-repo-files/CLAUDE.md
+
+> Las rutas que menciona ese archivo (`docs/PRD.md`, `specs/`) son relativas a
+> `../adminprop-repo-files/`. En este repo viven `docs/tecnica/`,
+> `docs/funcional/` y `docs/DECISIONES_TECNICAS.md` del backend. El frontend es
+> otro repo (`../adminprop-frontend`): nunca mezclar cambios de los dos en un
+> commit.
+
+Lo que sigue son las convenciones de este repositorio. Si algo de acá contradice
+al código, gana el código y hay que actualizar este archivo.
 
 ## Qué es
 
-API de administración de propiedades. NestJS 11 + Prisma sobre MySQL/MariaDB,
+API de administración de propiedades. NestJS 11 + Prisma sobre PostgreSQL 16,
 arquitectura hexagonal con CQRS y autenticación JWT propia.
 
 A futuro el plan es partirlo en varias APIs. Por eso el módulo de auth está
@@ -22,7 +32,7 @@ npm test                      # unitarios
 npm run test:e2e              # e2e (no necesitan base de datos)
 npx tsc --noEmit              # sólo tipos
 npm run prisma:migrate        # crear y aplicar migración
-npm run docker:dev            # MariaDB + Redis
+npm run docker:dev            # Postgres 16
 ```
 
 Antes de dar por terminado un cambio: `npm run code:check`, `npx tsc --noEmit`,
@@ -129,6 +139,10 @@ Detalle completo en [docs/ERROR-HANDLING.md](docs/ERROR-HANDLING.md).
   con `get('clave', { infer: true })` — **sin** genérico explícito, que pisa la
   inferencia.
 - Alias `@/` para importar desde `src/`.
+- **Dinero: nunca `number`.** Todo monto pasa por `@/shared/money`
+  (`decimal.js`, `ROUND_HALF_UP` a 2 decimales en cada operación). En los DTOs
+  de entrada, `@IsMoneyAmount()`; hacia afuera, `toMoneyString()`. El frontend
+  no calcula montos: recibe strings y sólo los formatea.
 - Los listados se paginan con `@/shared/pagination`, siempre con `orderBy`
   explícito. Ver [docs/PAGINATION.md](docs/PAGINATION.md).
 - Los repositorios usan **`prisma.db`**, no `prisma` a secas: el primero lleva
@@ -175,9 +189,13 @@ Cosas que están así a propósito y conviene no "simplificar":
 
 ## Git
 
-- Se trabaja sobre `dev`.
-- Mensajes de commit en español, con prefijo convencional (`feat:`, `fix:`,
-  `refactor:`, `chore:`, `docs:`).
+- Se trabaja sobre `dev`. Una rama por fase (`feature/fase-XX-<nombre>`), un
+  commit por task, PR contra `dev`. El merge lo hace un humano.
+- Mensajes de commit en **inglés**, Conventional Commits con scope
+  (`feat(tenancy): ...`). El historial anterior quedó en español; de acá en
+  adelante, inglés.
+- El pre-commit (Husky + lint-staged) corre prettier, eslint y los tests
+  relacionados con los archivos staged. No se saltea con `--no-verify`.
 - El cuerpo explica **por qué**, no lista los archivos tocados: eso ya está en el
   diff.
 - `.env` nunca se commitea.
