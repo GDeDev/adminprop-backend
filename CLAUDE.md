@@ -1,7 +1,17 @@
 # CLAUDE.md
 
-Convenciones de este repositorio. Si algo de acá contradice al código, gana el
-código y hay que actualizar este archivo.
+Lineamientos generales del proyecto (fuente única, no se duplican acá):
+
+@../adminprop-repo-files/CLAUDE.md
+
+> Las rutas que menciona ese archivo (`docs/PRD.md`, `specs/`) son relativas a
+> `../adminprop-repo-files/`. En este repo viven `docs/tecnica/`,
+> `docs/funcional/` y `docs/DECISIONES_TECNICAS.md` del backend. El frontend es
+> otro repo (`../adminprop-frontend`): nunca mezclar cambios de los dos en un
+> commit.
+
+Lo que sigue son las convenciones de este repositorio. Si algo de acá contradice
+al código, gana el código y hay que actualizar este archivo.
 
 ## Qué es
 
@@ -175,9 +185,13 @@ Cosas que están así a propósito y conviene no "simplificar":
 
 ## Git
 
-- Se trabaja sobre `dev`.
-- Mensajes de commit en español, con prefijo convencional (`feat:`, `fix:`,
-  `refactor:`, `chore:`, `docs:`).
+- Se trabaja sobre `dev`. Una rama por fase (`feature/fase-XX-<nombre>`), un
+  commit por task, PR contra `dev`. El merge lo hace un humano.
+- Mensajes de commit en **inglés**, Conventional Commits con scope
+  (`feat(tenancy): ...`). El historial anterior quedó en español; de acá en
+  adelante, inglés.
+- El pre-commit (Husky + lint-staged) corre prettier, eslint y los tests
+  relacionados con los archivos staged. No se saltea con `--no-verify`.
 - El cuerpo explica **por qué**, no lista los archivos tocados: eso ya está en el
   diff.
 - `.env` nunca se commitea.
