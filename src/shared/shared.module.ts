@@ -3,6 +3,7 @@ import { HttpModule } from '@nestjs/axios'
 import { CqrsModule } from '@nestjs/cqrs'
 
 import { InfraModule } from './infra/infra.module'
+import { PaginationService } from './pagination/pagination.service'
 
 @Global()
 @Module({
@@ -15,6 +16,7 @@ import { InfraModule } from './infra/infra.module'
     }),
     InfraModule,
   ],
-  exports: [CqrsModule, HttpModule, InfraModule],
+  providers: [PaginationService],
+  exports: [CqrsModule, HttpModule, InfraModule, PaginationService],
 })
 export class SharedModule {}

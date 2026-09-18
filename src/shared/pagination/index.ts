@@ -15,3 +15,4 @@ export {
   paginateWith,
 } from './pagination'
 export { ApiPaginatedResponse } from './api-paginated-response.decorator'
+export { PaginationService } from './pagination.service'
