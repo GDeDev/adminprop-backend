@@ -12,7 +12,6 @@ import { CustomHealthService } from '../../services/health.service'
 import { IsPublic } from '@/infrastructure/auth/decorators/is-public.decorator'
 import { Roles } from '@/infrastructure/auth/decorators/roles.decorator'
 import { Role } from '@/domain/auth/enums/role.enum'
-import { SkipLogger } from '@/shared/infra/interceptors/app-logger.interceptor'
 
 /**
  * Endpoints de salud.
@@ -24,11 +23,9 @@ import { SkipLogger } from '@/shared/infra/interceptors/app-logger.interceptor'
  * PID, versión de Node y plataforma, que es justo lo que busca alguien
  * relevando el sistema antes de atacarlo. Requieren rol ADMIN.
  *
- * Todo el controller está marcado con `@SkipLogger()` para que las probes no
- * inunden los logs.
+ * Las probes no se loguean: pino-http las filtra por path.
  */
 @ApiTags('Health')
-@SkipLogger()
 @Controller({ path: 'health', version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(private readonly healthService: CustomHealthService) {}

@@ -4,7 +4,7 @@ import { AuthErrors } from '@/domain/auth/exceptions/auth.exceptions'
 import { RefreshTokenRepository } from '@/domain/auth/repositories/refresh-token.repository'
 import { UserRepository } from '@/domain/auth/repositories/user.repository'
 import { PasswordService } from '@/infrastructure/auth/services/password.service'
-import { CustomLoggerService } from '@/shared/core/logger.service'
+import { createLogger } from '@/shared/logging/root-logger'
 import { ChangePasswordCommand } from './change-password.command'
 
 export interface ChangePasswordResult {
@@ -23,7 +23,7 @@ export class ChangePasswordHandler implements ICommandHandler<
   ChangePasswordCommand,
   ChangePasswordResult
 > {
-  private readonly logger = new CustomLoggerService('ChangePasswordHandler')
+  private readonly logger = createLogger('ChangePasswordHandler')
 
   constructor(
     private readonly userRepository: UserRepository,
@@ -45,11 +45,11 @@ export class ChangePasswordHandler implements ICommandHandler<
 
     if (!currentMatches) {
       this.logger.warn(
-        'Cambio de contraseña rechazado: contraseña actual incorrecta',
         {
           operation: 'auth_change_password_failed',
           userId: user.id,
         },
+        'Cambio de contraseña rechazado: contraseña actual incorrecta',
       )
       throw AuthErrors.currentPasswordInvalid()
     }
@@ -68,11 +68,14 @@ export class ChangePasswordHandler implements ICommandHandler<
       user.id,
     )
 
-    this.logger.log('Contraseña cambiada', {
-      operation: 'auth_change_password',
-      userId: user.id,
-      revokedSessions,
-    })
+    this.logger.info(
+      {
+        operation: 'auth_change_password',
+        userId: user.id,
+        revokedSessions,
+      },
+      'Contraseña cambiada',
+    )
 
     return { revokedSessions }
   }

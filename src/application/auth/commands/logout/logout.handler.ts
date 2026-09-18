@@ -2,7 +2,7 @@ import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 
 import { RefreshTokenRepository } from '@/domain/auth/repositories/refresh-token.repository'
 import { TokenService } from '@/infrastructure/auth/services/token.service'
-import { CustomLoggerService } from '@/shared/core/logger.service'
+import { createLogger } from '@/shared/logging/root-logger'
 import { LogoutCommand } from './logout.command'
 
 /**
@@ -19,7 +19,7 @@ import { LogoutCommand } from './logout.command'
  */
 @CommandHandler(LogoutCommand)
 export class LogoutHandler implements ICommandHandler<LogoutCommand, void> {
-  private readonly logger = new CustomLoggerService('LogoutHandler')
+  private readonly logger = createLogger('LogoutHandler')
 
   constructor(
     private readonly tokenService: TokenService,
@@ -34,10 +34,13 @@ export class LogoutHandler implements ICommandHandler<LogoutCommand, void> {
 
     await this.refreshTokenRepository.revokeById(stored.id)
 
-    this.logger.log('Sesión cerrada', {
-      operation: 'auth_logout',
-      userId: stored.userId,
-      familyId: stored.familyId,
-    })
+    this.logger.info(
+      {
+        operation: 'auth_logout',
+        userId: stored.userId,
+        familyId: stored.familyId,
+      },
+      'Sesión cerrada',
+    )
   }
 }

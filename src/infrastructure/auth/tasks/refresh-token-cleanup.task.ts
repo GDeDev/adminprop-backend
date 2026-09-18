@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { Cron, CronExpression } from '@nestjs/schedule'
 
 import { RefreshTokenRepository } from '@/domain/auth/repositories/refresh-token.repository'
-import { CustomLoggerService } from '@/shared/core/logger.service'
+import { createLogger } from '@/shared/logging/root-logger'
 
 /** Cuánto se conserva un token vencido o revocado antes de borrarlo. */
 const RETENTION_DAYS = 30
@@ -21,7 +21,7 @@ const RETENTION_DAYS = 30
  */
 @Injectable()
 export class RefreshTokenCleanupTask {
-  private readonly logger = new CustomLoggerService('RefreshTokenCleanup')
+  private readonly logger = createLogger('RefreshTokenCleanup')
 
   constructor(
     private readonly refreshTokenRepository: RefreshTokenRepository,
@@ -35,18 +35,20 @@ export class RefreshTokenCleanupTask {
       const deleted = await this.refreshTokenRepository.deleteExpired(cutoff)
 
       if (deleted > 0) {
-        this.logger.log(`Se borraron ${deleted} refresh token(s) vencidos`, {
-          operation: 'refresh_token_cleanup',
-          deleted,
-          cutoff: cutoff.toISOString(),
-        })
+        this.logger.info(
+          {
+            operation: 'refresh_token_cleanup',
+            deleted,
+            cutoff: cutoff.toISOString(),
+          },
+          `Se borraron ${deleted} refresh token(s) vencidos`,
+        )
       }
     } catch (error) {
       // Que falle la limpieza no puede tumbar la app: se reintenta mañana.
       this.logger.error(
+        { operation: 'refresh_token_cleanup_failed', err: error },
         'Falló la limpieza de refresh tokens',
-        error instanceof Error ? error.stack : undefined,
-        { operation: 'refresh_token_cleanup_failed' },
       )
     }
   }

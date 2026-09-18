@@ -1,7 +1,7 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 
 import { RefreshTokenRepository } from '@/domain/auth/repositories/refresh-token.repository'
-import { CustomLoggerService } from '@/shared/core/logger.service'
+import { createLogger } from '@/shared/logging/root-logger'
 import { LogoutAllCommand } from './logout-all.command'
 
 export interface LogoutAllResult {
@@ -14,7 +14,7 @@ export class LogoutAllHandler implements ICommandHandler<
   LogoutAllCommand,
   LogoutAllResult
 > {
-  private readonly logger = new CustomLoggerService('LogoutAllHandler')
+  private readonly logger = createLogger('LogoutAllHandler')
 
   constructor(
     private readonly refreshTokenRepository: RefreshTokenRepository,
@@ -25,11 +25,14 @@ export class LogoutAllHandler implements ICommandHandler<
       command.userId,
     )
 
-    this.logger.log('Todas las sesiones cerradas', {
-      operation: 'auth_logout_all',
-      userId: command.userId,
-      revokedSessions,
-    })
+    this.logger.info(
+      {
+        operation: 'auth_logout_all',
+        userId: command.userId,
+        revokedSessions,
+      },
+      'Todas las sesiones cerradas',
+    )
 
     return { revokedSessions }
   }

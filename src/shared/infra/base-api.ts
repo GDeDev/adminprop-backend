@@ -11,8 +11,8 @@ import { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios'
 import { firstValueFrom, Observable } from 'rxjs'
 
 import { InterceptorsHandler } from './interceptors/interceptors-handler'
-import { CustomLoggerService } from '../core/logger.service'
-import { errorMessage, errorStack } from '../core/error-message'
+import { createLogger, AppLogger } from '@/shared/logging/root-logger'
+import { errorMessage } from '../core/error-message'
 import { AppException } from '../errors/app.exception'
 import { ErrorCode } from '../errors/error-codes'
 
@@ -28,10 +28,10 @@ export abstract class ApiService implements OnModuleInit {
   @Inject(InterceptorsHandler)
   protected readonly interceptorsHandler: InterceptorsHandler
 
-  protected readonly logger: CustomLoggerService
+  protected readonly logger: AppLogger
 
   constructor(protected readonly apiName: string) {
-    this.logger = new CustomLoggerService(apiName)
+    this.logger = createLogger(apiName)
   }
 
   protected abstract getApiUrl(): string
@@ -48,14 +48,16 @@ export abstract class ApiService implements OnModuleInit {
     try {
       this.baseUrl = this.getApiUrl()
       this.configureInterceptors()
-      this.logger.log(`Cliente "${this.apiName}" inicializado`, {
-        baseUrl: this.baseUrl,
-      })
+      this.logger.info(
+        {
+          baseUrl: this.baseUrl,
+        },
+        `Cliente "${this.apiName}" inicializado`,
+      )
     } catch (error) {
       this.logger.error(
+        { err: error, errorMessage: errorMessage(error) },
         `No se pudo inicializar el cliente "${this.apiName}"`,
-        errorStack(error),
-        { errorMessage: errorMessage(error) },
       )
       throw error
     }

@@ -10,13 +10,13 @@ import { UserRepository } from '@/domain/auth/repositories/user.repository'
 import { AuthTokenIssuer } from '@/infrastructure/auth/services/auth-token-issuer.service'
 import { PasswordService } from '@/infrastructure/auth/services/password.service'
 import { AccountLockConfig, Configuration } from '@/shared/config/configuration'
-import { CustomLoggerService } from '@/shared/core/logger.service'
+import { createLogger } from '@/shared/logging/root-logger'
 import { AuthResult } from '../../results/auth-result'
 import { LoginCommand } from './login.command'
 
 @CommandHandler(LoginCommand)
 export class LoginHandler implements ICommandHandler<LoginCommand, AuthResult> {
-  private readonly logger = new CustomLoggerService('LoginHandler')
+  private readonly logger = createLogger('LoginHandler')
   private readonly lockConfig: AccountLockConfig
 
   constructor(
@@ -37,20 +37,26 @@ export class LoginHandler implements ICommandHandler<LoginCommand, AuthResult> {
       // Quemamos el mismo tiempo que un bcrypt real: si respondiéramos de una,
       // el atacante podría distinguir emails registrados de los que no.
       await this.passwordService.burnCompare(command.password)
-      this.logger.warn('Login fallido: email inexistente', {
-        operation: 'auth_login_failed',
-        reason: 'unknown_email',
-      })
+      this.logger.warn(
+        {
+          operation: 'auth_login_failed',
+          reason: 'unknown_email',
+        },
+        'Login fallido: email inexistente',
+      )
       throw AuthErrors.invalidCredentials({ reason: 'unknown_email' })
     }
 
     const lockedUntil = activeLockUntil(user)
     if (lockedUntil) {
-      this.logger.warn('Login rechazado: cuenta bloqueada', {
-        operation: 'auth_login_failed',
-        reason: 'account_locked',
-        userId: user.id,
-      })
+      this.logger.warn(
+        {
+          operation: 'auth_login_failed',
+          reason: 'account_locked',
+          userId: user.id,
+        },
+        'Login rechazado: cuenta bloqueada',
+      )
       throw AuthErrors.accountLocked(lockedUntil)
     }
 
@@ -65,22 +71,28 @@ export class LoginHandler implements ICommandHandler<LoginCommand, AuthResult> {
         this.lockConfig.maxFailedAttempts,
         this.lockConfig.lockDurationMs,
       )
-      this.logger.warn('Login fallido: contraseña incorrecta', {
-        operation: 'auth_login_failed',
-        reason: 'bad_password',
-        userId: user.id,
-      })
+      this.logger.warn(
+        {
+          operation: 'auth_login_failed',
+          reason: 'bad_password',
+          userId: user.id,
+        },
+        'Login fallido: contraseña incorrecta',
+      )
       throw AuthErrors.invalidCredentials({ reason: 'bad_password' })
     }
 
     // El chequeo de cuenta activa va después de validar la contraseña: si no,
     // sería otra forma de enumerar cuentas.
     if (!user.isActive) {
-      this.logger.warn('Login rechazado: cuenta inactiva', {
-        operation: 'auth_login_failed',
-        reason: 'inactive',
-        userId: user.id,
-      })
+      this.logger.warn(
+        {
+          operation: 'auth_login_failed',
+          reason: 'inactive',
+          userId: user.id,
+        },
+        'Login rechazado: cuenta inactiva',
+      )
       throw AuthErrors.accountInactive()
     }
 
@@ -91,18 +103,24 @@ export class LoginHandler implements ICommandHandler<LoginCommand, AuthResult> {
     if (this.passwordService.needsRehash(user.passwordHash)) {
       const rehashed = await this.passwordService.hash(command.password)
       await this.userRepository.rehashPassword(user.id, rehashed)
-      this.logger.log('Hash de contraseña actualizado al costo actual', {
-        operation: 'auth_password_rehash',
-        userId: user.id,
-      })
+      this.logger.info(
+        {
+          operation: 'auth_password_rehash',
+          userId: user.id,
+        },
+        'Hash de contraseña actualizado al costo actual',
+      )
     }
 
     const tokens = await this.tokenIssuer.issueNewSession(user, command.context)
 
-    this.logger.log('Login exitoso', {
-      operation: 'auth_login',
-      userId: user.id,
-    })
+    this.logger.info(
+      {
+        operation: 'auth_login',
+        userId: user.id,
+      },
+      'Login exitoso',
+    )
 
     return { user: toPublicUser(user), tokens }
   }

@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core'
 import { Request } from 'express'
 
 import { Configuration, JwtConfig } from '@/shared/config/configuration'
+import { RequestContext } from '@/shared/context/request-context'
 import { AuthErrors } from '@/domain/auth/exceptions/auth.exceptions'
 import { UserRepository } from '@/domain/auth/repositories/user.repository'
 import { IS_PUBLIC_KEY } from '../decorators/is-public.decorator'
@@ -69,6 +70,13 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     request.user = user
+
+    // Deja el usuario en el contexto del request: desde acá lo leen el logger
+    // (para estampar userId en cada línea) y la auditoría (para saber quién
+    // hizo cada cambio), sin tener que propagarlo por parámetro hasta los
+    // repositorios.
+    RequestContext.setUser(user)
+
     return true
   }
 
@@ -103,11 +111,13 @@ export class JwtAuthGuard implements CanActivate {
   private async tryAttachUser(request: Request, token: string): Promise<void> {
     try {
       const payload = await this.tokenService.verifyAccessToken(token)
-      request.user = {
+      const user = {
         id: payload.sub,
         email: payload.email,
         role: payload.role,
       }
+      request.user = user
+      RequestContext.setUser(user)
     } catch {
       // Endpoint público: un token inválido simplemente se ignora.
     }

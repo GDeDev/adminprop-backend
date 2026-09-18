@@ -1,5 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
+import { APP_GUARD } from '@nestjs/core'
 import { ScheduleModule } from '@nestjs/schedule'
 
 import { AppController } from './app.controller'
@@ -9,8 +9,8 @@ import { RolesGuard } from './infrastructure/auth/guards/roles.guard'
 import { HealthModule } from './infrastructure/health/modules/health.module'
 import { PrismaModule } from './infrastructure/prisma/prisma.module'
 import { AppConfigModule } from './shared/config/config.module'
-import { AppLoggerInterceptor } from './shared/infra/interceptors/app-logger.interceptor'
-import { CorrelationIdMiddleware } from './shared/infra/middleware/correlation-id.middleware'
+import { RequestContextMiddleware } from './shared/context/request-context.middleware'
+import { AppLoggerModule } from './shared/logging/logger.module'
 import { AppThrottlerGuard } from './shared/infra/throttler/app-throttler.guard'
 import { AppThrottlerModule } from './shared/infra/throttler/throttler.module'
 import { SharedModule } from './shared/shared.module'
@@ -19,6 +19,7 @@ import { SharedModule } from './shared/shared.module'
   imports: [
     // Va primero: valida el entorno antes de que nada más se instancie.
     AppConfigModule,
+    AppLoggerModule,
     SharedModule,
     PrismaModule,
     // Habilita los @Cron. Hoy lo usa la limpieza de refresh tokens vencidos.
@@ -42,13 +43,13 @@ import { SharedModule } from './shared/shared.module'
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
-    { provide: APP_INTERCEPTOR, useClass: AppLoggerInterceptor },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    // Como middleware corre antes que los guards, así que hasta un 429 o un 401
-    // sale con su x-correlation-id.
-    consumer.apply(CorrelationIdMiddleware).forRoutes('*')
+    // Abre el RequestContext y asigna el correlation ID. Va como middleware
+    // porque corre antes que los guards: así hasta un 429 o un 401 salen con su
+    // x-correlation-id y quedan logueados con contexto.
+    consumer.apply(RequestContextMiddleware).forRoutes('*')
   }
 }

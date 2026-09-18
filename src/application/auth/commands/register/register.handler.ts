@@ -5,7 +5,7 @@ import { AuthErrors } from '@/domain/auth/exceptions/auth.exceptions'
 import { UserRepository } from '@/domain/auth/repositories/user.repository'
 import { AuthTokenIssuer } from '@/infrastructure/auth/services/auth-token-issuer.service'
 import { PasswordService } from '@/infrastructure/auth/services/password.service'
-import { CustomLoggerService } from '@/shared/core/logger.service'
+import { createLogger } from '@/shared/logging/root-logger'
 import { AuthResult } from '../../results/auth-result'
 import { RegisterCommand } from './register.command'
 
@@ -14,7 +14,7 @@ export class RegisterHandler implements ICommandHandler<
   RegisterCommand,
   AuthResult
 > {
-  private readonly logger = new CustomLoggerService('RegisterHandler')
+  private readonly logger = createLogger('RegisterHandler')
 
   constructor(
     private readonly userRepository: UserRepository,
@@ -41,10 +41,13 @@ export class RegisterHandler implements ICommandHandler<
 
     const tokens = await this.tokenIssuer.issueNewSession(user, command.context)
 
-    this.logger.log('Usuario registrado', {
-      operation: 'auth_register',
-      userId: user.id,
-    })
+    this.logger.info(
+      {
+        operation: 'auth_register',
+        userId: user.id,
+      },
+      'Usuario registrado',
+    )
 
     return { user: toPublicUser(user), tokens }
   }

@@ -3,6 +3,8 @@ import { HttpModule } from '@nestjs/axios'
 import { CqrsModule } from '@nestjs/cqrs'
 
 import { InfraModule } from './infra/infra.module'
+import { GlobalExceptionFilter } from './infra/filters/global-exception.filter'
+import { PrismaExceptionFilter } from './infra/filters/prisma-exception.filter'
 import { PaginationService } from './pagination/pagination.service'
 
 @Global()
@@ -16,7 +18,20 @@ import { PaginationService } from './pagination/pagination.service'
     }),
     InfraModule,
   ],
-  providers: [PaginationService],
-  exports: [CqrsModule, HttpModule, InfraModule, PaginationService],
+  providers: [
+    PaginationService,
+    // Los filtros globales se registran acá y se resuelven del contenedor en
+    // `configureApp()`: necesitan el logger y la config inyectados.
+    GlobalExceptionFilter,
+    PrismaExceptionFilter,
+  ],
+  exports: [
+    CqrsModule,
+    HttpModule,
+    InfraModule,
+    PaginationService,
+    GlobalExceptionFilter,
+    PrismaExceptionFilter,
+  ],
 })
 export class SharedModule {}

@@ -11,7 +11,9 @@ import {
   Configuration,
   CorsConfig,
 } from './shared/config/configuration'
-import { CustomLoggerService } from './shared/core/logger.service'
+import { Logger } from 'nestjs-pino'
+
+import { createLogger } from '@/shared/logging/root-logger'
 import { GlobalExceptionFilter } from './shared/infra/filters/global-exception.filter'
 import { PrismaExceptionFilter } from './shared/infra/filters/prisma-exception.filter'
 import { CustomValidationPipe } from './shared/infra/pipes/custom-validation.pipe'
@@ -25,11 +27,18 @@ import { CustomValidationPipe } from './shared/infra/pipes/custom-validation.pip
  * forma clásica de que un bug de serialización de errores pase los tests—.
  */
 export function configureApp(app: NestExpressApplication): AppConfig {
-  const logger = new CustomLoggerService('Bootstrap')
+  const logger = createLogger('Bootstrap')
   const configService =
     app.get<ConfigService<Configuration, true>>(ConfigService)
   const appConfig = configService.get('app', { infer: true })
   const corsConfig = configService.get('cors', { infer: true })
+
+  // Los logs del propio Nest (RoutesResolver, InstanceLoader, errores de
+  // arranque) pasan a salir con el mismo formato que los nuestros.
+  // `flushLogs` es obligatorio con `bufferLogs: true`: sin él, todo lo que Nest
+  // retuvo durante el arranque nunca se emite.
+  app.useLogger(app.get(Logger))
+  app.flushLogs()
 
   configureSecurity(app, appConfig, corsConfig, logger)
   configureRequestHandling(app, appConfig)
@@ -43,7 +52,7 @@ function configureSecurity(
   app: NestExpressApplication,
   appConfig: AppConfig,
   corsConfig: CorsConfig,
-  logger: CustomLoggerService,
+  logger: ReturnType<typeof createLogger>,
 ): void {
   app.use(
     helmet({
@@ -110,9 +119,12 @@ function configureRequestHandling(
 
   // Nest evalúa los filtros del último al primero: el de Prisma, más
   // específico, va después del catch-all para que lo gane.
+  // Se resuelven del contenedor y no con : necesitan el logger inyectado.
+  // El orden se mantiene explícito porque Nest evalúa los filtros del último al
+  // primero, y el de Prisma —más específico— tiene que ganarle al catch-all.
   app.useGlobalFilters(
-    new GlobalExceptionFilter(appConfig.isProduction),
-    new PrismaExceptionFilter(appConfig.isProduction),
+    app.get(GlobalExceptionFilter),
+    app.get(PrismaExceptionFilter),
   )
 }
 

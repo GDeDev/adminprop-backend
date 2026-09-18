@@ -7,7 +7,7 @@ import { UserRepository } from '@/domain/auth/repositories/user.repository'
 import { AuthTokenIssuer } from '@/infrastructure/auth/services/auth-token-issuer.service'
 import { RefreshTokenAlreadyRotatedError } from '@/infrastructure/auth/repositories/refresh-token.repository.impl'
 import { TokenService } from '@/infrastructure/auth/services/token.service'
-import { CustomLoggerService } from '@/shared/core/logger.service'
+import { createLogger } from '@/shared/logging/root-logger'
 import { AuthTokens } from '../../results/auth-result'
 import { RefreshTokenCommand } from './refresh-token.command'
 
@@ -25,7 +25,7 @@ export class RefreshTokenHandler implements ICommandHandler<
   RefreshTokenCommand,
   AuthTokens
 > {
-  private readonly logger = new CustomLoggerService('RefreshTokenHandler')
+  private readonly logger = createLogger('RefreshTokenHandler')
 
   constructor(
     private readonly tokenService: TokenService,
@@ -47,11 +47,14 @@ export class RefreshTokenHandler implements ICommandHandler<
     if (!stored) {
       // Firma válida pero no está en la base: o se hizo limpieza de vencidos, o
       // el token viene de otro entorno que comparte secreto. No es reuso.
-      this.logger.warn('Refresh token válido pero inexistente en la base', {
-        operation: 'auth_refresh_failed',
-        reason: 'not_found',
-        userId: payload.sub,
-      })
+      this.logger.warn(
+        {
+          operation: 'auth_refresh_failed',
+          reason: 'not_found',
+          userId: payload.sub,
+        },
+        'Refresh token válido pero inexistente en la base',
+      )
       throw AuthErrors.refreshTokenInvalid({ reason: 'not_found' })
     }
 
@@ -103,22 +106,28 @@ export class RefreshTokenHandler implements ICommandHandler<
         command.context,
       )
 
-      this.logger.log('Refresh token rotado', {
-        operation: 'auth_refresh',
-        userId: user.id,
-        familyId: stored.familyId,
-      })
+      this.logger.info(
+        {
+          operation: 'auth_refresh',
+          userId: user.id,
+          familyId: stored.familyId,
+        },
+        'Refresh token rotado',
+      )
 
       return tokens
     } catch (error) {
       if (error instanceof RefreshTokenAlreadyRotatedError) {
         // Dos refresh simultáneos con el mismo token (típico: varias pestañas).
         // Perdimos la carrera; el cliente reintenta con el token nuevo.
-        this.logger.warn('Rotación concurrente del mismo refresh token', {
-          operation: 'auth_refresh_race',
-          userId: user.id,
-          familyId: stored.familyId,
-        })
+        this.logger.warn(
+          {
+            operation: 'auth_refresh_race',
+            userId: user.id,
+            familyId: stored.familyId,
+          },
+          'Rotación concurrente del mismo refresh token',
+        )
         throw AuthErrors.refreshTokenInvalid({ reason: 'rotación concurrente' })
       }
       throw error

@@ -4,14 +4,17 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Injectable,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { Request, Response } from 'express'
+import { PinoLogger } from 'nestjs-pino'
 
 import { ApiErrorDto } from '../../dtos/api-response.dto'
+import { Configuration } from '../../config/configuration'
 import { AppException } from '../../errors/app.exception'
 import { ErrorCode, ErrorDetail } from '../../errors/error-codes'
-import { CustomLoggerService } from '../../core/logger.service'
-import { getCorrelationId } from '../middleware/correlation-id.middleware'
+import { getCorrelationId } from '../../context/request-context.middleware'
 import { redact } from '../logging/redact'
 
 const STATUS_TO_CODE: Record<number, ErrorCode> = {
@@ -54,11 +57,18 @@ interface NormalizedError {
  *  - Los 4xx sí devuelven su mensaje: son problemas del cliente y necesita saber cuál.
  *  - Todo se loguea con el `correlationId` para poder cruzarlo con el request.
  */
+@Injectable()
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
-  private readonly logger = new CustomLoggerService('ExceptionFilter')
+  private readonly isProduction: boolean
 
-  constructor(private readonly isProduction: boolean) {}
+  constructor(
+    private readonly logger: PinoLogger,
+    configService: ConfigService<Configuration, true>,
+  ) {
+    this.logger.setContext('ExceptionFilter')
+    this.isProduction = configService.get('app', { infer: true }).isProduction
+  }
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp()
@@ -213,29 +223,24 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       ...(normalized.metadata ?? {}),
     }
 
+    const summary = `${request.method} ${context.url} → ${normalized.status} ${normalized.code}: ${normalized.message}`
+
     if (normalized.status >= 500) {
       // Un 5xx es un bug nuestro: va con stack y con el request completo
       // (redactado) para poder reproducirlo.
       this.logger.error(
-        `${request.method} ${context.url} → ${normalized.status} ${normalized.code}: ${normalized.message}`,
-        exception instanceof Error ? exception.stack : undefined,
         {
           ...context,
+          err: exception,
           query: redact(request.query),
           body: redact(request.body),
-          cause:
-            exception instanceof Error && exception.cause
-              ? redact(exception.cause)
-              : undefined,
         },
+        summary,
       )
       return
     }
 
     // Los 4xx son ruido esperable: warn sin stack ni payload.
-    this.logger.warn(
-      `${request.method} ${context.url} → ${normalized.status} ${normalized.code}: ${normalized.message}`,
-      context,
-    )
+    this.logger.warn(context, summary)
   }
 }

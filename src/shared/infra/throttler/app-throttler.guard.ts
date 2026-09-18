@@ -3,7 +3,7 @@ import { ThrottlerGuard, ThrottlerLimitDetail } from '@nestjs/throttler'
 import { Request, Response } from 'express'
 
 import { AppException } from '../../errors/app.exception'
-import { CustomLoggerService } from '../../core/logger.service'
+import { createLogger } from '@/shared/logging/root-logger'
 import { getCorrelationId } from '../middleware/correlation-id.middleware'
 
 /**
@@ -19,7 +19,7 @@ import { getCorrelationId } from '../middleware/correlation-id.middleware'
  */
 @Injectable()
 export class AppThrottlerGuard extends ThrottlerGuard {
-  private readonly logger = new CustomLoggerService('Throttler')
+  private readonly logger = createLogger('Throttler')
 
   protected override async getTracker(req: Request): Promise<string> {
     // `req.user` lo completa JwtAuthGuard, que corre *después* de este guard,
@@ -48,16 +48,19 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     response.setHeader('X-RateLimit-Limit', detail.limit)
     response.setHeader('X-RateLimit-Remaining', 0)
 
-    this.logger.warn('Rate limit superado', {
-      correlationId: getCorrelationId(request),
-      operation: 'rate_limit_exceeded',
-      method: request.method,
-      url: request.originalUrl ?? request.url,
-      tracker: await this.getTracker(request),
-      limit: detail.limit,
-      totalHits: detail.totalHits,
-      retryAfterSeconds,
-    })
+    this.logger.warn(
+      {
+        correlationId: getCorrelationId(request),
+        operation: 'rate_limit_exceeded',
+        method: request.method,
+        url: request.originalUrl ?? request.url,
+        tracker: await this.getTracker(request),
+        limit: detail.limit,
+        totalHits: detail.totalHits,
+        retryAfterSeconds,
+      },
+      'Rate limit superado',
+    )
 
     throw AppException.tooManyRequests(
       `Demasiadas solicitudes. Reintentá en ${retryAfterSeconds} segundo(s).`,

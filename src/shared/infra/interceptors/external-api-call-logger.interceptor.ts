@@ -6,11 +6,17 @@ import {
 } from '@nestjs/common'
 import { Observable } from 'rxjs'
 import { tap } from 'rxjs/operators'
-import { CustomLoggerService } from '../../core/logger.service'
 
+import { createLogger } from '@/shared/logging/root-logger'
+
+/**
+ * Loguea las llamadas HTTP **salientes** que hace `ApiService`.
+ *
+ * Las entrantes ya las cubre pino-http; esto es para el otro lado.
+ */
 @Injectable()
 export class ExternalApiCallLoggerInterceptor implements NestInterceptor {
-  private readonly logger = new CustomLoggerService('ExternalApiCallLogger')
+  private readonly logger = createLogger('ExternalApiCall')
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest()
@@ -19,27 +25,32 @@ export class ExternalApiCallLoggerInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       tap({
-        next: (responseData) => {
-          this.logger.logApiCall(
-            method,
-            url,
-            'status' in responseData ? responseData.status : 200,
-            Date.now() - startTime,
+        next: (response) => {
+          this.logger.info(
             {
-              success: true,
+              operation: 'external_api_call',
+              method,
+              url,
+              statusCode:
+                response && typeof response === 'object' && 'status' in response
+                  ? response.status
+                  : 200,
+              duration: Date.now() - startTime,
             },
+            `${method} ${url}`,
           )
         },
         error: (error) => {
-          const duration = Date.now() - startTime
-          this.logger.error(`${method} ${url} failed`, error.stack, {
-            operation: 'external_api_call_error',
-            method,
-            url,
-            duration,
-            errorName: error.name,
-            errorMessage: error.message,
-          })
+          this.logger.error(
+            {
+              operation: 'external_api_call_failed',
+              method,
+              url,
+              duration: Date.now() - startTime,
+              err: error,
+            },
+            `${method} ${url} falló`,
+          )
         },
       }),
     )

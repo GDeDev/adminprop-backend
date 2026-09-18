@@ -3,8 +3,11 @@ import {
   Catch,
   ExceptionFilter,
   HttpStatus,
+  Injectable,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { Request, Response } from 'express'
+import { PinoLogger } from 'nestjs-pino'
 import {
   PrismaClientInitializationError,
   PrismaClientKnownRequestError,
@@ -12,9 +15,9 @@ import {
 } from '@prisma/client/runtime/library'
 
 import { ApiErrorDto } from '../../dtos/api-response.dto'
+import { Configuration } from '../../config/configuration'
 import { ErrorCode, ErrorDetail } from '../../errors/error-codes'
-import { CustomLoggerService } from '../../core/logger.service'
-import { getCorrelationId } from '../middleware/correlation-id.middleware'
+import { getCorrelationId } from '../../context/request-context.middleware'
 
 interface MappedPrismaError {
   status: HttpStatus
@@ -32,15 +35,22 @@ interface MappedPrismaError {
  *
  * Códigos: https://www.prisma.io/docs/orm/reference/error-reference
  */
+@Injectable()
 @Catch(
   PrismaClientKnownRequestError,
   PrismaClientValidationError,
   PrismaClientInitializationError,
 )
 export class PrismaExceptionFilter implements ExceptionFilter {
-  private readonly logger = new CustomLoggerService('PrismaExceptionFilter')
+  private readonly isProduction: boolean
 
-  constructor(private readonly isProduction: boolean) {}
+  constructor(
+    private readonly logger: PinoLogger,
+    configService: ConfigService<Configuration, true>,
+  ) {
+    this.logger.setContext('PrismaExceptionFilter')
+    this.isProduction = configService.get('app', { infer: true }).isProduction
+  }
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp()
@@ -68,14 +78,12 @@ export class PrismaExceptionFilter implements ExceptionFilter {
           : undefined,
     }
 
+    const summary = `Error de base de datos: ${mapped.code}`
+
     if (isServerError) {
-      this.logger.error(
-        `Error de base de datos: ${mapped.code}`,
-        exception instanceof Error ? exception.stack : undefined,
-        logContext,
-      )
+      this.logger.error({ ...logContext, err: exception }, summary)
     } else {
-      this.logger.warn(`Error de base de datos: ${mapped.code}`, logContext)
+      this.logger.warn(logContext, summary)
     }
 
     if (response.headersSent) {
