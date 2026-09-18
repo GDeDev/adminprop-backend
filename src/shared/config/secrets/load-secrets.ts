@@ -1,4 +1,4 @@
-import * as dotenv from 'dotenv'
+import dotenv from 'dotenv'
 
 import { EnvSecretsLoader } from './env-secrets.loader'
 import { SecretsLoader } from './secrets-loader.interface'

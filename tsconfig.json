@@ -6,6 +6,9 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
+    // Permite `import x from 'cjs-module'` en vez de `import * as x`. Además de
+    // ser lo correcto hoy, es un requisito para el día que Nest pase a ESM.
+    "esModuleInterop": true,
     "target": "ES2022",
     "lib": ["ES2022"],
     "sourceMap": true,

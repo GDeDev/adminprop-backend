@@ -2,7 +2,7 @@ import { INestApplication, VersioningType } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { NestExpressApplication } from '@nestjs/platform-express'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
-import * as compression from 'compression'
+import compression from 'compression'
 import helmet from 'helmet'
 import { json, urlencoded } from 'express'
 

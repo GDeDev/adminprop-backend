@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import * as bcrypt from 'bcryptjs'
+import bcrypt from 'bcryptjs'
 
 import { Configuration } from '@/shared/config/configuration'
 
