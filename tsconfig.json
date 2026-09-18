@@ -21,5 +21,11 @@
     "paths": {
       "@/*": ["./src/*"]
     }
+  },
+  "ts-node": {
+    // Sin esto ts-node compila archivo por archivo y se saltea las
+    // declaraciones globales de src/types/*.d.ts, con lo cual `request.user`
+    // no existe para `npm run prisma:seed` ni para `ts-node src/main.ts`.
+    "files": true
   }
 }

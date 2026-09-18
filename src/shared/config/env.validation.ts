@@ -6,6 +6,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
   MinLength,
@@ -23,6 +24,18 @@ export enum SecretsProvider {
   /** Lee todo de `process.env` / archivos `.env`. */
   Env = 'env',
 }
+
+/**
+ * Duraciones que entiende la librería `ms`, que es la que usa `jsonwebtoken`
+ * para `expiresIn`: o un número pelado de segundos (`"900"`), o número más
+ * unidad (`"15m"`, `"2 h"`, `"7d"`).
+ *
+ * Validarlo acá evita que un `JWT_ACCESS_TTL=banana` pase el arranque y recién
+ * explote al firmar el primer token. Además respalda el cast a `StringValue`
+ * que hace `configuration()`.
+ */
+const DURATION_PATTERN =
+  /^\d+(\.\d+)?\s*(ms|s|m|h|d|w|y|msec|msecs|millisecond|milliseconds|sec|secs|second|seconds|min|mins|minute|minutes|hr|hrs|hour|hours|day|days|week|weeks|yr|yrs|year|years)?$/i
 
 const toInt = () =>
   Transform(({ value }) =>
@@ -97,10 +110,18 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  @Matches(DURATION_PATTERN, {
+    message:
+      'JWT_ACCESS_TTL debe ser una duración válida: un número de segundos ("900") o número + unidad ("15m", "2 h", "7d")',
+  })
   JWT_ACCESS_TTL?: string
 
   @IsOptional()
   @IsString()
+  @Matches(DURATION_PATTERN, {
+    message:
+      'JWT_REFRESH_TTL debe ser una duración válida: un número de segundos ("604800") o número + unidad ("7d", "12h")',
+  })
   JWT_REFRESH_TTL?: string
 
   @IsOptional()

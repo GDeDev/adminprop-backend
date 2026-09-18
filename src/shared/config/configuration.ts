@@ -1,3 +1,5 @@
+import type { StringValue } from 'ms'
+
 import { Environment } from './env.validation'
 
 export interface AppConfig {
@@ -18,9 +20,10 @@ export interface DatabaseConfig {
 
 export interface JwtConfig {
   accessSecret: string
-  accessTtl: string
+  /** Duración en el formato de `ms`: `"15m"`, `"2 h"`, `"900"`. */
+  accessTtl: StringValue
   refreshSecret: string
-  refreshTtl: string
+  refreshTtl: StringValue
   issuer: string
   audience: string
   bcryptSaltRounds: number
@@ -113,9 +116,13 @@ export function configuration(): Configuration {
     },
     jwt: {
       accessSecret: process.env.JWT_ACCESS_SECRET,
-      accessTtl: str(process.env.JWT_ACCESS_TTL, '15m'),
+      // El cast es seguro: `env.validation.ts` ya verificó contra
+      // DURATION_PATTERN que el valor tenga un formato que `ms` entienda.
+      // TypeScript no puede deducirlo de una env var, pero el runtime sí lo
+      // garantizó antes de llegar hasta acá.
+      accessTtl: str(process.env.JWT_ACCESS_TTL, '15m') as StringValue,
       refreshSecret: process.env.JWT_REFRESH_SECRET,
-      refreshTtl: str(process.env.JWT_REFRESH_TTL, '7d'),
+      refreshTtl: str(process.env.JWT_REFRESH_TTL, '7d') as StringValue,
       issuer: str(process.env.JWT_ISSUER, str(process.env.APP_NAME, 'api')),
       audience: str(
         process.env.JWT_AUDIENCE,
