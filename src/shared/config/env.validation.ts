@@ -21,7 +21,7 @@ export enum Environment {
 }
 
 export enum SecretsProvider {
-  /** Lee todo de `process.env` / archivos `.env`. */
+  /** Lee todo de `process.env`, que llena Doppler. */
   Env = 'env',
 }
 
@@ -263,7 +263,8 @@ export function validateEnv(
 
     throw new Error(
       `\n❌ Configuración de entorno inválida:\n${details}\n\n` +
-        `Revisá tu archivo .env (usá .env.example como referencia).\n`,
+        `Revisá el config de Doppler y que el proceso corra con "doppler run --".\n` +
+        `.env.example lista todas las variables.\n`,
     )
   }
 

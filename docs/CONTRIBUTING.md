@@ -91,8 +91,9 @@ cd nestjs-api-template
 # Instalar dependencias
 npm install
 
-# Configurar entorno
-cp .env.example .env
+# Configurar entorno: las variables salen de Doppler, no de un .env
+doppler login
+doppler setup   # config dev_backend
 
 # Iniciar base de datos
 npm run docker:dev

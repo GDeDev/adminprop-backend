@@ -54,11 +54,9 @@ Esta documentación resume todas las tareas y configuraciones de debugging que s
 
 - ✅ **Debug API + Watch Tests** - Ejecuta API y tests simultáneamente
 
-### 📁 **Archivos de Entorno**
+### 📁 **Variables de Entorno**
 
-- ✅ **.env** - Configuración de desarrollo (existente)
-- ✅ **.env.qa** - Configuración para QA
-- ✅ **.env.production** - Configuración para producción
+- ✅ Sin archivos `.env`: las inyecta Doppler (config `dev_backend`)
 
 ### 🧪 **Configuración de Testing**
 
@@ -176,7 +174,6 @@ npm run test:cov
 - ✅ `.vscode/extensions.json` - Extensiones recomendadas
 - ✅ `test/setup.ts` - Setup global de tests
 - ✅ `package.json` - Configuración de Jest y scripts
-- ✅ `.env.qa` / `.env.production` - Variables de entorno
 
 ## 💡 **Tips de Uso**
 

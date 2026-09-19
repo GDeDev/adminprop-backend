@@ -1,4 +1,3 @@
-import 'dotenv/config'
 import { defineConfig } from 'prisma/config'
 
 /**
@@ -7,8 +6,9 @@ import { defineConfig } from 'prisma/config'
  * Reemplaza a la clave `prisma` de package.json, deprecada desde Prisma 6 y
  * eliminada en Prisma 7.
  *
- * El `import 'dotenv/config'` de arriba es necesario: el CLI de Prisma ya no
- * lee los archivos .env por su cuenta cuando existe este archivo.
+ * No carga ningún `.env`: las variables (`DATABASE_URL` incluida) las inyecta
+ * Doppler. Por eso los scripts `prisma:*` de package.json corren dentro de
+ * `doppler run --`.
  */
 export default defineConfig({
   schema: 'prisma/schema.prisma',

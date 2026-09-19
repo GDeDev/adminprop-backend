@@ -4,21 +4,22 @@
 
 ## Lo esencial
 
-**`.env.example` es sólo una plantilla.** Sus valores son obviamente falsos y no
-sirven en ningún entorno real.
+**Los secretos viven en Doppler, nunca en un archivo.** `.env.example` sólo
+documenta qué variables existen; sus valores son obviamente falsos.
 
-**`.env` nunca se commitea ni se hornea en la imagen Docker.** Está en
-`.gitignore` y en `.dockerignore`. Si alguna vez lo commiteás, rotá todos los
-secretos: borrarlo del repo no lo saca del historial de git.
+**No se crea `.env`.** La app lo ignora aunque exista, y sigue listado en
+`.gitignore` y `.dockerignore` por las dudas. Si alguna vez se commitea un
+secreto, hay que rotarlo: borrarlo del repo no lo saca del historial de git.
 
 ## Antes de arrancar
 
 ```bash
-cp .env.example .env
+doppler login
+doppler setup   # config dev_backend
 ```
 
-Y generá los dos secretos JWT — tienen que ser **distintos entre sí**, la
-validación de entorno no deja arrancar si son iguales:
+Los dos secretos JWT tienen que ser **distintos entre sí**: la validación de
+entorno no deja arrancar si son iguales.
 
 ```bash
 openssl rand -base64 48   # JWT_ACCESS_SECRET

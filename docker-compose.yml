@@ -28,10 +28,14 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    # Los secretos (JWT_*, DATABASE_URL) salen del .env local, no del compose.
-    env_file:
-      - .env
+    # Los secretos no viven en el compose ni en un .env: se levanta con
+    # `npm run docker:prod` (= `doppler run -- docker-compose ...`) y las
+    # variables sin valor de acá abajo se toman del entorno que inyecta Doppler.
     environment:
+      JWT_ACCESS_SECRET:
+      JWT_REFRESH_SECRET:
+      CORS_ORIGINS:
+      FLAGSMITH_ENVIRONMENT_KEY:
       NODE_ENV: production
       DATABASE_URL: postgresql://adminprop:adminprop@postgres:5432/adminprop_development
       TRUST_PROXY: 'false'

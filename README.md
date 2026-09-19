@@ -17,21 +17,19 @@ autenticación JWT propia.
 # 1. Dependencias
 npm install
 
-# 2. Entorno
-cp .env.example .env
-# Generá los dos secretos JWT (tienen que ser distintos entre sí):
-#   openssl rand -base64 48
+# 2. Entorno: no hay .env. Las variables salen de Doppler (proyecto admin-prop).
+doppler login                 # una vez por máquina
+doppler setup                 # en esta carpeta, config dev_backend
+# .env.example documenta qué variables existen.
 
 # 3. Base de datos
 npm run docker:dev            # levanta Postgres 16 (base de dev + base de tests)
 npm run prisma:migrate        # aplica las migraciones
 
-# 4. Primer administrador
-SEED_ADMIN_EMAIL=admin@tuempresa.com \
-SEED_ADMIN_PASSWORD="$(openssl rand -base64 24)" \
+# 4. Primer tenant y su administrador (variables SEED_* en Doppler)
 npm run prisma:seed
 
-# 5. Arrancar
+# 5. Arrancar (start:dev ya corre dentro de `doppler run --`)
 npm run start:dev
 ```
 

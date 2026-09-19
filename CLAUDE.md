@@ -25,7 +25,7 @@ de identidad. Ver la sección final de [docs/AUTH.md](docs/AUTH.md).
 ## Comandos
 
 ```bash
-npm run start:dev             # desarrollo con watch
+npm run start:dev             # desarrollo con watch, dentro de `doppler run --`
 npm run code:check            # formato + lint (lo mismo que corre el CI)
 npm run code:fix              # arregla formato y lint
 npm test                      # unitarios
@@ -198,4 +198,6 @@ Cosas que están así a propósito y conviene no "simplificar":
   relacionados con los archivos staged. No se saltea con `--no-verify`.
 - El cuerpo explica **por qué**, no lista los archivos tocados: eso ya está en el
   diff.
-- `.env` nunca se commitea.
+- No existe `.env`: las variables salen de Doppler (proyecto `admin-prop`,
+  config `dev_backend`). Los scripts que necesitan entorno ya corren dentro de
+  `doppler run --`; tests y CI usan valores descartables propios.
