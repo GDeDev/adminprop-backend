@@ -285,3 +285,43 @@ refreshToken, tokenType, expiresIn } }`.
 - **Por qué**: el front y la API van a estar en dominios distintos (Vercel y
   Render). Una cookie de la API sería de terceros para el navegador, y Safari
   las bloquea. Además la API queda sin CORS con credenciales.
+
+---
+
+## Fase 5
+
+> También **sin supervisión**, en una rama encadenada sobre la de la Fase 4. Pendiente de revisión.
+
+### D-26 · Maestros por inmobiliaria: una tabla por maestro, con `tenant_id`
+
+- **Contexto**: la spec propone maestros globales (sin `tenant_id`), pero también que un admin los edite. El CLAUDE.md pide `tenant_id` en toda entidad nueva y un test de aislamiento.
+- **Decisión**: una sola tabla por tipo de maestro (`property_types`, `amenities`, `operation_types`, `service_types`, `locations`), compartida por todas las inmobiliarias, con `tenant_id` en cada fila. **No** hay tablas por cliente.
+- **Por qué no globales**: si fueran globales, el admin de una inmobiliaria que renombra o desactiva "Casa" se la cambiaría a todas.
+- **Performance** (lo pidió Giuliano): índices `(tenant_id)` en todas; en ubicaciones, además, `(tenant_id, parent_id)` y `(tenant_id, level)`. Los únicos por nombre son `(tenant_id, lower(name))`, que también sirven para buscar. Cada inmobiliaria suma unas 25 filas del catálogo base: con 1.000 clientes son 25.000 filas, nada para Postgres con esos índices.
+- **A futuro**: si hiciera falta un catálogo compartido de sólo lectura (por ejemplo, la geografía de Argentina, igual para todos), se agrega sin tocar esto, como la spec sugiere: `tenant_id` nullable, null = global.
+
+### D-27 · Nombres únicos sin distinguir mayúsculas, con índices por expresión
+
+- **Decisión**: índices únicos sobre `(tenant_id, lower(name))`; en ubicaciones, `(tenant_id, COALESCE(parent_id, <uuid cero>), lower(name))`. El COALESCE es porque un índice único trata cada NULL como distinto: sin él podría haber dos países "Argentina".
+- Los handlers chequean antes y devuelven 409 con un mensaje claro; el índice es la red de seguridad ante carreras.
+- Prisma no declara índices por expresión pero los ignora al comparar (verificado con `prisma migrate diff`), igual que los parciales de la Fase 4.
+
+### D-28 · Jerarquía de ubicaciones
+
+- Un país va sin padre; todo lo demás lo necesita. Sin padre: **400** (lo pide la spec, lo valida el DTO). Padre inexistente, de otra inmobiliaria o que no puede contenerla: **422**.
+- **Se pueden saltear niveles** (una localidad directo en un país): los datos de Tokko no siempre traen los cuatro niveles. Lo que no se permite es un padre del mismo nivel o más específico.
+- `PATCH /locations/:id` sólo **renombra**. Mover de padre arrastra todo lo que cuelga y lo que la usa; si hace falta, es un caso aparte.
+- Se agregó `PATCH /locations/:id/activate` (la spec sólo lista deactivate, pero su caso borde habla de reactivar).
+
+### D-29 · Listados sin paginar; lectura para todo el staff
+
+- Los maestros son listas cortas: se devuelven completos, ordenados por nombre, sin paginar (el resto de los listados sí se paginan).
+- `?isActive=true` (por defecto, lo que usan los selectores), `false` o `all` (pantalla de administración).
+- Leer: admin y empleado (los selectores de las altas los usan todos). Escribir: sólo admin (criterio de la spec).
+- No existe endpoint de borrado: desactivar es el único "borrado" (spec 4).
+
+### D-30 · Catálogo base al dar de alta cada inmobiliaria
+
+- `tenant:create` carga el catálogo base de la spec en la misma transacción del alta. El seed de demo suma localidades y barrios de ejemplo.
+- `npm run master-data:seed` (idempotente) completa las inmobiliarias que ya existían antes de esta fase. **Hay que correrlo una vez** para las creadas antes (ej. Oppido).
+- Ubicaciones base: Argentina, Buenos Aires y CABA. Las reales llegan con la importación de Tokko (Fase 21), como dice la spec.
