@@ -97,5 +97,30 @@ regla de negocio de un cliente puntual va en el código: va acá.
 Si el tenant está inactivo, ninguno de sus usuarios puede loguearse ni rotar su
 sesión. Se responde igual que con una cuenta inactiva.
 
-Alta: `npm run prisma:seed` con `SEED_TENANT_NAME` y `SEED_TENANT_SLUG` (más el
-admin) en Doppler. No hay ABM en el MVP.
+## Alta de una inmobiliaria
+
+Los clientes del SaaS son **filas de `tenants`**: no son variables de entorno,
+ni configs de Doppler, ni feature flags. Todas las inmobiliarias comparten la
+misma instalación. Mientras no exista una pantalla de alta (no hay ABM en el
+MVP), se crean con un comando:
+
+```bash
+npm run tenant:create -- --name "Oppido Propiedades" --slug oppido --admin-email admin@oppido.com.ar
+```
+
+- Crea la inmobiliaria (con los defaults del PRD) y su primer usuario `ADMIN`
+  en una transacción: quedan los dos o ninguno.
+- La contraseña del admin se genera y se muestra **una sola vez**. No se pasa
+  por parámetro porque quedaría en el historial de la terminal.
+- Falla si el slug o el email ya existen. El email es único en todo el sistema.
+- Corre contra la base del config de Doppler de la carpeta (`dev_backend` en
+  local).
+
+La lógica está en `prisma/lib/tenant-provisioning.ts`. El día que haya una
+pantalla de alta para el dueño del SaaS, usa la misma función.
+
+## Datos de demo para desarrollo
+
+`npm run prisma:seed` (también corre al final de `prisma:migrate:reset`) crea
+**Inmobiliaria Demo** (`demo`) con `admin@demo.local` / `demo-admin-1234`.
+Es idempotente y se niega a correr con `NODE_ENV=production`.
