@@ -190,7 +190,7 @@ describe('LoginHandler', () => {
     ).resolves.toMatchObject({ tokens: TOKENS })
   })
 
-  it('rechaza una cuenta inactiva, pero recién después de validar la contraseña', async () => {
+  it('rechaza una cuenta inactiva con el error genérico, después de validar la contraseña', async () => {
     userRepository.findInternalByEmail.mockResolvedValue(
       buildUser({ isActive: false }),
     )
@@ -200,7 +200,7 @@ describe('LoginHandler', () => {
       .execute(new LoginCommand('ana@ejemplo.com', 'ClaveCorrecta1'))
       .catch((e) => e)
 
-    expect(error.code).toBe(ErrorCode.ACCOUNT_INACTIVE)
+    expect(error.code).toBe(ErrorCode.INVALID_CREDENTIALS)
     // Si chequeáramos `isActive` antes, sería otra forma de enumerar cuentas.
     expect(passwordService.compare).toHaveBeenCalled()
     expect(tokenIssuer.issueNewSession).not.toHaveBeenCalled()
@@ -216,8 +216,8 @@ describe('LoginHandler', () => {
       .execute(new LoginCommand('ana@ejemplo.com', 'ClaveCorrecta1'))
       .catch((e) => e)
 
-    // Mismo error que una cuenta inactiva: no se revela el estado del tenant.
-    expect(error.code).toBe(ErrorCode.ACCOUNT_INACTIVE)
+    // Mismo error que una contraseña incorrecta: no se revela el estado del tenant.
+    expect(error.code).toBe(ErrorCode.INVALID_CREDENTIALS)
     expect(tokenIssuer.issueNewSession).not.toHaveBeenCalled()
   })
 

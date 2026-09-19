@@ -5,7 +5,7 @@ import request from 'supertest'
 import { InMemoryFeatureFlagAdapter } from '../src/platform/feature-flags/adapters/in-memory.feature-flag-adapter'
 import { FeatureFlagPort } from '../src/platform/feature-flags/feature-flag.port'
 import { PrismaService } from '../src/shared/prisma/prisma.service'
-import { createTestApp, loginAs } from './utils/app'
+import { createTestApp, loginAs, loginToPortalAs } from './utils/app'
 import { createTenant, createUser, resetDatabase } from './utils/database'
 import { waitFor } from './utils/wait-for'
 
@@ -135,7 +135,7 @@ describe('Módulo de referencia _example (e2e, Postgres)', () => {
         email: 'owner@a.com',
         role: Role.OWNER,
       })
-      const ownerToken = await loginAs(app, 'owner@a.com')
+      const ownerToken = await loginToPortalAs(app, 'tenant-a', 'owner@a.com')
       await createItem({ name: 'Casa', price: '10' }, ownerToken).expect(403)
     })
   })

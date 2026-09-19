@@ -187,9 +187,12 @@ export function configuration(): Configuration {
         str(process.env.APP_NAME, 'api-clients'),
       ),
       bcryptSaltRounds: num(process.env.BCRYPT_SALT_ROUNDS, 12),
+      // Prendido por defecto desde la Fase 4: desactivar un usuario, cambiarle
+      // el rol o deshabilitar su inmobiliaria tiene efecto en el request
+      // siguiente, no 15 minutos después. Cuesta una consulta por PK.
       validateUserOnRequest: bool(
         process.env.JWT_VALIDATE_USER_ON_REQUEST,
-        false,
+        true,
       ),
     },
     accountLock: {
@@ -216,8 +219,8 @@ export function configuration(): Configuration {
         },
       ],
       auth: {
-        ttl: num(process.env.THROTTLE_AUTH_TTL, 900) * 1000,
-        limit: num(process.env.THROTTLE_AUTH_LIMIT, 10),
+        ttl: num(process.env.THROTTLE_AUTH_TTL, 60) * 1000,
+        limit: num(process.env.THROTTLE_AUTH_LIMIT, 5),
       },
     },
     cors: {

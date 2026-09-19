@@ -36,10 +36,11 @@ function toAuthenticatedUser(payload: AccessTokenPayload): AuthenticatedUser {
  * `@IsPublic()`. Fallar cerrado es la única forma de que un endpoint nuevo no
  * quede abierto por olvido.
  *
- * Por defecto no toca la base: el access token es corto y stateless. Si
- * necesitás revocación inmediata (banear un usuario, invalidar sesiones al
- * cambiar la contraseña), poné `JWT_VALIDATE_USER_ON_REQUEST=true` y el guard
- * verifica el usuario en cada request.
+ * Además de la firma, por defecto verifica el usuario contra la base en cada
+ * request (`JWT_VALIDATE_USER_ON_REQUEST`, prendido desde la Fase 4): que siga
+ * activo, que su inmobiliaria siga habilitada, que el token no sea anterior al
+ * último cambio de contraseña, y toma el rol vigente. Así desactivar a alguien
+ * lo saca en el request siguiente y no cuando vence su token.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -104,9 +105,15 @@ export class JwtAuthGuard implements CanActivate {
   ): Promise<void> {
     const dbUser = await this.userRepository.findById(userId)
 
-    if (!dbUser)
-      throw AuthErrors.tokenInvalid({ reason: 'usuario inexistente' })
-    if (!canSignIn(dbUser)) throw AuthErrors.accountInactive()
+    // Usuario borrado, desactivado, o su inmobiliaria deshabilitada o
+    // inexistente (la búsqueda corre dentro del tenant del token): 401, para
+    // que el front cierre la sesión igual que ante un token vencido.
+    if (!dbUser) throw AuthErrors.sessionRevoked({ reason: 'user_not_found' })
+    if (!canSignIn(dbUser)) {
+      throw AuthErrors.sessionRevoked({
+        reason: dbUser.isActive ? 'tenant_inactive' : 'user_inactive',
+      })
+    }
 
     if (dbUser.passwordChangedAt && issuedAt) {
       const changedAtSeconds = Math.floor(

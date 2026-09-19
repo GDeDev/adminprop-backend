@@ -226,9 +226,11 @@ describe('Multi-tenant (e2e, Postgres)', () => {
         data: { isActive: false },
       })
 
-      const response = await login('a@a.com').expect(403)
+      // Antes respondía 403 ACCOUNT_INACTIVE, que confirmaba que la contraseña
+      // era correcta. La spec de la Fase 4 pide el 401 genérico.
+      const response = await login('a@a.com').expect(401)
 
-      expect(response.body.code).toBe('ACCOUNT_INACTIVE')
+      expect(response.body.code).toBe('INVALID_CREDENTIALS')
     })
 
     it('ya no existe el registro público', async () => {

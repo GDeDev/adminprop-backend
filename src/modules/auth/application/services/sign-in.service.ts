@@ -102,19 +102,17 @@ export class SignInService {
       throw AuthErrors.invalidCredentials({ reason: 'bad_password' })
     }
 
-    // El chequeo de cuenta activa va después de validar la contraseña: si no,
-    // sería otra forma de enumerar cuentas. Una inmobiliaria deshabilitada
-    // cuenta igual que una cuenta deshabilitada, con el mismo mensaje.
+    // Cuenta o inmobiliaria deshabilitada: el mismo 401 genérico que una
+    // contraseña incorrecta (spec Fase 4, casos borde). Un mensaje distinto le
+    // confirmaría a quien prueba que la contraseña era la correcta. Va después
+    // de validar la contraseña para gastar el mismo tiempo de bcrypt.
     if (!canSignIn(user)) {
+      const reason = user.isActive ? 'tenant_inactive' : 'inactive'
       this.logger.warn(
-        {
-          operation: 'auth_login_failed',
-          reason: user.isActive ? 'tenant_inactive' : 'inactive',
-          userId: user.id,
-        },
+        { operation: 'auth_login_failed', reason, userId: user.id },
         'Login rechazado: cuenta inactiva',
       )
-      throw AuthErrors.accountInactive()
+      throw AuthErrors.invalidCredentials({ reason })
     }
 
     await this.userRepository.registerSuccessfulLogin(user.id)

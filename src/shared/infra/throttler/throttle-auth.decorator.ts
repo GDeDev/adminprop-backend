@@ -1,8 +1,12 @@
 import { applyDecorators } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 
-const DEFAULT_TTL_SECONDS = 900
-const DEFAULT_LIMIT = 10
+// Spec Fase 4: 5 intentos por minuto por IP. Una ventana más larga (antes eran
+// 10 cada 15 minutos) deja afuera a una oficina entera detrás de la misma IP
+// a la mañana, cuando todos se loguean; contra una cuenta puntual ya está el
+// bloqueo por intentos fallidos.
+const DEFAULT_TTL_SECONDS = 60
+const DEFAULT_LIMIT = 5
 
 /**
  * Los decoradores se evalúan al importar el módulo, y en ese momento
@@ -31,10 +35,11 @@ const resolveTtl = lazyEnvNumber('THROTTLE_AUTH_TTL', DEFAULT_TTL_SECONDS)
 const resolveLimit = lazyEnvNumber('THROTTLE_AUTH_LIMIT', DEFAULT_LIMIT)
 
 /**
- * Límite estricto para endpoints sensibles a la fuerza bruta: login, registro,
- * refresh, cambio de contraseña.
+ * Límite estricto para endpoints sensibles a la fuerza bruta: los dos logins y
+ * el cambio de contraseña. El refresh no: su token no se puede adivinar, y
+ * limitarlo cortaría las sesiones de una oficina que comparte IP.
  *
- * Por defecto: 10 intentos cada 15 minutos (`THROTTLE_AUTH_LIMIT` y
+ * Por defecto: 5 intentos por minuto (`THROTTLE_AUTH_LIMIT` y
  * `THROTTLE_AUTH_TTL`). Sobrescribe **los tres** perfiles globales, así un
  * atacante no puede aprovechar la ventana más permisiva.
  *

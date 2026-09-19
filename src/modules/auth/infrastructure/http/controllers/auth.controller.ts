@@ -88,12 +88,13 @@ export class AuthController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Credenciales inválidas',
+    description:
+      'Credenciales inválidas, o cuenta/inmobiliaria deshabilitada (mismo mensaje)',
     type: ApiErrorDto,
   })
   @ApiResponse({
     status: 403,
-    description: 'Cuenta inactiva o bloqueada por intentos fallidos',
+    description: 'Cuenta bloqueada temporalmente por intentos fallidos',
     type: ApiErrorDto,
   })
   async login(
@@ -148,7 +149,6 @@ export class AuthController {
   }
 
   @IsPublic()
-  @ThrottleAuth()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -180,7 +180,6 @@ export class AuthController {
   }
 
   @IsPublic()
-  @ThrottleAuth()
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
