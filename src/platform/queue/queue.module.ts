@@ -20,10 +20,13 @@ import { QueuePort } from './queue.port'
       provide: QueuePort,
       inject: [ConfigService],
       useFactory: (config: ConfigService<Configuration, true>): QueuePort => {
-        const { provider } = config.get('queue', { infer: true })
-        if (provider === QueueProvider.Memory) return new InMemoryQueueAdapter()
+        const queue = config.get('queue', { infer: true })
+        if (queue.provider === QueueProvider.Memory) {
+          return new InMemoryQueueAdapter()
+        }
         return new PgBossQueueAdapter(
           config.get('database', { infer: true }).url,
+          { pollingIntervalSeconds: queue.pollingIntervalSeconds },
         )
       },
     },

@@ -117,6 +117,8 @@ module.exports = {
               ['module-infrastructure', { module: '${from.module}' }],
               ['module-root', { module: '${from.module}' }],
               ['module-public', { module: '${from.module}' }],
+              // Un contrato público puede declarar su cola (QueueDefinition).
+              'platform',
               'shared',
             ],
           },

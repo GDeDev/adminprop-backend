@@ -8,6 +8,8 @@ import { JwtAuthGuard } from '@/modules/auth/infrastructure/guards/jwt-auth.guar
 import { RolesGuard } from '@/modules/auth/infrastructure/guards/roles.guard'
 import { HealthModule } from '@/modules/health/infrastructure/modules/health.module'
 import { JobsModule } from '@/modules/jobs/public'
+import { ExampleModule } from '@/modules/_example/public'
+import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
 import { QueueModule } from '@/platform/queue/queue.module'
 import { StorageModule } from '@/platform/storage/storage.module'
 import { FeatureFlagsModule } from '@/platform/feature-flags/feature-flags.module'
@@ -38,6 +40,9 @@ import { SharedModule } from './shared/shared.module'
     EmailModule,
     HealthModule,
     JobsModule,
+    // Módulos de referencia (Fase 1). No se borran.
+    ExampleModule,
+    ExampleListenerModule,
     // Los módulos de cada feature van acá. Ver CLAUDE.md para la estructura.
   ],
   controllers: [AppController],

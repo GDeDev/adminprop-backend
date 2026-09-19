@@ -31,5 +31,7 @@ process.env.THROTTLE_ENABLED = 'false'
 process.env.FEATURE_FLAGS_PROVIDER = 'memory'
 delete process.env.FLAGSMITH_ENVIRONMENT_KEY
 process.env.EMAIL_PROVIDER = 'console'
+// Los e2e esperan a los consumidores de la cola: que busquen seguido.
+process.env.QUEUE_POLLING_INTERVAL_SECONDS = '0.5'
 process.env.STORAGE_PROVIDER = 'local'
 process.env.STORAGE_LOCAL_DIR = join(tmpdir(), 'adminprop-test-storage')

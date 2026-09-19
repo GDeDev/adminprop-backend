@@ -19,6 +19,18 @@ export async function resetDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
     `TRUNCATE TABLE ${list.join(', ')} RESTART IDENTITY CASCADE`,
   )
+
+  // Los trabajos de pg-boss que quedaron de otros tests apuntan a tenants que
+  // ya no existen: fallan, se reintentan y demoran a los trabajos nuevos.
+  const [{ exists }] = await prisma.$queryRaw<{ exists: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'pgboss' AND table_name = 'job'
+    ) AS exists
+  `
+  if (exists) {
+    await prisma.$executeRawUnsafe('TRUNCATE TABLE pgboss.job, pgboss.archive')
+  }
 }
 
 /** Crea un tenant con los defaults del PRD. Va por el cliente base: no tiene tenant. */

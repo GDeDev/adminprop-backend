@@ -119,3 +119,24 @@ Formato: **contexto** → **decisión** → **por qué**. Lo más nuevo, abajo.
 - **Por qué**: propietarios e inquilinos pertenecen al mismo tenant que la
   inmobiliaria, y el `result` de un trabajo puede tener datos de otros. Si un
   portal necesita trabajos propios, se abre con un filtro por `startedById`.
+
+### D-13 · Los e2e corren con `--experimental-vm-modules`
+
+- **Contexto**: en NestJS 11, `FileTypeValidator` valida el tipo de archivo
+  por su contenido (magic numbers) con el paquete `file-type`, que es sólo
+  ESM. Jest en modo CommonJS no puede cargarlo y el validador rechaza todo.
+- **Decisión**: `test:e2e` corre Jest con `node --experimental-vm-modules`.
+- **Por qué**: validar por contenido es más seguro que confiar en el mimetype
+  que manda el cliente; no se cambia la validación por una limitación del
+  runner de tests. En runtime (Node) funciona sin flags.
+
+### D-14 · El evento hacia otros módulos no es transaccional (todavía)
+
+- **Contexto**: la spec pide emitir eventos por `EventBus` y transportarlos por
+  pg-boss.
+- **Decisión**: un handler del `EventBus` (relay) publica en la cola después
+  de guardar. Si la publicación falla, se loguea y el efecto se pierde.
+- **Por qué**: alcanza para la Fase 1. Para eventos que nunca pueden perderse
+  (un pago confirmado, Fase 11) el patrón es un **outbox**: escribir el evento
+  en la misma transacción que el dato y publicarlo después. Queda para la
+  primera fase que lo necesite.

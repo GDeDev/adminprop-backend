@@ -67,6 +67,7 @@ export interface CorsConfig {
 
 export interface QueueConfig {
   provider: QueueProvider
+  pollingIntervalSeconds: number
 }
 
 export interface StorageConfig {
@@ -229,6 +230,10 @@ export function configuration(): Configuration {
         process.env.QUEUE_PROVIDER,
         QueueProvider.PgBoss,
       ) as QueueProvider,
+      pollingIntervalSeconds: num(
+        process.env.QUEUE_POLLING_INTERVAL_SECONDS,
+        2,
+      ),
     },
     storage: {
       provider: str(

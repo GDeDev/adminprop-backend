@@ -255,6 +255,14 @@ export class EnvironmentVariables {
   })
   QUEUE_PROVIDER?: QueueProvider
 
+  /** Cada cuánto busca trabajos nuevos cada consumidor. Mínimo 0.5. Default: 2. */
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === undefined || value === '' ? undefined : Number(value),
+  )
+  @Min(0.5)
+  QUEUE_POLLING_INTERVAL_SECONDS?: number
+
   // ---------------------------------------------------------------------- Storage
   @IsOptional()
   @IsEnum(StorageProvider, {

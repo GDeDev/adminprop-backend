@@ -78,6 +78,9 @@ model Tenant {
   users     User[]
   asyncJobs AsyncJob[]
 
+  exampleItems      ExampleItem[]
+  exampleActivities ExampleActivity[]
+
   @@map("tenants")
 }
 
@@ -241,4 +244,53 @@ model AsyncJob {
 
   @@index([tenantId, type, startedAt])
   @@map("async_jobs")
+}
+
+// ---------------------------------------------------------------------------
+// Módulo de referencia (spec Fase 1). NO se borra: es el patrón que copian las
+// fases siguientes. Ver src/modules/_example.
+// ---------------------------------------------------------------------------
+
+/// Ítem de ejemplo: una entidad con tenant, dinero, adjunto, auditoría y
+/// borrado lógico, que no pertenece a ningún dominio real.
+model ExampleItem {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Único por tenant. Al borrar se muta (ver mutateOnDelete) para liberarlo.
+  name  String  @db.VarChar(120)
+  /// Dinero: NUMERIC(14,2), nunca float (spec Fase 1, 2.1).
+  price Decimal @db.Decimal(14, 2)
+
+  attachmentKey String? @map("attachment_key") @db.VarChar(500)
+  attachmentUrl String? @map("attachment_url") @db.VarChar(1000)
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  deletedById String?   @map("deleted_by_id") @db.Uuid
+
+  @@unique([tenantId, name])
+  @@index([tenantId, deletedAt])
+  @@map("example_items")
+}
+
+/// Tabla del segundo módulo de referencia (_example-listener): registra lo que
+/// recibe por eventos, sin tocar las tablas de _example.
+model ExampleActivity {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Id del ExampleItem. Sin FK a propósito: los módulos no comparten tablas.
+  exampleItemId String @map("example_item_id") @db.Uuid
+  description   String @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, exampleItemId])
+  @@map("example_activities")
 }
