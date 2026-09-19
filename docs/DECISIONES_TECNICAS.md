@@ -153,3 +153,135 @@ Formato: **contexto** → **decisión** → **por qué**. Lo más nuevo, abajo.
 - **Por qué**: cada cliente es una fila de `tenants`; ni un entorno ni un
   secreto. La lógica queda en una función reutilizable por una futura pantalla
   de alta.
+
+---
+
+## Fase 4
+
+> La Fase 4 se hizo **sin supervisión**, con autorización de Giuliano: estas
+> decisiones las tomó Claude Code y están pendientes de revisión.
+
+### D-16 · Las credenciales de portal viven en `users`, con email único por audiencia
+
+- **Contexto**: el PRD guarda el acceso al portal en el Propietario y el
+  Inquilino (`portal_usuario`, `portal_password_hash`), y la spec pide que el
+  mismo email de propietario pueda existir en dos inmobiliarias. Pero en la
+  Fase 1 se decidió email único global, porque el login del backoffice no pide
+  inmobiliaria.
+- **Decisión**: propietarios e inquilinos son filas de `users` con rol `OWNER`
+  o `RENTER`, igual que admins y empleados. El índice único de `email` se
+  parte en dos índices parciales:
+  - `ADMIN`/`EMPLOYEE`: único en todo el sistema;
+  - `OWNER`/`RENTER`: único por `(tenant, rol, email)`.
+    El "usuario" de portal es el email.
+- **Por qué**: auth es candidato a extraerse a un servicio propio y no debe
+  leer tablas de otros módulos (CLAUDE.md). Con una sola tabla, el refresh,
+  la rotación, el bloqueo por intentos, `/auth/me` y los guards funcionan igual
+  para todos, sin un `RefreshToken` polimórfico. Prisma no puede declarar
+  índices parciales, pero los ignora al comparar: se escribieron a mano en la
+  migración y no los toca nunca.
+- **Pendiente para las Fases 7 y 8**: al dar de alta el acceso de un
+  propietario o inquilino, crear su usuario por una facade de auth y guardar
+  el vínculo con la ficha (el "id de la entidad en el claim" de la spec 3.2).
+
+### D-17 · El login de portal recibe el slug de la inmobiliaria
+
+- **Contexto**: con el email único por inmobiliaria, el email no alcanza para
+  saber a qué inmobiliaria entra un propietario.
+- **Decisión**: `POST /auth/portal-login` pide `{ tenantSlug, email, password,
+type }`. El slug se resuelve con `TenantsFacade` (módulo nuevo `tenants`) y
+  el usuario se busca sólo dentro de esa inmobiliaria. Inmobiliaria
+  inexistente, deshabilitada, puerta equivocada o contraseña mala: el mismo
+  401 genérico, con el mismo tiempo de bcrypt.
+- **Por qué**: es la forma más simple de garantizar "sin cruce entre tenants".
+  El portal sabe su inmobiliaria por configuración hoy y por dominio en la
+  Fase 22.
+
+### D-18 · Cuenta o inmobiliaria deshabilitada: 401 genérico en el login
+
+- **Contexto**: la Fase 1 respondía `403 ACCOUNT_INACTIVE` después de validar
+  la contraseña. La spec (casos borde) pide el mismo 401 que credenciales
+  inválidas.
+- **Decisión**: se sigue la spec: `401 INVALID_CREDENTIALS`.
+- **Por qué**: el 403 confirmaba que la contraseña era la correcta.
+
+### D-19 · El guard valida al usuario en cada request, por defecto
+
+- **Contexto**: la spec pide 401 para un token cuyo tenant ya no existe, y que
+  un usuario desactivado no pueda operar. Con el access token stateless eso
+  tardaba hasta 15 minutos.
+- **Decisión**: `JWT_VALIDATE_USER_ON_REQUEST` pasa a `true` por defecto. El
+  guard busca al usuario por id (dentro del tenant del token) en cada request.
+  Usuario inexistente, desactivado o de una inmobiliaria deshabilitada:
+  `401 SESSION_REVOKED`. También toma el rol de la base, así que un cambio de
+  rol rige desde el request siguiente.
+- **Por qué**: cuesta una consulta por clave primaria por request, que a la
+  escala del MVP no se nota, y hace que "desactivar" signifique desactivar.
+
+### D-20 · Rate limit de login: 5 por minuto; el refresh sin límite estricto
+
+- **Contexto**: la Fase 1 limitaba login, refresh y logout a 10 cada 15
+  minutos por IP. La spec pide 5 por minuto en los logins.
+- **Decisión**: `THROTTLE_AUTH_*` por defecto 5 intentos / 60 s, en los dos
+  logins y en el cambio de contraseña. Refresh y logout quedan con el límite
+  global.
+- **Por qué**: una oficina entera sale por la misma IP. Con 10 cada 15
+  minutos, a las 9 de la mañana el empleado número 11 no podía entrar, y el
+  refresh silencioso de todos compartía el mismo cupo. Contra una cuenta
+  puntual sigue el bloqueo por intentos fallidos (5 → 15 minutos).
+
+### D-21 · `POST /auth/logout` sigue siendo público
+
+- **Contexto**: la spec lo marca como autenticado.
+- **Decisión**: se mantiene público: revoca el refresh token que recibe y
+  responde 204 siempre.
+- **Por qué**: cerrar sesión tiene que funcionar aunque el access token ya
+  haya vencido. Sin el refresh token no se puede revocar nada, así que no
+  abre ningún ataque.
+
+### D-22 · Alta de usuarios con contraseña definida por el admin
+
+- **Contexto**: la spec deja abierto "invitación por email o password
+  directo".
+- **Decisión**: el admin define la contraseña inicial en `POST /users`, con la
+  misma política que el cambio de contraseña. Además de lo que pide la spec se
+  agregaron `GET /users/:id` (lo necesita la pantalla de edición) y
+  `PATCH /users/:id/activate` (desactivar sin poder volver atrás es una
+  trampa). Reglas: nadie puede cambiarse su propio rol, desactivarse ni
+  resetearse la contraseña por `/users`. Con eso la inmobiliaria nunca se queda
+  sin admin, sin tener que contar admins.
+- **Por qué**: la invitación por email necesita un proveedor real de email
+  (Fase 14). Se puede sumar después sin cambiar el resto.
+
+### D-23 · La respuesta del login mantiene `{ user, tokens }`
+
+- **Contexto**: la spec muestra `{ accessToken, refreshToken, user }` plano.
+- **Decisión**: se mantiene el contrato de la Fase 1: el sobre
+  `{ success, message, data }` con `data: { user, tokens: { accessToken,
+refreshToken, tokenType, expiresIn } }`.
+- **Por qué**: ya estaba documentado y probado; `expiresIn` le sirve al front
+  para programar el refresh. Cambiarlo no aporta nada.
+
+### D-24 · El contrato OpenAPI se exporta a `openapi.json`
+
+- **Contexto**: el frontend genera sus tipos desde el OpenAPI (decisión de la
+  Fase 1), y los dos repos no comparten carpeta en CI.
+- **Decisión**: `npm run openapi:export` arma la app en modo `preview` (sin
+  base) y escribe `openapi.json`, que se commitea. El CI lo regenera y falla si
+  difiere. El frontend lo lee de `../adminprop-backend/openapi.json`.
+- **Limitación conocida**: las respuestas de un solo objeto documentan el
+  modelo y no el sobre `{ success, message, data }` (las paginadas sí). El
+  frontend envuelve el tipo con `ApiSuccess<T>`. Documentar el sobre en todos
+  los endpoints es un cambio aparte.
+
+### D-25 · El refresh token en cookie lo maneja el frontend, no la API
+
+- **Contexto**: la spec pide el refresh token en una cookie httpOnly "si es
+  posible".
+- **Decisión**: la API no cambia: sigue recibiendo y devolviendo el refresh
+  token en el cuerpo. Cada app de Next tiene route handlers propios que lo
+  guardan en una cookie httpOnly de su dominio. Ver las decisiones del
+  frontend.
+- **Por qué**: el front y la API van a estar en dominios distintos (Vercel y
+  Render). Una cookie de la API sería de terceros para el navegador, y Safari
+  las bloquea. Además la API queda sin CORS con credenciales.
