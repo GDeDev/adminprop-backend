@@ -1,6 +1,12 @@
 import type { StringValue } from 'ms'
 
-import { Environment, QueueProvider, StorageProvider } from './env.validation'
+import {
+  EmailProvider,
+  Environment,
+  FeatureFlagsProvider,
+  QueueProvider,
+  StorageProvider,
+} from './env.validation'
 
 export interface AppConfig {
   name: string
@@ -70,6 +76,17 @@ export interface StorageConfig {
   cloudinary: { cloudName: string; apiKey: string; apiSecret: string } | null
 }
 
+export interface FeatureFlagsConfig {
+  provider: FeatureFlagsProvider
+  flagsmithEnvironmentKey: string | null
+  /** Con `provider: memory`, los flags prendidos para todos. */
+  enabled: string[]
+}
+
+export interface EmailConfig {
+  provider: EmailProvider
+}
+
 export interface Configuration {
   app: AppConfig
   database: DatabaseConfig
@@ -79,6 +96,8 @@ export interface Configuration {
   cors: CorsConfig
   queue: QueueConfig
   storage: StorageConfig
+  featureFlags: FeatureFlagsConfig
+  email: EmailConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -233,6 +252,28 @@ export function configuration(): Configuration {
               apiSecret: process.env.CLOUDINARY_API_SECRET,
             }
           : null,
+    },
+    featureFlags: {
+      // Sin proveedor explícito: Flagsmith si hay key, memoria si no. Así el
+      // desarrollo local usa Flagsmith (la key está en Doppler) y los tests,
+      // que no la tienen, quedan en memoria sin configurar nada.
+      provider: str(
+        process.env.FEATURE_FLAGS_PROVIDER,
+        process.env.FLAGSMITH_ENVIRONMENT_KEY
+          ? FeatureFlagsProvider.Flagsmith
+          : FeatureFlagsProvider.Memory,
+      ) as FeatureFlagsProvider,
+      flagsmithEnvironmentKey: process.env.FLAGSMITH_ENVIRONMENT_KEY || null,
+      enabled: (process.env.FEATURE_FLAGS_ENABLED ?? '')
+        .split(',')
+        .map((flag) => flag.trim())
+        .filter(Boolean),
+    },
+    email: {
+      provider: str(
+        process.env.EMAIL_PROVIDER,
+        EmailProvider.Console,
+      ) as EmailProvider,
     },
   }
 }

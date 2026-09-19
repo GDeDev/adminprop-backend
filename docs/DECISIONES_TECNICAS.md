@@ -99,3 +99,14 @@ Formato: **contexto** → **decisión** → **por qué**. Lo más nuevo, abajo.
   borrar keys de otro tenant.
 - **Por qué**: el mismo principio que el filtro de Prisma: el aislamiento no
   depende de que cada módulo arme bien el path.
+
+### D-11 · Proveedor de feature flags por defecto según la key
+
+- **Contexto**: se acordó `FEATURE_FLAGS_PROVIDER` (memory | flagsmith), y
+  Claude Code no carga valores en Doppler, sólo crea variables vacías.
+- **Decisión**: sin valor explícito, es `flagsmith` si existe
+  `FLAGSMITH_ENVIRONMENT_KEY` y `memory` si no. Con `flagsmith` explícito, la
+  key es obligatoria al arrancar.
+- **Por qué**: el desarrollo local usa Flagsmith real sin cargar nada nuevo en
+  Doppler, y los tests (que no tienen la key y fuerzan `memory`) no salen a la
+  red.

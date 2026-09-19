@@ -1,6 +1,8 @@
 // Setup común a todos los tests (unitarios y e2e).
 import 'reflect-metadata'
 import { webcrypto } from 'node:crypto'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { TEST_DATABASE_URL } from './utils/test-database-url'
 
@@ -25,3 +27,9 @@ process.env.JWT_REFRESH_SECRET =
 process.env.BCRYPT_SALT_ROUNDS = '10'
 // El rate limiting rompe los tests que hacen muchos requests seguidos.
 process.env.THROTTLE_ENABLED = 'false'
+// Proveedores sin red ni cuentas externas. Los flags se prenden por test.
+process.env.FEATURE_FLAGS_PROVIDER = 'memory'
+delete process.env.FLAGSMITH_ENVIRONMENT_KEY
+process.env.EMAIL_PROVIDER = 'console'
+process.env.STORAGE_PROVIDER = 'local'
+process.env.STORAGE_LOCAL_DIR = join(tmpdir(), 'adminprop-test-storage')

@@ -34,6 +34,17 @@ export enum StorageProvider {
   Cloudinary = 'cloudinary',
 }
 
+export enum FeatureFlagsProvider {
+  Flagsmith = 'flagsmith',
+  /** Flags de FEATURE_FLAGS_ENABLED, prendidos para todos. Tests y desarrollo. */
+  Memory = 'memory',
+}
+
+export enum EmailProvider {
+  /** Loguea en vez de enviar. El único hasta la Fase 14 (Resend vía Novu). */
+  Console = 'console',
+}
+
 export enum SecretsProvider {
   /** Lee todo de `process.env`, que llena Doppler. */
   Env = 'env',
@@ -274,6 +285,33 @@ export class EnvironmentVariables {
   @IsString()
   CLOUDINARY_API_SECRET?: string
 
+  // ---------------------------------------------------------------- Feature flags
+  /**
+   * Sin valor: `flagsmith` si hay FLAGSMITH_ENVIRONMENT_KEY, si no `memory`.
+   */
+  @IsOptional()
+  @IsEnum(FeatureFlagsProvider, {
+    message: `FEATURE_FLAGS_PROVIDER debe ser uno de: ${Object.values(FeatureFlagsProvider).join(', ')}`,
+  })
+  FEATURE_FLAGS_PROVIDER?: FeatureFlagsProvider
+
+  /** Server-side key del entorno de Flagsmith. */
+  @IsOptional()
+  @IsString()
+  FLAGSMITH_ENVIRONMENT_KEY?: string
+
+  /** Con el proveedor `memory`: flags prendidos, separados por coma. */
+  @IsOptional()
+  @IsString()
+  FEATURE_FLAGS_ENABLED?: string
+
+  // ------------------------------------------------------------------------ Email
+  @IsOptional()
+  @IsEnum(EmailProvider, {
+    message: `EMAIL_PROVIDER debe ser uno de: ${Object.values(EmailProvider).join(', ')}`,
+  })
+  EMAIL_PROVIDER?: EmailProvider
+
   // -------------------------------------------------------------------------- CORS
   /** Lista separada por comas. `*` permite cualquier origen (sólo para desarrollo). */
   @IsOptional()
@@ -304,6 +342,12 @@ const PROVIDER_CREDENTIALS: {
       'CLOUDINARY_API_KEY',
       'CLOUDINARY_API_SECRET',
     ],
+  },
+  {
+    applies: (env) =>
+      env.FEATURE_FLAGS_PROVIDER === FeatureFlagsProvider.Flagsmith,
+    provider: 'FEATURE_FLAGS_PROVIDER=flagsmith',
+    variables: ['FLAGSMITH_ENVIRONMENT_KEY'],
   },
 ]
 

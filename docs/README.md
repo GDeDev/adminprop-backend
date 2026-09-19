@@ -8,6 +8,7 @@ Arranque, scripts y estructura del proyecto: **[README principal](../README.md)*
 
 | Doc                                                      | Sobre                                                          |
 | -------------------------------------------------------- | -------------------------------------------------------------- |
+| [FEATURE-FLAGS.md](FEATURE-FLAGS.md)                     | Feature flags por tenant (Flagsmith) y EmailPort               |
 | [STORAGE.md](STORAGE.md)                                 | Archivos: StoragePort, local y Cloudinary, carpetas por tenant |
 | [QUEUE.md](QUEUE.md)                                     | Cola de trabajos: pg-boss, reintentos, dead-letter, tenant     |
 | [MULTI-TENANCY.md](MULTI-TENANCY.md)                     | Aislamiento por inmobiliaria, runInTenant, prisma.unscoped     |
