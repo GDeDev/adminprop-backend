@@ -7,7 +7,13 @@ Módulo de auth propio, sin dependencias externas. Reemplaza a
 - **Refresh token**: JWT firmado con otro secreto, 7 días, persistido como hash
   y **rotado en cada uso** con detección de reuso.
 - **Contraseñas**: bcrypt, costo 12.
-- **Roles**: `USER` y `ADMIN`, un rol por usuario.
+- **Roles**: `ADMIN`, `EMPLOYEE`, `OWNER` y `RENTER`, un rol por usuario.
+- **Multi-tenant**: cada usuario pertenece a una inmobiliaria. El email es único
+  en todo el sistema, así que el login sigue siendo email + contraseña y el
+  `tenantId` sale del usuario y viaja en el access token. Ver
+  [MULTI-TENANCY.md](MULTI-TENANCY.md).
+- **Sin registro público**: los usuarios salen del seed y, desde la Fase 4, del
+  alta que hace el admin de cada inmobiliaria.
 
 ---
 
@@ -17,7 +23,6 @@ Todos cuelgan de `/api/v1/auth`.
 
 | Método | Ruta               | Auth | Qué hace                                         |
 | ------ | ------------------ | ---- | ------------------------------------------------ |
-| POST   | `/register`        | No   | Crea la cuenta y devuelve la sesión iniciada     |
 | POST   | `/login`           | No   | Inicia sesión                                    |
 | POST   | `/refresh`         | No   | Rota el par de tokens                            |
 | POST   | `/logout`          | No   | Revoca el refresh token enviado (204 siempre)    |
@@ -25,7 +30,7 @@ Todos cuelgan de `/api/v1/auth`.
 | POST   | `/change-password` | Sí   | Cambia la contraseña y cierra todas las sesiones |
 | GET    | `/me`              | Sí   | Datos del usuario autenticado                    |
 
-Los cuatro primeros tienen rate limiting estricto: 10 intentos cada 15 minutos
+Los tres primeros tienen rate limiting estricto: 10 intentos cada 15 minutos
 (`THROTTLE_AUTH_*`).
 
 ---
@@ -184,14 +189,16 @@ request; para la mayoría de las APIs no vale la pena.
 
 ## Crear el primer administrador
 
-El registro por `/auth/register` siempre crea usuarios con rol `USER`. El primer
-admin se crea con el seed:
+No hay registro público. La primera inmobiliaria y su admin se crean con el
+seed, con las variables `SEED_TENANT_NAME`, `SEED_TENANT_SLUG`,
+`SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD` cargadas en Doppler:
 
 ```bash
-SEED_ADMIN_EMAIL=admin@tuempresa.com \
-SEED_ADMIN_PASSWORD="$(openssl rand -base64 24)" \
 npm run prisma:seed
 ```
+
+Es idempotente: si el tenant ya existe se reutiliza. Para sumar otra
+inmobiliaria alcanza con correrlo de nuevo con otros valores.
 
 La contraseña no está hardcodeada a propósito: un template con una contraseña de
 admin conocida es exactamente el tipo de cosa que después aparece en producción.

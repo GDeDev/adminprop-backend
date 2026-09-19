@@ -8,6 +8,7 @@ Arranque, scripts y estructura del proyecto: **[README principal](../README.md)*
 
 | Doc                                                      | Sobre                                                        |
 | -------------------------------------------------------- | ------------------------------------------------------------ |
+| [MULTI-TENANCY.md](MULTI-TENANCY.md)                     | Aislamiento por inmobiliaria, runInTenant, prisma.unscoped   |
 | [AUTH.md](AUTH.md)                                       | Autenticación: flujo, guards, roles, decisiones de seguridad |
 | [ERROR-HANDLING.md](ERROR-HANDLING.md)                   | Formato de errores, códigos, filtros y redacción de logs     |
 | [CONFIGURATION.md](CONFIGURATION.md)                     | Variables de entorno, config tipada y secretos               |

@@ -3,13 +3,16 @@ import { ConfigService } from '@nestjs/config'
 
 import {
   activeLockUntil,
+  canSignIn,
   toPublicUser,
+  User,
 } from '@/domain/auth/entities/user.entity'
 import { AuthErrors } from '@/domain/auth/exceptions/auth.exceptions'
 import { UserRepository } from '@/domain/auth/repositories/user.repository'
 import { AuthTokenIssuer } from '@/infrastructure/auth/services/auth-token-issuer.service'
 import { PasswordService } from '@/infrastructure/auth/services/password.service'
 import { AccountLockConfig, Configuration } from '@/shared/config/configuration'
+import { RequestContext } from '@/shared/context/request-context'
 import { createLogger } from '@/shared/logging/root-logger'
 import { AuthResult } from '../../results/auth-result'
 import { LoginCommand } from './login.command'
@@ -31,6 +34,7 @@ export class LoginHandler implements ICommandHandler<LoginCommand, AuthResult> {
   }
 
   async execute(command: LoginCommand): Promise<AuthResult> {
+    // Única consulta entre tenants: todavía no sabemos de qué inmobiliaria es.
     const user = await this.userRepository.findByEmail(command.email)
 
     if (!user) {
@@ -47,6 +51,18 @@ export class LoginHandler implements ICommandHandler<LoginCommand, AuthResult> {
       throw AuthErrors.invalidCredentials({ reason: 'unknown_email' })
     }
 
+    // Desde acá todo corre dentro del tenant del usuario: los updates de
+    // intentos fallidos y de último login pasan por el filtro de tenant igual
+    // que cualquier otra escritura, y la auditoría registra el tenant.
+    return RequestContext.runInTenant(user.tenantId, () =>
+      this.authenticate(user, command),
+    )
+  }
+
+  private async authenticate(
+    user: User,
+    command: LoginCommand,
+  ): Promise<AuthResult> {
     const lockedUntil = activeLockUntil(user)
     if (lockedUntil) {
       this.logger.warn(
@@ -83,12 +99,13 @@ export class LoginHandler implements ICommandHandler<LoginCommand, AuthResult> {
     }
 
     // El chequeo de cuenta activa va después de validar la contraseña: si no,
-    // sería otra forma de enumerar cuentas.
-    if (!user.isActive) {
+    // sería otra forma de enumerar cuentas. Una inmobiliaria deshabilitada
+    // cuenta igual que una cuenta deshabilitada, con el mismo mensaje.
+    if (!canSignIn(user)) {
       this.logger.warn(
         {
           operation: 'auth_login_failed',
-          reason: 'inactive',
+          reason: user.isActive ? 'tenant_inactive' : 'inactive',
           userId: user.id,
         },
         'Login rechazado: cuenta inactiva',

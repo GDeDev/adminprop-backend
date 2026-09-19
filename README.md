@@ -96,7 +96,7 @@ src/
 │   ├── auth/                  #   entidades, enums, puertos de repositorio, excepciones
 │   └── feature/               #   ← tu dominio va acá
 ├── application/               # Casos de uso (CQRS)
-│   ├── auth/                  #   register, login, refresh, logout, change-password
+│   ├── auth/                  #   login, refresh, logout, change-password
 │   └── feature/
 ├── infrastructure/            # Adaptadores: HTTP, Prisma, servicios externos
 │   ├── auth/                  #   controller, guards, decoradores, repos, tasks

@@ -29,7 +29,7 @@ npm run start:dev             # desarrollo con watch, dentro de `doppler run --`
 npm run code:check            # formato + lint (lo mismo que corre el CI)
 npm run code:fix              # arregla formato y lint
 npm test                      # unitarios
-npm run test:e2e              # e2e (no necesitan base de datos)
+npm run test:e2e              # e2e (Postgres de docker:dev, base adminprop_test)
 npx tsc --noEmit              # sólo tipos
 npm run prisma:migrate        # crear y aplicar migración
 npm run docker:dev            # Postgres 16
@@ -91,9 +91,10 @@ Para `propiedades`:
 6. `src/infrastructure/propiedades/http/controllers/` y `http/dtos/`.
 7. `src/infrastructure/propiedades/modules/propiedades.module.ts`.
 8. Registrar el módulo en `src/app.module.ts`.
-9. Si la entidad necesita historial de cambios o borrado lógico, declararla en
-   `src/infrastructure/prisma/extensions/auditable-models.ts`. Es opt-in: sin
-   eso no pasa nada.
+9. Declarar el modelo en
+   `src/infrastructure/prisma/extensions/auditable-models.ts`: `tenantScoped:
+true` si tiene `tenantId` (un test lo exige), y `audit`/`softDelete` si
+   necesita historial o borrado lógico.
 
 El controller queda protegido automáticamente: `JwtAuthGuard` es guard global.
 
@@ -163,7 +164,11 @@ seguridad, workarounds de librerías y órdenes de ejecución que importan.
 ## Tests
 
 - Unitarios al lado del código: `src/**/*.spec.ts`.
-- e2e en `test/`, con Prisma y los repositorios mockeados: no necesitan base.
+- e2e en `test/`. `app.e2e-spec.ts` mockea Prisma (cableado y contrato de
+  errores); el resto corre contra Postgres real, en la base `adminprop_test`
+  (`TEST_DATABASE_URL`), que se migra sola y se trunca antes de cada test.
+  Nunca usan el `DATABASE_URL` del entorno, y se niegan a correr contra una base
+  cuyo nombre no termine en `_test`.
 - Los e2e usan `configureApp()` de `src/app.setup.ts`, la misma función que
   `main.ts`. Si agregás un pipe, filtro o middleware global, va ahí y no en
   `main.ts`, o los tests probarán una app distinta de la real.

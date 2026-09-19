@@ -6,6 +6,7 @@ import { Role } from '@/domain/auth/enums/role.enum'
 import { UserRepository } from '@/domain/auth/repositories/user.repository'
 import { AuthTokenIssuer } from '@/infrastructure/auth/services/auth-token-issuer.service'
 import { PasswordService } from '@/infrastructure/auth/services/password.service'
+import { RequestContext } from '@/shared/context/request-context'
 import { ErrorCode } from '@/shared/errors/error-codes'
 import { AuthTokens } from '../../results/auth-result'
 import { LoginCommand } from './login.command'
@@ -21,11 +22,13 @@ const TOKENS: AuthTokens = {
 function buildUser(overrides: Partial<User> = {}): User {
   return {
     id: 'user-1',
+    tenantId: 'tenant-1',
+    tenantIsActive: true,
     email: 'ana@ejemplo.com',
     passwordHash: '$2a$10$hash',
     firstName: 'Ana',
     lastName: 'Gómez',
-    role: Role.USER,
+    role: Role.EMPLOYEE,
     isActive: true,
     failedLoginAttempts: 0,
     lockedUntil: null,
@@ -197,6 +200,37 @@ describe('LoginHandler', () => {
     // Si chequeáramos `isActive` antes, sería otra forma de enumerar cuentas.
     expect(passwordService.compare).toHaveBeenCalled()
     expect(tokenIssuer.issueNewSession).not.toHaveBeenCalled()
+  })
+
+  it('rechaza el login si la inmobiliaria está deshabilitada', async () => {
+    userRepository.findByEmail.mockResolvedValue(
+      buildUser({ tenantIsActive: false }),
+    )
+    passwordService.compare.mockResolvedValue(true)
+
+    const error = await handler
+      .execute(new LoginCommand('ana@ejemplo.com', 'ClaveCorrecta1'))
+      .catch((e) => e)
+
+    // Mismo error que una cuenta inactiva: no se revela el estado del tenant.
+    expect(error.code).toBe(ErrorCode.ACCOUNT_INACTIVE)
+    expect(tokenIssuer.issueNewSession).not.toHaveBeenCalled()
+  })
+
+  it('después de encontrar al usuario trabaja dentro de su tenant', async () => {
+    // Sin esto, los updates del login fallarían contra el filtro de tenant,
+    // que no deja tocar un modelo con tenant sin tenant en el contexto.
+    userRepository.findByEmail.mockResolvedValue(buildUser())
+    passwordService.compare.mockResolvedValue(true)
+
+    let tenantDuringUpdate: string | undefined
+    userRepository.registerSuccessfulLogin.mockImplementation(async () => {
+      tenantDuringUpdate = RequestContext.tenantId
+    })
+
+    await handler.execute(new LoginCommand('ana@ejemplo.com', 'ClaveCorrecta1'))
+
+    expect(tenantDuringUpdate).toBe('tenant-1')
   })
 
   it('re-hashea la contraseña cuando subió el costo de bcrypt', async () => {

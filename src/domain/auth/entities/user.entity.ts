@@ -9,6 +9,10 @@ import { Role } from '../enums/role.enum'
  */
 export interface User {
   id: string
+  /** Inmobiliaria a la que pertenece. Viaja en el JWT. */
+  tenantId: string
+  /** Si su inmobiliaria está habilitada. Con el tenant inactivo no hay login. */
+  tenantIsActive: boolean
   email: string
   passwordHash: string
   firstName: string | null
@@ -26,6 +30,7 @@ export interface User {
 /** Proyección segura del usuario: lo único que sale por la API. */
 export interface PublicUser {
   id: string
+  tenantId: string
   email: string
   firstName: string | null
   lastName: string | null
@@ -38,6 +43,7 @@ export interface PublicUser {
 export function toPublicUser(user: User): PublicUser {
   return {
     id: user.id,
+    tenantId: user.tenantId,
     email: user.email,
     firstName: user.firstName,
     lastName: user.lastName,
@@ -46,6 +52,15 @@ export function toPublicUser(user: User): PublicUser {
     lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,
   }
+}
+
+/**
+ * Si el usuario puede operar: su cuenta y su inmobiliaria tienen que estar
+ * habilitadas. Se chequea en el login, al rotar el refresh y, con
+ * `JWT_VALIDATE_USER_ON_REQUEST`, en cada request.
+ */
+export function canSignIn(user: User): boolean {
+  return user.isActive && user.tenantIsActive
 }
 
 /**

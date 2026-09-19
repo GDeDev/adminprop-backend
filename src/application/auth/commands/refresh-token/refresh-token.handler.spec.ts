@@ -22,11 +22,13 @@ const TOKENS: AuthTokens = {
 
 const USER: User = {
   id: 'user-1',
+  tenantId: 'tenant-1',
+  tenantIsActive: true,
   email: 'ana@ejemplo.com',
   passwordHash: '$2a$10$hash',
   firstName: null,
   lastName: null,
-  role: Role.USER,
+  role: Role.EMPLOYEE,
   isActive: true,
   failedLoginAttempts: 0,
   lockedUntil: null,
@@ -84,7 +86,7 @@ describe('RefreshTokenHandler', () => {
         },
         {
           provide: UserRepository,
-          useValue: { findById: jest.fn().mockResolvedValue(USER) },
+          useValue: { findByIdForSession: jest.fn().mockResolvedValue(USER) },
         },
         {
           provide: AuthTokenIssuer,
@@ -167,7 +169,27 @@ describe('RefreshTokenHandler', () => {
 
   it('corta las sesiones si el usuario quedó inactivo', async () => {
     refreshTokenRepository.findByTokenHash.mockResolvedValue(storedToken())
-    userRepository.findById.mockResolvedValue({ ...USER, isActive: false })
+    userRepository.findByIdForSession.mockResolvedValue({
+      ...USER,
+      isActive: false,
+    })
+
+    const error = await handler
+      .execute(new RefreshTokenCommand('el-token'))
+      .catch((e) => e)
+
+    expect(error.code).toBe(ErrorCode.ACCOUNT_INACTIVE)
+    expect(refreshTokenRepository.revokeAllForUser).toHaveBeenCalledWith(
+      'user-1',
+    )
+  })
+
+  it('revoca las sesiones si la inmobiliaria se deshabilitó', async () => {
+    refreshTokenRepository.findByTokenHash.mockResolvedValue(storedToken())
+    userRepository.findByIdForSession.mockResolvedValue({
+      ...USER,
+      tenantIsActive: false,
+    })
 
     const error = await handler
       .execute(new RefreshTokenCommand('el-token'))

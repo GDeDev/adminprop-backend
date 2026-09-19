@@ -34,6 +34,7 @@ describe('App (e2e)', () => {
       .useValue({
         findById: jest.fn().mockResolvedValue(null),
         findByEmail: jest.fn().mockResolvedValue(null),
+        findByIdForSession: jest.fn().mockResolvedValue(null),
         existsByEmail: jest.fn().mockResolvedValue(false),
         create: jest.fn(),
         changePassword: jest.fn(),
@@ -154,7 +155,7 @@ describe('App (e2e)', () => {
 
     it('nunca devuelve la contraseña enviada en el cuerpo del error', async () => {
       const response = await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
+        .post('/api/v1/auth/login')
         .send({ email: 'no-es-un-email', password: 'ClaveSecreta123' })
         .expect(400)
 

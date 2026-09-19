@@ -15,25 +15,83 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Roles de la aplicación.
+/// Roles de la aplicación (spec Fase 1, sección 4).
 ///
-/// El modelo es de un rol por usuario, que cubre la mayoría de los casos y se
-/// chequea sin joins. Si algún día necesitás varios roles por usuario,
-/// reemplazá el campo `User.role` por una tabla intermedia `UserRole`: lo único
-/// que hay que tocar además es `UserRepositoryImpl.toDomain()`.
+/// ADMIN y EMPLOYEE operan el backoffice; OWNER y RENTER entran a su portal y
+/// además quedan acotados a sus propios datos dentro del tenant (Fase 17/18).
+///
+/// Un rol por usuario: cubre los casos del PRD y se chequea sin joins.
 enum Role {
-  USER
   ADMIN
+  EMPLOYEE
+  OWNER
+  RENTER
+}
+
+enum Currency {
+  ARS
+  USD
+}
+
+/// Inmobiliaria. Raíz del modelo multi-tenant (PRD §5.0).
+///
+/// Todo lo que cambia de un cliente a otro vive acá y no en el código: los
+/// parámetros de negocio arrancan con los defaults del PRD y cada inmobiliaria
+/// los ajusta. Alta por seed; sin ABM en el MVP.
+///
+/// No lleva `tenantId` ni pasa por el filtro de tenant: es la tabla que lo define.
+model Tenant {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String  @db.VarChar(150)
+  /// Identificador corto y único ("mi-inmobiliaria"). Para URLs y el seed.
+  slug         String  @unique @db.VarChar(60)
+  logoUrl      String? @map("logo_url") @db.VarChar(500)
+  /// Color de marca en hex. El front lo aplica sobre `--primary`.
+  primaryColor String? @map("primary_color") @db.VarChar(9)
+  /// Un tenant inactivo no puede loguearse (ninguno de sus usuarios).
+  isActive     Boolean @default(true) @map("is_active")
+
+  // ---------------------------------------------------- Parámetros de negocio
+  /// Honorarios de administración estándar, en % (PRD: honorarios_pct_estandar).
+  standardFeePercentage    Decimal  @default(5) @map("standard_fee_percentage") @db.Decimal(5, 2)
+  /// Honorarios reducidos para propietarios con varias propiedades.
+  reducedFeePercentage     Decimal  @default(3) @map("reduced_fee_percentage") @db.Decimal(5, 2)
+  /// Cantidad de propiedades activas desde la que aplica el honorario reducido.
+  reducedFeeThreshold      Int      @default(3) @map("reduced_fee_threshold")
+  /// Días del mes sin punitorio (del 1 al N).
+  paymentGraceDays         Int      @default(10) @map("payment_grace_days")
+  /// Punitorio diario, en %, a partir del día siguiente a la gracia.
+  dailyLateFeePercentage   Decimal  @default(5) @map("daily_late_fee_percentage") @db.Decimal(5, 2)
+  /// Día del mes en que se generan las cuotas del mes siguiente.
+  installmentGenerationDay Int      @default(28) @map("installment_generation_day")
+  /// Día del mes en que sale el recordatorio de pago.
+  paymentReminderDay       Int      @default(1) @map("payment_reminder_day")
+  /// Anticipación, en días, del aviso de vencimiento de contrato.
+  contractExpiryNoticeDays Int      @default(60) @map("contract_expiry_notice_days")
+  /// Día del mes en que se envía el informe mensual a propietarios.
+  monthlyReportDay         Int      @default(10) @map("monthly_report_day")
+  defaultCurrency          Currency @default(ARS) @map("default_currency")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  users User[]
+
+  @@map("tenants")
 }
 
 model User {
   id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String  @map("tenant_id") @db.Uuid
+  tenant       Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  /// Único en todo el sistema, no por tenant: el login es email + contraseña y
+  /// el tenant sale del usuario.
   email        String  @unique @db.VarChar(255)
   /// Hash bcrypt. La contraseña en texto plano nunca toca la base ni los logs.
   passwordHash String  @map("password_hash") @db.VarChar(255)
   firstName    String? @map("first_name") @db.VarChar(100)
   lastName     String? @map("last_name") @db.VarChar(100)
-  role         Role    @default(USER)
+  role         Role
   isActive     Boolean @default(true) @map("is_active")
 
   /// Bloqueo temporal por intentos fallidos, para frenar fuerza bruta contra
@@ -56,6 +114,7 @@ model User {
 
   refreshTokens RefreshToken[]
 
+  @@index([tenantId])
   @@index([isActive])
   @@index([deletedAt])
   @@map("users")
@@ -67,34 +126,37 @@ model User {
 /// antes y después. Guardar el registro entero haría crecer la tabla sin
 /// necesidad y volvería ilegible el diff.
 ///
-/// El JSON de `cambios` no tiene esquema fijo a propósito: cada entidad tiene
+/// El JSON de `changes` no tiene esquema fijo a propósito: cada entidad tiene
 /// los suyos y es el front el que decide cómo mostrarlos (formato de moneda,
 /// resolver un id a su nombre, etc).
 model AuditLog {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
-  /// Nombre del modelo de Prisma: "User", "Propiedad", ...
-  entidad   String      @db.VarChar(64)
-  entidadId String      @map("entidad_id") @db.VarChar(64)
-  accion    AuditAction
+  /// Tenant del cambio. Null sólo para procesos sin tenant (seed global).
+  tenantId String? @map("tenant_id") @db.Uuid
 
-  /// `{ "precio": { "antes": 120000, "despues": 135000 } }`
-  /// En un CREATE sólo lleva "despues"; en un DELETE, sólo "antes".
-  cambios Json?
+  /// Nombre del modelo de Prisma: "User", "Property", ...
+  entity   String      @db.VarChar(64)
+  entityId String      @map("entity_id") @db.VarChar(64)
+  action   AuditAction
+
+  /// `{ "price": { "before": "120000.00", "after": "135000.00" } }`
+  /// En un CREATE sólo lleva "after"; en un DELETE, sólo "before".
+  changes Json?
 
   /// Autor del cambio. Null si lo hizo un proceso automático (seed, cron).
-  usuarioId    String? @map("usuario_id") @db.Uuid
-  usuarioEmail String? @map("usuario_email") @db.VarChar(255)
+  userId    String? @map("user_id") @db.Uuid
+  userEmail String? @map("user_email") @db.VarChar(255)
 
   /// Permite cruzar el cambio con los logs de la request que lo provocó.
   correlationId String? @map("correlation_id") @db.VarChar(128)
   ip            String? @db.VarChar(45)
 
-  creadoEn DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  @@index([entidad, entidadId])
-  @@index([usuarioId])
-  @@index([creadoEn])
+  @@index([tenantId, entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
   @@index([correlationId])
   @@map("audit_logs")
 }

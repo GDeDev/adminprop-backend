@@ -9,7 +9,7 @@ describe('buildDiff', () => {
 
     // El historial tiene que decir qué cambió, no repetir el registro entero.
     expect(Object.keys(diff)).toEqual(['precio'])
-    expect(diff.precio).toEqual({ antes: 100, despues: 135 })
+    expect(diff.precio).toEqual({ before: 100, after: 135 })
   })
 
   it('devuelve vacío si no cambió nada', () => {
@@ -39,7 +39,7 @@ describe('buildDiff', () => {
     )
 
     expect(diff.passwordHash).toBeUndefined()
-    expect(diff.email).toEqual({ antes: 'a@x.com', despues: 'b@x.com' })
+    expect(diff.email).toEqual({ before: 'a@x.com', after: 'b@x.com' })
   })
 
   it('compara fechas por valor y no por referencia', () => {
@@ -63,18 +63,18 @@ describe('buildDiff', () => {
     )
 
     expect(diff.deletedAt).toEqual({
-      antes: null,
-      despues: '2026-06-01T12:00:00.000Z',
+      before: null,
+      after: '2026-06-01T12:00:00.000Z',
     })
   })
 
   it('detecta el paso de null a un valor y al revés', () => {
     expect(buildDiff({ lastName: null }, { lastName: 'Gómez' })).toEqual({
-      lastName: { antes: null, despues: 'Gómez' },
+      lastName: { before: null, after: 'Gómez' },
     })
 
     expect(buildDiff({ lastName: 'Gómez' }, { lastName: null })).toEqual({
-      lastName: { antes: 'Gómez', despues: null },
+      lastName: { before: 'Gómez', after: null },
     })
   })
 
@@ -86,11 +86,11 @@ describe('buildDiff', () => {
   it('distingue false de null y de 0', () => {
     // Un `isActive: true -> false` es justo lo que querés ver en el historial.
     expect(buildDiff({ isActive: true }, { isActive: false })).toEqual({
-      isActive: { antes: true, despues: false },
+      isActive: { before: true, after: false },
     })
 
     expect(buildDiff({ intentos: 0 }, { intentos: null })).toEqual({
-      intentos: { antes: 0, despues: null },
+      intentos: { before: 0, after: null },
     })
   })
 })

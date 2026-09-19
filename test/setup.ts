@@ -2,6 +2,8 @@
 import 'reflect-metadata'
 import { webcrypto } from 'node:crypto'
 
+import { TEST_DATABASE_URL } from './utils/test-database-url'
+
 if (!global.crypto) {
   global.crypto = webcrypto as any
 }
@@ -13,8 +15,8 @@ beforeEach(() => {
 // Entorno mínimo para que pase la validación de `env.validation.ts` cuando un
 // test levanta el módulo completo. Son valores descartables, no secretos.
 process.env.NODE_ENV = 'test'
-process.env.DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgresql://test:test@localhost:5432/test'
+// Nunca el DATABASE_URL heredado: ver test/utils/test-database-url.ts.
+process.env.DATABASE_URL = TEST_DATABASE_URL
 process.env.JWT_ACCESS_SECRET =
   'test-access-secret-descartable-de-al-menos-32-caracteres'
 process.env.JWT_REFRESH_SECRET =

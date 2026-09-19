@@ -25,7 +25,7 @@ puede cambiar o traducirse.
   ],
   "correlationId": "3f8c1b1e-3a6f-4f2e-9a1c-6d9f2b7c4e11",
   "timestamp": "2026-01-15T10:00:00.000Z",
-  "path": "/api/v1/auth/register"
+  "path": "/api/v1/auth/login"
 }
 ```
 

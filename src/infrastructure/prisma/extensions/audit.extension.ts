@@ -10,8 +10,8 @@ const logger = createLogger('Audit')
 const ALWAYS_EXCLUDED = ['updatedAt', 'createdAt', 'updatedById', 'createdById']
 
 export interface FieldChange {
-  antes: unknown
-  despues: unknown
+  before: unknown
+  after: unknown
 }
 
 export type AuditDiff = Record<string, FieldChange>
@@ -73,7 +73,7 @@ export function auditExtension(client: {
 
             await record(client, model, 'CREATE', created?.id, {
               diff: onlyDefined(pick(created, behaviour.excludeFromDiff)),
-              direction: 'despues',
+              direction: 'after',
             })
 
             return created
@@ -119,7 +119,7 @@ export function auditExtension(client: {
 
             await record(client, model, 'DELETE', deleted?.id, {
               diff: onlyDefined(pick(deleted, behaviour.excludeFromDiff)),
-              direction: 'antes',
+              direction: 'before',
             })
 
             return deleted
@@ -148,8 +148,8 @@ export function buildDiff(
     if (isEqual(before[key], after[key])) continue
 
     diff[key] = {
-      antes: normalize(before[key]),
-      despues: normalize(after[key]),
+      before: normalize(before[key]),
+      after: normalize(after[key]),
     }
   }
 
@@ -206,18 +206,18 @@ function onlyDefined(values: Record<string, unknown>): Record<string, unknown> {
 async function record(
   prisma: { auditLog: { create: (args: any) => Promise<unknown> } },
   model: string | undefined,
-  accion: 'CREATE' | 'UPDATE' | 'DELETE' | 'RESTORE',
-  entidadId: unknown,
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'RESTORE',
+  entityId: unknown,
   options: {
     diff?: Record<string, unknown> | AuditDiff
-    direction?: 'antes' | 'despues'
+    direction?: 'before' | 'after'
   },
 ): Promise<void> {
-  if (!model || entidadId == null) return
+  if (!model || entityId == null) return
 
   const context = RequestContext.get()
 
-  const cambios = options.direction
+  const changes = options.direction
     ? Object.fromEntries(
         Object.entries(options.diff ?? {}).map(([key, value]) => [
           key,
@@ -229,12 +229,13 @@ async function record(
   try {
     await prisma.auditLog.create({
       data: {
-        entidad: model,
-        entidadId: String(entidadId),
-        accion,
-        cambios: cambios as Prisma.InputJsonValue,
-        usuarioId: context?.userId ?? null,
-        usuarioEmail: context?.userEmail ?? null,
+        tenantId: context?.tenantId ?? null,
+        entity: model,
+        entityId: String(entityId),
+        action,
+        changes: changes as Prisma.InputJsonValue,
+        userId: context?.userId ?? null,
+        userEmail: context?.userEmail ?? null,
         correlationId: context?.correlationId ?? null,
         ip: context?.ip ?? null,
       },
@@ -242,7 +243,7 @@ async function record(
   } catch (error) {
     // Que falle el historial no puede tumbar la operación del usuario.
     logger.error(
-      { err: error, entidad: model, entidadId: String(entidadId), accion },
+      { err: error, entity: model, entityId: String(entityId), action },
       'No se pudo registrar el cambio en el historial',
     )
   }

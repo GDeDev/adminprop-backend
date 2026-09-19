@@ -3,11 +3,9 @@ import { LoginHandler } from './commands/login/login.handler'
 import { LogoutAllHandler } from './commands/logout-all/logout-all.handler'
 import { LogoutHandler } from './commands/logout/logout.handler'
 import { RefreshTokenHandler } from './commands/refresh-token/refresh-token.handler'
-import { RegisterHandler } from './commands/register/register.handler'
 import { GetProfileHandler } from './queries/get-profile/get-profile.handler'
 
 export const AuthCommandHandlers = [
-  RegisterHandler,
   LoginHandler,
   RefreshTokenHandler,
   LogoutHandler,

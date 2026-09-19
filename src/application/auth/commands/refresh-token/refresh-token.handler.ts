@@ -1,12 +1,18 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 
-import { isRefreshTokenUsable } from '@/domain/auth/entities/refresh-token.entity'
+import {
+  isRefreshTokenUsable,
+  RefreshToken,
+} from '@/domain/auth/entities/refresh-token.entity'
+import { canSignIn } from '@/domain/auth/entities/user.entity'
 import { AuthErrors } from '@/domain/auth/exceptions/auth.exceptions'
 import { RefreshTokenRepository } from '@/domain/auth/repositories/refresh-token.repository'
 import { UserRepository } from '@/domain/auth/repositories/user.repository'
+import { User } from '@/domain/auth/entities/user.entity'
 import { AuthTokenIssuer } from '@/infrastructure/auth/services/auth-token-issuer.service'
 import { RefreshTokenAlreadyRotatedError } from '@/infrastructure/auth/repositories/refresh-token.repository.impl'
 import { TokenService } from '@/infrastructure/auth/services/token.service'
+import { RequestContext } from '@/shared/context/request-context'
 import { createLogger } from '@/shared/logging/root-logger'
 import { AuthTokens } from '../../results/auth-result'
 import { RefreshTokenCommand } from './refresh-token.command'
@@ -84,15 +90,27 @@ export class RefreshTokenHandler implements ICommandHandler<
       throw AuthErrors.refreshTokenExpired()
     }
 
-    // 4. El usuario tiene que seguir existiendo y estando habilitado.
-    const user = await this.userRepository.findById(stored.userId)
+    // 4. El usuario tiene que seguir existiendo y estando habilitado. El
+    // refresh token no lleva el tenant: se busca entre tenants y a partir de
+    // acá se trabaja dentro del suyo.
+    const user = await this.userRepository.findByIdForSession(stored.userId)
 
     if (!user) {
       await this.refreshTokenRepository.revokeFamily(stored.familyId)
       throw AuthErrors.refreshTokenInvalid({ reason: 'usuario inexistente' })
     }
 
-    if (!user.isActive) {
+    return RequestContext.runInTenant(user.tenantId, () =>
+      this.rotate(user, stored, command),
+    )
+  }
+
+  private async rotate(
+    user: User,
+    stored: RefreshToken,
+    command: RefreshTokenCommand,
+  ): Promise<AuthTokens> {
+    if (!canSignIn(user)) {
       await this.refreshTokenRepository.revokeAllForUser(user.id)
       throw AuthErrors.accountInactive()
     }

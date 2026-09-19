@@ -5,6 +5,7 @@ import { Request } from 'express'
 
 import { Configuration, JwtConfig } from '@/shared/config/configuration'
 import { RequestContext } from '@/shared/context/request-context'
+import { canSignIn } from '@/domain/auth/entities/user.entity'
 import { AuthErrors } from '@/domain/auth/exceptions/auth.exceptions'
 import { UserRepository } from '@/domain/auth/repositories/user.repository'
 import { IS_PUBLIC_KEY } from '../decorators/is-public.decorator'
@@ -63,19 +64,21 @@ export class JwtAuthGuard implements CanActivate {
       id: payload.sub,
       email: payload.email,
       role: payload.role,
+      tenantId: payload.tenantId,
     }
+
+    // Deja el usuario en el contexto del request: desde acá lo leen el logger
+    // (para estampar userId en cada línea), la auditoría (para saber quién
+    // hizo cada cambio) y el filtro de tenant de Prisma, sin tener que
+    // propagarlo por parámetro hasta los repositorios. Va antes de validar
+    // contra la base porque esa consulta ya necesita el tenant.
+    RequestContext.setUser(user)
 
     if (this.jwtConfig.validateUserOnRequest) {
       await this.assertUserStillValid(payload.sub, payload.iat, user)
     }
 
     request.user = user
-
-    // Deja el usuario en el contexto del request: desde acá lo leen el logger
-    // (para estampar userId en cada línea) y la auditoría (para saber quién
-    // hizo cada cambio), sin tener que propagarlo por parámetro hasta los
-    // repositorios.
-    RequestContext.setUser(user)
 
     return true
   }
@@ -93,7 +96,7 @@ export class JwtAuthGuard implements CanActivate {
 
     if (!dbUser)
       throw AuthErrors.tokenInvalid({ reason: 'usuario inexistente' })
-    if (!dbUser.isActive) throw AuthErrors.accountInactive()
+    if (!canSignIn(dbUser)) throw AuthErrors.accountInactive()
 
     if (dbUser.passwordChangedAt && issuedAt) {
       const changedAtSeconds = Math.floor(
@@ -111,10 +114,11 @@ export class JwtAuthGuard implements CanActivate {
   private async tryAttachUser(request: Request, token: string): Promise<void> {
     try {
       const payload = await this.tokenService.verifyAccessToken(token)
-      const user = {
+      const user: AuthenticatedUser = {
         id: payload.sub,
         email: payload.email,
         role: payload.role,
+        tenantId: payload.tenantId,
       }
       request.user = user
       RequestContext.setUser(user)

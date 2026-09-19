@@ -16,6 +16,8 @@ export interface AccessTokenPayload extends BaseClaims {
   typ: typeof TOKEN_TYPE_ACCESS
   email: string
   role: Role
+  /** Inmobiliaria del usuario. De acá sale el filtro de tenant del request. */
+  tenantId: string
 }
 
 export interface RefreshTokenPayload extends BaseClaims {
@@ -34,4 +36,5 @@ export interface AuthenticatedUser {
   id: string
   email: string
   role: Role
+  tenantId: string
 }

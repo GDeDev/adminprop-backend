@@ -1,11 +1,21 @@
 /**
- * Configuración por modelo de la auditoría y el soft delete.
+ * Configuración por modelo del filtro de tenant, la auditoría y el soft delete.
  *
  * Opt-in a propósito: un modelo sólo entra si está acá. Muchas tablas —tokens,
- * colas, cachés— no quieren ninguna de las dos cosas, y aplicarlas por defecto
+ * colas, cachés— no quieren auditoría ni soft delete, y aplicarlos por defecto
  * llenaría el historial de ruido.
+ *
+ * **Todo modelo nuevo con columna `tenantId` se declara acá con
+ * `tenantScoped: true`.** El test de `tenant-scoped-models.spec.ts` lo verifica
+ * contra el schema: un modelo con `tenantId` que no esté declarado rompe el CI.
  */
 export interface ModelBehaviour {
+  /**
+   * Filtrar todas las consultas por el tenant del contexto y completar
+   * `tenantId` en las altas. Sin tenant en el contexto, la consulta falla.
+   */
+  tenantScoped?: boolean
+
   /** Registrar cada create/update/delete en `audit_logs`. */
   audit: boolean
 
@@ -40,7 +50,13 @@ export interface ModelBehaviour {
 }
 
 export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
+  // La raíz del modelo multi-tenant: no tiene tenantId, es el tenant. Sin
+  // auditoría por ahora: se crea por seed y no hay ABM; cuando se puedan editar
+  // sus parámetros, sumarle las columnas createdById/updatedById y auditarlo.
+  Tenant: { audit: false, softDelete: false },
+
   User: {
+    tenantScoped: true,
     audit: true,
     softDelete: true,
     excludeFromDiff: ['passwordHash', 'failedLoginAttempts', 'lastLoginAt'],
@@ -53,6 +69,9 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   RefreshToken: { audit: false, softDelete: false },
 
   // La propia tabla de auditoría no se audita: sería recursión infinita.
+  // Guarda el tenantId de cada cambio, pero no se filtra todavía: la escribe la
+  // extensión de auditoría también desde procesos sin tenant. Su lectura por
+  // tenant llega con la pantalla de auditoría (Fase 20).
   AuditLog: { audit: false, softDelete: false },
 }
 

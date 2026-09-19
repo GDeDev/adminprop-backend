@@ -14,7 +14,7 @@ un 429:
 | `medium` | 120 req / 1 min | Uso normal sostenido |
 | `long`   | 2000 req / 1 h  | Techo por cliente    |
 
-Los endpoints de auth (`login`, `register`, `refresh`, `logout`,
+Los endpoints de auth (`login`, `refresh`, `logout`,
 `change-password`) sobrescriben los tres con un límite mucho más estricto:
 **10 intentos cada 15 minutos**.
 

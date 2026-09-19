@@ -56,6 +56,7 @@ export class TokenService {
       sub: user.id,
       email: user.email,
       role: user.role,
+      tenantId: user.tenantId,
       typ: TOKEN_TYPE_ACCESS,
     }
 

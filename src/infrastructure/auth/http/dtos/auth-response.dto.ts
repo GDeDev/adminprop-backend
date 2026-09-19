@@ -26,6 +26,12 @@ export class PublicUserDto {
   @ApiProperty({ example: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d' })
   id: string
 
+  @ApiProperty({
+    description: 'Inmobiliaria a la que pertenece el usuario',
+    example: '3f8c1b1e-3a6f-4f2e-9a1c-6d9f2b7c4e11',
+  })
+  tenantId: string
+
   @ApiProperty({ example: 'ana@ejemplo.com' })
   email: string
 
@@ -35,7 +41,7 @@ export class PublicUserDto {
   @ApiProperty({ example: 'Gómez', nullable: true })
   lastName: string | null
 
-  @ApiProperty({ enum: Role, example: Role.USER })
+  @ApiProperty({ enum: Role, example: Role.EMPLOYEE })
   role: Role
 
   @ApiProperty({ example: true })

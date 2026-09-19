@@ -24,7 +24,6 @@ import { LogoutAllCommand } from '@/application/auth/commands/logout-all/logout-
 import { LogoutAllResult } from '@/application/auth/commands/logout-all/logout-all.handler'
 import { LogoutCommand } from '@/application/auth/commands/logout/logout.command'
 import { RefreshTokenCommand } from '@/application/auth/commands/refresh-token/refresh-token.command'
-import { RegisterCommand } from '@/application/auth/commands/register/register.command'
 import { GetProfileQuery } from '@/application/auth/queries/get-profile/get-profile.query'
 import { AuthResult, AuthTokens } from '@/application/auth/results/auth-result'
 import { PublicUser } from '@/domain/auth/entities/user.entity'
@@ -42,7 +41,6 @@ import {
 import { ChangePasswordDto } from '../dtos/change-password.dto'
 import { LoginDto } from '../dtos/login.dto'
 import { RefreshTokenDto } from '../dtos/refresh-token.dto'
-import { RegisterDto } from '../dtos/register.dto'
 import { sessionContextFrom } from '../session-context'
 
 /**
@@ -69,45 +67,9 @@ export class AuthController {
     private readonly queryBus: QueryBus,
   ) {}
 
-  @IsPublic()
-  @ThrottleAuth()
-  @Post('register')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({
-    summary: 'Registrar un usuario',
-    description:
-      'Crea la cuenta y devuelve la sesión iniciada. El rol asignado es USER.',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Usuario creado',
-    type: AuthResultDto,
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'El email ya está registrado',
-    type: ApiErrorDto,
-  })
-  async register(
-    @Body() dto: RegisterDto,
-    @Req() request: Request,
-  ): Promise<ApiSuccessDto<AuthResult>> {
-    const result = await this.commandBus.execute<RegisterCommand, AuthResult>(
-      new RegisterCommand(
-        dto.email,
-        dto.password,
-        dto.firstName,
-        dto.lastName,
-        sessionContextFrom(request),
-      ),
-    )
-
-    return {
-      success: true,
-      message: 'Cuenta creada correctamente',
-      data: result,
-    }
-  }
+  // No hay registro público: en un SaaS multi-tenant un usuario sin
+  // inmobiliaria no tiene sentido. Los usuarios salen del seed y, desde la
+  // Fase 4, del alta que hace el admin de cada tenant (`POST /users`).
 
   @IsPublic()
   @ThrottleAuth()
