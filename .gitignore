@@ -83,3 +83,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Archivos del StoragePort local (STORAGE_PROVIDER=local)
+storage-data/

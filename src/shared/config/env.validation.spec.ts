@@ -77,4 +77,28 @@ describe('validateEnv', () => {
       /DATABASE_URL[\s\S]*JWT_ACCESS_SECRET[\s\S]*JWT_REFRESH_SECRET/,
     )
   })
+
+  describe('credenciales por proveedor', () => {
+    it('con storage local no pide credenciales de Cloudinary', () => {
+      expect(() =>
+        validateEnv({ ...VALID_ENV, STORAGE_PROVIDER: 'local' }),
+      ).not.toThrow()
+    })
+
+    it('con Cloudinary exige sus tres credenciales y dice cuáles faltan', () => {
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          STORAGE_PROVIDER: 'cloudinary',
+          CLOUDINARY_CLOUD_NAME: 'demo',
+        }),
+      ).toThrow(/CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET/)
+    })
+
+    it('rechaza un proveedor desconocido', () => {
+      expect(() =>
+        validateEnv({ ...VALID_ENV, STORAGE_PROVIDER: 's3' }),
+      ).toThrow(/STORAGE_PROVIDER/)
+    })
+  })
 })

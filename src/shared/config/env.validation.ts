@@ -27,6 +27,13 @@ export enum QueueProvider {
   Memory = 'memory',
 }
 
+export enum StorageProvider {
+  /** Disco local, servido en /files. Desarrollo y tests. El default. */
+  Local = 'local',
+  /** Cloudinary: el proveedor del MVP en los entornos desplegados. */
+  Cloudinary = 'cloudinary',
+}
+
 export enum SecretsProvider {
   /** Lee todo de `process.env`, que llena Doppler. */
   Env = 'env',
@@ -237,6 +244,36 @@ export class EnvironmentVariables {
   })
   QUEUE_PROVIDER?: QueueProvider
 
+  // ---------------------------------------------------------------------- Storage
+  @IsOptional()
+  @IsEnum(StorageProvider, {
+    message: `STORAGE_PROVIDER debe ser uno de: ${Object.values(StorageProvider).join(', ')}`,
+  })
+  STORAGE_PROVIDER?: StorageProvider
+
+  /** Carpeta del adapter local. Default: ./storage-data (en .gitignore). */
+  @IsOptional()
+  @IsString()
+  STORAGE_LOCAL_DIR?: string
+
+  /** Base de las URLs del adapter local. Default: http://localhost:<PORT>. */
+  @IsOptional()
+  @IsString()
+  STORAGE_PUBLIC_BASE_URL?: string
+
+  // Obligatorias sólo con STORAGE_PROVIDER=cloudinary (ver validateEnv).
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_CLOUD_NAME?: string
+
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_API_KEY?: string
+
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_API_SECRET?: string
+
   // -------------------------------------------------------------------------- CORS
   /** Lista separada por comas. `*` permite cualquier origen (sólo para desarrollo). */
   @IsOptional()
@@ -247,6 +284,40 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsBoolean()
   CORS_CREDENTIALS?: boolean
+}
+
+/**
+ * Las credenciales de un proveedor se exigen sólo si ese proveedor está
+ * elegido: en desarrollo, con `STORAGE_PROVIDER=local`, no hace falta tener
+ * cuenta de Cloudinary para levantar la API.
+ */
+const PROVIDER_CREDENTIALS: {
+  applies: (env: EnvironmentVariables) => boolean
+  provider: string
+  variables: (keyof EnvironmentVariables)[]
+}[] = [
+  {
+    applies: (env) => env.STORAGE_PROVIDER === StorageProvider.Cloudinary,
+    provider: 'STORAGE_PROVIDER=cloudinary',
+    variables: [
+      'CLOUDINARY_CLOUD_NAME',
+      'CLOUDINARY_API_KEY',
+      'CLOUDINARY_API_SECRET',
+    ],
+  },
+]
+
+function assertProviderCredentials(env: EnvironmentVariables): void {
+  for (const rule of PROVIDER_CREDENTIALS) {
+    if (!rule.applies(env)) continue
+    const missing = rule.variables.filter((name) => !env[name])
+    if (missing.length > 0) {
+      throw new Error(
+        `\n❌ Con ${rule.provider} faltan: ${missing.join(', ')}.\n` +
+          'Cargalas en Doppler o elegí otro proveedor.\n',
+      )
+    }
+  }
 }
 
 /**
@@ -281,6 +352,8 @@ export function validateEnv(
         `.env.example lista todas las variables.\n`,
     )
   }
+
+  assertProviderCredentials(validated)
 
   if (validated.JWT_ACCESS_SECRET === validated.JWT_REFRESH_SECRET) {
     throw new Error(

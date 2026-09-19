@@ -1,6 +1,6 @@
 import type { StringValue } from 'ms'
 
-import { Environment, QueueProvider } from './env.validation'
+import { Environment, QueueProvider, StorageProvider } from './env.validation'
 
 export interface AppConfig {
   name: string
@@ -63,6 +63,13 @@ export interface QueueConfig {
   provider: QueueProvider
 }
 
+export interface StorageConfig {
+  provider: StorageProvider
+  local: { directory: string; publicBaseUrl: string }
+  /** Sólo con `provider: cloudinary`. */
+  cloudinary: { cloudName: string; apiKey: string; apiSecret: string } | null
+}
+
 export interface Configuration {
   app: AppConfig
   database: DatabaseConfig
@@ -71,6 +78,7 @@ export interface Configuration {
   throttle: ThrottleConfig
   cors: CorsConfig
   queue: QueueConfig
+  storage: StorageConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -202,6 +210,29 @@ export function configuration(): Configuration {
         process.env.QUEUE_PROVIDER,
         QueueProvider.PgBoss,
       ) as QueueProvider,
+    },
+    storage: {
+      provider: str(
+        process.env.STORAGE_PROVIDER,
+        StorageProvider.Local,
+      ) as StorageProvider,
+      local: {
+        directory: str(process.env.STORAGE_LOCAL_DIR, 'storage-data'),
+        publicBaseUrl: str(
+          process.env.STORAGE_PUBLIC_BASE_URL,
+          `http://localhost:${num(process.env.PORT, 3000)}`,
+        ),
+      },
+      cloudinary:
+        process.env.CLOUDINARY_CLOUD_NAME &&
+        process.env.CLOUDINARY_API_KEY &&
+        process.env.CLOUDINARY_API_SECRET
+          ? {
+              cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+              apiKey: process.env.CLOUDINARY_API_KEY,
+              apiSecret: process.env.CLOUDINARY_API_SECRET,
+            }
+          : null,
     },
   }
 }

@@ -83,3 +83,19 @@ Formato: **contexto** → **decisión** → **por qué**. Lo más nuevo, abajo.
 - **Por qué**: el proyecto compila a CommonJS y Jest corre en modo CommonJS,
   que no carga paquetes ESM sin transpilarlos. La API de colas, reintentos y
   dead-letter es la misma. Pasar a la 12 va junto con mover el proyecto a ESM.
+
+### D-09 · `StoragePort.delete` recibe la `key`, no la URL
+
+- **Contexto**: la spec define `delete(url)`.
+- **Decisión**: `upload` devuelve `{ url, key }` y `delete(key)`.
+- **Por qué**: la URL depende del CDN o del dominio y puede cambiar; la key
+  identifica al archivo en el proveedor. En Cloudinary además hace falta el
+  tipo de recurso (imagen o raw) para borrar, y va en la key.
+
+### D-10 · Los archivos se guardan por tenant
+
+- **Contexto**: la spec no dice cómo se organizan los archivos.
+- **Decisión**: el adapter antepone `tenants/<tenantId>/` al path y rechaza
+  borrar keys de otro tenant.
+- **Por qué**: el mismo principio que el filtro de Prisma: el aislamiento no
+  depende de que cada módulo arme bien el path.
