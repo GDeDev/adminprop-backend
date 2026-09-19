@@ -7,6 +7,7 @@ import { AuthModule } from '@/modules/auth/infrastructure/modules/auth.module'
 import { JwtAuthGuard } from '@/modules/auth/infrastructure/guards/jwt-auth.guard'
 import { RolesGuard } from '@/modules/auth/infrastructure/guards/roles.guard'
 import { HealthModule } from '@/modules/health/infrastructure/modules/health.module'
+import { QueueModule } from '@/platform/queue/queue.module'
 import { PrismaModule } from '@/shared/prisma/prisma.module'
 import { AppConfigModule } from './shared/config/config.module'
 import { RequestContextMiddleware } from './shared/context/request-context.middleware'
@@ -26,6 +27,8 @@ import { SharedModule } from './shared/shared.module'
     ScheduleModule.forRoot(),
     AppThrottlerModule,
     AuthModule,
+    // Infraestructura compartida (puertos de platform/).
+    QueueModule,
     HealthModule,
     // Los módulos de cada feature van acá. Ver CLAUDE.md para la estructura.
   ],

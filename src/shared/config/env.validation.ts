@@ -20,6 +20,13 @@ export enum Environment {
   Production = 'production',
 }
 
+export enum QueueProvider {
+  /** Cola real sobre Postgres. El default. */
+  PgBoss = 'pgboss',
+  /** En memoria, sólo para tests unitarios. */
+  Memory = 'memory',
+}
+
 export enum SecretsProvider {
   /** Lee todo de `process.env`, que llena Doppler. */
   Env = 'env',
@@ -222,6 +229,13 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsBoolean()
   TRUST_PROXY?: boolean
+
+  // ------------------------------------------------------------------------- Cola
+  @IsOptional()
+  @IsEnum(QueueProvider, {
+    message: `QUEUE_PROVIDER debe ser uno de: ${Object.values(QueueProvider).join(', ')}`,
+  })
+  QUEUE_PROVIDER?: QueueProvider
 
   // -------------------------------------------------------------------------- CORS
   /** Lista separada por comas. `*` permite cualquier origen (sólo para desarrollo). */

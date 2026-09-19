@@ -1,6 +1,6 @@
 import type { StringValue } from 'ms'
 
-import { Environment } from './env.validation'
+import { Environment, QueueProvider } from './env.validation'
 
 export interface AppConfig {
   name: string
@@ -59,6 +59,10 @@ export interface CorsConfig {
   credentials: boolean
 }
 
+export interface QueueConfig {
+  provider: QueueProvider
+}
+
 export interface Configuration {
   app: AppConfig
   database: DatabaseConfig
@@ -66,6 +70,7 @@ export interface Configuration {
   accountLock: AccountLockConfig
   throttle: ThrottleConfig
   cors: CorsConfig
+  queue: QueueConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -191,6 +196,12 @@ export function configuration(): Configuration {
       // Sin CORS_ORIGINS no se habilita ningún origen: hay que optar por él.
       origins: parseCorsOrigins(process.env.CORS_ORIGINS),
       credentials: bool(process.env.CORS_CREDENTIALS, false),
+    },
+    queue: {
+      provider: str(
+        process.env.QUEUE_PROVIDER,
+        QueueProvider.PgBoss,
+      ) as QueueProvider,
     },
   }
 }
