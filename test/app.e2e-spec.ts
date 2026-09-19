@@ -102,6 +102,8 @@ describe('App (e2e)', () => {
 
       expect(response.body).toMatchObject({
         success: false,
+        statusCode: 401,
+        error: 'Unauthorized',
         code: ErrorCode.TOKEN_MISSING,
         errors: [],
       })

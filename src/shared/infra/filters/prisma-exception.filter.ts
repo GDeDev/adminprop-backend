@@ -14,10 +14,10 @@ import {
   PrismaClientValidationError,
 } from '@prisma/client/runtime/library'
 
-import { ApiErrorDto } from '../../dtos/api-response.dto'
 import { Configuration } from '../../config/configuration'
 import { ErrorCode, ErrorDetail } from '../../errors/error-codes'
 import { getCorrelationId } from '../../context/request-context.middleware'
+import { buildErrorBody } from './error-body'
 
 interface MappedPrismaError {
   status: HttpStatus
@@ -91,18 +91,19 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       return
     }
 
-    const body: ApiErrorDto = {
-      success: false,
-      code: mapped.code,
-      message:
-        isServerError && this.isProduction
-          ? 'Error al acceder a la base de datos'
-          : mapped.message,
-      errors: mapped.details ?? [],
+    const body = buildErrorBody(
+      {
+        status: mapped.status,
+        code: mapped.code,
+        message:
+          isServerError && this.isProduction
+            ? 'Error al acceder a la base de datos'
+            : mapped.message,
+        details: mapped.details,
+      },
+      request,
       correlationId,
-      timestamp: new Date().toISOString(),
-      path: request.originalUrl ?? request.url,
-    }
+    )
 
     response.status(mapped.status).json(body)
   }

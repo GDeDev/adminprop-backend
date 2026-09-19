@@ -116,7 +116,14 @@ El controller queda protegido automáticamente: `JwtAuthGuard` es guard global.
 **Excepciones en el borde, `Result` dentro del dominio.** Esta es la regla, y
 existe porque antes convivían los dos estilos sin criterio.
 
-Los handlers, servicios y repositorios lanzan `AppException`:
+Una **regla de negocio** que falla lanza una subclase de `DomainException`
+(`@/shared/errors`), con un `code` estable y un `DomainErrorKind`
+(`NotFound`, `Conflict`, `BusinessRule`, `Forbidden`). El filtro global la
+traduce a 404/409/422/403; el dominio nunca elige un status HTTP. Ver
+[docs/ERROR-HANDLING.md](docs/ERROR-HANDLING.md).
+
+Para errores de **infraestructura o de entrada** (auth, validación, servicios
+externos), los handlers, servicios y repositorios lanzan `AppException`:
 
 ```ts
 import { AppException, ErrorCode } from '@/shared/errors'

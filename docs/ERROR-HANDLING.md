@@ -9,6 +9,8 @@ puede cambiar o traducirse.
 ```json
 {
   "success": false,
+  "statusCode": 400,
+  "error": "Bad Request",
   "code": "VALIDATION_FAILED",
   "message": "La validación de los datos enviados falló",
   "errors": [
@@ -29,11 +31,47 @@ puede cambiar o traducirse.
 }
 ```
 
+`statusCode`, `error` (el nombre del status HTTP), `message`, `timestamp` y
+`path` son los de la spec (Fase 1, sección 8). `success`, `code`, `errors` y
+`correlationId` se suman: son los que usa el frontend. El cuerpo lo arma
+`buildErrorBody()` (`src/shared/infra/filters/error-body.ts`) para todos los
+filtros.
+
 `errors` viene vacío cuando el error no es de validación. Los campos anidados se
 reportan con notación de punto (`address.zipCode`) y los de array con índice
 (`items[0].qty`), así el frontend puede pintar el error donde va.
 
-## Lanzar errores
+## Errores de negocio: `DomainException`
+
+Una regla de negocio que falla es una clase propia que extiende
+`DomainException` (`@/shared/errors`). No elige un status HTTP, porque el
+dominio no conoce HTTP: declara qué tipo de falla es y el filtro global la
+traduce.
+
+| `DomainErrorKind` | Status | Cuándo                                           |
+| ----------------- | ------ | ------------------------------------------------ |
+| `NotFound`        | 404    | El dato no existe (o es de otro tenant)          |
+| `Conflict`        | 409    | Choca con el estado actual: duplicado, ya activo |
+| `BusinessRule`    | 422    | Pedido bien formado que viola una regla          |
+| `Forbidden`       | 403    | La regla no le permite hacerlo a este usuario    |
+
+```ts
+export class ContractAlreadyActiveException extends DomainException {
+  constructor(contractId: string) {
+    super(
+      'CONTRACT_ALREADY_ACTIVE',
+      'El contrato ya está activo',
+      DomainErrorKind.Conflict,
+      { contractId }, // sólo para el log
+    )
+  }
+}
+```
+
+El `code` es el contrato con el frontend: estable, en SCREAMING_SNAKE_CASE. El
+mensaje es para el usuario final, en español.
+
+## Errores de infraestructura y de entrada: `AppException`
 
 Usá los factories de `AppException` en vez de las excepciones de Nest: llevan un
 `ErrorCode` además del status.
