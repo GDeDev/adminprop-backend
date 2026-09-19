@@ -43,6 +43,8 @@ export enum ErrorCode {
   // ---------------------------------------------------------------- Autorización
   FORBIDDEN = 'FORBIDDEN',
   INSUFFICIENT_PERMISSIONS = 'INSUFFICIENT_PERMISSIONS',
+  /** La funcionalidad está apagada por feature flag para este tenant. */
+  FEATURE_DISABLED = 'FEATURE_DISABLED',
 
   // --------------------------------------------------------------- Base de datos
   DATABASE_ERROR = 'DATABASE_ERROR',

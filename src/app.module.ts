@@ -3,11 +3,18 @@ import { APP_GUARD } from '@nestjs/core'
 import { ScheduleModule } from '@nestjs/schedule'
 
 import { AppController } from './app.controller'
-import { AuthModule } from './infrastructure/auth/modules/auth.module'
-import { JwtAuthGuard } from './infrastructure/auth/guards/jwt-auth.guard'
-import { RolesGuard } from './infrastructure/auth/guards/roles.guard'
-import { HealthModule } from './infrastructure/health/modules/health.module'
-import { PrismaModule } from './infrastructure/prisma/prisma.module'
+import { AuthModule } from '@/modules/auth/infrastructure/modules/auth.module'
+import { JwtAuthGuard } from '@/modules/auth/infrastructure/guards/jwt-auth.guard'
+import { RolesGuard } from '@/modules/auth/infrastructure/guards/roles.guard'
+import { HealthModule } from '@/modules/health/infrastructure/modules/health.module'
+import { JobsModule } from '@/modules/jobs/public'
+import { ExampleModule } from '@/modules/_example/public'
+import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
+import { QueueModule } from '@/platform/queue/queue.module'
+import { StorageModule } from '@/platform/storage/storage.module'
+import { FeatureFlagsModule } from '@/platform/feature-flags/feature-flags.module'
+import { EmailModule } from '@/platform/email/email.module'
+import { PrismaModule } from '@/shared/prisma/prisma.module'
 import { AppConfigModule } from './shared/config/config.module'
 import { RequestContextMiddleware } from './shared/context/request-context.middleware'
 import { AppLoggerModule } from './shared/logging/logger.module'
@@ -26,7 +33,16 @@ import { SharedModule } from './shared/shared.module'
     ScheduleModule.forRoot(),
     AppThrottlerModule,
     AuthModule,
+    // Infraestructura compartida (puertos de platform/).
+    QueueModule,
+    StorageModule,
+    FeatureFlagsModule,
+    EmailModule,
     HealthModule,
+    JobsModule,
+    // Módulos de referencia (Fase 1). No se borran.
+    ExampleModule,
+    ExampleListenerModule,
     // Los módulos de cada feature van acá. Ver CLAUDE.md para la estructura.
   ],
   controllers: [AppController],

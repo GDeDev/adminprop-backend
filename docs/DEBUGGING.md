@@ -8,42 +8,28 @@ Esta guía explica cómo usar las configuraciones de debugging y testing en VS C
 
 - **Uso**: Para debuggear la API en modo desarrollo
 - **Puerto**: Usa ts-node para ejecutar directamente TypeScript
-- **Variables**: Lee `.env` por defecto
+- **Variables**: las inyecta Doppler (`doppler run --`, config `dev_backend`)
 - **Pre-launch**: Compila automáticamente el proyecto
 
-### 2. Debug API (QA)
-
-- **Uso**: Para debuggear la API en entorno QA
-- **Puerto**: Ejecuta desde `dist/main.js` compilado
-- **Variables**: Lee `.env.qa`
-- **Pre-launch**: Compila automáticamente el proyecto
-
-### 3. Debug API (Production)
-
-- **Uso**: Para debuggear la API en entorno de producción
-- **Puerto**: Ejecuta desde `dist/main.js` compilado
-- **Variables**: Lee `.env.production`
-- **Pre-launch**: Compila automáticamente el proyecto
-
-### 4. Attach to Running API
+### 2. Attach to Running API
 
 - **Uso**: Se conecta a una API que ya está ejecutándose
 - **Puerto**: 9229 (debug port)
 - **Útil**: Para debuggear APIs ejecutándose en Docker
 
-### 5. Debug Unit Tests
+### 3. Debug Unit Tests
 
 - **Uso**: Debuggear tests unitarios específicos
 - **Configuración**: Ejecuta Jest en modo debug
 - **Breakpoints**: Permite breakpoints en tests y código
 
-### 6. Debug E2E Tests
+### 4. Debug E2E Tests
 
 - **Uso**: Debuggear tests end-to-end
 - **Configuración**: Usa jest-e2e.json
 - **Breakpoints**: Permite debuggear flujos completos
 
-### 7. Debug Current Test File
+### 5. Debug Current Test File
 
 - **Uso**: Debuggear solo el archivo de test actual
 - **Funcionamiento**: Usa `${relativeFile}` para el archivo abierto
@@ -167,22 +153,8 @@ npm run test:cov:open  # Cobertura + abrir reporte
 
 ## 🌍 Variables de Entorno
 
-### Desarrollo (.env)
-
-- `NODE_ENV=development`
-- Configuración local de desarrollo
-
-### QA (.env.qa)
-
-- `NODE_ENV=qa`
-- Base de datos de QA
-- Configuración de testing
-
-### Producción (.env.production)
-
-- `NODE_ENV=production`
-- Configuración optimizada
-- Swagger deshabilitado
+No hay archivos `.env`: cada entorno es un config del proyecto `admin-prop`
+en Doppler (`dev_backend` en local). Ver [CONFIGURATION.md](./CONFIGURATION.md).
 
 ## 💡 Tips y Trucos
 

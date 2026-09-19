@@ -10,23 +10,25 @@ Es automático: ningún repositorio tiene que acordarse de nada.
 
 ```json
 {
-  "entidad": "Propiedad",
-  "entidadId": "9b1deb4d-...",
-  "accion": "UPDATE",
-  "cambios": {
-    "precio": { "antes": 120000, "despues": 135000 },
-    "estado": { "antes": "DISPONIBLE", "despues": "RESERVADA" }
+  "tenantId": "5d2c0a9e-...",
+  "entity": "Property",
+  "entityId": "9b1deb4d-...",
+  "action": "UPDATE",
+  "changes": {
+    "price": { "before": "120000.00", "after": "135000.00" },
+    "status": { "before": "AVAILABLE", "after": "RENTED" }
   },
-  "usuarioId": "3f8c1b1e-...",
-  "usuarioEmail": "ana@ejemplo.com",
+  "userId": "3f8c1b1e-...",
+  "userEmail": "ana@ejemplo.com",
   "correlationId": "c0ffee-...",
   "ip": "190.1.2.3",
-  "creadoEn": "2026-06-01T12:00:00.000Z"
+  "createdAt": "2026-06-01T12:00:00.000Z"
 }
 ```
 
-`cambios` es JSON sin esquema fijo a propósito: cada entidad tiene sus campos.
-En un `CREATE` sólo lleva `despues`; en un `DELETE`, sólo `antes`.
+`changes` es JSON sin esquema fijo a propósito: cada entidad tiene sus campos.
+En un `CREATE` sólo lleva `after`; en un `DELETE`, sólo `before`. `tenantId` es
+el del contexto: el historial de cada inmobiliaria se puede filtrar sin joins.
 
 **El renderizado es del front**, y depende de cada feature: `precio` se muestra
 con formato de moneda, `estadoId` hay que resolverlo a su nombre, `deletedAt` se
@@ -38,7 +40,7 @@ provocó.
 ## Qué se audita
 
 Es **opt-in** por modelo, en
-`src/infrastructure/prisma/extensions/auditable-models.ts`:
+`src/shared/prisma/extensions/auditable-models.ts`:
 
 ```ts
 export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
@@ -70,7 +72,7 @@ Para los modelos con `softDelete: true`:
 Para ver los borrados en una consulta puntual:
 
 ```ts
-import { INCLUDE_DELETED } from '@/infrastructure/prisma/extensions/soft-delete.extension'
+import { INCLUDE_DELETED } from '@/shared/prisma/extensions/soft-delete.extension'
 
 await prisma.db.user.findMany({ where: { ...INCLUDE_DELETED, role: 'ADMIN' } })
 ```
@@ -150,5 +152,5 @@ Del `RequestContext` (`AsyncLocalStorage`), que abre el middleware y completa
 `JwtAuthGuard`. Por eso un repositorio sabe quién está haciendo el cambio sin
 que haya un parámetro `userId` en todas las firmas del dominio.
 
-Fuera de un request —el seed, un cron— no hay usuario y `usuarioId` queda en
+Fuera de un request —el seed, un cron— no hay usuario y `userId` queda en
 `null`. Es correcto: no lo hizo nadie, lo hizo el sistema.

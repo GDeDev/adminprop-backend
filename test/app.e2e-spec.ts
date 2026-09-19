@@ -5,9 +5,9 @@ import request from 'supertest'
 
 import { AppModule } from '../src/app.module'
 import { configureApp } from '../src/app.setup'
-import { PrismaService } from '../src/infrastructure/prisma/prisma.service'
-import { UserRepository } from '../src/domain/auth/repositories/user.repository'
-import { RefreshTokenRepository } from '../src/domain/auth/repositories/refresh-token.repository'
+import { PrismaService } from '../src/shared/prisma/prisma.service'
+import { UserRepository } from '../src/modules/auth/domain/repositories/user.repository'
+import { RefreshTokenRepository } from '../src/modules/auth/domain/repositories/refresh-token.repository'
 import { ErrorCode } from '../src/shared/errors/error-codes'
 
 /**
@@ -34,6 +34,7 @@ describe('App (e2e)', () => {
       .useValue({
         findById: jest.fn().mockResolvedValue(null),
         findByEmail: jest.fn().mockResolvedValue(null),
+        findByIdForSession: jest.fn().mockResolvedValue(null),
         existsByEmail: jest.fn().mockResolvedValue(false),
         create: jest.fn(),
         changePassword: jest.fn(),
@@ -101,6 +102,8 @@ describe('App (e2e)', () => {
 
       expect(response.body).toMatchObject({
         success: false,
+        statusCode: 401,
+        error: 'Unauthorized',
         code: ErrorCode.TOKEN_MISSING,
         errors: [],
       })
@@ -154,7 +157,7 @@ describe('App (e2e)', () => {
 
     it('nunca devuelve la contraseña enviada en el cuerpo del error', async () => {
       const response = await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
+        .post('/api/v1/auth/login')
         .send({ email: 'no-es-un-email', password: 'ClaveSecreta123' })
         .expect(400)
 

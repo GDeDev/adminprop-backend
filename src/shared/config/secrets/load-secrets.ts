@@ -1,10 +1,5 @@
-import dotenv from 'dotenv'
-
 import { EnvSecretsLoader } from './env-secrets.loader'
 import { SecretsLoader } from './secrets-loader.interface'
-
-/** Mismos archivos que levanta `ConfigModule`, en el mismo orden de prioridad. */
-const ENV_FILES = ['.env.local', '.env']
 
 /**
  * Registro de proveedores de secretos disponibles.
@@ -29,13 +24,8 @@ const LOADERS: Record<string, () => SecretsLoader> = {
  * siempre gana sobre lo que traiga el proveedor.
  */
 export async function loadSecrets(): Promise<void> {
-  // Los archivos .env se cargan acá y no sólo en ConfigModule porque esta
-  // función corre antes de instanciar Nest y necesita ver SECRETS_PROVIDER.
-  // `override: false` deja que las variables reales del entorno (docker, k8s,
-  // CI) le ganen siempre al archivo. ConfigModule los vuelve a leer después:
-  // es idempotente.
-  dotenv.config({ path: ENV_FILES, override: false, quiet: true })
-
+  // A propósito no se lee ningún archivo `.env`: las variables las inyecta
+  // Doppler (`doppler run --` en local, su integración nativa en los deploys).
   const providerKey = process.env.SECRETS_PROVIDER ?? 'env'
   const factory = LOADERS[providerKey]
 

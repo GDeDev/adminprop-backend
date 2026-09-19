@@ -1,10 +1,11 @@
 /**
  * Puerto para cargar secretos antes de que arranque la aplicación.
  *
- * Hoy la única implementación es `EnvSecretsLoader` (lee `process.env` y los
- * archivos `.env`). El día que haya un secret manager externo —AWS Secrets
- * Manager, Vault, Doppler, Infisical, GCP Secret Manager— se escribe otra
- * implementación de esta interfaz y se la registra en `loadSecrets()`.
+ * Hoy la única implementación es `EnvSecretsLoader`: Doppler inyecta las
+ * variables en `process.env` antes de arrancar el proceso, así que no hace
+ * falta leer nada. Si algún día se lee un secret manager desde el código (AWS
+ * Secrets Manager, Vault), se escribe otra implementación de esta interfaz y se
+ * la registra en `loadSecrets()`.
  *
  * El contrato es a propósito "hidratar `process.env`": así el resto de la app
  * no se entera de dónde vino cada valor y la validación de entorno sigue siendo

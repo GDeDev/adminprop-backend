@@ -12,7 +12,8 @@ $ npm start
   • JWT_ACCESS_SECRET: JWT_ACCESS_SECRET debe tener al menos 32 caracteres.
     Generá uno con: openssl rand -base64 48
 
-Revisá tu archivo .env (usá .env.example como referencia).
+Revisá el config de Doppler y que el proceso corra con "doppler run --".
+.env.example lista todas las variables.
 ```
 
 ## Cómo está armado
@@ -49,18 +50,29 @@ Namespaces disponibles: `app`, `database`, `jwt`, `accountLock`, `throttle`,
 1. Declarala en `EnvironmentVariables` (`env.validation.ts`) con sus reglas.
 2. Mapeala al namespace que corresponda en `configuration()`.
 3. Documentala en `.env.example`.
+4. Creala en Doppler (vacía, si el valor lo carga otra persona).
 
 Los tres pasos: si salteás el primero, la variable no se valida y llega
 `undefined` a producción.
 
 ## Secretos
 
-Hoy los secretos vienen de variables de entorno (`SECRETS_PROVIDER=env`). En
-desarrollo salen de `.env`; en producción los inyecta la plataforma (secrets de
-Kubernetes, task definition de ECS, etc.).
+Los secretos viven en **Doppler** (proyecto `admin-prop`; en local, config
+`dev_backend`). Doppler los inyecta como variables de entorno al arrancar el
+proceso (`SECRETS_PROVIDER=env`):
 
-> **`.env` nunca se commitea ni se hornea en la imagen Docker.** Está en
-> `.gitignore` y en `.dockerignore`.
+- En local, los scripts de `package.json` que necesitan entorno (`start*`,
+  `prisma:migrate*`, `prisma:seed`, `prisma:studio`, `docker:prod`) ya corren
+  dentro de `doppler run --`.
+- En los entornos desplegados se usa la integración nativa de Doppler con la
+  plataforma (se define en la Fase 16). Por eso `start:prod` y
+  `prisma:migrate:deploy` no llevan el wrapper.
+- Tests y CI no usan Doppler: `test/setup.ts` y el workflow fijan valores
+  descartables. Así un test nunca puede terminar apuntando a una base real.
+
+> **No hay `.env`.** `ConfigModule` corre con `ignoreEnvFile: true` y
+> `prisma.config.ts` no carga dotenv: un `.env` olvidado en el disco no pisa
+> nada.
 
 ### Enchufar un secret manager externo
 

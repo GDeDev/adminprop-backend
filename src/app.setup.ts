@@ -5,12 +5,16 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import compression from 'compression'
 import helmet from 'helmet'
 import { json, urlencoded } from 'express'
+import { resolve } from 'node:path'
 
 import {
   AppConfig,
   Configuration,
   CorsConfig,
+  StorageConfig,
 } from './shared/config/configuration'
+import { StorageProvider } from './shared/config/env.validation'
+import { LOCAL_FILES_ROUTE } from '@/platform/storage/adapters/local.storage-adapter'
 import { Logger } from 'nestjs-pino'
 
 import { createLogger } from '@/shared/logging/root-logger'
@@ -32,6 +36,7 @@ export function configureApp(app: NestExpressApplication): AppConfig {
     app.get<ConfigService<Configuration, true>>(ConfigService)
   const appConfig = configService.get('app', { infer: true })
   const corsConfig = configService.get('cors', { infer: true })
+  const storageConfig = configService.get('storage', { infer: true })
 
   // Los logs del propio Nest (RoutesResolver, InstanceLoader, errores de
   // arranque) pasan a salir con el mismo formato que los nuestros.
@@ -44,8 +49,31 @@ export function configureApp(app: NestExpressApplication): AppConfig {
   configureRequestHandling(app, appConfig)
   configureVersioning(app)
   configureSwagger(app, appConfig)
+  configureLocalStorage(app, storageConfig)
 
   return appConfig
+}
+
+/**
+ * Con `STORAGE_PROVIDER=local`, sirve la carpeta de archivos en `/files`,
+ * que es la URL que devuelve el adapter. Con Cloudinary no hace nada: los
+ * archivos los sirve su CDN.
+ */
+function configureLocalStorage(
+  app: NestExpressApplication,
+  storage: StorageConfig,
+): void {
+  if (storage.provider !== StorageProvider.Local) return
+
+  app.useStaticAssets(resolve(storage.local.directory), {
+    prefix: LOCAL_FILES_ROUTE,
+    index: false,
+    dotfiles: 'deny',
+    // helmet manda `Cross-Origin-Resource-Policy: same-origin`, que impide
+    // mostrar estas imágenes desde el front (otro puerto = otro origen).
+    setHeaders: (res) =>
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'),
+  })
 }
 
 function configureSecurity(

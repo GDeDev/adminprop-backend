@@ -1,4 +1,3 @@
-import { Role } from '@/domain/auth/enums/role.enum'
 import { RequestContext } from './request-context'
 
 describe('RequestContext', () => {
@@ -52,13 +51,15 @@ describe('RequestContext', () => {
       RequestContext.setUser({
         id: 'user-1',
         email: 'ana@ejemplo.com',
-        role: Role.ADMIN,
+        role: 'ADMIN',
+        tenantId: 'tenant-1',
       })
 
       await Promise.resolve()
 
       expect(RequestContext.userId).toBe('user-1')
-      expect(RequestContext.get()?.userRole).toBe(Role.ADMIN)
+      expect(RequestContext.get()?.userRole).toBe('ADMIN')
+      expect(RequestContext.tenantId).toBe('tenant-1')
     })
   })
 
@@ -67,7 +68,8 @@ describe('RequestContext', () => {
       RequestContext.setUser({
         id: 'x',
         email: 'x@x.com',
-        role: Role.USER,
+        role: 'EMPLOYEE',
+        tenantId: 'tenant-1',
       }),
     ).not.toThrow()
   })

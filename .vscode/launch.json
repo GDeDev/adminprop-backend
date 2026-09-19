@@ -8,59 +8,30 @@
       "program": "${workspaceFolder}/src/main.ts",
       "args": [],
       "runtimeArgs": [
+        "run",
+        "--",
+        "node",
         "-r",
         "tsconfig-paths/register",
         "-r",
         "ts-node/register"
       ],
       "sourceMaps": true,
-      "envFile": "${workspaceFolder}/.env",
       "env": {
         "NODE_ENV": "development",
         "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
       },
       "console": "integratedTerminal",
       "internalConsoleOptions": "openOnSessionStart",
-      "skipFiles": ["<node_internals>/**"],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "restart": true,
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "preLaunchTask": "Build Application"
-    },
-    {
-      "name": "Debug API (QA)",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/dist/main.js",
-      "args": [],
-      "sourceMaps": true,
-      "envFile": "${workspaceFolder}/.env.qa",
-      "env": {
-        "NODE_ENV": "qa"
-      },
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "openOnSessionStart",
-      "skipFiles": ["<node_internals>/**"],
-      "restart": true,
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "preLaunchTask": "Build Application"
-    },
-    {
-      "name": "Debug API (Production)",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/dist/main.js",
-      "args": [],
-      "sourceMaps": true,
-      "envFile": "${workspaceFolder}/.env.production",
-      "env": {
-        "NODE_ENV": "production"
-      },
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "openOnSessionStart",
-      "skipFiles": ["<node_internals>/**"],
-      "restart": true,
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "preLaunchTask": "Build Application"
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ],
+      "preLaunchTask": "Build Application",
+      "runtimeExecutable": "doppler"
     },
     {
       "name": "Attach to Running API",
@@ -70,9 +41,13 @@
       "restart": true,
       "localRoot": "${workspaceFolder}",
       "remoteRoot": "${workspaceFolder}",
-      "skipFiles": ["<node_internals>/**"],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ]
     },
     {
       "name": "Debug Unit Tests",
@@ -92,13 +67,17 @@
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "openOnSessionStart",
-      "skipFiles": ["<node_internals>/**"],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "env": {
         "NODE_ENV": "test",
         "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
       },
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ]
     },
     {
       "name": "Debug E2E Tests",
@@ -120,13 +99,17 @@
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "openOnSessionStart",
-      "skipFiles": ["<node_internals>/**"],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "env": {
         "NODE_ENV": "test",
         "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
       },
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ]
     },
     {
       "name": "Debug Current Test File",
@@ -147,19 +130,26 @@
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "openOnSessionStart",
-      "skipFiles": ["<node_internals>/**"],
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
       "env": {
         "NODE_ENV": "test",
         "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
       },
       "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ]
     }
   ],
   "compounds": [
     {
       "name": "Debug API + Watch Tests",
-      "configurations": ["Debug API (Development)", "Debug Unit Tests"],
+      "configurations": [
+        "Debug API (Development)",
+        "Debug Unit Tests"
+      ],
       "stopAll": true
     }
   ]

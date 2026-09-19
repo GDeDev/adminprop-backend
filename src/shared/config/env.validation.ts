@@ -20,8 +20,33 @@ export enum Environment {
   Production = 'production',
 }
 
+export enum QueueProvider {
+  /** Cola real sobre Postgres. El default. */
+  PgBoss = 'pgboss',
+  /** En memoria, sólo para tests unitarios. */
+  Memory = 'memory',
+}
+
+export enum StorageProvider {
+  /** Disco local, servido en /files. Desarrollo y tests. El default. */
+  Local = 'local',
+  /** Cloudinary: el proveedor del MVP en los entornos desplegados. */
+  Cloudinary = 'cloudinary',
+}
+
+export enum FeatureFlagsProvider {
+  Flagsmith = 'flagsmith',
+  /** Flags de FEATURE_FLAGS_ENABLED, prendidos para todos. Tests y desarrollo. */
+  Memory = 'memory',
+}
+
+export enum EmailProvider {
+  /** Loguea en vez de enviar. El único hasta la Fase 14 (Resend vía Novu). */
+  Console = 'console',
+}
+
 export enum SecretsProvider {
-  /** Lee todo de `process.env` / archivos `.env`. */
+  /** Lee todo de `process.env`, que llena Doppler. */
   Env = 'env',
 }
 
@@ -223,6 +248,78 @@ export class EnvironmentVariables {
   @IsBoolean()
   TRUST_PROXY?: boolean
 
+  // ------------------------------------------------------------------------- Cola
+  @IsOptional()
+  @IsEnum(QueueProvider, {
+    message: `QUEUE_PROVIDER debe ser uno de: ${Object.values(QueueProvider).join(', ')}`,
+  })
+  QUEUE_PROVIDER?: QueueProvider
+
+  /** Cada cuánto busca trabajos nuevos cada consumidor. Mínimo 0.5. Default: 2. */
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === undefined || value === '' ? undefined : Number(value),
+  )
+  @Min(0.5)
+  QUEUE_POLLING_INTERVAL_SECONDS?: number
+
+  // ---------------------------------------------------------------------- Storage
+  @IsOptional()
+  @IsEnum(StorageProvider, {
+    message: `STORAGE_PROVIDER debe ser uno de: ${Object.values(StorageProvider).join(', ')}`,
+  })
+  STORAGE_PROVIDER?: StorageProvider
+
+  /** Carpeta del adapter local. Default: ./storage-data (en .gitignore). */
+  @IsOptional()
+  @IsString()
+  STORAGE_LOCAL_DIR?: string
+
+  /** Base de las URLs del adapter local. Default: http://localhost:<PORT>. */
+  @IsOptional()
+  @IsString()
+  STORAGE_PUBLIC_BASE_URL?: string
+
+  // Obligatorias sólo con STORAGE_PROVIDER=cloudinary (ver validateEnv).
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_CLOUD_NAME?: string
+
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_API_KEY?: string
+
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_API_SECRET?: string
+
+  // ---------------------------------------------------------------- Feature flags
+  /**
+   * Sin valor: `flagsmith` si hay FLAGSMITH_ENVIRONMENT_KEY, si no `memory`.
+   */
+  @IsOptional()
+  @IsEnum(FeatureFlagsProvider, {
+    message: `FEATURE_FLAGS_PROVIDER debe ser uno de: ${Object.values(FeatureFlagsProvider).join(', ')}`,
+  })
+  FEATURE_FLAGS_PROVIDER?: FeatureFlagsProvider
+
+  /** Server-side key del entorno de Flagsmith. */
+  @IsOptional()
+  @IsString()
+  FLAGSMITH_ENVIRONMENT_KEY?: string
+
+  /** Con el proveedor `memory`: flags prendidos, separados por coma. */
+  @IsOptional()
+  @IsString()
+  FEATURE_FLAGS_ENABLED?: string
+
+  // ------------------------------------------------------------------------ Email
+  @IsOptional()
+  @IsEnum(EmailProvider, {
+    message: `EMAIL_PROVIDER debe ser uno de: ${Object.values(EmailProvider).join(', ')}`,
+  })
+  EMAIL_PROVIDER?: EmailProvider
+
   // -------------------------------------------------------------------------- CORS
   /** Lista separada por comas. `*` permite cualquier origen (sólo para desarrollo). */
   @IsOptional()
@@ -233,6 +330,46 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsBoolean()
   CORS_CREDENTIALS?: boolean
+}
+
+/**
+ * Las credenciales de un proveedor se exigen sólo si ese proveedor está
+ * elegido: en desarrollo, con `STORAGE_PROVIDER=local`, no hace falta tener
+ * cuenta de Cloudinary para levantar la API.
+ */
+const PROVIDER_CREDENTIALS: {
+  applies: (env: EnvironmentVariables) => boolean
+  provider: string
+  variables: (keyof EnvironmentVariables)[]
+}[] = [
+  {
+    applies: (env) => env.STORAGE_PROVIDER === StorageProvider.Cloudinary,
+    provider: 'STORAGE_PROVIDER=cloudinary',
+    variables: [
+      'CLOUDINARY_CLOUD_NAME',
+      'CLOUDINARY_API_KEY',
+      'CLOUDINARY_API_SECRET',
+    ],
+  },
+  {
+    applies: (env) =>
+      env.FEATURE_FLAGS_PROVIDER === FeatureFlagsProvider.Flagsmith,
+    provider: 'FEATURE_FLAGS_PROVIDER=flagsmith',
+    variables: ['FLAGSMITH_ENVIRONMENT_KEY'],
+  },
+]
+
+function assertProviderCredentials(env: EnvironmentVariables): void {
+  for (const rule of PROVIDER_CREDENTIALS) {
+    if (!rule.applies(env)) continue
+    const missing = rule.variables.filter((name) => !env[name])
+    if (missing.length > 0) {
+      throw new Error(
+        `\n❌ Con ${rule.provider} faltan: ${missing.join(', ')}.\n` +
+          'Cargalas en Doppler o elegí otro proveedor.\n',
+      )
+    }
+  }
 }
 
 /**
@@ -263,9 +400,12 @@ export function validateEnv(
 
     throw new Error(
       `\n❌ Configuración de entorno inválida:\n${details}\n\n` +
-        `Revisá tu archivo .env (usá .env.example como referencia).\n`,
+        `Revisá el config de Doppler y que el proceso corra con "doppler run --".\n` +
+        `.env.example lista todas las variables.\n`,
     )
   }
+
+  assertProviderCredentials(validated)
 
   if (validated.JWT_ACCESS_SECRET === validated.JWT_REFRESH_SECRET) {
     throw new Error(

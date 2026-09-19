@@ -29,6 +29,15 @@ export class ApiErrorDto {
   })
   success: false
 
+  @ApiProperty({ description: 'Status HTTP de la respuesta', example: 400 })
+  statusCode: number
+
+  @ApiProperty({
+    description: 'Nombre del status HTTP',
+    example: 'Bad Request',
+  })
+  error: string
+
   @ApiProperty({
     description:
       'Código de error estable. Ramificá por acá, no por el texto del mensaje.',

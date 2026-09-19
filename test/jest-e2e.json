@@ -10,5 +10,7 @@
   "moduleNameMapper": {
     "^@/(.*)$": "<rootDir>/../src/$1"
   },
-  "testTimeout": 30000
+  "testTimeout": 30000,
+  "globalSetup": "<rootDir>/global-setup.ts",
+  "maxWorkers": 1
 }

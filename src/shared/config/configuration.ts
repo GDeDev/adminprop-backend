@@ -1,6 +1,12 @@
 import type { StringValue } from 'ms'
 
-import { Environment } from './env.validation'
+import {
+  EmailProvider,
+  Environment,
+  FeatureFlagsProvider,
+  QueueProvider,
+  StorageProvider,
+} from './env.validation'
 
 export interface AppConfig {
   name: string
@@ -59,6 +65,29 @@ export interface CorsConfig {
   credentials: boolean
 }
 
+export interface QueueConfig {
+  provider: QueueProvider
+  pollingIntervalSeconds: number
+}
+
+export interface StorageConfig {
+  provider: StorageProvider
+  local: { directory: string; publicBaseUrl: string }
+  /** Sólo con `provider: cloudinary`. */
+  cloudinary: { cloudName: string; apiKey: string; apiSecret: string } | null
+}
+
+export interface FeatureFlagsConfig {
+  provider: FeatureFlagsProvider
+  flagsmithEnvironmentKey: string | null
+  /** Con `provider: memory`, los flags prendidos para todos. */
+  enabled: string[]
+}
+
+export interface EmailConfig {
+  provider: EmailProvider
+}
+
 export interface Configuration {
   app: AppConfig
   database: DatabaseConfig
@@ -66,6 +95,10 @@ export interface Configuration {
   accountLock: AccountLockConfig
   throttle: ThrottleConfig
   cors: CorsConfig
+  queue: QueueConfig
+  storage: StorageConfig
+  featureFlags: FeatureFlagsConfig
+  email: EmailConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -191,6 +224,61 @@ export function configuration(): Configuration {
       // Sin CORS_ORIGINS no se habilita ningún origen: hay que optar por él.
       origins: parseCorsOrigins(process.env.CORS_ORIGINS),
       credentials: bool(process.env.CORS_CREDENTIALS, false),
+    },
+    queue: {
+      provider: str(
+        process.env.QUEUE_PROVIDER,
+        QueueProvider.PgBoss,
+      ) as QueueProvider,
+      pollingIntervalSeconds: num(
+        process.env.QUEUE_POLLING_INTERVAL_SECONDS,
+        2,
+      ),
+    },
+    storage: {
+      provider: str(
+        process.env.STORAGE_PROVIDER,
+        StorageProvider.Local,
+      ) as StorageProvider,
+      local: {
+        directory: str(process.env.STORAGE_LOCAL_DIR, 'storage-data'),
+        publicBaseUrl: str(
+          process.env.STORAGE_PUBLIC_BASE_URL,
+          `http://localhost:${num(process.env.PORT, 3000)}`,
+        ),
+      },
+      cloudinary:
+        process.env.CLOUDINARY_CLOUD_NAME &&
+        process.env.CLOUDINARY_API_KEY &&
+        process.env.CLOUDINARY_API_SECRET
+          ? {
+              cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+              apiKey: process.env.CLOUDINARY_API_KEY,
+              apiSecret: process.env.CLOUDINARY_API_SECRET,
+            }
+          : null,
+    },
+    featureFlags: {
+      // Sin proveedor explícito: Flagsmith si hay key, memoria si no. Así el
+      // desarrollo local usa Flagsmith (la key está en Doppler) y los tests,
+      // que no la tienen, quedan en memoria sin configurar nada.
+      provider: str(
+        process.env.FEATURE_FLAGS_PROVIDER,
+        process.env.FLAGSMITH_ENVIRONMENT_KEY
+          ? FeatureFlagsProvider.Flagsmith
+          : FeatureFlagsProvider.Memory,
+      ) as FeatureFlagsProvider,
+      flagsmithEnvironmentKey: process.env.FLAGSMITH_ENVIRONMENT_KEY || null,
+      enabled: (process.env.FEATURE_FLAGS_ENABLED ?? '')
+        .split(',')
+        .map((flag) => flag.trim())
+        .filter(Boolean),
+    },
+    email: {
+      provider: str(
+        process.env.EMAIL_PROVIDER,
+        EmailProvider.Console,
+      ) as EmailProvider,
     },
   }
 }

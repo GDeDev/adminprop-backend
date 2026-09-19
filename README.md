@@ -1,9 +1,13 @@
-# NestJS API Template
+# Adminprop API
 
-Template de API en NestJS con arquitectura hexagonal, CQRS, Prisma y
-autenticación JWT propia.
+Backend de Adminprop, SaaS multi-tenant de administración de alquileres.
+NestJS 11 + Prisma sobre PostgreSQL 16: monolito modular, CQRS, puertos y
+adapters para la infraestructura, y autenticación JWT propia.
 
-[![NestJS](https://img.shields.io/badge/NestJS-10-red?logo=nestjs)](https://nestjs.com/)
+Documentación del producto y specs: `../adminprop-repo-files`. Estado de la
+Fase 1: [docs/tecnica/fase-01.md](docs/tecnica/fase-01.md).
+
+[![NestJS](https://img.shields.io/badge/NestJS-11-red?logo=nestjs)](https://nestjs.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma)](https://www.prisma.io/)
 
@@ -17,21 +21,19 @@ autenticación JWT propia.
 # 1. Dependencias
 npm install
 
-# 2. Entorno
-cp .env.example .env
-# Generá los dos secretos JWT (tienen que ser distintos entre sí):
-#   openssl rand -base64 48
+# 2. Entorno: no hay .env. Las variables salen de Doppler (proyecto admin-prop).
+doppler login                 # una vez por máquina
+doppler setup                 # en esta carpeta, config dev_backend
+# .env.example documenta qué variables existen.
 
 # 3. Base de datos
 npm run docker:dev            # levanta Postgres 16 (base de dev + base de tests)
 npm run prisma:migrate        # aplica las migraciones
 
-# 4. Primer administrador
-SEED_ADMIN_EMAIL=admin@tuempresa.com \
-SEED_ADMIN_PASSWORD="$(openssl rand -base64 24)" \
+# 4. Primer tenant y su administrador (variables SEED_* en Doppler)
 npm run prisma:seed
 
-# 5. Arrancar
+# 5. Arrancar (start:dev ya corre dentro de `doppler run --`)
 npm run start:dev
 ```
 
@@ -85,37 +87,17 @@ Prisma + PostgreSQL 16, con migraciones versionadas y seed.
 ### Testing
 
 Jest con tests unitarios co-locados (`src/**/*.spec.ts`) y e2e (`test/`). Los
-e2e corren contra la app configurada igual que en producción, con Prisma
-mockeado: no necesitan base de datos.
+e2e corren contra la app configurada igual que en producción y contra Postgres
+real (base `adminprop_test` de `npm run docker:dev`).
 
 ---
 
 ## Estructura
 
-```
-src/
-├── domain/                    # Reglas de negocio. Sin dependencias de framework.
-│   ├── auth/                  #   entidades, enums, puertos de repositorio, excepciones
-│   └── feature/               #   ← tu dominio va acá
-├── application/               # Casos de uso (CQRS)
-│   ├── auth/                  #   register, login, refresh, logout, change-password
-│   └── feature/
-├── infrastructure/            # Adaptadores: HTTP, Prisma, servicios externos
-│   ├── auth/                  #   controller, guards, decoradores, repos, tasks
-│   ├── health/
-│   ├── prisma/
-│   └── example/               #   ← módulo de ejemplo, borralo cuando no lo necesites
-├── shared/
-│   ├── config/                # Validación de entorno, config tipada, secretos
-│   ├── core/                  # Logger, Result, primitivas de DDD
-│   ├── errors/                # Catálogo de códigos y AppException
-│   ├── dtos/                  # Formato de respuesta de la API
-│   ├── infra/                 # Filtros, interceptores, middleware, pipes, throttler
-│   └── services/
-├── app.module.ts
-├── app.setup.ts               # Pipes, filtros y middlewares (lo reusan los e2e)
-└── main.ts
-```
+Monolito modular: `src/modules/<modulo>/{domain,application,infrastructure,public}`,
+puertos técnicos en `src/platform/` y lo transversal en `src/shared/`. Las
+fronteras entre módulos las hace cumplir `eslint-plugin-boundaries`. Detalle y
+reglas de import en [CLAUDE.md](CLAUDE.md#estructura).
 
 ---
 
@@ -141,26 +123,8 @@ src/
 
 ## Agregar un feature
 
-El módulo `example` está para copiar. Para un feature `propiedades`:
-
-```
-src/domain/propiedades/
-├── entities/propiedad.entity.ts
-└── repositories/propiedad.repository.ts      # puerto abstracto
-
-src/application/propiedades/
-├── commands/crear-propiedad/
-└── queries/listar-propiedades/
-
-src/infrastructure/propiedades/
-├── http/controllers/propiedades.controller.ts
-├── http/dtos/
-├── repositories/propiedad.repository.impl.ts # implementación con Prisma
-└── modules/propiedades.module.ts
-```
-
-Registrá el módulo en `app.module.ts`. El controller ya queda protegido por el
-guard global: no hace falta decorar nada para exigir autenticación.
+Ver [CLAUDE.md](CLAUDE.md#agregar-un-feature) y el módulo de referencia
+`src/modules/_example`.
 
 ---
 

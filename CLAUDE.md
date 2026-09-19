@@ -25,11 +25,11 @@ de identidad. Ver la sección final de [docs/AUTH.md](docs/AUTH.md).
 ## Comandos
 
 ```bash
-npm run start:dev             # desarrollo con watch
+npm run start:dev             # desarrollo con watch, dentro de `doppler run --`
 npm run code:check            # formato + lint (lo mismo que corre el CI)
 npm run code:fix              # arregla formato y lint
 npm test                      # unitarios
-npm run test:e2e              # e2e (no necesitan base de datos)
+npm run test:e2e              # e2e (Postgres de docker:dev, base adminprop_test)
 npx tsc --noEmit              # sólo tipos
 npm run prisma:migrate        # crear y aplicar migración
 npm run docker:dev            # Postgres 16
@@ -40,36 +40,50 @@ Antes de dar por terminado un cambio: `npm run code:check`, `npx tsc --noEmit`,
 
 ## Estructura
 
-Hexagonal en tres capas. La dirección de las dependencias va siempre hacia
-adentro: `infrastructure` → `application` → `domain`.
+Monolito modular (spec Fase 1, 5.1). Cada módulo de negocio es hexagonal por
+dentro, y entre módulos sólo se habla por su `public/` o por eventos.
+`eslint-plugin-boundaries` lo hace cumplir: un import que viola las fronteras
+rompe el lint (y el pre-commit).
 
 ```
 src/
-├── domain/<feature>/          # Reglas de negocio. Cero imports de NestJS o Prisma.
-│   ├── entities/              #   tipos y funciones puras sobre ellos
-│   ├── enums/
-│   ├── exceptions/            #   errores del dominio
-│   └── repositories/          #   puertos: clases abstractas, no interfaces
-├── application/<feature>/     # Casos de uso
-│   ├── commands/<accion>/     #   <accion>.command.ts + <accion>.handler.ts
-│   ├── queries/<consulta>/
-│   └── results/
-├── infrastructure/<feature>/  # Adaptadores
-│   ├── http/controllers/
-│   ├── http/dtos/
-│   ├── repositories/          #   implementaciones con Prisma
-│   ├── services/
-│   └── modules/
-└── shared/                    # Transversal
-    ├── config/                #   validación de entorno y config tipada
-    ├── core/                  #   logger, Result, Validate, primitivas DDD
-    ├── errors/                #   AppException y catálogo de códigos
-    ├── pagination/
-    └── infra/                 #   filtros, interceptores, middleware, pipes, throttler
+├── modules/<modulo>/          # Un módulo de negocio (auth, health, _example, ...)
+│   ├── domain/                #   reglas puras: entidades, enums, excepciones y
+│   │                          #   puertos de repositorio (clases abstractas).
+│   │                          #   Cero imports de NestJS, Prisma o de otra capa.
+│   ├── application/           #   casos de uso CQRS
+│   │   ├── commands/<accion>/ #     <accion>.command.ts + <accion>.handler.ts
+│   │   └── queries/<consulta>/
+│   ├── infrastructure/        #   adaptadores: http/ (controllers, dtos),
+│   │                          #   repositories/ (Prisma), services/, modules/
+│   └── public/                #   lo ÚNICO que otros módulos pueden importar
+├── platform/<puerto>/         # Puertos técnicos con sus adapters (queue, storage,
+│                              #   feature-flags, email). No conocen ningún módulo.
+├── shared/                    # Transversal, sin dependencias hacia modules/
+│   ├── config/                #   validación de entorno y config tipada
+│   ├── context/               #   RequestContext (AsyncLocalStorage): usuario y tenant
+│   ├── prisma/                #   PrismaService + extensiones (tenant, soft delete, auditoría)
+│   ├── money/                 #   decimal.js, ROUND_HALF_UP
+│   ├── errors/                #   AppException y catálogo de códigos
+│   ├── pagination/
+│   └── infra/                 #   filtros, interceptores, pipes, throttler
+└── app.module.ts, main.ts     # Raíz de composición: la única que ve todo
 ```
 
-**El módulo de auth es la referencia.** Cuando tengas dudas de dónde va algo,
-mirá cómo está resuelto ahí.
+Qué puede importar cada cosa:
+
+| Desde                           | Puede importar                                                        |
+| ------------------------------- | --------------------------------------------------------------------- |
+| `modules/x/domain`              | su propio `domain` y `shared`                                         |
+| `modules/x/{application,infra}` | todo `modules/x`, el `public/` de otros módulos, `platform`, `shared` |
+| `platform/p`                    | su propio puerto y `shared`                                           |
+| `shared`                        | sólo `shared`                                                         |
+
+Los tests (`test/**`) quedan afuera de la regla: arman escenarios con piezas
+internas a propósito.
+
+**`modules/_example` es la referencia.** Ante la duda de dónde va algo o cómo se
+ve un handler, mirá ahí (su README tiene el mapa). No se borra.
 
 Los puertos son **clases abstractas** y no interfaces porque NestJS necesita un
 token de inyección en runtime, y las interfaces de TypeScript se borran al
@@ -77,23 +91,23 @@ compilar.
 
 ## Agregar un feature
 
-Para `propiedades`:
+Para `properties`:
 
-1. `src/domain/propiedades/entities/propiedad.entity.ts` — el tipo y sus
-   funciones puras.
-2. `src/domain/propiedades/repositories/propiedad.repository.ts` — la clase
-   abstracta con los métodos que el dominio necesita.
-3. `src/application/propiedades/commands/crear-propiedad/` — command + handler.
-4. `src/infrastructure/propiedades/repositories/propiedad.repository.impl.ts` —
-   la implementación con Prisma.
-5. `src/infrastructure/propiedades/repositories/index.ts` — el binding:
-   `{ provide: PropiedadRepository, useClass: PropiedadRepositoryImpl }`.
-6. `src/infrastructure/propiedades/http/controllers/` y `http/dtos/`.
-7. `src/infrastructure/propiedades/modules/propiedades.module.ts`.
-8. Registrar el módulo en `src/app.module.ts`.
-9. Si la entidad necesita historial de cambios o borrado lógico, declararla en
-   `src/infrastructure/prisma/extensions/auditable-models.ts`. Es opt-in: sin
-   eso no pasa nada.
+1. `src/modules/properties/domain/` — entidad, reglas puras y el puerto del
+   repositorio (clase abstracta).
+2. `src/modules/properties/application/commands/create-property/` y
+   `queries/` — command/query + handler.
+3. `src/modules/properties/infrastructure/repositories/` — la implementación
+   con `prisma.db` y el binding
+   `{ provide: PropertyRepository, useClass: PropertyRepositoryImpl }`.
+4. `src/modules/properties/infrastructure/http/` — controller y DTOs.
+5. `src/modules/properties/infrastructure/modules/properties.module.ts`,
+   registrado en `src/app.module.ts`.
+6. `src/modules/properties/public/` — sólo lo que otros módulos necesiten
+   (una facade o tipos). Si nadie lo necesita, queda vacío.
+7. Declarar el modelo en `src/shared/prisma/extensions/auditable-models.ts`:
+   `tenantScoped: true` si tiene `tenantId` (un test lo exige), y
+   `audit`/`softDelete` si necesita historial o borrado lógico.
 
 El controller queda protegido automáticamente: `JwtAuthGuard` es guard global.
 
@@ -102,7 +116,14 @@ El controller queda protegido automáticamente: `JwtAuthGuard` es guard global.
 **Excepciones en el borde, `Result` dentro del dominio.** Esta es la regla, y
 existe porque antes convivían los dos estilos sin criterio.
 
-Los handlers, servicios y repositorios lanzan `AppException`:
+Una **regla de negocio** que falla lanza una subclase de `DomainException`
+(`@/shared/errors`), con un `code` estable y un `DomainErrorKind`
+(`NotFound`, `Conflict`, `BusinessRule`, `Forbidden`). El filtro global la
+traduce a 404/409/422/403; el dominio nunca elige un status HTTP. Ver
+[docs/ERROR-HANDLING.md](docs/ERROR-HANDLING.md).
+
+Para errores de **infraestructura o de entrada** (auth, validación, servicios
+externos), los handlers, servicios y repositorios lanzan `AppException`:
 
 ```ts
 import { AppException, ErrorCode } from '@/shared/errors'
@@ -124,7 +145,7 @@ Funcionan —el filtro las normaliza— pero perdés el `code`, que es el contra
 estable con el frontend.
 
 Para errores de dominio que se repiten, agrupalos como en
-`src/domain/auth/exceptions/auth.exceptions.ts`.
+`src/modules/auth/domain/exceptions/auth.exceptions.ts`.
 
 Detalle completo en [docs/ERROR-HANDLING.md](docs/ERROR-HANDLING.md).
 
@@ -163,7 +184,11 @@ seguridad, workarounds de librerías y órdenes de ejecución que importan.
 ## Tests
 
 - Unitarios al lado del código: `src/**/*.spec.ts`.
-- e2e en `test/`, con Prisma y los repositorios mockeados: no necesitan base.
+- e2e en `test/`. `app.e2e-spec.ts` mockea Prisma (cableado y contrato de
+  errores); el resto corre contra Postgres real, en la base `adminprop_test`
+  (`TEST_DATABASE_URL`), que se migra sola y se trunca antes de cada test.
+  Nunca usan el `DATABASE_URL` del entorno, y se niegan a correr contra una base
+  cuyo nombre no termine en `_test`.
 - Los e2e usan `configureApp()` de `src/app.setup.ts`, la misma función que
   `main.ts`. Si agregás un pipe, filtro o middleware global, va ahí y no en
   `main.ts`, o los tests probarán una app distinta de la real.
@@ -198,4 +223,6 @@ Cosas que están así a propósito y conviene no "simplificar":
   relacionados con los archivos staged. No se saltea con `--no-verify`.
 - El cuerpo explica **por qué**, no lista los archivos tocados: eso ya está en el
   diff.
-- `.env` nunca se commitea.
+- No existe `.env`: las variables salen de Doppler (proyecto `admin-prop`,
+  config `dev_backend`). Los scripts que necesitan entorno ya corren dentro de
+  `doppler run --`; tests y CI usan valores descartables propios.

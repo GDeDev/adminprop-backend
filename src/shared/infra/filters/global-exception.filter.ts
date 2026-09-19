@@ -10,12 +10,13 @@ import { ConfigService } from '@nestjs/config'
 import { Request, Response } from 'express'
 import { PinoLogger } from 'nestjs-pino'
 
-import { ApiErrorDto } from '../../dtos/api-response.dto'
 import { Configuration } from '../../config/configuration'
 import { AppException } from '../../errors/app.exception'
+import { DomainErrorKind, DomainException } from '../../errors/domain.exception'
 import { ErrorCode, ErrorDetail } from '../../errors/error-codes'
 import { getCorrelationId } from '../../context/request-context.middleware'
 import { redact } from '../logging/redact'
+import { buildErrorBody } from './error-body'
 
 const STATUS_TO_CODE: Record<number, ErrorCode> = {
   [HttpStatus.BAD_REQUEST]: ErrorCode.BAD_REQUEST,
@@ -33,6 +34,14 @@ const STATUS_TO_CODE: Record<number, ErrorCode> = {
   [HttpStatus.BAD_GATEWAY]: ErrorCode.EXTERNAL_SERVICE_ERROR,
   [HttpStatus.SERVICE_UNAVAILABLE]: ErrorCode.SERVICE_UNAVAILABLE,
   [HttpStatus.GATEWAY_TIMEOUT]: ErrorCode.EXTERNAL_SERVICE_TIMEOUT,
+}
+
+/** Cómo se traduce cada tipo de falla de negocio a HTTP. */
+const DOMAIN_KIND_TO_STATUS: Record<DomainErrorKind, HttpStatus> = {
+  [DomainErrorKind.NotFound]: HttpStatus.NOT_FOUND,
+  [DomainErrorKind.Conflict]: HttpStatus.CONFLICT,
+  [DomainErrorKind.BusinessRule]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [DomainErrorKind.Forbidden]: HttpStatus.FORBIDDEN,
 }
 
 /** Lo único que ve el cliente ante un 5xx en producción. */
@@ -86,19 +95,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return
     }
 
-    const isServerError = normalized.status >= 500
-    const body: ApiErrorDto = {
-      success: false,
-      code: normalized.code,
-      message:
-        isServerError && this.isProduction
-          ? GENERIC_500_MESSAGE
-          : normalized.message,
-      errors: isServerError && this.isProduction ? [] : normalized.details,
+    const hideInternals = normalized.status >= 500 && this.isProduction
+    const body = buildErrorBody(
+      {
+        status: normalized.status,
+        code: normalized.code,
+        message: hideInternals ? GENERIC_500_MESSAGE : normalized.message,
+        details: hideInternals ? [] : normalized.details,
+      },
+      request,
       correlationId,
-      timestamp: new Date().toISOString(),
-      path: request.originalUrl ?? request.url,
-    }
+    )
 
     response.status(normalized.status).json(body)
   }
@@ -106,6 +113,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   // --------------------------------------------------------------- normalización
 
   private normalize(exception: unknown): NormalizedError {
+    if (exception instanceof DomainException) {
+      return {
+        status: DOMAIN_KIND_TO_STATUS[exception.kind],
+        code: exception.code,
+        message: exception.message,
+        details: [],
+        metadata: exception.metadata,
+      }
+    }
+
     if (exception instanceof AppException) {
       return {
         status: exception.getStatus(),

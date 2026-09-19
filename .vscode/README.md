@@ -68,10 +68,9 @@ Lista de extensiones recomendadas para el proyecto:
 VS Code te preguntará automáticamente si quieres instalar las extensiones recomendadas.
 
 ### 2. Configurar Variables de Entorno
-Asegúrate de tener el archivo `.env` configurado:
+No hay `.env`: las variables salen de Doppler.
 ```bash
-cp .env.example .env
-# Edita .env con tus valores
+doppler setup   # config dev_backend
 ```
 
 ### 3. Instalar Dependencias

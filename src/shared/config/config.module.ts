@@ -17,7 +17,9 @@ export type TypedConfigService = ConfigService<Configuration, true>
       isGlobal: true,
       cache: true,
       expandVariables: true,
-      envFilePath: ['.env.local', '.env'],
+      // Nunca se leen archivos .env: la única fuente es el entorno inyectado
+      // por Doppler. Un .env olvidado en el disco no puede pisar nada.
+      ignoreEnvFile: true,
       validate: validateEnv,
       load: [configuration],
     }),
