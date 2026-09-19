@@ -10,6 +10,7 @@ import { HealthModule } from '@/modules/health/infrastructure/modules/health.mod
 import { JobsModule } from '@/modules/jobs/public'
 import { TenantsModule } from '@/modules/tenants/public'
 import { MasterDataModule } from '@/modules/master-data/public'
+import { PropertiesModule } from '@/modules/properties/public'
 import { ExampleModule } from '@/modules/_example/public'
 import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
 import { QueueModule } from '@/platform/queue/queue.module'
@@ -44,6 +45,7 @@ import { SharedModule } from './shared/shared.module'
     JobsModule,
     TenantsModule,
     MasterDataModule,
+    PropertiesModule,
     // Módulos de referencia (Fase 1). No se borran.
     ExampleModule,
     ExampleListenerModule,

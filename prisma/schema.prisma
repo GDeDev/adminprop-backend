@@ -87,6 +87,9 @@ model Tenant {
   operationTypes OperationType[]
   serviceTypes   ServiceType[]
 
+  properties     Property[]
+  propertyPhotos PropertyPhoto[]
+
   @@map("tenants")
 }
 
@@ -416,4 +419,73 @@ model ServiceType {
 
   @@index([tenantId])
   @@map("service_types")
+}
+
+// ---------------------------------------------------------------------------
+// Propiedades (Fase 6, PRD 5.1)
+// ---------------------------------------------------------------------------
+
+enum PropertyStatus {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+}
+
+/// Una propiedad administrada por la inmobiliaria.
+///
+/// Ubicación, tipo y amenities son ids de los maestros, **sin FK** a propósito:
+/// los módulos no comparten tablas (se validan con MasterDataFacade al guardar).
+/// Lo mismo el propietario (Fase 7).
+model Property {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  address        String         @db.VarChar(200)
+  locationId     String         @map("location_id") @db.Uuid
+  propertyTypeId String         @map("property_type_id") @db.Uuid
+  status         PropertyStatus @default(AVAILABLE)
+  /// Nullable: la propiedad se puede cargar antes que su propietario.
+  ownerId        String?        @map("owner_id") @db.Uuid
+  amenityIds     String[]       @default([]) @map("amenity_ids") @db.Uuid
+  /// Notas internas: nunca se exponen en el portal público.
+  notes          String?        @db.Text
+
+  photos PropertyPhoto[]
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  deletedById String?   @map("deleted_by_id") @db.Uuid
+
+  @@index([tenantId, status])
+  @@index([tenantId, ownerId])
+  @@index([tenantId, propertyTypeId])
+  @@index([tenantId, deletedAt])
+  /// Búsqueda por dirección parcial (ILIKE): trigramas. La extensión pg_trgm
+  /// la crea la migración `add_properties`.
+  @@index([address(ops: raw("gin_trgm_ops"))], type: Gin, map: "properties_address_trgm_idx")
+  @@map("properties")
+}
+
+/// Foto de una propiedad. Tabla aparte (y no un array de URLs) para poder
+/// borrar una por id, ordenarlas y guardar la `key` del storage para borrarla.
+model PropertyPhoto {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  propertyId String   @map("property_id") @db.Uuid
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  storageKey String @map("storage_key") @db.VarChar(500)
+  url        String @db.VarChar(1000)
+  /// Orden en el carrusel; la de menor posición es la principal.
+  position   Int
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, propertyId, position])
+  @@map("property_photos")
 }
