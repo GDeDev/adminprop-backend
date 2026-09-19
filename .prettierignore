@@ -11,6 +11,9 @@ build
 .env.local
 .env.production
 
+# Generado por `npm run openapi:export`: el CI lo compara byte a byte.
+openapi.json
+
 # Database
 prisma/migrations
 

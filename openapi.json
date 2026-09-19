@@ -1,0 +1,2332 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "AuthController_login_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sesión iniciada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credenciales inválidas, o cuenta/inmobiliaria deshabilitada (mismo mensaje)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cuenta bloqueada temporalmente por intentos fallidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiadas solicitudes. Mirá el header Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Iniciar sesión",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/portal-login": {
+      "post": {
+        "description": "El email de un propietario o inquilino es único dentro de su inmobiliaria, no en todo el sistema: por eso se manda también el slug de la inmobiliaria.",
+        "operationId": "AuthController_portalLogin_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sesión iniciada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credenciales inválidas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiadas solicitudes. Mirá el header Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Iniciar sesión en el portal (propietario o inquilino)",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "description": "Devuelve un par nuevo de tokens. El refresh token enviado queda invalidado: guardá siempre el último. Reusar uno viejo cierra todas las sesiones.",
+        "operationId": "AuthController_refresh_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tokens renovados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokensDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Refresh token inválido, vencido o reusado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiadas solicitudes. Mirá el header Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Renovar el access token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "Revoca el refresh token enviado. Es idempotente: siempre responde 204, incluso con un token ya vencido o inexistente. El access token sigue siendo válido hasta que expire.",
+        "operationId": "AuthController_logout_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sesión cerrada"
+          },
+          "429": {
+            "description": "Demasiadas solicitudes. Mirá el header Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Cerrar la sesión actual",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout-all": {
+      "post": {
+        "description": "Revoca todos los refresh tokens del usuario autenticado.",
+        "operationId": "AuthController_logoutAll_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Sesiones cerradas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedSessionsDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiadas solicitudes. Mirá el header Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cerrar sesión en todos los dispositivos",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "description": "Cierra todas las sesiones, incluida la actual. Hay que volver a iniciar sesión.",
+        "operationId": "AuthController_changePassword_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Contraseña actualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedSessionsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "La contraseña actual es incorrecta o la nueva es igual a la vigente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiadas solicitudes. Mirá el header Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cambiar la contraseña",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "AuthController_me_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Perfil del usuario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiadas solicitudes. Mirá el header Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Datos del usuario autenticado",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "operationId": "UsersController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "role",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ADMIN",
+                "EMPLOYEE"
+              ]
+            }
+          },
+          {
+            "name": "isActive",
+            "required": false,
+            "in": "query",
+            "description": "true: sólo activos; false: sólo desactivados; sin valor: todos",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuarios de la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/PublicUserDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo un admin gestiona usuarios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar admins y empleados",
+        "tags": [
+          "Users"
+        ]
+      },
+      "post": {
+        "description": "El admin define la contraseña inicial y se la pasa a la persona, que después la puede cambiar.",
+        "operationId": "UsersController_create_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo un admin gestiona usuarios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya hay un usuario interno con ese email (en cualquier inmobiliaria)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Crear un admin o empleado",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/v1/users/{id}": {
+      "get": {
+        "operationId": "UsersController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo un admin gestiona usuarios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe, es de otra inmobiliaria o es de portal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ver un usuario",
+        "tags": [
+          "Users"
+        ]
+      },
+      "patch": {
+        "operationId": "UsersController_update_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo un admin gestiona usuarios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Intentó cambiarse su propio rol",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar datos o rol",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/v1/users/{id}/deactivate": {
+      "patch": {
+        "description": "Cierra sus sesiones en el acto. No puede loguearse hasta que se reactive.",
+        "operationId": "UsersController_deactivate_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo un admin gestiona usuarios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Intentó desactivarse a sí mismo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Desactivar (no borra)",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/v1/users/{id}/activate": {
+      "patch": {
+        "operationId": "UsersController_activate_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicUserDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo un admin gestiona usuarios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reactivar un usuario desactivado",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/v1/users/{id}/password": {
+      "patch": {
+        "description": "Cierra todas sus sesiones y le desbloquea la cuenta. Para la propia, usá POST /auth/change-password.",
+        "operationId": "UsersController_resetPassword_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetUserPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedSessionsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo un admin gestiona usuarios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Intentó resetear su propia contraseña",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resetear la contraseña de otro usuario",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/api/v1/tenants/current": {
+      "get": {
+        "description": "Nombre y marca, para el layout del backoffice y del portal.",
+        "operationId": "TenantsController_current_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantBrandingDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Inmobiliaria del usuario logueado",
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
+    "/api/v1/tenants/by-slug/{slug}": {
+      "get": {
+        "description": "La usa el portal para mostrar el login con el logo y el color de la inmobiliaria.",
+        "operationId": "TenantsController_bySlug_api/v1",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "demo",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantBrandingDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe o está deshabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Marca de una inmobiliaria por su slug (sin sesión)",
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "Simple health check endpoint that returns basic application status",
+        "operationId": "HealthController_checkHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Health check successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "example": "2023-12-01T10:00:00Z"
+                    },
+                    "uptime": {
+                      "type": "number",
+                      "example": 12345
+                    },
+                    "version": {
+                      "type": "string",
+                      "example": "1.0.0"
+                    },
+                    "environment": {
+                      "type": "string",
+                      "example": "development"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Basic health check",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "description": "Kubernetes-style readiness probe. Checks if the application is ready to serve traffic",
+        "operationId": "HealthController_checkReadiness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Application is ready\n\nThe Health Check is successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {},
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Application is not ready\n\nThe Health Check is not successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        },
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Readiness probe",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health/live": {
+      "get": {
+        "description": "Kubernetes-style liveness probe. Checks if the application is alive and responsive",
+        "operationId": "HealthController_checkLiveness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Application is alive\n\nThe Health Check is successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {},
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Application is not responsive\n\nThe Health Check is not successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        },
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Liveness probe",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health/detailed": {
+      "get": {
+        "description": "Comprehensive health status including application info, memory, database, and system metrics",
+        "operationId": "HealthController_getDetailedHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Detailed health information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "example": "adminprop-api"
+                    },
+                    "version": {
+                      "type": "string",
+                      "example": "1.0.0"
+                    },
+                    "environment": {
+                      "type": "string",
+                      "example": "development"
+                    },
+                    "uptime": {
+                      "type": "number",
+                      "example": 12345
+                    },
+                    "health": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "example": "ok"
+                        },
+                        "info": {
+                          "type": "object"
+                        },
+                        "error": {
+                          "type": "object"
+                        },
+                        "details": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Detailed health status",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health/metrics": {
+      "get": {
+        "description": "Returns application metrics like memory usage, uptime, and system information",
+        "operationId": "HealthController_getMetrics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Application metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uptime": {
+                      "type": "number",
+                      "example": 12345
+                    },
+                    "memoryUsage": {
+                      "type": "object",
+                      "properties": {
+                        "rss": {
+                          "type": "number"
+                        },
+                        "heapTotal": {
+                          "type": "number"
+                        },
+                        "heapUsed": {
+                          "type": "number"
+                        },
+                        "external": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "cpuUsage": {
+                      "type": "object"
+                    },
+                    "platform": {
+                      "type": "string",
+                      "example": "linux"
+                    },
+                    "nodeVersion": {
+                      "type": "string",
+                      "example": "v18.17.0"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Application metrics",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/jobs/{id}/status": {
+      "get": {
+        "description": "Para consultar el avance de una acción que respondió 202 con un jobId.",
+        "operationId": "JobsController_status_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AsyncJobStatusDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe, o es de otra inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Estado de un trabajo en background",
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
+    "/api/v1/examples": {
+      "post": {
+        "operationId": "ExampleItemsController_create_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExampleItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExampleItemDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Nombre repetido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Precio no positivo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Crear un ítem",
+        "tags": [
+          "Example (módulo de referencia)"
+        ]
+      }
+    },
+    "/api/v1/examples/{id}": {
+      "get": {
+        "operationId": "ExampleItemsController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExampleItemDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe, o es de otra inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ver un ítem",
+        "tags": [
+          "Example (módulo de referencia)"
+        ]
+      }
+    },
+    "/api/v1/examples/{id}/attachment": {
+      "post": {
+        "operationId": "ExampleItemsController_attach_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExampleItemDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Adjuntar un archivo (imagen o PDF, hasta 5 MB)",
+        "tags": [
+          "Example (módulo de referencia)"
+        ]
+      }
+    },
+    "/api/v1/examples/recalculate": {
+      "post": {
+        "description": "Responde 202 con un jobId. El avance se consulta en GET /api/v1/jobs/{jobId}/status. Requiere el feature flag \"example-bulk-recalculate\" para el tenant.",
+        "operationId": "ExampleItemsController_recalculate_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecalculateExamplePricesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAcceptedDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Flag apagado para el tenant (FEATURE_DISABLED)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Aumentar el precio de todos los ítems (en background)",
+        "tags": [
+          "Example (módulo de referencia)"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Adminprop API",
+    "description": "API NestJS con arquitectura hexagonal, CQRS y autenticación JWT propia.",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "description": "Access token devuelto por POST /api/v1/auth/login"
+      }
+    },
+    "schemas": {
+      "ApiErrorDetailDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Descripción legible del problema puntual",
+            "example": "El email no tiene un formato válido"
+          },
+          "code": {
+            "type": "string",
+            "description": "Código de la regla que falló",
+            "example": "isEmail"
+          },
+          "field": {
+            "type": "string",
+            "description": "Campo que originó el error",
+            "example": "email"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "ApiErrorDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Indica si la operación fue exitosa",
+            "example": false
+          },
+          "statusCode": {
+            "type": "number",
+            "description": "Status HTTP de la respuesta",
+            "example": 400
+          },
+          "error": {
+            "type": "string",
+            "description": "Nombre del status HTTP",
+            "example": "Bad Request"
+          },
+          "code": {
+            "type": "string",
+            "description": "Código de error estable. Ramificá por acá, no por el texto del mensaje.",
+            "enum": [
+              "INTERNAL_ERROR",
+              "BAD_REQUEST",
+              "VALIDATION_FAILED",
+              "NOT_FOUND",
+              "CONFLICT",
+              "UNPROCESSABLE_ENTITY",
+              "PAYLOAD_TOO_LARGE",
+              "UNSUPPORTED_MEDIA_TYPE",
+              "METHOD_NOT_ALLOWED",
+              "RATE_LIMIT_EXCEEDED",
+              "SERVICE_UNAVAILABLE",
+              "REQUEST_TIMEOUT",
+              "UNAUTHENTICATED",
+              "INVALID_CREDENTIALS",
+              "TOKEN_MISSING",
+              "TOKEN_INVALID",
+              "TOKEN_EXPIRED",
+              "REFRESH_TOKEN_INVALID",
+              "REFRESH_TOKEN_EXPIRED",
+              "REFRESH_TOKEN_REUSED",
+              "SESSION_REVOKED",
+              "EMAIL_ALREADY_REGISTERED",
+              "ACCOUNT_INACTIVE",
+              "ACCOUNT_LOCKED",
+              "WEAK_PASSWORD",
+              "CURRENT_PASSWORD_INVALID",
+              "PASSWORD_REUSED",
+              "FORBIDDEN",
+              "INSUFFICIENT_PERMISSIONS",
+              "FEATURE_DISABLED",
+              "DATABASE_ERROR",
+              "UNIQUE_CONSTRAINT_VIOLATION",
+              "FOREIGN_KEY_CONSTRAINT_VIOLATION",
+              "RECORD_NOT_FOUND",
+              "RELATED_RECORDS_EXIST",
+              "EXTERNAL_SERVICE_ERROR",
+              "EXTERNAL_SERVICE_TIMEOUT",
+              "EXTERNAL_SERVICE_UNAVAILABLE"
+            ],
+            "example": "VALIDATION_FAILED"
+          },
+          "message": {
+            "type": "string",
+            "description": "Mensaje legible que describe el error",
+            "example": "La validación de los datos enviados falló"
+          },
+          "errors": {
+            "description": "Detalle por campo. Vacío si el error no es de validación.",
+            "example": [
+              {
+                "message": "El email no tiene un formato válido",
+                "code": "isEmail",
+                "field": "email"
+              }
+            ],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiErrorDetailDto"
+            }
+          },
+          "correlationId": {
+            "type": "string",
+            "description": "ID de correlación del request, para rastrearlo en los logs",
+            "example": "3f8c1b1e-3a6f-4f2e-9a1c-6d9f2b7c4e11"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "Momento en que se generó el error (ISO 8601)",
+            "example": "2026-01-15T10:00:00.000Z"
+          },
+          "path": {
+            "type": "string",
+            "description": "Path del request que falló",
+            "example": "/api/v1/auth/login"
+          }
+        },
+        "required": [
+          "success",
+          "statusCode",
+          "error",
+          "code",
+          "message",
+          "errors",
+          "correlationId",
+          "timestamp",
+          "path"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "ana@ejemplo.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "UnaClaveSegura123"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "PublicUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+          },
+          "tenantId": {
+            "type": "string",
+            "description": "Inmobiliaria a la que pertenece el usuario",
+            "example": "3f8c1b1e-3a6f-4f2e-9a1c-6d9f2b7c4e11"
+          },
+          "email": {
+            "type": "string",
+            "example": "ana@ejemplo.com"
+          },
+          "firstName": {
+            "type": "object",
+            "example": "Ana",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "object",
+            "example": "Gómez",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "EMPLOYEE",
+              "OWNER",
+              "RENTER"
+            ],
+            "example": "EMPLOYEE"
+          },
+          "isActive": {
+            "type": "boolean",
+            "example": true
+          },
+          "lastLoginAt": {
+            "type": "object",
+            "nullable": true,
+            "example": "2026-01-15T10:00:00.000Z"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-01-01T09:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "email",
+          "firstName",
+          "lastName",
+          "role",
+          "isActive",
+          "lastLoginAt",
+          "createdAt"
+        ]
+      },
+      "AuthTokensDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "JWT de acceso, va en el header Authorization"
+          },
+          "refreshToken": {
+            "type": "string",
+            "description": "Token para renovar el acceso. Se rota en cada uso: guardá siempre el último."
+          },
+          "tokenType": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "expiresIn": {
+            "type": "number",
+            "description": "Segundos hasta que venza el access token",
+            "example": 900
+          }
+        },
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "tokenType",
+          "expiresIn"
+        ]
+      },
+      "AuthResultDto": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/PublicUserDto"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/AuthTokensDto"
+          }
+        },
+        "required": [
+          "user",
+          "tokens"
+        ]
+      },
+      "PortalLoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "ana@ejemplo.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "UnaClaveSegura123"
+          },
+          "tenantSlug": {
+            "type": "string",
+            "description": "Slug de la inmobiliaria del portal",
+            "example": "demo"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "RENTER"
+            ],
+            "description": "Portal por el que entra: propietario o inquilino",
+            "example": "OWNER"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "tenantSlug",
+          "type"
+        ]
+      },
+      "RefreshTokenDto": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "description": "Refresh token obtenido en el login",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          }
+        },
+        "required": [
+          "refreshToken"
+        ]
+      },
+      "RevokedSessionsDto": {
+        "type": "object",
+        "properties": {
+          "revokedSessions": {
+            "type": "number",
+            "description": "Cantidad de sesiones que se cerraron",
+            "example": 3
+          }
+        },
+        "required": [
+          "revokedSessions"
+        ]
+      },
+      "ChangePasswordDto": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "description": "Contraseña actual"
+          },
+          "newPassword": {
+            "type": "string",
+            "description": "Contraseña nueva. Mínimo 10 caracteres, con minúscula, mayúscula y número.",
+            "minLength": 10,
+            "maxLength": 72
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "ApiSuccessDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Indica si la operación fue exitosa",
+            "example": true
+          },
+          "message": {
+            "type": "object",
+            "description": "Mensaje que describe el resultado de la operación",
+            "example": "Operación completada correctamente",
+            "nullable": true
+          },
+          "data": {
+            "type": "object",
+            "description": "Payload devuelto por la operación"
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "data"
+        ]
+      },
+      "PaginationMetaDto": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "description": "Página actual",
+            "example": 2
+          },
+          "limit": {
+            "type": "number",
+            "description": "Resultados por página",
+            "example": 20
+          },
+          "total": {
+            "type": "number",
+            "description": "Total de registros que matchean la consulta",
+            "example": 137
+          },
+          "totalPages": {
+            "type": "number",
+            "description": "Cantidad total de páginas",
+            "example": 7
+          },
+          "hasNextPage": {
+            "type": "boolean",
+            "description": "¿Hay una página siguiente?",
+            "example": true
+          },
+          "hasPreviousPage": {
+            "type": "boolean",
+            "description": "¿Hay una página anterior?",
+            "example": true
+          }
+        },
+        "required": [
+          "page",
+          "limit",
+          "total",
+          "totalPages",
+          "hasNextPage",
+          "hasPreviousPage"
+        ]
+      },
+      "CreateUserDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "ana@inmobiliaria.com"
+          },
+          "firstName": {
+            "type": "string",
+            "example": "Ana"
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Gómez"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "EMPLOYEE"
+            ],
+            "example": "EMPLOYEE"
+          },
+          "password": {
+            "type": "string",
+            "description": "Contraseña inicial. Se la pasás a la persona; la puede cambiar después. Mínimo 10 caracteres, con minúscula, mayúscula y número.",
+            "minLength": 10,
+            "maxLength": 72
+          }
+        },
+        "required": [
+          "email",
+          "firstName",
+          "lastName",
+          "role",
+          "password"
+        ]
+      },
+      "UpdateUserDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "ana@inmobiliaria.com"
+          },
+          "firstName": {
+            "type": "string",
+            "example": "Ana"
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Gómez"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "EMPLOYEE"
+            ],
+            "example": "EMPLOYEE"
+          }
+        }
+      },
+      "ResetUserPasswordDto": {
+        "type": "object",
+        "properties": {
+          "newPassword": {
+            "type": "string",
+            "description": "Contraseña nueva. Cierra todas las sesiones del usuario. Mínimo 10 caracteres, con minúscula, mayúscula y número.",
+            "minLength": 10,
+            "maxLength": 72
+          }
+        },
+        "required": [
+          "newPassword"
+        ]
+      },
+      "TenantBrandingDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "3f8c1b1e-3a6f-4f2e-9a1c-6d9f2b7c4e11"
+          },
+          "name": {
+            "type": "string",
+            "example": "Inmobiliaria Demo"
+          },
+          "slug": {
+            "type": "string",
+            "example": "demo"
+          },
+          "logoUrl": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "primaryColor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Color de marca en hex. El front lo aplica sobre --primary.",
+            "example": "#1f4e79"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "logoUrl",
+          "primaryColor"
+        ]
+      },
+      "AsyncJobStatusDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+          },
+          "type": {
+            "type": "string",
+            "description": "Tipo de trabajo",
+            "example": "regenerate-pdfs"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PROCESSING",
+              "COMPLETED",
+              "COMPLETED_WITH_ERRORS",
+              "FAILED"
+            ],
+            "example": "PROCESSING"
+          },
+          "totalItems": {
+            "type": "object",
+            "nullable": true,
+            "example": 120
+          },
+          "processedItems": {
+            "type": "number",
+            "description": "Ítems terminados, bien o mal (incluye los fallidos)",
+            "example": 45
+          },
+          "failedItems": {
+            "type": "number",
+            "example": 2
+          },
+          "progress": {
+            "type": "object",
+            "description": "Avance de 0 a 100. Null si no se conoce el total.",
+            "nullable": true,
+            "example": 37
+          },
+          "result": {
+            "type": "object",
+            "description": "Detalle libre según el tipo de trabajo",
+            "nullable": true
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-09-19T12:00:00.000Z"
+          },
+          "finishedAt": {
+            "type": "object",
+            "nullable": true,
+            "example": null
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "totalItems",
+          "processedItems",
+          "failedItems",
+          "progress",
+          "result",
+          "startedAt",
+          "finishedAt"
+        ]
+      },
+      "CreateExampleItemDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Ítem de prueba",
+            "maxLength": 120
+          },
+          "price": {
+            "type": "string",
+            "example": "150333.33",
+            "description": "Monto como string con hasta 2 decimales. Nunca un número."
+          }
+        },
+        "required": [
+          "name",
+          "price"
+        ]
+      },
+      "ExampleItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+          },
+          "name": {
+            "type": "string",
+            "example": "Ítem de prueba"
+          },
+          "price": {
+            "type": "string",
+            "description": "Monto con 2 decimales",
+            "example": "150333.33"
+          },
+          "attachmentUrl": {
+            "type": "object",
+            "nullable": true,
+            "example": null
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2026-09-19T12:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "price",
+          "attachmentUrl",
+          "createdAt"
+        ]
+      },
+      "RecalculateExamplePricesDto": {
+        "type": "object",
+        "properties": {
+          "percentage": {
+            "type": "string",
+            "example": "5",
+            "description": "Aumento en puntos porcentuales (\"7.5\" = 7,5%)"
+          },
+          "simulateTransientFailure": {
+            "type": "boolean",
+            "description": "Demo: el primer intento del worker falla y la cola lo reintenta",
+            "default": false
+          }
+        },
+        "required": [
+          "percentage"
+        ]
+      },
+      "JobAcceptedDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Consultalo en GET /api/v1/jobs/{jobId}/status",
+            "example": "3f8c1b1e-3a6f-4f2e-9a1c-6d9f2b7c4e11"
+          }
+        },
+        "required": [
+          "jobId"
+        ]
+      }
+    }
+  }
+}

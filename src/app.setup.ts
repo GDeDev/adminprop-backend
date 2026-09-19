@@ -1,7 +1,7 @@
 import { INestApplication, VersioningType } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { NestExpressApplication } from '@nestjs/platform-express'
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
+import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger'
 import compression from 'compression'
 import helmet from 'helmet'
 import { json, urlencoded } from 'express'
@@ -156,7 +156,7 @@ function configureRequestHandling(
   )
 }
 
-function configureVersioning(app: INestApplication): void {
+export function configureVersioning(app: INestApplication): void {
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
@@ -164,11 +164,14 @@ function configureVersioning(app: INestApplication): void {
   })
 }
 
-function configureSwagger(app: INestApplication, appConfig: AppConfig): void {
-  if (!appConfig.swaggerEnabled) return
-
+/**
+ * El documento OpenAPI de la API. Lo sirve Swagger y lo exporta
+ * `npm run openapi:export` a `openapi.json`, de donde el frontend genera los
+ * tipos del contrato HTTP: los dos salen de acá para que no diverjan.
+ */
+export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
   const config = new DocumentBuilder()
-    .setTitle(appConfig.name)
+    .setTitle('Adminprop API')
     .setDescription(
       'API NestJS con arquitectura hexagonal, CQRS y autenticación JWT propia.',
     )
@@ -181,7 +184,13 @@ function configureSwagger(app: INestApplication, appConfig: AppConfig): void {
     })
     .build()
 
-  const document = SwaggerModule.createDocument(app, config)
+  return SwaggerModule.createDocument(app, config)
+}
+
+function configureSwagger(app: INestApplication, appConfig: AppConfig): void {
+  if (!appConfig.swaggerEnabled) return
+
+  const document = buildOpenApiDocument(app)
 
   SwaggerModule.setup('swagger', app, document, {
     swaggerOptions: {
