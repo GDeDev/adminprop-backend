@@ -4,7 +4,15 @@
 
 Arranque, scripts y estructura del proyecto: **[README principal](../README.md)**.
 
-## Guías del template
+## Fases
+
+| Fase             | Técnica                                  | Funcional                                    |
+| ---------------- | ---------------------------------------- | -------------------------------------------- |
+| 1 — Arquitectura | [tecnica/fase-01.md](tecnica/fase-01.md) | [funcional/fase-01.md](funcional/fase-01.md) |
+
+Decisiones técnicas que las specs no resolvían: [DECISIONES_TECNICAS.md](DECISIONES_TECNICAS.md).
+
+## Guías
 
 | Doc                                                      | Sobre                                                          |
 | -------------------------------------------------------- | -------------------------------------------------------------- |

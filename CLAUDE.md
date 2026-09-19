@@ -82,8 +82,8 @@ Qué puede importar cada cosa:
 Los tests (`test/**`) quedan afuera de la regla: arman escenarios con piezas
 internas a propósito.
 
-**`modules/_example` es la referencia** (llega con la task 12 de la Fase 1). Mientras
-tanto, `modules/auth`.
+**`modules/_example` es la referencia.** Ante la duda de dónde va algo o cómo se
+ve un handler, mirá ahí (su README tiene el mapa). No se borra.
 
 Los puertos son **clases abstractas** y no interfaces porque NestJS necesita un
 token de inyección en runtime, y las interfaces de TypeScript se borran al

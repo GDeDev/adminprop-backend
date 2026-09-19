@@ -1,9 +1,13 @@
-# NestJS API Template
+# Adminprop API
 
-Template de API en NestJS con arquitectura hexagonal, CQRS, Prisma y
-autenticación JWT propia.
+Backend de Adminprop, SaaS multi-tenant de administración de alquileres.
+NestJS 11 + Prisma sobre PostgreSQL 16: monolito modular, CQRS, puertos y
+adapters para la infraestructura, y autenticación JWT propia.
 
-[![NestJS](https://img.shields.io/badge/NestJS-10-red?logo=nestjs)](https://nestjs.com/)
+Documentación del producto y specs: `../adminprop-repo-files`. Estado de la
+Fase 1: [docs/tecnica/fase-01.md](docs/tecnica/fase-01.md).
+
+[![NestJS](https://img.shields.io/badge/NestJS-11-red?logo=nestjs)](https://nestjs.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma)](https://www.prisma.io/)
 
