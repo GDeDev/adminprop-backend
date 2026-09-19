@@ -6,11 +6,27 @@ import { Request } from 'express'
 import { Configuration, JwtConfig } from '@/shared/config/configuration'
 import { RequestContext } from '@/shared/context/request-context'
 import { canSignIn } from '@/modules/auth/domain/entities/user.entity'
+import { userTypeOf } from '@/modules/auth/domain/enums/role.enum'
 import { AuthErrors } from '@/modules/auth/domain/exceptions/auth.exceptions'
 import { UserRepository } from '@/modules/auth/domain/repositories/user.repository'
 import { IS_PUBLIC_KEY } from '../decorators/is-public.decorator'
 import { TokenService } from '../services/token.service'
-import { AuthenticatedUser } from '../types/jwt-payload.type'
+import {
+  AccessTokenPayload,
+  AuthenticatedUser,
+} from '../types/jwt-payload.type'
+
+function toAuthenticatedUser(payload: AccessTokenPayload): AuthenticatedUser {
+  return {
+    id: payload.sub,
+    email: payload.email,
+    role: payload.role,
+    // Del rol y no del claim: un token emitido antes de que existiera el claim
+    // sigue funcionando, y los dos nunca pueden contradecirse.
+    userType: userTypeOf(payload.role),
+    tenantId: payload.tenantId,
+  }
+}
 
 /**
  * Guard global de autenticación.
@@ -59,13 +75,7 @@ export class JwtAuthGuard implements CanActivate {
     if (!token) throw AuthErrors.tokenMissing()
 
     const payload = await this.tokenService.verifyAccessToken(token)
-
-    const user: AuthenticatedUser = {
-      id: payload.sub,
-      email: payload.email,
-      role: payload.role,
-      tenantId: payload.tenantId,
-    }
+    const user = toAuthenticatedUser(payload)
 
     // Deja el usuario en el contexto del request: desde acá lo leen el logger
     // (para estampar userId en cada línea), la auditoría (para saber quién
@@ -107,6 +117,7 @@ export class JwtAuthGuard implements CanActivate {
 
     // El rol pudo haber cambiado después de emitir el token: manda la base.
     user.role = dbUser.role
+    user.userType = userTypeOf(dbUser.role)
     user.email = dbUser.email
   }
 
@@ -114,12 +125,7 @@ export class JwtAuthGuard implements CanActivate {
   private async tryAttachUser(request: Request, token: string): Promise<void> {
     try {
       const payload = await this.tokenService.verifyAccessToken(token)
-      const user: AuthenticatedUser = {
-        id: payload.sub,
-        email: payload.email,
-        role: payload.role,
-        tenantId: payload.tenantId,
-      }
+      const user = toAuthenticatedUser(payload)
       request.user = user
       RequestContext.setUser(user)
     } catch {

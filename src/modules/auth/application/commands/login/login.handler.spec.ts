@@ -11,6 +11,7 @@ import { ErrorCode } from '@/shared/errors/error-codes'
 import { AuthTokens } from '../../results/auth-result'
 import { LoginCommand } from './login.command'
 import { LoginHandler } from './login.handler'
+import { SignInService } from '../../services/sign-in.service'
 
 const TOKENS: AuthTokens = {
   accessToken: 'access',
@@ -50,10 +51,11 @@ describe('LoginHandler', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LoginHandler,
+        SignInService,
         {
           provide: UserRepository,
           useValue: {
-            findByEmail: jest.fn(),
+            findInternalByEmail: jest.fn(),
             registerFailedLogin: jest.fn(),
             registerSuccessfulLogin: jest.fn(),
             rehashPassword: jest.fn(),
@@ -91,7 +93,7 @@ describe('LoginHandler', () => {
   })
 
   it('devuelve usuario y tokens con credenciales válidas', async () => {
-    userRepository.findByEmail.mockResolvedValue(buildUser())
+    userRepository.findInternalByEmail.mockResolvedValue(buildUser())
     passwordService.compare.mockResolvedValue(true)
 
     const result = await handler.execute(
@@ -106,7 +108,7 @@ describe('LoginHandler', () => {
   })
 
   it('no filtra el hash de la contraseña en la respuesta', async () => {
-    userRepository.findByEmail.mockResolvedValue(buildUser())
+    userRepository.findInternalByEmail.mockResolvedValue(buildUser())
     passwordService.compare.mockResolvedValue(true)
 
     const result = await handler.execute(
@@ -117,13 +119,13 @@ describe('LoginHandler', () => {
   })
 
   it('con email inexistente devuelve el mismo error que con contraseña incorrecta', async () => {
-    userRepository.findByEmail.mockResolvedValue(null)
+    userRepository.findInternalByEmail.mockResolvedValue(null)
 
     const unknownEmail = await handler
       .execute(new LoginCommand('nadie@ejemplo.com', 'LoQueSea1234'))
       .catch((error) => error)
 
-    userRepository.findByEmail.mockResolvedValue(buildUser())
+    userRepository.findInternalByEmail.mockResolvedValue(buildUser())
     passwordService.compare.mockResolvedValue(false)
 
     const wrongPassword = await handler
@@ -139,7 +141,7 @@ describe('LoginHandler', () => {
   })
 
   it('con email inexistente igual consume tiempo de bcrypt', async () => {
-    userRepository.findByEmail.mockResolvedValue(null)
+    userRepository.findInternalByEmail.mockResolvedValue(null)
 
     await expect(
       handler.execute(new LoginCommand('nadie@ejemplo.com', 'LoQueSea1234')),
@@ -150,7 +152,7 @@ describe('LoginHandler', () => {
   })
 
   it('cuenta el intento fallido cuando la contraseña es incorrecta', async () => {
-    userRepository.findByEmail.mockResolvedValue(buildUser())
+    userRepository.findInternalByEmail.mockResolvedValue(buildUser())
     passwordService.compare.mockResolvedValue(false)
 
     await expect(
@@ -165,7 +167,7 @@ describe('LoginHandler', () => {
   })
 
   it('rechaza una cuenta bloqueada sin siquiera validar la contraseña', async () => {
-    userRepository.findByEmail.mockResolvedValue(
+    userRepository.findInternalByEmail.mockResolvedValue(
       buildUser({ lockedUntil: new Date(Date.now() + 60_000) }),
     )
 
@@ -178,7 +180,7 @@ describe('LoginHandler', () => {
   })
 
   it('deja entrar si el bloqueo ya venció', async () => {
-    userRepository.findByEmail.mockResolvedValue(
+    userRepository.findInternalByEmail.mockResolvedValue(
       buildUser({ lockedUntil: new Date(Date.now() - 60_000) }),
     )
     passwordService.compare.mockResolvedValue(true)
@@ -189,7 +191,9 @@ describe('LoginHandler', () => {
   })
 
   it('rechaza una cuenta inactiva, pero recién después de validar la contraseña', async () => {
-    userRepository.findByEmail.mockResolvedValue(buildUser({ isActive: false }))
+    userRepository.findInternalByEmail.mockResolvedValue(
+      buildUser({ isActive: false }),
+    )
     passwordService.compare.mockResolvedValue(true)
 
     const error = await handler
@@ -203,7 +207,7 @@ describe('LoginHandler', () => {
   })
 
   it('rechaza el login si la inmobiliaria está deshabilitada', async () => {
-    userRepository.findByEmail.mockResolvedValue(
+    userRepository.findInternalByEmail.mockResolvedValue(
       buildUser({ tenantIsActive: false }),
     )
     passwordService.compare.mockResolvedValue(true)
@@ -220,7 +224,7 @@ describe('LoginHandler', () => {
   it('después de encontrar al usuario trabaja dentro de su tenant', async () => {
     // Sin esto, los updates del login fallarían contra el filtro de tenant,
     // que no deja tocar un modelo con tenant sin tenant en el contexto.
-    userRepository.findByEmail.mockResolvedValue(buildUser())
+    userRepository.findInternalByEmail.mockResolvedValue(buildUser())
     passwordService.compare.mockResolvedValue(true)
 
     let tenantDuringUpdate: string | undefined
@@ -234,7 +238,7 @@ describe('LoginHandler', () => {
   })
 
   it('re-hashea la contraseña cuando subió el costo de bcrypt', async () => {
-    userRepository.findByEmail.mockResolvedValue(buildUser())
+    userRepository.findInternalByEmail.mockResolvedValue(buildUser())
     passwordService.compare.mockResolvedValue(true)
     passwordService.needsRehash.mockReturnValue(true)
     passwordService.hash.mockResolvedValue('$2a$12$hash-nuevo')

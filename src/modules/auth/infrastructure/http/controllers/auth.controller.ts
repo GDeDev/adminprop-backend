@@ -23,6 +23,7 @@ import { LoginCommand } from '@/modules/auth/application/commands/login/login.co
 import { LogoutAllCommand } from '@/modules/auth/application/commands/logout-all/logout-all.command'
 import { LogoutAllResult } from '@/modules/auth/application/commands/logout-all/logout-all.handler'
 import { LogoutCommand } from '@/modules/auth/application/commands/logout/logout.command'
+import { PortalLoginCommand } from '@/modules/auth/application/commands/portal-login/portal-login.command'
 import { RefreshTokenCommand } from '@/modules/auth/application/commands/refresh-token/refresh-token.command'
 import { GetProfileQuery } from '@/modules/auth/application/queries/get-profile/get-profile.query'
 import {
@@ -43,6 +44,7 @@ import {
 } from '../dtos/auth-response.dto'
 import { ChangePasswordDto } from '../dtos/change-password.dto'
 import { LoginDto } from '../dtos/login.dto'
+import { PortalLoginDto } from '../dtos/portal-login.dto'
 import { RefreshTokenDto } from '../dtos/refresh-token.dto'
 import { sessionContextFrom } from '../session-context'
 
@@ -100,6 +102,46 @@ export class AuthController {
   ): Promise<ApiSuccessDto<AuthResult>> {
     const result = await this.commandBus.execute<LoginCommand, AuthResult>(
       new LoginCommand(dto.email, dto.password, sessionContextFrom(request)),
+    )
+
+    return { success: true, message: 'Sesión iniciada', data: result }
+  }
+
+  @IsPublic()
+  @ThrottleAuth()
+  @Post('portal-login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Iniciar sesión en el portal (propietario o inquilino)',
+    description:
+      'El email de un propietario o inquilino es único dentro de su inmobiliaria, ' +
+      'no en todo el sistema: por eso se manda también el slug de la inmobiliaria.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Sesión iniciada',
+    type: AuthResultDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Credenciales inválidas',
+    type: ApiErrorDto,
+  })
+  async portalLogin(
+    @Body() dto: PortalLoginDto,
+    @Req() request: Request,
+  ): Promise<ApiSuccessDto<AuthResult>> {
+    const result = await this.commandBus.execute<
+      PortalLoginCommand,
+      AuthResult
+    >(
+      new PortalLoginCommand(
+        dto.tenantSlug,
+        dto.email,
+        dto.password,
+        dto.type,
+        sessionContextFrom(request),
+      ),
     )
 
     return { success: true, message: 'Sesión iniciada', data: result }

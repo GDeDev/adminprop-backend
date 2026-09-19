@@ -33,9 +33,9 @@ describe('App (e2e)', () => {
       .overrideProvider(UserRepository)
       .useValue({
         findById: jest.fn().mockResolvedValue(null),
-        findByEmail: jest.fn().mockResolvedValue(null),
+        findInternalByEmail: jest.fn().mockResolvedValue(null),
         findByIdForSession: jest.fn().mockResolvedValue(null),
-        existsByEmail: jest.fn().mockResolvedValue(false),
+        existsInternalByEmail: jest.fn().mockResolvedValue(false),
         create: jest.fn(),
         changePassword: jest.fn(),
         rehashPassword: jest.fn(),

@@ -1,4 +1,4 @@
-import { Role } from '@/modules/auth/domain/enums/role.enum'
+import { Role, UserType } from '@/modules/auth/domain/enums/role.enum'
 
 export const TOKEN_TYPE_ACCESS = 'access'
 export const TOKEN_TYPE_REFRESH = 'refresh'
@@ -16,6 +16,8 @@ export interface AccessTokenPayload extends BaseClaims {
   typ: typeof TOKEN_TYPE_ACCESS
   email: string
   role: Role
+  /** Interno, propietario o inquilino. Derivado del rol (spec Fase 4, 4). */
+  userType: UserType
   /** Inmobiliaria del usuario. De acá sale el filtro de tenant del request. */
   tenantId: string
 }
@@ -36,5 +38,6 @@ export interface AuthenticatedUser {
   id: string
   email: string
   role: Role
+  userType: UserType
   tenantId: string
 }
