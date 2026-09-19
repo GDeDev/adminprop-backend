@@ -1,6 +1,6 @@
 import { PrismaClient, Role } from '@prisma/client'
 
-import { PrismaService } from '../../src/infrastructure/prisma/prisma.service'
+import { PrismaService } from '../../src/shared/prisma/prisma.service'
 
 /**
  * Vacía todas las tablas de la app (no la de migraciones).

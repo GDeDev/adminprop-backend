@@ -83,37 +83,17 @@ Prisma + PostgreSQL 16, con migraciones versionadas y seed.
 ### Testing
 
 Jest con tests unitarios co-locados (`src/**/*.spec.ts`) y e2e (`test/`). Los
-e2e corren contra la app configurada igual que en producción, con Prisma
-mockeado: no necesitan base de datos.
+e2e corren contra la app configurada igual que en producción y contra Postgres
+real (base `adminprop_test` de `npm run docker:dev`).
 
 ---
 
 ## Estructura
 
-```
-src/
-├── domain/                    # Reglas de negocio. Sin dependencias de framework.
-│   ├── auth/                  #   entidades, enums, puertos de repositorio, excepciones
-│   └── feature/               #   ← tu dominio va acá
-├── application/               # Casos de uso (CQRS)
-│   ├── auth/                  #   login, refresh, logout, change-password
-│   └── feature/
-├── infrastructure/            # Adaptadores: HTTP, Prisma, servicios externos
-│   ├── auth/                  #   controller, guards, decoradores, repos, tasks
-│   ├── health/
-│   ├── prisma/
-│   └── example/               #   ← módulo de ejemplo, borralo cuando no lo necesites
-├── shared/
-│   ├── config/                # Validación de entorno, config tipada, secretos
-│   ├── core/                  # Logger, Result, primitivas de DDD
-│   ├── errors/                # Catálogo de códigos y AppException
-│   ├── dtos/                  # Formato de respuesta de la API
-│   ├── infra/                 # Filtros, interceptores, middleware, pipes, throttler
-│   └── services/
-├── app.module.ts
-├── app.setup.ts               # Pipes, filtros y middlewares (lo reusan los e2e)
-└── main.ts
-```
+Monolito modular: `src/modules/<modulo>/{domain,application,infrastructure,public}`,
+puertos técnicos en `src/platform/` y lo transversal en `src/shared/`. Las
+fronteras entre módulos las hace cumplir `eslint-plugin-boundaries`. Detalle y
+reglas de import en [CLAUDE.md](CLAUDE.md#estructura).
 
 ---
 
@@ -139,26 +119,8 @@ src/
 
 ## Agregar un feature
 
-El módulo `example` está para copiar. Para un feature `propiedades`:
-
-```
-src/domain/propiedades/
-├── entities/propiedad.entity.ts
-└── repositories/propiedad.repository.ts      # puerto abstracto
-
-src/application/propiedades/
-├── commands/crear-propiedad/
-└── queries/listar-propiedades/
-
-src/infrastructure/propiedades/
-├── http/controllers/propiedades.controller.ts
-├── http/dtos/
-├── repositories/propiedad.repository.impl.ts # implementación con Prisma
-└── modules/propiedades.module.ts
-```
-
-Registrá el módulo en `app.module.ts`. El controller ya queda protegido por el
-guard global: no hace falta decorar nada para exigir autenticación.
+Ver [CLAUDE.md](CLAUDE.md#agregar-un-feature) y el módulo de referencia
+`src/modules/_example`.
 
 ---
 

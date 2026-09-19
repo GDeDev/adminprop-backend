@@ -5,9 +5,9 @@ import request from 'supertest'
 
 import { AppModule } from '../src/app.module'
 import { configureApp } from '../src/app.setup'
-import { PrismaService } from '../src/infrastructure/prisma/prisma.service'
-import { UserRepository } from '../src/domain/auth/repositories/user.repository'
-import { RefreshTokenRepository } from '../src/domain/auth/repositories/refresh-token.repository'
+import { PrismaService } from '../src/shared/prisma/prisma.service'
+import { UserRepository } from '../src/modules/auth/domain/repositories/user.repository'
+import { RefreshTokenRepository } from '../src/modules/auth/domain/repositories/refresh-token.repository'
 import { ErrorCode } from '../src/shared/errors/error-codes'
 
 /**

@@ -1,4 +1,4 @@
-import { AuthenticatedUser } from '@/infrastructure/auth/types/jwt-payload.type'
+import type { AuthenticatedUser } from '@/modules/auth/public'
 
 /**
  * Suma `request.user` al tipo Request de Express.

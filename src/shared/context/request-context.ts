@@ -1,8 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 
-import { Role } from '@/domain/auth/enums/role.enum'
-
 /**
  * Datos del request en curso, accesibles desde cualquier punto de la cadena
  * async sin pasarlos por parámetro.
@@ -18,7 +16,8 @@ export interface RequestContextData {
    */
   tenantId?: string
   userEmail?: string
-  userRole?: Role
+  /** Rol del usuario. `string` y no el enum de auth: `shared` no depende de ningún módulo. */
+  userRole?: string
   ip?: string
   userAgent?: string
   method?: string
@@ -103,7 +102,7 @@ export const RequestContext = {
   setUser(user: {
     id: string
     email: string
-    role: Role
+    role: string
     tenantId: string
   }): void {
     const store = storage.getStore()

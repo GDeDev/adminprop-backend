@@ -69,7 +69,7 @@ la granularidad — un `401` genérico en vez de distinguir `TOKEN_EXPIRED` de
 `INVALID_CREDENTIALS`.
 
 Para errores de dominio recurrentes, agrupalos como en
-`src/domain/auth/exceptions/auth.exceptions.ts`.
+`src/modules/auth/domain/exceptions/auth.exceptions.ts`.
 
 ## Qué ve el cliente y qué ve el log
 

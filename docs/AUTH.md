@@ -72,7 +72,7 @@ import {
   Roles,
   Role,
   AuthenticatedUser,
-} from '@/infrastructure/auth'
+} from '@/modules/auth/infrastructure'
 
 @Controller({ path: 'propiedades' })
 export class PropiedadesController {
@@ -104,7 +104,7 @@ En un endpoint `@IsPublic()`, si igual llega un token válido el guard completa
 Están en dos lugares que tienen que coincidir:
 
 1. `prisma/schema.prisma` → `enum Role`
-2. `src/domain/auth/enums/role.enum.ts` → `enum Role`
+2. `src/modules/auth/domain/enums/role.enum.ts` → `enum Role`
 
 Agregá el valor en los dos y corré `npm run prisma:migrate`.
 
@@ -220,7 +220,7 @@ trabajo de más. Si te molesta, movelo a un CronJob de Kubernetes.
 
 ## Si mañana esto se parte en microservicios
 
-`src/infrastructure/auth` es el candidato natural a convertirse en el servicio
+`src/modules/auth/infrastructure` es el candidato natural a convertirse en el servicio
 de identidad. Para que el resto de las APIs sigan validando tokens sin depender
 de él:
 
@@ -231,7 +231,7 @@ de él:
 2. **Dejar el refresh y la rotación sólo en el servicio de identidad.** Los
    demás servicios nunca ven un refresh token.
 3. **Mover `JwtAuthGuard`, los decoradores y los tipos a una librería
-   compartida.** Ya están aislados en `src/infrastructure/auth/{guards,decorators,types}`
+   compartida.** Ya están aislados en `src/modules/auth/infrastructure/{guards,decorators,types}`
    y no dependen de Prisma salvo por `UserRepository`, que sólo se usa cuando
    `JWT_VALIDATE_USER_ON_REQUEST=true`.
 

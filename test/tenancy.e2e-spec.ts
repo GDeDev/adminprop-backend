@@ -8,8 +8,8 @@ import { configureApp } from '../src/app.setup'
 import {
   TenantContextMissingError,
   TenantMismatchError,
-} from '../src/infrastructure/prisma/extensions/tenant.extension'
-import { PrismaService } from '../src/infrastructure/prisma/prisma.service'
+} from '../src/shared/prisma/extensions/tenant.extension'
+import { PrismaService } from '../src/shared/prisma/prisma.service'
 import { RequestContext } from '../src/shared/context/request-context'
 import {
   createTenant,

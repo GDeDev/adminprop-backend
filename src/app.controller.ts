@@ -1,7 +1,7 @@
 import { Controller, Get, VERSION_NEUTRAL } from '@nestjs/common'
 import { ApiExcludeController } from '@nestjs/swagger'
 
-import { IsPublic } from './infrastructure/auth/decorators/is-public.decorator'
+import { IsPublic } from '@/modules/auth/public'
 
 @Controller({
   version: VERSION_NEUTRAL,

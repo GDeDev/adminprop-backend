@@ -40,7 +40,7 @@ provocó.
 ## Qué se audita
 
 Es **opt-in** por modelo, en
-`src/infrastructure/prisma/extensions/auditable-models.ts`:
+`src/shared/prisma/extensions/auditable-models.ts`:
 
 ```ts
 export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
@@ -72,7 +72,7 @@ Para los modelos con `softDelete: true`:
 Para ver los borrados en una consulta puntual:
 
 ```ts
-import { INCLUDE_DELETED } from '@/infrastructure/prisma/extensions/soft-delete.extension'
+import { INCLUDE_DELETED } from '@/shared/prisma/extensions/soft-delete.extension'
 
 await prisma.db.user.findMany({ where: { ...INCLUDE_DELETED, role: 'ADMIN' } })
 ```
