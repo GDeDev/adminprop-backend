@@ -1823,12 +1823,12 @@
             "example": "ana@ejemplo.com"
           },
           "firstName": {
-            "type": "object",
+            "type": "string",
             "example": "Ana",
             "nullable": true
           },
           "lastName": {
-            "type": "object",
+            "type": "string",
             "example": "Gómez",
             "nullable": true
           },
@@ -1847,7 +1847,8 @@
             "example": true
           },
           "lastLoginAt": {
-            "type": "object",
+            "type": "string",
+            "format": "date-time",
             "nullable": true,
             "example": "2026-01-15T10:00:00.000Z"
           },
@@ -1999,7 +2000,7 @@
             "example": true
           },
           "message": {
-            "type": "object",
+            "type": "string",
             "description": "Mensaje que describe el resultado de la operación",
             "example": "Operación completada correctamente",
             "nullable": true
@@ -2194,7 +2195,7 @@
             "example": "PROCESSING"
           },
           "totalItems": {
-            "type": "object",
+            "type": "number",
             "nullable": true,
             "example": 120
           },
@@ -2208,7 +2209,7 @@
             "example": 2
           },
           "progress": {
-            "type": "object",
+            "type": "number",
             "description": "Avance de 0 a 100. Null si no se conoce el total.",
             "nullable": true,
             "example": 37
@@ -2216,7 +2217,8 @@
           "result": {
             "type": "object",
             "description": "Detalle libre según el tipo de trabajo",
-            "nullable": true
+            "nullable": true,
+            "additionalProperties": true
           },
           "startedAt": {
             "format": "date-time",
@@ -2224,7 +2226,8 @@
             "example": "2026-09-19T12:00:00.000Z"
           },
           "finishedAt": {
-            "type": "object",
+            "type": "string",
+            "format": "date-time",
             "nullable": true,
             "example": null
           }
@@ -2278,7 +2281,7 @@
             "example": "150333.33"
           },
           "attachmentUrl": {
-            "type": "object",
+            "type": "string",
             "nullable": true,
             "example": null
           },

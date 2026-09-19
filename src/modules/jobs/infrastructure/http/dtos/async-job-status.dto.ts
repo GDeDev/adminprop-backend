@@ -15,7 +15,7 @@ export class AsyncJobStatusDto {
   @ApiProperty({ enum: AsyncJobStatus, example: AsyncJobStatus.Processing })
   status: AsyncJobStatus
 
-  @ApiProperty({ nullable: true, example: 120 })
+  @ApiProperty({ type: Number, nullable: true, example: 120 })
   totalItems: number | null
 
   @ApiProperty({
@@ -29,6 +29,7 @@ export class AsyncJobStatusDto {
 
   @ApiProperty({
     description: 'Avance de 0 a 100. Null si no se conoce el total.',
+    type: Number,
     nullable: true,
     example: 37,
   })
@@ -37,13 +38,19 @@ export class AsyncJobStatusDto {
   @ApiProperty({
     description: 'Detalle libre según el tipo de trabajo',
     nullable: true,
-    type: Object,
+    type: 'object',
+    additionalProperties: true,
   })
   result: unknown
 
   @ApiProperty({ example: '2026-09-19T12:00:00.000Z' })
   startedAt: Date
 
-  @ApiProperty({ nullable: true, example: null })
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    example: null,
+  })
   finishedAt: Date | null
 }
