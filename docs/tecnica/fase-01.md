@@ -9,7 +9,7 @@ PR contra `dev`:
   documentación.
 
 Decisiones que la spec no resolvía: [`../DECISIONES_TECNICAS.md`](../DECISIONES_TECNICAS.md)
-(D-01 a D-14). Decisiones de alcance tomadas con Giuliano:
+(D-01 a D-15). Decisiones de alcance tomadas con Giuliano:
 `adminprop-repo-files/docs/PROGRESO.md`.
 
 ---
@@ -37,7 +37,8 @@ Decisiones que la spec no resolvía: [`../DECISIONES_TECNICAS.md`](../DECISIONES
 - `RequestContext.runInTenant()` para workers, crons y scripts.
 - Roles `ADMIN | EMPLOYEE | OWNER | RENTER`. Sin registro público.
 - `audit_logs` en inglés y con `tenantId`.
-- Seed idempotente: tenant + admin desde `SEED_*` (Doppler).
+- Alta de clientes con `npm run tenant:create`. El seed sólo crea una
+  inmobiliaria demo para desarrollo (fix posterior al PR #2, ver D-15).
 - `tenant-scoped-models.spec.ts`: un modelo con `tenantId` sin declarar rompe
   los tests.
 

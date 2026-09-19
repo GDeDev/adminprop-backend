@@ -47,6 +47,7 @@
     "prisma:migrate:reset": "doppler run -- prisma migrate reset",
     "prisma:studio": "doppler run -- prisma studio",
     "prisma:seed": "doppler run -- prisma db seed",
+    "tenant:create": "doppler run -- ts-node -r tsconfig-paths/register prisma/scripts/create-tenant.ts",
     "docker:dev": "docker-compose --profile dev up -d",
     "docker:prod": "doppler run -- docker-compose --profile prod up -d",
     "docker:down": "docker-compose down",

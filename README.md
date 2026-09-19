@@ -30,8 +30,9 @@ doppler setup                 # en esta carpeta, config dev_backend
 npm run docker:dev            # levanta Postgres 16 (base de dev + base de tests)
 npm run prisma:migrate        # aplica las migraciones
 
-# 4. Primer tenant y su administrador (variables SEED_* en Doppler)
+# 4. Inmobiliaria demo para desarrollo: admin@demo.local / demo-admin-1234
 npm run prisma:seed
+#    Clientes reales: npm run tenant:create -- --name "..." --slug ... --admin-email ...
 
 # 5. Arrancar (start:dev ya corre dentro de `doppler run --`)
 npm run start:dev
@@ -114,7 +115,8 @@ reglas de import en [CLAUDE.md](CLAUDE.md#estructura).
 | `npm run code:fix`              | Arregla formato y lint              |
 | `npm run prisma:migrate`        | Crea y aplica una migración         |
 | `npm run prisma:migrate:deploy` | Aplica migraciones (producción)     |
-| `npm run prisma:seed`           | Crea el administrador inicial       |
+| `npm run prisma:seed`           | Inmobiliaria demo (sólo desarrollo) |
+| `npm run tenant:create`         | Alta de una inmobiliaria cliente    |
 | `npm run prisma:studio`         | GUI de la base                      |
 | `npm run docker:dev`            | Postgres 16                         |
 | `npm run docker:prod`           | Stack completo con la API           |

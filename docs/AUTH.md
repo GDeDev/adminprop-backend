@@ -189,19 +189,20 @@ request; para la mayoría de las APIs no vale la pena.
 
 ## Crear el primer administrador
 
-No hay registro público. La primera inmobiliaria y su admin se crean con el
-seed, con las variables `SEED_TENANT_NAME`, `SEED_TENANT_SLUG`,
-`SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD` cargadas en Doppler:
+No hay registro público. Cada inmobiliaria nace con su primer administrador
+por el comando de alta:
 
 ```bash
-npm run prisma:seed
+npm run tenant:create -- --name "Oppido Propiedades" --slug oppido --admin-email admin@oppido.com.ar
 ```
 
-Es idempotente: si el tenant ya existe se reutiliza. Para sumar otra
-inmobiliaria alcanza con correrlo de nuevo con otros valores.
+La contraseña se genera ahí y se muestra una sola vez. No se pasa por parámetro
+para que no quede en el historial de la terminal. El administrador la cambia
+con `POST /auth/change-password`. Detalle en [MULTI-TENANCY.md](MULTI-TENANCY.md).
 
-La contraseña no está hardcodeada a propósito: un template con una contraseña de
-admin conocida es exactamente el tipo de cosa que después aparece en producción.
+Para desarrollo local, `npm run prisma:seed` crea una inmobiliaria demo con
+`admin@demo.local` / `demo-admin-1234`. Esas credenciales están en el repo a
+propósito, y por eso el seed se niega a correr con `NODE_ENV=production`.
 
 ---
 

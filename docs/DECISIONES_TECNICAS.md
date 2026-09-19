@@ -140,3 +140,16 @@ Formato: **contexto** → **decisión** → **por qué**. Lo más nuevo, abajo.
   (un pago confirmado, Fase 11) el patrón es un **outbox**: escribir el evento
   en la misma transacción que el dato y publicarlo después. Queda para la
   primera fase que lo necesite.
+
+### D-15 · Los clientes se dan de alta con un comando, no con variables
+
+- **Contexto**: el PR #2 creaba la primera inmobiliaria desde variables
+  `SEED_*` en Doppler. Usado para sumar clientes, Doppler terminaba siendo un
+  formulario de alta, y los clientes son datos, no configuración.
+- **Decisión**: `npm run tenant:create -- --name … --slug … --admin-email …`
+  crea la inmobiliaria y su admin, con una contraseña generada que se muestra
+  una vez. El seed queda sólo para una inmobiliaria demo de desarrollo, con
+  credenciales fijas y bloqueado en producción. Se eliminan las `SEED_*`.
+- **Por qué**: cada cliente es una fila de `tenants`; ni un entorno ni un
+  secreto. La lógica queda en una función reutilizable por una futura pantalla
+  de alta.
