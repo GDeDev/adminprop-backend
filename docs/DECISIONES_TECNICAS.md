@@ -110,3 +110,12 @@ Formato: **contexto** → **decisión** → **por qué**. Lo más nuevo, abajo.
 - **Por qué**: el desarrollo local usa Flagsmith real sin cargar nada nuevo en
   Doppler, y los tests (que no tienen la key y fuerzan `memory`) no salen a la
   red.
+
+### D-12 · `GET /jobs/:id/status` sólo para ADMIN y EMPLOYEE
+
+- **Contexto**: la spec sólo pide validar que el job sea del tenant del
+  usuario.
+- **Decisión**: además del tenant, el endpoint exige rol `ADMIN` o `EMPLOYEE`.
+- **Por qué**: propietarios e inquilinos pertenecen al mismo tenant que la
+  inmobiliaria, y el `result` de un trabajo puede tener datos de otros. Si un
+  portal necesita trabajos propios, se abre con un filtro por `startedById`.

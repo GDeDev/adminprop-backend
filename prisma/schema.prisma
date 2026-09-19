@@ -75,7 +75,8 @@ model Tenant {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  users User[]
+  users     User[]
+  asyncJobs AsyncJob[]
 
   @@map("tenants")
 }
@@ -198,4 +199,46 @@ model RefreshToken {
   @@index([familyId])
   @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+enum AsyncJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  COMPLETED_WITH_ERRORS
+  FAILED
+}
+
+/// Acción manual pesada que corre en background (spec Fase 1, sección 9.1).
+///
+/// Una sola tabla para todos los módulos: el que encola un trabajo pesado crea
+/// un AsyncJob, lo va actualizando mientras pg-boss procesa los ítems, y el
+/// front consulta siempre el mismo endpoint (GET /jobs/:id/status).
+model AsyncJob {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Tipo de trabajo, en kebab-case: "payment-reminders", "regenerate-pdfs".
+  type   String         @db.VarChar(100)
+  status AsyncJobStatus @default(PENDING)
+
+  /// Usuario que lo disparó. Null si lo disparó el sistema (un cron).
+  startedById String? @map("started_by_id") @db.Uuid
+
+  /// Null si no se sabe de antemano cuántos ítems hay.
+  totalItems     Int? @map("total_items")
+  /// Ítems terminados, bien o mal. Los fallidos están incluidos.
+  processedItems Int  @default(0) @map("processed_items")
+  failedItems    Int  @default(0) @map("failed_items")
+
+  /// Detalle libre según el tipo de trabajo (errores por ítem, links, etc).
+  result Json?
+
+  startedAt  DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([tenantId, type, startedAt])
+  @@map("async_jobs")
 }

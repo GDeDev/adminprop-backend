@@ -7,6 +7,7 @@ import { AuthModule } from '@/modules/auth/infrastructure/modules/auth.module'
 import { JwtAuthGuard } from '@/modules/auth/infrastructure/guards/jwt-auth.guard'
 import { RolesGuard } from '@/modules/auth/infrastructure/guards/roles.guard'
 import { HealthModule } from '@/modules/health/infrastructure/modules/health.module'
+import { JobsModule } from '@/modules/jobs/public'
 import { QueueModule } from '@/platform/queue/queue.module'
 import { StorageModule } from '@/platform/storage/storage.module'
 import { FeatureFlagsModule } from '@/platform/feature-flags/feature-flags.module'
@@ -36,6 +37,7 @@ import { SharedModule } from './shared/shared.module'
     FeatureFlagsModule,
     EmailModule,
     HealthModule,
+    JobsModule,
     // Los módulos de cada feature van acá. Ver CLAUDE.md para la estructura.
   ],
   controllers: [AppController],

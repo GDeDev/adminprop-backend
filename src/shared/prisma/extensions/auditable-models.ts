@@ -63,6 +63,10 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
     mutateOnDelete: ['email'],
   },
 
+  // Trabajos en background: se actualizan en cada ítem procesado. Auditarlos
+  // llenaría el historial de filas sin valor; el propio registro ya es la traza.
+  AsyncJob: { tenantScoped: true, audit: false, softDelete: false },
+
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.
   // Auditarlos generaría una fila de historial por cada refresh.

@@ -10,6 +10,7 @@ Arranque, scripts y estructura del proyecto: **[README principal](../README.md)*
 | -------------------------------------------------------- | -------------------------------------------------------------- |
 | [FEATURE-FLAGS.md](FEATURE-FLAGS.md)                     | Feature flags por tenant (Flagsmith) y EmailPort               |
 | [STORAGE.md](STORAGE.md)                                 | Archivos: StoragePort, local y Cloudinary, carpetas por tenant |
+| [ASYNC-JOBS.md](ASYNC-JOBS.md)                           | Acciones pesadas: 202 + AsyncJob + GET /jobs/:id/status        |
 | [QUEUE.md](QUEUE.md)                                     | Cola de trabajos: pg-boss, reintentos, dead-letter, tenant     |
 | [MULTI-TENANCY.md](MULTI-TENANCY.md)                     | Aislamiento por inmobiliaria, runInTenant, prisma.unscoped     |
 | [AUTH.md](AUTH.md)                                       | Autenticación: flujo, guards, roles, decisiones de seguridad   |
