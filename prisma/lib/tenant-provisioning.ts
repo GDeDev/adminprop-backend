@@ -2,6 +2,8 @@ import { PrismaClient, Role } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'node:crypto'
 
+import { seedBaseMasterData } from './master-data-seed'
+
 /** Mismo formato que el campo `slug`: minúsculas, números y guiones. */
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
@@ -105,6 +107,9 @@ export async function provisionTenant(
         role: Role.ADMIN,
       },
     })
+    // Nace con el catálogo base de maestros (Fase 5): en la misma transacción,
+    // así una inmobiliaria nunca queda a medio crear.
+    await seedBaseMasterData(tx, tenant.id)
     return { tenant, admin }
   })
 

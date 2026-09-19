@@ -48,6 +48,7 @@
     "prisma:studio": "doppler run -- prisma studio",
     "prisma:seed": "doppler run -- prisma db seed",
     "openapi:export": "ts-node -r tsconfig-paths/register scripts/export-openapi.ts",
+    "master-data:seed": "doppler run -- ts-node -r tsconfig-paths/register prisma/scripts/seed-master-data.ts",
     "tenant:create": "doppler run -- ts-node -r tsconfig-paths/register prisma/scripts/create-tenant.ts",
     "docker:dev": "docker-compose --profile dev up -d",
     "docker:prod": "doppler run -- docker-compose --profile prod up -d",

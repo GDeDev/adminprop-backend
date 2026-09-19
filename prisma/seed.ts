@@ -1,6 +1,7 @@
 import { PrismaClient, Role } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
+import { seedBaseMasterData } from './lib/master-data-seed'
 import { provisionTenant } from './lib/tenant-provisioning'
 
 const prisma = new PrismaClient()
@@ -96,6 +97,15 @@ async function main() {
       },
     })
     console.log(`✅ Usuario demo creado: ${demo.email}`)
+  }
+
+  // Maestros: el catálogo base ya lo cargó el alta; acá se completa una base
+  // sembrada antes de la Fase 5 y se suman localidades y barrios de ejemplo.
+  const masters = await seedBaseMasterData(prisma, tenant.id, {
+    withSampleCities: true,
+  })
+  if (masters.created > 0) {
+    console.log(`✅ Maestros demo: ${masters.created} agregados`)
   }
 
   console.log(`
