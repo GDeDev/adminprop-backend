@@ -1,5 +1,6 @@
 import { User } from '../entities/user.entity'
-import { PortalRole, Role } from '../enums/role.enum'
+import { PageArgs } from '@/shared/pagination/pagination'
+import { InternalRole, PortalRole, Role } from '../enums/role.enum'
 
 /** El tenant no se pasa: es el del contexto (lo completa el filtro de tenant). */
 export interface CreateUserData {
@@ -8,6 +9,20 @@ export interface CreateUserData {
   firstName?: string | null
   lastName?: string | null
   role: Role
+}
+
+/** Filtros del listado de `/users`. Sin rol: admins y empleados. */
+export interface InternalUserFilter {
+  role?: InternalRole
+  isActive?: boolean
+}
+
+/** Lo que un admin puede editar de otro usuario. Lo que no viene, no cambia. */
+export interface UpdateUserData {
+  email?: string
+  firstName?: string
+  lastName?: string
+  role?: InternalRole
 }
 
 /**
@@ -51,6 +66,19 @@ export abstract class UserRepository {
   ): Promise<boolean>
 
   abstract create(data: CreateUserData): Promise<User>
+
+  /**
+   * Admins y empleados del tenant del contexto, ordenados por apellido,
+   * nombre y email. Devuelve la página y el total con los mismos filtros.
+   */
+  abstract listInternal(
+    filter: InternalUserFilter,
+    page: PageArgs,
+  ): Promise<[User[], number]>
+
+  abstract update(id: string, data: UpdateUserData): Promise<User>
+
+  abstract setActive(id: string, isActive: boolean): Promise<User>
 
   /**
    * Cambia la contraseña. Sella `passwordChangedAt`, lo que invalida los access
