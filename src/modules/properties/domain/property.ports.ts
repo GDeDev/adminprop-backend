@@ -48,6 +48,14 @@ export abstract class PropertyRepository {
   ): Promise<PropertyPhoto[]>
 
   abstract deletePhoto(propertyId: string, photoId: string): Promise<void>
+
+  /** Cantidad de propiedades de cada propietario, por estado. */
+  abstract countByOwners(
+    ownerIds: string[],
+  ): Promise<{ ownerId: string; status: PropertyStatus; count: number }[]>
+
+  /** Las propiedades de un propietario, por dirección. Con la foto principal. */
+  abstract listByOwner(ownerId: string): Promise<Property[]>
 }
 
 /**

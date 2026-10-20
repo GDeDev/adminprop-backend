@@ -363,3 +363,35 @@ refreshToken, tokenType, expiresIn } }`.
 ### D-37 · Listado paginado como el resto de la API
 
 - La spec muestra `{ items, total, page, limit }`; se mantiene el formato del proyecto, `{ data, pagination }` dentro del sobre. El front hace scroll infinito sobre esas páginas.
+
+## Fase 7 — Propietarios (sin supervisión)
+
+### D-38 · No se borra un propietario con propiedades asignadas
+
+- La spec (3.7) bloquea la baja sólo con contratos activos. Se bloquea con **cualquier** propiedad asignada (409 con la cantidad): si no, quedarían propiedades apuntando a un propietario borrado. Para darlo de baja, primero se reasignan o se borran sus propiedades. Si Micaela prefiere la regla literal, es cambiar una condición en `DeleteOwnerHandler`.
+
+### D-39 · "Propiedad activa" para el honorario reducido = alquilada, hasta la Fase 9
+
+- RN-07 cuenta propiedades con contrato activo. Todavía no hay contratos, así que `PropertiesFacade.portfolios()` cuenta las que están en estado `RENTED`. La Fase 9 cambia esa cuenta dentro de la facade; quien pregunta (propietarios, y después liquidaciones) no se entera.
+- La regla en sí (`appliesReducedFee(activas, umbral)`) vive en `owners/domain/reduced-fee.ts` y se exporta por `owners/public`: es la **única** implementación, la Fase 12 la reutiliza al liquidar. El umbral sale de `tenants.reduced_fee_threshold` (default 3); con 0, la inmobiliaria no usa el beneficio.
+
+### D-40 · Datos bancarios en columnas, no en JSON; CBU validado, único sólo como aviso
+
+- La spec los modela como JSON. Van como columnas propias (`bank_cbu`, `bank_alias`, `bank_name`, `bank_holder`) para que la auditoría muestre el antes y el después campo por campo: un cambio de CBU es una acción de riesgo y tiene que poder revisarse.
+- El CBU se valida con sus dos dígitos verificadores (no sólo "22 dígitos"): atrapa un dígito mal tipeado antes de que una transferencia rebote o llegue a otra cuenta. Un CBU repetido entre propietarios **no bloquea** (es legítimo: cónyuges, sociedades); `GET /owners/check` avisa quién más lo tiene para que el formulario lo muestre.
+- `PATCH /owners/:id/bank-account` es un endpoint aparte, como pide la spec; editar los datos personales nunca toca la cuenta.
+
+### D-41 · DNI/CUIT normalizado a dígitos y único por inmobiliaria con índice parcial
+
+- Se guardan sólo los dígitos (7 u 8 para DNI, 11 para CUIT/CUIL): "20.123.456" y "20123456" son la misma persona. La unicidad es por inmobiliaria y sólo entre los no borrados (índice parcial `WHERE deleted_at IS NULL`), así un propietario borrado libera su DNI sin mutarlo.
+- Además del índice hay un chequeo previo con error propio (`OWNER_NATIONAL_ID_TAKEN`); si dos altas simultáneas lo pasan, el índice frena la segunda con un 409 genérico.
+
+### D-42 · El acceso al portal es un usuario de `auth`, creado por una facade
+
+- Los usuarios de portal son filas de `users` con rol `OWNER` (D-16). `owners` no guarda contraseñas: guarda `portal_user_id` (sin FK: módulos distintos) y le pide a `PortalAccountsFacade` (módulo `auth`, nueva) crear el acceso o regenerar la contraseña. Regenerar invalida la anterior y cierra sus sesiones. La contraseña (16 caracteres base64url) se devuelve **una sola vez**; no queda en ninguna respuesta posterior.
+- Sin email no se puede generar el acceso (422): el usuario del portal es el email. Al borrar al propietario se le desactiva el acceso.
+- La Fase 8 (inquilinos) reutiliza la misma facade con rol `RENTER`.
+
+### D-43 · Búsqueda por nombre sin acentos, con columna derivada
+
+- `search_name` guarda "nombre apellido" en minúsculas y sin acentos, calculado al guardar; la búsqueda compara contra eso y contra el DNI, palabra por palabra en cualquier orden ("perez jose" y "jose perez" encuentran a "José Pérez"). Sin índice trigram por ahora: la cantidad de propietarios por inmobiliaria es chica (cientos, no millones).

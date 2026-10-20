@@ -128,6 +128,37 @@ export class PropertyRepositoryImpl extends PropertyRepository {
     })
   }
 
+  async countByOwners(
+    ownerIds: string[],
+  ): Promise<{ ownerId: string; status: PropertyStatus; count: number }[]> {
+    if (ownerIds.length === 0) return []
+    const groups = await this.prisma.db.property.groupBy({
+      by: ['ownerId', 'status'],
+      where: { ownerId: { in: ownerIds } },
+      _count: { _all: true },
+    })
+    return groups.flatMap((group) =>
+      group.ownerId
+        ? [
+            {
+              ownerId: group.ownerId,
+              status: group.status as PropertyStatus,
+              count: group._count._all,
+            },
+          ]
+        : [],
+    )
+  }
+
+  async listByOwner(ownerId: string): Promise<Property[]> {
+    const rows = await this.prisma.db.property.findMany({
+      where: { ownerId },
+      include: MAIN_PHOTO,
+      orderBy: { address: 'asc' },
+    })
+    return rows.map(toDomain)
+  }
+
   async deletePhoto(propertyId: string, photoId: string): Promise<void> {
     await this.prisma.db.propertyPhoto.deleteMany({
       where: { id: photoId, propertyId },

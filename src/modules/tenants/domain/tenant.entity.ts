@@ -10,4 +10,6 @@ export interface Tenant {
   logoUrl: string | null
   primaryColor: string | null
   isActive: boolean
+  /** Propiedades activas desde las que aplica el honorario reducido (PRD 5.0). */
+  reducedFeeThreshold: number
 }

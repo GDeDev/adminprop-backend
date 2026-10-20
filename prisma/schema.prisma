@@ -88,6 +88,7 @@ model Tenant {
   serviceTypes   ServiceType[]
 
   properties     Property[]
+  owners         Owner[]
   propertyPhotos PropertyPhoto[]
 
   @@map("tenants")
@@ -488,4 +489,52 @@ model PropertyPhoto {
 
   @@index([tenantId, propertyId, position])
   @@map("property_photos")
+}
+
+// ---------------------------------------------------------------------------
+// Propietarios (Fase 7, PRD 5.2)
+// ---------------------------------------------------------------------------
+
+/// Dueño de una o más propiedades administradas.
+///
+/// Sus credenciales de portal NO viven acá: son un usuario OWNER del módulo de
+/// auth (D-16), enlazado por `portalUserId` (sin FK: módulos distintos).
+model Owner {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  firstName  String  @map("first_name") @db.VarChar(100)
+  lastName   String  @map("last_name") @db.VarChar(100)
+  /// DNI o CUIT, sólo dígitos. Único por inmobiliaria entre los no borrados
+  /// (índice parcial en la migración `add_owners`).
+  nationalId String  @map("national_id") @db.VarChar(11)
+  /// Nombre y apellido en minúsculas y sin acentos, para buscar "perez" y
+  /// encontrar "Pérez". Lo calcula la app al guardar.
+  searchName String  @map("search_name") @db.VarChar(201)
+  phone      String? @db.VarChar(40)
+  email      String? @db.VarChar(255)
+  address    String? @db.VarChar(200)
+  notes      String? @db.Text
+
+  // Datos bancarios: columnas propias y no un JSON, así cada cambio queda en
+  // la auditoría campo por campo (un cambio de CBU es una acción de riesgo).
+  bankCbu    String? @map("bank_cbu") @db.VarChar(22)
+  bankAlias  String? @map("bank_alias") @db.VarChar(50)
+  bankName   String? @map("bank_name") @db.VarChar(100)
+  bankHolder String? @map("bank_holder") @db.VarChar(150)
+
+  portalUserId String? @map("portal_user_id") @db.Uuid
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  deletedById String?   @map("deleted_by_id") @db.Uuid
+
+  @@index([tenantId, lastName, firstName])
+  @@index([tenantId, bankCbu])
+  @@index([tenantId, deletedAt])
+  @@map("owners")
 }

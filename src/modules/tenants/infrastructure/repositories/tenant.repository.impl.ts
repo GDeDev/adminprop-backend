@@ -12,6 +12,7 @@ const TENANT_FIELDS = {
   logoUrl: true,
   primaryColor: true,
   isActive: true,
+  reducedFeeThreshold: true,
 } as const
 
 @Injectable()
