@@ -81,6 +81,12 @@ model Tenant {
   exampleItems      ExampleItem[]
   exampleActivities ExampleActivity[]
 
+  locations      Location[]
+  propertyTypes  PropertyType[]
+  amenities      Amenity[]
+  operationTypes OperationType[]
+  serviceTypes   ServiceType[]
+
   @@map("tenants")
 }
 
@@ -299,4 +305,115 @@ model ExampleActivity {
 
   @@index([tenantId, exampleItemId])
   @@map("example_activities")
+}
+
+// ---------------------------------------------------------------------------
+// Maestros (Fase 5, PRD 5.8): las listas que alimentan los selectores.
+//
+// Por inmobiliaria (D-26): cada una administra los suyos. Nacen con un
+// catálogo base (prisma/lib/master-data-seed.ts) al darse de alta.
+//
+// No se borran nunca: `isActive = false` los saca de los selectores pero los
+// registros que ya los usan los siguen mostrando.
+//
+// Nombres únicos sin distinguir mayúsculas: índices únicos sobre
+// `lower(name)` creados a mano en la migración `add_master_data` (Prisma no
+// declara índices por expresión, pero tampoco los toca).
+// ---------------------------------------------------------------------------
+
+enum LocationLevel {
+  COUNTRY
+  PROVINCE
+  CITY
+  NEIGHBORHOOD
+}
+
+/// Ubicación jerárquica: País → Provincia → Localidad → Barrio.
+model Location {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  level    LocationLevel
+  name     String        @db.VarChar(120)
+  /// Null sólo para un país.
+  parentId String?       @map("parent_id") @db.Uuid
+  parent   Location?     @relation("LocationHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children Location[]    @relation("LocationHierarchy")
+  isActive Boolean       @default(true) @map("is_active")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, parentId])
+  @@index([tenantId, level])
+  @@map("locations")
+}
+
+model PropertyType {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  name     String  @db.VarChar(120)
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId])
+  @@map("property_types")
+}
+
+model Amenity {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  name     String  @db.VarChar(120)
+  /// Nombre de ícono de lucide ("waves", "car"). La UI lo resuelve; null = genérico.
+  icon     String? @db.VarChar(50)
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId])
+  @@map("amenities")
+}
+
+model OperationType {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  name     String  @db.VarChar(120)
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId])
+  @@map("operation_types")
+}
+
+model ServiceType {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  name     String  @db.VarChar(120)
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId])
+  @@map("service_types")
 }

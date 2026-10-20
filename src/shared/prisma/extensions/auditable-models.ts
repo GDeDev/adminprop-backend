@@ -77,6 +77,14 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   },
   ExampleActivity: { tenantScoped: true, audit: false, softDelete: false },
 
+  // Maestros (Fase 5): por inmobiliaria, con historial. Sin soft delete: se
+  // desactivan con `isActive` y nunca se borran (el endpoint no existe).
+  Location: { tenantScoped: true, audit: true, softDelete: false },
+  PropertyType: { tenantScoped: true, audit: true, softDelete: false },
+  Amenity: { tenantScoped: true, audit: true, softDelete: false },
+  OperationType: { tenantScoped: true, audit: true, softDelete: false },
+  ServiceType: { tenantScoped: true, audit: true, softDelete: false },
+
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.
   // Auditarlos generaría una fila de historial por cada refresh.
