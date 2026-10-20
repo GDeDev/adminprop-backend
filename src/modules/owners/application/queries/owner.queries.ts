@@ -9,6 +9,7 @@ import {
   OwnerRepository,
 } from '@/modules/owners/domain/owner.ports'
 import { PaginatedResult, PaginationQueryDto } from '@/shared/pagination'
+import { PersonPolicy } from '@/shared/people/person-policy'
 import { paginateWith } from '@/shared/pagination/pagination'
 import { OwnerDetailView, OwnerSummaryView, OwnerViews } from '../owner.views'
 
@@ -94,11 +95,12 @@ export class CheckOwnerDataHandler implements IQueryHandler<
     }) => ({ id: owner.id, fullName: fullNameOf(owner) }) satisfies OwnerRef
 
     // Un DNI a medio tipear no es un error: simplemente no se chequea.
-    const nationalId = query.nationalId?.replace(/[\s.-]/g, '')
-    const holder =
-      nationalId && /^\d{7,11}$/.test(nationalId)
-        ? await this.owners.findByNationalId(nationalId)
-        : null
+    const nationalId = query.nationalId
+      ? PersonPolicy.parseNationalId(query.nationalId)
+      : null
+    const holder = nationalId
+      ? await this.owners.findByNationalId(nationalId)
+      : null
 
     const cbu = query.cbu?.replace(/[\s-]/g, '')
     const sharing =
