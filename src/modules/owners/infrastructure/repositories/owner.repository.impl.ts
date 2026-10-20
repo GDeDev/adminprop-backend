@@ -8,6 +8,7 @@ import {
   OwnerPersonalData,
   OwnerRepository,
 } from '@/modules/owners/domain/owner.ports'
+import { personSearchWhere } from '@/shared/people/person-policy'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 
 /**
@@ -126,21 +127,7 @@ export class OwnerRepositoryImpl extends OwnerRepository {
  * son cientos, no millones: el índice por tenant alcanza, sin trigramas.
  */
 function searchWhere(search: string | undefined): Prisma.OwnerWhereInput {
-  const words = search?.trim().split(/\s+/).filter(Boolean) ?? []
-  if (words.length === 0) return {}
-  return {
-    AND: words.map((word) => {
-      const digits = word.replace(/[.-]/g, '')
-      return {
-        OR: [
-          { searchName: { contains: OwnerPolicy.searchKey(word) } },
-          ...(/^\d+$/.test(digits)
-            ? [{ nationalId: { contains: digits } }]
-            : []),
-        ],
-      }
-    }),
-  }
+  return personSearchWhere(search)
 }
 
 function bankColumns(account: BankAccount) {

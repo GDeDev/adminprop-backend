@@ -12,6 +12,7 @@ import { TenantsModule } from '@/modules/tenants/public'
 import { MasterDataModule } from '@/modules/master-data/public'
 import { PropertiesModule } from '@/modules/properties/public'
 import { OwnersModule } from '@/modules/owners/public'
+import { RentersModule } from '@/modules/renters/public'
 import { ExampleModule } from '@/modules/_example/public'
 import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
 import { QueueModule } from '@/platform/queue/queue.module'
@@ -48,6 +49,7 @@ import { SharedModule } from './shared/shared.module'
     MasterDataModule,
     PropertiesModule,
     OwnersModule,
+    RentersModule,
     // Módulos de referencia (Fase 1). No se borran.
     ExampleModule,
     ExampleListenerModule,

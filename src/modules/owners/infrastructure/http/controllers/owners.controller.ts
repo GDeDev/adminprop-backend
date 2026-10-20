@@ -37,7 +37,12 @@ import {
   OwnerDataCheck,
 } from '@/modules/owners/application/queries/owner.queries'
 import { BankAccount } from '@/modules/owners/domain/owner'
-import { PortalCredentials, Role, Roles } from '@/modules/auth/public'
+import {
+  PortalCredentials,
+  PortalCredentialsDto,
+  Role,
+  Roles,
+} from '@/modules/auth/public'
 import { ApiErrorDto, ApiSuccessDto } from '@/shared/dtos/api-response.dto'
 import { PaginatedResult } from '@/shared/pagination'
 import { ApiPaginatedResponse } from '@/shared/pagination/api-paginated-response.decorator'
@@ -49,7 +54,6 @@ import {
   OwnerDataCheckDto,
   OwnerDetailDto,
   OwnerSummaryDto,
-  PortalCredentialsDto,
   UpdateOwnerDto,
 } from '../dtos/owner.dtos'
 

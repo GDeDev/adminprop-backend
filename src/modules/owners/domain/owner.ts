@@ -25,6 +25,4 @@ export interface Owner {
   updatedAt: Date
 }
 
-export function fullNameOf(owner: Pick<Owner, 'firstName' | 'lastName'>) {
-  return `${owner.firstName} ${owner.lastName}`
-}
+export { fullNameOf } from '@/shared/people/person-policy'
