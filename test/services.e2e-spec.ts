@@ -10,16 +10,20 @@ import { PrismaService } from '../src/shared/prisma/prisma.service'
 import { createTestApp, loginAs } from './utils/app'
 import { createTenant, createUser, resetDatabase } from './utils/database'
 
+const PDF = Buffer.from('%PDF-1.4 comprobante')
+const JPG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46])
 const UNKNOWN_ID = '00000000-0000-4000-8000-000000000000'
+const SETTLEMENT_ID = '11111111-1111-4111-8111-111111111111'
 
 const today = todayIso()
 
-/** Servicios (spec Fase 10): criterios de aceptación, casos borde y aislamiento. */
-describe('Servicios (e2e, Postgres)', () => {
+/** Servicios y gastos adelantados (spec Fase 10): criterios, casos borde y aislamiento. */
+describe('Servicios y gastos adelantados (e2e, Postgres)', () => {
   const prisma = new PrismaService()
   let app: INestApplication
   let tenantA: { id: string }
   let tenantB: { id: string }
+  let admin: { id: string }
   let adminToken: string
   let employeeToken: string
   let adminBToken: string
@@ -125,9 +129,34 @@ describe('Servicios (e2e, Postgres)', () => {
     return response.body.data
   }
 
+  const createExpense = async (
+    contractId: string,
+    fields: Record<string, string> = {},
+    token = adminToken,
+  ) => {
+    const req = api(token)
+      .post(`/contracts/${contractId}/advance-expenses`)
+      .field('amount', fields.amount ?? '1500')
+      .field('description', fields.description ?? 'Arreglo de canilla')
+      .field('expenseDate', fields.expenseDate ?? addDays(today, -3))
+    if (fields.currency) req.field('currency', fields.currency)
+    const response = await req
+      .attach('file', PDF, {
+        filename: 'ticket.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201)
+    return response.body.data
+  }
+
   const inTenantA = <T>(fn: () => Promise<T>) =>
     RequestContext.run({ correlationId: 'test' }, () =>
       RequestContext.runInTenant(tenantA.id, fn),
+    )
+
+  const markSettled = (ids: string[]) =>
+    inTenantA(() =>
+      app.get(ServicesFacade).markExpensesSettled(ids, SETTLEMENT_ID),
     )
 
   beforeAll(async () => {
@@ -146,7 +175,7 @@ describe('Servicios (e2e, Postgres)', () => {
     tenantB = await createTenant(prisma, 'tenant-b')
     await seedBaseMasterData(prisma, tenantA.id, { withSampleCities: true })
     await seedBaseMasterData(prisma, tenantB.id, { withSampleCities: true })
-    await createUser(prisma, {
+    admin = await createUser(prisma, {
       tenantId: tenantA.id,
       email: 'admin@a.com',
       role: Role.ADMIN,
@@ -526,6 +555,255 @@ describe('Servicios (e2e, Postgres)', () => {
     })
   })
 
+  describe('gastos adelantados: alta (spec 3.2, 6)', () => {
+    it('sin comprobante → 400; con algo que no es imagen ni PDF → 400', async () => {
+      const { id: contractId } = await createContract()
+
+      const missing = await api(adminToken)
+        .post(`/contracts/${contractId}/advance-expenses`)
+        .field('amount', '1500')
+        .field('description', 'Arreglo')
+        .field('expenseDate', today)
+        .expect(400)
+      expect(missing.body.code).toBe('EXPENSE_RECEIPT_REQUIRED')
+
+      const invalid = await api(adminToken)
+        .post(`/contracts/${contractId}/advance-expenses`)
+        .field('amount', '1500')
+        .field('description', 'Arreglo')
+        .field('expenseDate', today)
+        .attach('file', Buffer.from('#!/bin/sh'), {
+          filename: 'ticket.pdf',
+          contentType: 'application/pdf',
+        })
+        .expect(400)
+      expect(invalid.body.code).toBe('EXPENSE_INVALID_RECEIPT')
+
+      const list = await api(adminToken)
+        .get(`/contracts/${contractId}/advance-expenses`)
+        .expect(200)
+      expect(list.body.data.items).toEqual([])
+    })
+
+    it('con un PDF o una foto → 201, con el comprobante, el inquilino y la moneda del contrato', async () => {
+      const { id: contractId, renterId } = await createContract()
+
+      const expense = await createExpense(
+        contractId,
+        { description: '  Arreglo   de canilla ' },
+        employeeToken,
+      )
+      expect(expense).toMatchObject({
+        contractId,
+        renterId,
+        amount: '1500.00',
+        currency: 'ARS',
+        description: 'Arreglo de canilla',
+        expenseDate: addDays(today, -3),
+        settled: false,
+        settlementId: null,
+        settledAt: null,
+        registeredBy: { fullName: 'emp@a.com' },
+      })
+      expect(expense.receiptUrl).toMatch(/\.pdf$/)
+
+      const photo = await api(adminToken)
+        .post(`/contracts/${contractId}/advance-expenses`)
+        .field('amount', '20.5')
+        .field('description', 'Lámpara')
+        .field('expenseDate', today)
+        .field('currency', 'USD')
+        .attach('file', JPG, {
+          filename: 'foto.jpg',
+          contentType: 'image/jpeg',
+        })
+        .expect(201)
+      expect(photo.body.data).toMatchObject({
+        amount: '20.50',
+        currency: 'USD',
+        registeredBy: { id: admin.id, fullName: 'admin@a.com' },
+      })
+      expect(photo.body.data.receiptUrl).toMatch(/\.jpg$/)
+    })
+
+    it('monto cero → 400; fecha inexistente → 400; contrato inexistente → 422', async () => {
+      const { id: contractId } = await createContract()
+
+      const zero = await api(adminToken)
+        .post(`/contracts/${contractId}/advance-expenses`)
+        .field('amount', '0')
+        .field('description', 'Arreglo')
+        .field('expenseDate', today)
+        .attach('file', PDF, { filename: 't.pdf' })
+        .expect(400)
+      expect(zero.body.code).toBe('EXPENSE_INVALID_AMOUNT')
+
+      const badDate = await api(adminToken)
+        .post(`/contracts/${contractId}/advance-expenses`)
+        .field('amount', '100')
+        .field('description', 'Arreglo')
+        .field('expenseDate', '2026-02-30')
+        .attach('file', PDF, { filename: 't.pdf' })
+        .expect(400)
+      expect(badDate.body.code).toBe('EXPENSE_INVALID_DATE')
+
+      const unknown = await api(adminToken)
+        .post(`/contracts/${UNKNOWN_ID}/advance-expenses`)
+        .field('amount', '100')
+        .field('description', 'Arreglo')
+        .field('expenseDate', today)
+        .attach('file', PDF, { filename: 't.pdf' })
+        .expect(422)
+      expect(unknown.body.code).toBe('EXPENSE_INVALID_CONTRACT')
+
+      const list = await api(adminToken)
+        .get(`/contracts/${UNKNOWN_ID}/advance-expenses`)
+        .expect(404)
+      expect(list.body.code).toBe('EXPENSE_CONTRACT_NOT_FOUND')
+    })
+
+    it('un contrato rescindido sigue aceptando y listando gastos (spec 7)', async () => {
+      const { id: contractId } = await createContract()
+      await api(adminToken)
+        .post(`/contracts/${contractId}/terminate`)
+        .send({ notifiedAt: today })
+        .expect(200)
+
+      const expense = await createExpense(contractId)
+      const list = await api(employeeToken)
+        .get(`/contracts/${contractId}/advance-expenses?settled=false`)
+        .expect(200)
+      expect(list.body.data.items.map((e: { id: string }) => e.id)).toEqual([
+        expense.id,
+      ])
+    })
+  })
+
+  describe('gastos adelantados: pendientes vs. descontados (spec 4, 6)', () => {
+    it('el listado refleja cuáles están pendientes y cuáles descontados, con los totales del contrato', async () => {
+      const { id: contractId } = await createContract()
+      const pending = await createExpense(contractId, {
+        amount: '1500',
+        expenseDate: addDays(today, -1),
+      })
+      const settled = await createExpense(contractId, {
+        amount: '2500.5',
+        expenseDate: addDays(today, -5),
+      })
+      expect(await markSettled([settled.id])).toBe(1)
+      // Uno ya descontado no se reasigna a otra liquidación.
+      expect(await markSettled([settled.id])).toBe(0)
+
+      const all = await api(employeeToken)
+        .get(`/contracts/${contractId}/advance-expenses`)
+        .expect(200)
+      expect(all.body.data).toMatchObject({
+        pendingTotal: '1500.00',
+        settledTotal: '2500.50',
+      })
+      expect(
+        all.body.data.items.map((e: { id: string; settled: boolean }) => [
+          e.id,
+          e.settled,
+        ]),
+      ).toEqual([
+        [pending.id, false],
+        [settled.id, true],
+      ])
+      expect(all.body.data.items[1]).toMatchObject({
+        settlementId: SETTLEMENT_ID,
+        settledAt: expect.any(String),
+      })
+
+      const onlySettled = await api(employeeToken)
+        .get(`/contracts/${contractId}/advance-expenses?settled=true`)
+        .expect(200)
+      expect(
+        onlySettled.body.data.items.map((e: { id: string }) => e.id),
+      ).toEqual([settled.id])
+      // Los totales no dependen del filtro.
+      expect(onlySettled.body.data).toMatchObject({
+        pendingTotal: '1500.00',
+        settledTotal: '2500.50',
+      })
+
+      const onlyPending = await api(employeeToken)
+        .get(`/contracts/${contractId}/advance-expenses?settled=false`)
+        .expect(200)
+      expect(
+        onlyPending.body.data.items.map((e: { id: string }) => e.id),
+      ).toEqual([pending.id])
+
+      // La facade que va a usar la liquidación (Fase 12, RN-11).
+      const forSettlement = await inTenantA(() =>
+        app.get(ServicesFacade).pendingExpensesByContract(contractId),
+      )
+      expect(forSettlement.total).toBe('1500.00')
+      expect(forSettlement.items.map((e) => e.id)).toEqual([pending.id])
+    })
+
+    it('se edita y elimina mientras está pendiente; descontado, es inmutable (409)', async () => {
+      const { id: contractId } = await createContract()
+      const expense = await createExpense(contractId)
+
+      const updated = await api(employeeToken)
+        .patch(`/advance-expenses/${expense.id}`)
+        .send({ amount: '1800', description: 'Arreglo y repuesto' })
+        .expect(200)
+      expect(updated.body.data).toMatchObject({
+        amount: '1800.00',
+        description: 'Arreglo y repuesto',
+      })
+
+      const badAmount = await api(employeeToken)
+        .patch(`/advance-expenses/${expense.id}`)
+        .send({ amount: '0' })
+        .expect(400)
+      expect(badAmount.body.code).toBe('EXPENSE_INVALID_AMOUNT')
+
+      await markSettled([expense.id])
+
+      const edit = await api(adminToken)
+        .patch(`/advance-expenses/${expense.id}`)
+        .send({ description: 'Otra cosa' })
+        .expect(409)
+      expect(edit.body.code).toBe('EXPENSE_ALREADY_SETTLED')
+      const remove = await api(adminToken)
+        .delete(`/advance-expenses/${expense.id}`)
+        .expect(409)
+      expect(remove.body.code).toBe('EXPENSE_ALREADY_SETTLED')
+    })
+
+    it('eliminar es sólo admin, y es borrado lógico', async () => {
+      const { id: contractId } = await createContract()
+      const expense = await createExpense(contractId)
+
+      await api(employeeToken)
+        .delete(`/advance-expenses/${expense.id}`)
+        .expect(403)
+      await api(adminToken)
+        .delete(`/advance-expenses/${expense.id}`)
+        .expect(204)
+
+      const gone = await api(adminToken)
+        .patch(`/advance-expenses/${expense.id}`)
+        .send({ description: 'x' })
+        .expect(404)
+      expect(gone.body.code).toBe('EXPENSE_NOT_FOUND')
+      const list = await api(adminToken)
+        .get(`/contracts/${contractId}/advance-expenses`)
+        .expect(200)
+      expect(list.body.data).toMatchObject({
+        items: [],
+        pendingTotal: '0.00',
+        settledTotal: '0.00',
+      })
+      expect(
+        await prisma.advanceExpense.findUnique({ where: { id: expense.id } }),
+      ).toMatchObject({ deletedAt: expect.any(Date) })
+    })
+  })
+
   describe('aislamiento entre inmobiliarias', () => {
     it('otra inmobiliaria no ve ni opera los servicios, ni cruza propiedades o contratos', async () => {
       const { id: contractId, propertyId } = await createContract()
@@ -561,6 +839,33 @@ describe('Servicios (e2e, Postgres)', () => {
         .get(`/properties/${propertyId}/services`)
         .expect(200)
       expect(mine.body.data).toHaveLength(1)
+    })
+
+    it('otra inmobiliaria no ve ni opera los gastos adelantados, ni carga sobre un contrato ajeno', async () => {
+      const { id: contractId } = await createContract()
+      const expense = await createExpense(contractId)
+      const b = api(adminBToken)
+
+      await b.get(`/contracts/${contractId}/advance-expenses`).expect(404)
+      await b
+        .patch(`/advance-expenses/${expense.id}`)
+        .send({ description: 'x' })
+        .expect(404)
+      await b.delete(`/advance-expenses/${expense.id}`).expect(404)
+
+      const cross = await b
+        .post(`/contracts/${contractId}/advance-expenses`)
+        .field('amount', '100')
+        .field('description', 'Ajeno')
+        .field('expenseDate', today)
+        .attach('file', PDF, { filename: 't.pdf' })
+        .expect(422)
+      expect(cross.body.code).toBe('EXPENSE_INVALID_CONTRACT')
+
+      const mine = await api(adminToken)
+        .get(`/contracts/${contractId}/advance-expenses`)
+        .expect(200)
+      expect(mine.body.data.items).toHaveLength(1)
     })
   })
 })

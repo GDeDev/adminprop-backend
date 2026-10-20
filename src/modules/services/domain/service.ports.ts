@@ -1,4 +1,5 @@
 import { IsoDate } from '@/shared/dates/calendar-date'
+import { AdvanceExpense } from './advance-expense'
 import {
   Currency,
   IncreaseFrequency,
@@ -67,6 +68,55 @@ export abstract class PropertyServiceRepository {
     id: string,
     changes: PropertyServiceChanges,
   ): Promise<PropertyService>
+
+  abstract delete(id: string): Promise<void>
+}
+
+export interface NewAdvanceExpense {
+  contractId: string
+  renterId: string
+  amount: string
+  currency: Currency
+  description: string
+  expenseDate: IsoDate
+  receiptKey: string
+  receiptUrl: string
+  registeredById: string
+}
+
+/** Lo editable mientras el gasto está pendiente. */
+export interface AdvanceExpenseChanges {
+  amount?: string
+  description?: string
+  expenseDate?: IsoDate
+}
+
+export interface AdvanceExpenseFilter {
+  contractId: string
+  /** Sólo descontados (`true`) o sólo pendientes (`false`). */
+  settled?: boolean
+}
+
+/** Puerto del repositorio de gastos adelantados. Dentro del tenant del contexto. */
+export abstract class AdvanceExpenseRepository {
+  abstract create(data: NewAdvanceExpense): Promise<AdvanceExpense>
+
+  abstract findById(id: string): Promise<AdvanceExpense | null>
+
+  /** Del más reciente al más viejo por fecha del gasto. */
+  abstract list(filter: AdvanceExpenseFilter): Promise<AdvanceExpense[]>
+
+  abstract update(
+    id: string,
+    changes: AdvanceExpenseChanges,
+  ): Promise<AdvanceExpense>
+
+  /** Marca los pendientes de la lista como descontados. Devuelve cuántos. */
+  abstract markSettled(
+    ids: string[],
+    settlementId: string,
+    settledAt: Date,
+  ): Promise<number>
 
   abstract delete(id: string): Promise<void>
 }

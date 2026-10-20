@@ -4,6 +4,7 @@ import { ContractRef, ContractsFacade } from '@/modules/contracts/public'
 import { Catalog, MasterDataFacade } from '@/modules/master-data/public'
 import { PropertiesFacade, PropertyRef } from '@/modules/properties/public'
 import {
+  InvalidExpenseContractException,
   InvalidServiceContractException,
   InvalidServicePropertyException,
   InvalidServiceTypeException,
@@ -41,6 +42,13 @@ export class ServiceReferences {
     if (!contract || contract.propertyId !== propertyId) {
       throw new InvalidServiceContractException()
     }
+    return contract
+  }
+
+  /** Para un gasto adelantado: el contrato existe, en cualquier estado (spec 7). */
+  async requireContractForExpense(contractId: string): Promise<ContractRef> {
+    const contract = await this.contracts.find(contractId)
+    if (!contract) throw new InvalidExpenseContractException()
     return contract
   }
 

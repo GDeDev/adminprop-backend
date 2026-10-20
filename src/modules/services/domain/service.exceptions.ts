@@ -104,3 +104,96 @@ export class InvalidServiceDateException extends DomainException {
     )
   }
 }
+
+// ---------------------------------------------------- Gastos adelantados
+
+export class ExpenseNotFoundException extends DomainException {
+  constructor(id: string) {
+    super(
+      'EXPENSE_NOT_FOUND',
+      'El gasto adelantado no existe',
+      DomainErrorKind.NotFound,
+      { id },
+    )
+  }
+}
+
+export class ExpenseContractNotFoundException extends DomainException {
+  constructor(id: string) {
+    super(
+      'EXPENSE_CONTRACT_NOT_FOUND',
+      'El contrato no existe',
+      DomainErrorKind.NotFound,
+      { id },
+    )
+  }
+}
+
+/** El contrato no existe o es de otra inmobiliaria. Cualquier estado sirve. */
+export class InvalidExpenseContractException extends DomainException {
+  constructor() {
+    super(
+      'EXPENSE_INVALID_CONTRACT',
+      'El contrato no existe',
+      DomainErrorKind.BusinessRule,
+      { field: 'contractId' },
+    )
+  }
+}
+
+export class InvalidExpenseAmountException extends DomainException {
+  constructor() {
+    super(
+      'EXPENSE_INVALID_AMOUNT',
+      'El monto tiene que ser mayor que cero',
+      DomainErrorKind.InvalidInput,
+      { field: 'amount' },
+    )
+  }
+}
+
+export class InvalidExpenseDateException extends DomainException {
+  constructor() {
+    super(
+      'EXPENSE_INVALID_DATE',
+      'La fecha no es una fecha válida (AAAA-MM-DD)',
+      DomainErrorKind.InvalidInput,
+      { field: 'expenseDate' },
+    )
+  }
+}
+
+/** Spec 6: es plata que se le descuenta a un tercero; sin comprobante no hay gasto. */
+export class ExpenseReceiptRequiredException extends DomainException {
+  constructor() {
+    super(
+      'EXPENSE_RECEIPT_REQUIRED',
+      'El comprobante es obligatorio: adjuntá la foto o el PDF',
+      DomainErrorKind.InvalidInput,
+      { field: 'file' },
+    )
+  }
+}
+
+export class InvalidExpenseReceiptException extends DomainException {
+  constructor(reason: string) {
+    super(
+      'EXPENSE_INVALID_RECEIPT',
+      `El comprobante no sirve: ${reason}`,
+      DomainErrorKind.InvalidInput,
+      { field: 'file' },
+    )
+  }
+}
+
+/** Spec 4: descontado en una liquidación, el gasto es un registro contable cerrado. */
+export class ExpenseAlreadySettledException extends DomainException {
+  constructor(settlementId: string) {
+    super(
+      'EXPENSE_ALREADY_SETTLED',
+      'El gasto ya se descontó en una liquidación: no se puede editar ni eliminar',
+      DomainErrorKind.Conflict,
+      { settlementId },
+    )
+  }
+}

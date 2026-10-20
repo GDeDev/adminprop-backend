@@ -39,6 +39,15 @@ export class UserRepositoryImpl extends UserRepository {
     return row ? this.toDomain(row) : null
   }
 
+  async findByIds(ids: string[]): Promise<User[]> {
+    if (ids.length === 0) return []
+    const rows = await this.prisma.db.user.findMany({
+      where: { id: { in: ids } },
+      include: WITH_TENANT,
+    })
+    return rows.map((row) => this.toDomain(row))
+  }
+
   async findInternalByEmail(email: string): Promise<User | null> {
     // Entre tenants a propósito: es cómo el login descubre el tenant. El
     // índice único parcial garantiza que hay a lo sumo uno.
