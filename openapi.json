@@ -3531,7 +3531,7 @@
             }
           },
           "409": {
-            "description": "Tiene un contrato activo",
+            "description": "Tiene un contrato activo: el estado lo maneja el contrato",
             "content": {
               "application/json": {
                 "schema": {
@@ -4227,7 +4227,7 @@
     },
     "/api/v1/renters": {
       "get": {
-        "description": "Cada inquilino trae a su garante. Los filtros `paymentStatus` (Fase 11) y `propertyId` (Fase 9) se aceptan y validan desde ya, pero todavía no filtran: no hay cuotas ni contratos contra qué cruzar.",
+        "description": "Cada inquilino trae a su garante. Los filtros `paymentStatus` (Fase 11) y `propertyId` (D-51) se aceptan y validan desde ya, pero todavía no filtran: no hay cuotas ni contratos contra qué cruzar.",
         "operationId": "RentersController_list_api/v1",
         "parameters": [
           {
@@ -4282,7 +4282,7 @@
             "name": "propertyId",
             "required": false,
             "in": "query",
-            "description": "Se valida pero todavía no filtra: la propiedad del inquilino sale de su contrato (Fase 9).",
+            "description": "Se valida pero todavía no filtra: inquilinos no conoce la propiedad de cada contrato (D-51).",
             "schema": {
               "type": "string"
             }
@@ -4482,7 +4482,7 @@
     },
     "/api/v1/renters/{id}": {
       "get": {
-        "description": "`activeContract` (Fase 9) y `payments` (Fase 11) vienen vacíos hasta esas fases.",
+        "description": "`activeContract` trae el id del contrato activo; `payments` (Fase 11) viene vacío hasta esa fase.",
         "operationId": "RentersController_findOne_api/v1",
         "parameters": [
           {
@@ -5125,6 +5125,944 @@
         "summary": "Eliminar (borrado lógico, sólo admin)",
         "tags": [
           "Guarantors"
+        ]
+      }
+    },
+    "/api/v1/indices": {
+      "get": {
+        "operationId": "IndicesController_list_api/v1",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "ICL",
+              "type": "string",
+              "enum": [
+                "ICL",
+                "IPC"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IndexValueDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Valores cargados de un índice, del más reciente al más viejo",
+        "tags": [
+          "Indices"
+        ]
+      },
+      "post": {
+        "description": "Hasta que la Fase 13 los traiga de la fuente oficial. Un mes ya cargado no se pisa: 409.",
+        "operationId": "IndicesController_register_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterIndexValueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexValueDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Período o valor inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ese mes ya está cargado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cargar a mano el valor de un mes (sólo admin)",
+        "tags": [
+          "Indices"
+        ]
+      }
+    },
+    "/api/v1/contracts": {
+      "get": {
+        "description": "Cada fila trae las partes, el alquiler vigente y las marcas calculadas: por vencer, vencido, póliza vencida.",
+        "operationId": "ContractsController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "FINISHED",
+                "TERMINATED"
+              ]
+            }
+          },
+          {
+            "name": "propertyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "renterId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ownerId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "expiringSoon",
+            "required": false,
+            "in": "query",
+            "description": "Sólo los activos que vencen dentro de los días de aviso de la inmobiliaria (hoy inclusive).",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contratos de la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/ContractSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar, con filtros por estado, propiedad, inquilino, propietario y vencimiento",
+        "tags": [
+          "Contracts"
+        ]
+      },
+      "post": {
+        "description": "El propietario sale de la propiedad y los honorarios se fijan con su estado en este momento. La propiedad pasa a alquilada.",
+        "operationId": "ContractsController_create_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateContractDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fechas inválidas, o caución sin email de alerta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "La propiedad ya tiene un contrato activo, o el inquilino ya es titular de otro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Propiedad, inquilino o garante inexistente, o propiedad sin propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Alta",
+        "tags": [
+          "Contracts"
+        ]
+      }
+    },
+    "/api/v1/contracts/{id}": {
+      "get": {
+        "description": "Con el historial del alquiler, la línea de tiempo y la caución. `monthlyStatus` llega con la Fase 11.",
+        "operationId": "ContractsController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ficha completa",
+        "tags": [
+          "Contracts"
+        ]
+      },
+      "patch": {
+        "description": "Fechas, montos, partes y estado no se editan: cambian por un aumento, una rescisión o una renovación.",
+        "operationId": "ContractsController_update_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateContractDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar notas, caución o garante",
+        "tags": [
+          "Contracts"
+        ]
+      }
+    },
+    "/api/v1/contracts/{id}/termination-preview": {
+      "get": {
+        "description": "Mismas reglas y misma cuenta que POST /contracts/:id/terminate.",
+        "operationId": "ContractsController_terminationPreview_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "notifiedAt",
+            "required": true,
+            "in": "query",
+            "description": "Fecha en que el inquilino notificó la rescisión.",
+            "schema": {
+              "format": "date",
+              "example": "2026-12-01",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminationPreviewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fecha de notificación fuera del contrato",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "El contrato no está activo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Desglose de la multa por rescisión, sin rescindir",
+        "tags": [
+          "Contracts"
+        ]
+      }
+    },
+    "/api/v1/contracts/{id}/documents/contract": {
+      "post": {
+        "operationId": "ContractsController_uploadContractPdf_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No es un PDF o pesa más de 10 MB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Subir el PDF del contrato firmado (reemplaza al anterior)",
+        "tags": [
+          "Contracts"
+        ]
+      }
+    },
+    "/api/v1/contracts/{id}/documents/policy": {
+      "post": {
+        "operationId": "ContractsController_uploadPolicyPdf_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No es un PDF o pesa más de 10 MB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Subir el PDF de la póliza de caución (reemplaza al anterior)",
+        "tags": [
+          "Contracts"
+        ]
+      }
+    },
+    "/api/v1/contracts/{id}/rent-updates": {
+      "post": {
+        "description": "Con ICL/IPC el nuevo alquiler sale de la variación del índice entre el mes del aumento anterior y el del nuevo. Con FIXED/OTHER, `newRent` es obligatorio. Aplica un aumento por llamada.",
+        "operationId": "ContractsController_applyRentUpdate_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyRentUpdateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falta `newRent` en un contrato FIXED/OTHER",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Todavía no corresponde, no quedan aumentos, o el contrato no está activo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Falta el valor del índice de algún período",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Aplicar el próximo aumento programado",
+        "tags": [
+          "Contracts"
+        ]
+      }
+    },
+    "/api/v1/contracts/{id}/terminate": {
+      "post": {
+        "description": "Calcula y guarda la multa (10 % del canon futuro, RN-09); la propiedad vuelve a disponible.",
+        "operationId": "ContractsController_terminate_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerminateContractDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminationResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fecha de notificación fuera del contrato",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "El contrato no está activo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Rescindir anticipadamente",
+        "tags": [
+          "Contracts"
+        ]
+      }
+    },
+    "/api/v1/contracts/{id}/renew": {
+      "post": {
+        "description": "Crea un contrato nuevo, activo, precargado con el original salvo lo que se indique (el inquilino puede cambiar); el original queda finalizado.",
+        "operationId": "ContractsController_renew_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenewContractDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fechas inválidas o inicio anterior al original",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "El original no está activo, o el inquilino nuevo ya tiene contrato",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Renovar",
+        "tags": [
+          "Contracts"
         ]
       }
     },
@@ -6280,6 +7218,11 @@
             "type": "string",
             "nullable": true
           },
+          "activeContractId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contrato activo, si lo hay"
+          },
           "owner": {
             "nullable": true,
             "type": "object",
@@ -6325,6 +7268,7 @@
           "address",
           "status",
           "ownerId",
+          "activeContractId",
           "owner",
           "location",
           "propertyType",
@@ -6399,6 +7343,11 @@
             "type": "string",
             "nullable": true
           },
+          "activeContractId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contrato activo, si lo hay"
+          },
           "owner": {
             "nullable": true,
             "type": "object",
@@ -6472,6 +7421,7 @@
           "address",
           "status",
           "ownerId",
+          "activeContractId",
           "owner",
           "location",
           "propertyType",
@@ -6612,7 +7562,7 @@
           },
           "activePropertyCount": {
             "type": "number",
-            "description": "Las que cuentan para el honorario reducido. Hasta la Fase 9, las alquiladas."
+            "description": "Las que cuentan para el honorario reducido: con contrato activo."
           },
           "reducedFee": {
             "type": "boolean",
@@ -6758,7 +7708,7 @@
           },
           "activePropertyCount": {
             "type": "number",
-            "description": "Las que cuentan para el honorario reducido. Hasta la Fase 9, las alquiladas."
+            "description": "Las que cuentan para el honorario reducido: con contrato activo."
           },
           "reducedFee": {
             "type": "boolean",
@@ -7007,6 +7957,11 @@
           "hasPortalAccess": {
             "type": "boolean"
           },
+          "activeContractId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contrato activo del que es titular, si lo hay"
+          },
           "paymentStatus": {
             "type": "string",
             "enum": [
@@ -7036,6 +7991,7 @@
           "moveInDate",
           "guarantor",
           "hasPortalAccess",
+          "activeContractId",
           "paymentStatus",
           "createdAt",
           "updatedAt"
@@ -7114,6 +8070,17 @@
           "guaranteeDetail"
         ]
       },
+      "RenterActiveContractDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
       "RenterDetailDto": {
         "type": "object",
         "properties": {
@@ -7148,6 +8115,11 @@
           },
           "hasPortalAccess": {
             "type": "boolean"
+          },
+          "activeContractId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contrato activo del que es titular, si lo hay"
           },
           "paymentStatus": {
             "type": "string",
@@ -7184,10 +8156,14 @@
             ]
           },
           "activeContract": {
-            "type": "object",
             "nullable": true,
-            "additionalProperties": false,
-            "description": "Contrato activo. Siempre null hasta los contratos (Fase 9)."
+            "description": "Contrato activo del que es titular. El detalle se pide a GET /contracts/:id.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RenterActiveContractDto"
+              }
+            ]
           },
           "payments": {
             "type": "array",
@@ -7208,6 +8184,7 @@
           "email",
           "moveInDate",
           "hasPortalAccess",
+          "activeContractId",
           "paymentStatus",
           "createdAt",
           "updatedAt",
@@ -7604,6 +8581,945 @@
             "maxLength": 5000
           }
         }
+      },
+      "IndexValueDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "indexType": {
+            "type": "string",
+            "enum": [
+              "ICL",
+              "IPC"
+            ]
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-03"
+          },
+          "value": {
+            "type": "string",
+            "example": "1234.567890"
+          },
+          "source": {
+            "type": "string",
+            "example": "manual"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "indexType",
+          "period",
+          "value",
+          "source",
+          "createdAt"
+        ]
+      },
+      "RegisterIndexValueDto": {
+        "type": "object",
+        "properties": {
+          "indexType": {
+            "type": "string",
+            "enum": [
+              "ICL",
+              "IPC"
+            ],
+            "example": "ICL"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-03",
+            "description": "Mes, AAAA-MM"
+          },
+          "value": {
+            "type": "string",
+            "example": "1234.567890",
+            "description": "Valor publicado, como string decimal con hasta 6 decimales y punto."
+          }
+        },
+        "required": [
+          "indexType",
+          "period",
+          "value"
+        ]
+      },
+      "ContractPropertyRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "address"
+        ]
+      },
+      "ContractPartyRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName"
+        ]
+      },
+      "ContractSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "property": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractPropertyRefDto"
+              }
+            ]
+          },
+          "owner": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractPartyRefDto"
+              }
+            ]
+          },
+          "renter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractPartyRefDto"
+              }
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Último día, inclusive"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "currentRent": {
+            "type": "string",
+            "example": "150333.33",
+            "description": "Alquiler vigente: el último del historial"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "FINISHED",
+              "TERMINATED"
+            ]
+          },
+          "hasSurety": {
+            "type": "boolean"
+          },
+          "policyExpiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "suretyExpired": {
+            "type": "boolean",
+            "description": "Hay caución y la póliza venció (RN-16)"
+          },
+          "expiringSoon": {
+            "type": "boolean",
+            "description": "Activo y vence dentro de los días de aviso (RN-12)"
+          },
+          "expired": {
+            "type": "boolean",
+            "description": "Activo y con el fin ya pasado, sin renovar"
+          },
+          "feePercentage": {
+            "type": "string",
+            "example": "5.00",
+            "description": "En %"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "property",
+          "owner",
+          "renter",
+          "startDate",
+          "endDate",
+          "currency",
+          "currentRent",
+          "status",
+          "hasSurety",
+          "policyExpiresAt",
+          "suretyExpired",
+          "expiringSoon",
+          "expired",
+          "feePercentage",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ContractSuretyDto": {
+        "type": "object",
+        "properties": {
+          "insurerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "insurerAlertEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "policyNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "policyExpiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "policyPdfUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "suretyExpired": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "insurerName",
+          "insurerAlertEmail",
+          "policyNumber",
+          "policyExpiresAt",
+          "policyPdfUrl",
+          "suretyExpired"
+        ]
+      },
+      "ContractTerminationDto": {
+        "type": "object",
+        "properties": {
+          "terminatedAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "notifiedAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "penalty": {
+            "type": "string",
+            "example": "130000.00"
+          },
+          "futureRent": {
+            "type": "string",
+            "example": "1300000.00"
+          }
+        },
+        "required": [
+          "terminatedAt",
+          "notifiedAt",
+          "penalty",
+          "futureRent"
+        ]
+      },
+      "ContractRentUpdateDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "previousRent": {
+            "type": "string",
+            "nullable": true
+          },
+          "newRent": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "INITIAL",
+              "INDEX",
+              "MANUAL"
+            ]
+          },
+          "indexType": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "ICL",
+              "IPC"
+            ]
+          },
+          "indexFromPeriod": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-03"
+          },
+          "indexToPeriod": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-04"
+          },
+          "indexFromValue": {
+            "type": "string",
+            "nullable": true
+          },
+          "indexToValue": {
+            "type": "string",
+            "nullable": true
+          },
+          "appliedById": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "effectiveFrom",
+          "previousRent",
+          "newRent",
+          "source",
+          "indexType",
+          "indexFromPeriod",
+          "indexToPeriod",
+          "indexFromValue",
+          "indexToValue",
+          "appliedById",
+          "createdAt"
+        ]
+      },
+      "ContractTimelineDto": {
+        "type": "object",
+        "properties": {
+          "totalMonths": {
+            "type": "number"
+          },
+          "elapsedMonths": {
+            "type": "number"
+          },
+          "progressPercent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "totalMonths",
+          "elapsedMonths",
+          "progressPercent"
+        ]
+      },
+      "ContractDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "property": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractPropertyRefDto"
+              }
+            ]
+          },
+          "owner": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractPartyRefDto"
+              }
+            ]
+          },
+          "renter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractPartyRefDto"
+              }
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Último día, inclusive"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "currentRent": {
+            "type": "string",
+            "example": "150333.33",
+            "description": "Alquiler vigente: el último del historial"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "FINISHED",
+              "TERMINATED"
+            ]
+          },
+          "hasSurety": {
+            "type": "boolean"
+          },
+          "policyExpiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "suretyExpired": {
+            "type": "boolean",
+            "description": "Hay caución y la póliza venció (RN-16)"
+          },
+          "expiringSoon": {
+            "type": "boolean",
+            "description": "Activo y vence dentro de los días de aviso (RN-12)"
+          },
+          "expired": {
+            "type": "boolean",
+            "description": "Activo y con el fin ya pasado, sin renovar"
+          },
+          "feePercentage": {
+            "type": "string",
+            "example": "5.00",
+            "description": "En %"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "guarantor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractPartyRefDto"
+              }
+            ]
+          },
+          "initialRent": {
+            "type": "string"
+          },
+          "deposit": {
+            "type": "string",
+            "description": "Estático: no sigue a los aumentos"
+          },
+          "rentUpdateType": {
+            "type": "string",
+            "enum": [
+              "ICL",
+              "IPC",
+              "FIXED",
+              "OTHER"
+            ]
+          },
+          "rentUpdateFrequency": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "QUARTERLY",
+              "FOUR_MONTHLY"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "contractPdfUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "surety": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractSuretyDto"
+              }
+            ]
+          },
+          "termination": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractTerminationDto"
+              }
+            ]
+          },
+          "renewedFromId": {
+            "type": "string",
+            "nullable": true
+          },
+          "rentUpdates": {
+            "description": "Historial del alquiler, del más reciente al más viejo",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContractRentUpdateDto"
+            }
+          },
+          "nextRentUpdateOn": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "description": "Null si no está activo o termina antes del próximo aumento"
+          },
+          "timeline": {
+            "$ref": "#/components/schemas/ContractTimelineDto"
+          },
+          "monthlyStatus": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false
+            },
+            "description": "Estado de cada mes. Siempre vacío hasta el motor de cobros (Fase 11)."
+          }
+        },
+        "required": [
+          "id",
+          "property",
+          "owner",
+          "renter",
+          "startDate",
+          "endDate",
+          "currency",
+          "currentRent",
+          "status",
+          "hasSurety",
+          "policyExpiresAt",
+          "suretyExpired",
+          "expiringSoon",
+          "expired",
+          "feePercentage",
+          "createdAt",
+          "updatedAt",
+          "guarantor",
+          "initialRent",
+          "deposit",
+          "rentUpdateType",
+          "rentUpdateFrequency",
+          "notes",
+          "contractPdfUrl",
+          "surety",
+          "termination",
+          "renewedFromId",
+          "rentUpdates",
+          "nextRentUpdateOn",
+          "timeline",
+          "monthlyStatus"
+        ]
+      },
+      "TerminationPreviewDto": {
+        "type": "object",
+        "properties": {
+          "currentRent": {
+            "type": "string"
+          },
+          "remainingMonths": {
+            "type": "number",
+            "description": "Meses enteros hasta el fin"
+          },
+          "remainingDays": {
+            "type": "number",
+            "description": "Días sueltos después de esos meses"
+          },
+          "totalDays": {
+            "type": "number",
+            "description": "Días totales desde la notificación al fin"
+          },
+          "futureRent": {
+            "type": "string"
+          },
+          "penalty": {
+            "type": "string",
+            "description": "10 % del canon futuro (RN-09)"
+          }
+        },
+        "required": [
+          "currentRent",
+          "remainingMonths",
+          "remainingDays",
+          "totalDays",
+          "futureRent",
+          "penalty"
+        ]
+      },
+      "CreateContractDto": {
+        "type": "object",
+        "properties": {
+          "propertyId": {
+            "type": "string",
+            "description": "Propiedad a alquilar. Tiene que tener propietario (de ahí sale el del contrato) y no tener otro contrato activo."
+          },
+          "renterId": {
+            "type": "string",
+            "description": "Inquilino titular, sin otro contrato activo."
+          },
+          "guarantorId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Garante. Si no viene, se toma el garante actual del inquilino; null para dejarlo sin garante."
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-03-01"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2028-02-29"
+          },
+          "initialRent": {
+            "type": "string",
+            "example": "150333.33"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "example": "ARS"
+          },
+          "rentUpdateType": {
+            "type": "string",
+            "enum": [
+              "ICL",
+              "IPC",
+              "FIXED",
+              "OTHER"
+            ],
+            "example": "ICL"
+          },
+          "rentUpdateFrequency": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "QUARTERLY",
+              "FOUR_MONTHLY"
+            ],
+            "example": "QUARTERLY"
+          },
+          "deposit": {
+            "type": "string",
+            "example": "150333.33"
+          },
+          "hasSurety": {
+            "type": "boolean",
+            "description": "Si el contrato exige seguro de caución"
+          },
+          "insurerName": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 150
+          },
+          "insurerAlertEmail": {
+            "type": "string",
+            "nullable": true,
+            "description": "Obligatorio con caución: ahí va la alerta automática (RN-10)."
+          },
+          "policyNumber": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
+          "policyExpiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "example": "2027-03-01"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "propertyId",
+          "renterId",
+          "startDate",
+          "endDate",
+          "initialRent",
+          "currency",
+          "rentUpdateType",
+          "rentUpdateFrequency",
+          "deposit",
+          "hasSurety"
+        ]
+      },
+      "PartialSuretyDto": {
+        "type": "object",
+        "properties": {
+          "hasSurety": {
+            "type": "boolean",
+            "description": "Si el contrato exige seguro de caución"
+          },
+          "insurerName": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 150
+          },
+          "insurerAlertEmail": {
+            "type": "string",
+            "nullable": true,
+            "description": "Obligatorio con caución: ahí va la alerta automática (RN-10)."
+          },
+          "policyNumber": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
+          "policyExpiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "example": "2027-03-01"
+          }
+        }
+      },
+      "UpdateContractDto": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          },
+          "guarantorId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Garante; null para sacarlo."
+          },
+          "surety": {
+            "description": "Se mezcla con la caución actual y se valida el resultado.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartialSuretyDto"
+              }
+            ]
+          }
+        }
+      },
+      "ApplyRentUpdateDto": {
+        "type": "object",
+        "properties": {
+          "newRent": {
+            "type": "string",
+            "example": "120000.00",
+            "description": "Sólo para contratos FIXED u OTHER: el nuevo alquiler. Con ICL/IPC se ignora, sale del índice."
+          }
+        }
+      },
+      "TerminateContractDto": {
+        "type": "object",
+        "properties": {
+          "notifiedAt": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-12-01",
+            "description": "Fecha en que el inquilino notificó la rescisión."
+          }
+        },
+        "required": [
+          "notifiedAt"
+        ]
+      },
+      "TerminationResultDto": {
+        "type": "object",
+        "properties": {
+          "terminatedAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "notifiedAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "penalty": {
+            "type": "string",
+            "example": "130000.00"
+          },
+          "futureRent": {
+            "type": "string",
+            "example": "1300000.00"
+          },
+          "remainingMonths": {
+            "type": "number"
+          },
+          "remainingDays": {
+            "type": "number"
+          },
+          "contract": {
+            "$ref": "#/components/schemas/ContractDetailDto"
+          }
+        },
+        "required": [
+          "terminatedAt",
+          "notifiedAt",
+          "penalty",
+          "futureRent",
+          "remainingMonths",
+          "remainingDays",
+          "contract"
+        ]
+      },
+      "RenewContractDto": {
+        "type": "object",
+        "properties": {
+          "guarantorId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Garante. Si no viene, se toma el garante actual del inquilino; null para dejarlo sin garante."
+          },
+          "initialRent": {
+            "type": "string",
+            "example": "150333.33"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "example": "ARS"
+          },
+          "rentUpdateType": {
+            "type": "string",
+            "enum": [
+              "ICL",
+              "IPC",
+              "FIXED",
+              "OTHER"
+            ],
+            "example": "ICL"
+          },
+          "rentUpdateFrequency": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "QUARTERLY",
+              "FOUR_MONTHLY"
+            ],
+            "example": "QUARTERLY"
+          },
+          "deposit": {
+            "type": "string",
+            "example": "150333.33"
+          },
+          "hasSurety": {
+            "type": "boolean",
+            "description": "Si el contrato exige seguro de caución"
+          },
+          "insurerName": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 150
+          },
+          "insurerAlertEmail": {
+            "type": "string",
+            "nullable": true,
+            "description": "Obligatorio con caución: ahí va la alerta automática (RN-10)."
+          },
+          "policyNumber": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
+          "policyExpiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "example": "2027-03-01"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          },
+          "renterId": {
+            "type": "string",
+            "description": "Otro inquilino (spec 7). Si no viene, el mismo."
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2028-03-01"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2030-02-28"
+          }
+        },
+        "required": [
+          "startDate",
+          "endDate"
+        ]
       },
       "CreateExampleItemDto": {
         "type": "object",
