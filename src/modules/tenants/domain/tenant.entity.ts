@@ -12,4 +12,10 @@ export interface Tenant {
   isActive: boolean
   /** Propiedades activas desde las que aplica el honorario reducido (PRD 5.0). */
   reducedFeeThreshold: number
+  /** Honorarios de administración estándar, en % ("5.00"). Nunca `number`. */
+  standardFeePercentage: string
+  /** Honorarios reducidos, en % ("3.00"). */
+  reducedFeePercentage: string
+  /** Con cuántos días de anticipación un contrato cuenta como "por vencer". */
+  contractExpiryNoticeDays: number
 }

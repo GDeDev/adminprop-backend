@@ -22,6 +22,8 @@ export interface PropertySummaryView {
   address: string
   status: PropertyStatus
   ownerId: string | null
+  /** Contrato activo, si lo hay (lo fija el módulo de contratos). */
+  activeContractId: string | null
   /** Null si no tiene propietario asignado. */
   owner: OwnerRef | null
   /** Null sólo si el maestro fue borrado a mano de la base (no debería pasar). */
@@ -115,6 +117,7 @@ function toSummary(
     address: property.address,
     status: property.status,
     ownerId: property.ownerId,
+    activeContractId: property.activeContractId,
     owner: (property.ownerId && owners.get(property.ownerId)) || null,
     location: locations.get(property.locationId) ?? null,
     propertyType: types.get(property.propertyTypeId) ?? null,

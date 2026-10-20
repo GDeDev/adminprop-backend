@@ -188,7 +188,7 @@ export class OwnerSummaryDto {
   propertyCount: number
   @ApiProperty({
     description:
-      'Las que cuentan para el honorario reducido. Hasta la Fase 9, las alquiladas.',
+      'Las que cuentan para el honorario reducido: con contrato activo.',
   })
   activePropertyCount: number
   @ApiProperty({ description: 'Honorario reducido (RN-07), calculado' })

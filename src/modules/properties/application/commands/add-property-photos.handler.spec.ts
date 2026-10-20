@@ -14,6 +14,8 @@ const PROPERTY: Property = {
   ownerId: null,
   amenityIds: [],
   notes: null,
+  activeContractId: null,
+  lastContractId: null,
   photos: [],
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),

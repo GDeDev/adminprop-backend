@@ -26,6 +26,10 @@ export interface Property {
   ownerId: string | null
   amenityIds: string[]
   notes: string | null
+  /** Contrato activo (lo fija el módulo de contratos por la facade). */
+  activeContractId: string | null
+  /** Último contrato que tuvo, activo o no: el "historial de contratos". */
+  lastContractId: string | null
   /** Ordenadas por posición: la primera es la principal. */
   photos: PropertyPhoto[]
   createdAt: Date

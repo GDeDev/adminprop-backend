@@ -22,7 +22,7 @@ import { MasterDataModule } from '@/modules/master-data/public'
 import { OwnersModule } from '@/modules/owners/public'
 import { PropertiesFacade } from '@/modules/properties/public/properties.facade'
 import { PropertiesController } from '../http/controllers/properties.controller'
-import { NoContractsYet } from '../repositories/no-contracts-yet'
+import { PropertyContractsImpl } from '../repositories/property-contracts.impl'
 import { PropertyRepositoryImpl } from '../repositories/property.repository.impl'
 
 /**
@@ -34,8 +34,7 @@ import { PropertyRepositoryImpl } from '../repositories/property.repository.impl
   controllers: [PropertiesController],
   providers: [
     { provide: PropertyRepository, useClass: PropertyRepositoryImpl },
-    // Fase 9: reemplazar por la implementación que consulta contratos.
-    { provide: PropertyContracts, useClass: NoContractsYet },
+    { provide: PropertyContracts, useClass: PropertyContractsImpl },
     PropertyViews,
     MasterDataReferences,
     CreatePropertyHandler,

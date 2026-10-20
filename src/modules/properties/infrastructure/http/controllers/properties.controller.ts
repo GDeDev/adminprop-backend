@@ -171,7 +171,7 @@ export class PropertiesController {
   @ApiResponse({ status: 200, type: PropertyDetailDto })
   @ApiResponse({
     status: 409,
-    description: 'Tiene un contrato activo',
+    description: 'Tiene un contrato activo: el estado lo maneja el contrato',
     type: ApiErrorDto,
   })
   @ApiResponse({

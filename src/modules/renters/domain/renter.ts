@@ -27,6 +27,8 @@ export interface Renter {
   guarantorId: string | null
   /** Usuario de portal (módulo de auth), si alguna vez se le generó acceso. */
   portalUserId: string | null
+  /** Contrato activo del que es titular (lo fija el módulo de contratos). */
+  activeContractId: string | null
   createdAt: Date
   updatedAt: Date
 }

@@ -2,6 +2,15 @@ import { Injectable } from '@nestjs/common'
 
 import { TenantRepository } from '../domain/tenant.repository'
 
+/** Parámetros de la inmobiliaria que gobiernan los contratos (PRD 5.0). */
+export interface TenantContractSettings {
+  /** En %, como string decimal ("5.00"). */
+  standardFeePercentage: string
+  reducedFeePercentage: string
+  reducedFeeThreshold: number
+  contractExpiryNoticeDays: number
+}
+
 /**
  * Punto de entrada sincrónico a `tenants` desde otros módulos. Expone lo
  * mínimo: el día que las inmobiliarias vivan en otro servicio, esta clase pasa
@@ -25,8 +34,18 @@ export class TenantsFacade {
    * RN-07). Cada inmobiliaria define el suyo; por defecto, 3.
    */
   async getReducedFeeThreshold(tenantId: string): Promise<number> {
+    return (await this.getContractSettings(tenantId)).reducedFeeThreshold
+  }
+
+  /** Honorarios, umbral y días de aviso de vencimiento de la inmobiliaria. */
+  async getContractSettings(tenantId: string): Promise<TenantContractSettings> {
     const tenant = await this.tenants.findById(tenantId)
     if (!tenant) throw new Error(`Tenant inexistente: ${tenantId}`)
-    return tenant.reducedFeeThreshold
+    return {
+      standardFeePercentage: tenant.standardFeePercentage,
+      reducedFeePercentage: tenant.reducedFeePercentage,
+      reducedFeeThreshold: tenant.reducedFeeThreshold,
+      contractExpiryNoticeDays: tenant.contractExpiryNoticeDays,
+    }
   }
 }

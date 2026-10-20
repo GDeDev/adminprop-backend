@@ -94,6 +94,28 @@ export class PropertyRepositoryImpl extends PropertyRepository {
     return toDomain(row)
   }
 
+  async attachContract(id: string, contractId: string): Promise<Property> {
+    const row = await this.prisma.db.property.update({
+      where: { id },
+      data: {
+        activeContractId: contractId,
+        lastContractId: contractId,
+        status: PropertyStatus.RENTED,
+      },
+      include: ALL_PHOTOS,
+    })
+    return toDomain(row)
+  }
+
+  async detachContract(id: string): Promise<Property> {
+    const row = await this.prisma.db.property.update({
+      where: { id },
+      data: { activeContractId: null, status: PropertyStatus.AVAILABLE },
+      include: ALL_PHOTOS,
+    })
+    return toDomain(row)
+  }
+
   async softDelete(id: string): Promise<void> {
     // La extensión de soft delete lo convierte en `deletedAt = now()`.
     await this.prisma.db.property.delete({ where: { id } })
@@ -130,24 +152,44 @@ export class PropertyRepositoryImpl extends PropertyRepository {
 
   async countByOwners(
     ownerIds: string[],
-  ): Promise<{ ownerId: string; status: PropertyStatus; count: number }[]> {
+  ): Promise<{ ownerId: string; total: number; active: number }[]> {
     if (ownerIds.length === 0) return []
-    const groups = await this.prisma.db.property.groupBy({
-      by: ['ownerId', 'status'],
-      where: { ownerId: { in: ownerIds } },
-      _count: { _all: true },
-    })
-    return groups.flatMap((group) =>
+    // `groupBy` no agrupa por "tiene o no contrato": se cuenta dos veces.
+    const [totals, actives] = await this.prisma.db.$transaction([
+      this.prisma.db.property.groupBy({
+        by: ['ownerId'],
+        where: { ownerId: { in: ownerIds } },
+        _count: { _all: true },
+      }),
+      this.prisma.db.property.groupBy({
+        by: ['ownerId'],
+        where: { ownerId: { in: ownerIds }, activeContractId: { not: null } },
+        _count: { _all: true },
+      }),
+    ])
+    const activeByOwner = new Map(
+      actives.map((group) => [group.ownerId, group._count._all]),
+    )
+    return totals.flatMap((group) =>
       group.ownerId
         ? [
             {
               ownerId: group.ownerId,
-              status: group.status as PropertyStatus,
-              count: group._count._all,
+              total: group._count._all,
+              active: activeByOwner.get(group.ownerId) ?? 0,
             },
           ]
         : [],
     )
+  }
+
+  async findByIds(ids: string[]): Promise<Property[]> {
+    if (ids.length === 0) return []
+    const rows = await this.prisma.db.property.findMany({
+      where: { id: { in: ids } },
+      include: MAIN_PHOTO,
+    })
+    return rows.map(toDomain)
   }
 
   async listByOwner(ownerId: string): Promise<Property[]> {
@@ -176,6 +218,8 @@ function toDomain(row: PropertyRow): Property {
     ownerId: row.ownerId,
     amenityIds: row.amenityIds,
     notes: row.notes,
+    activeContractId: row.activeContractId,
+    lastContractId: row.lastContractId,
     photos: row.photos.map(photoToDomain),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -55,7 +55,7 @@ export class RenterRepositoryImpl extends RenterRepository {
 
   /**
    * `paymentStatus` y `propertyId` llegan en el filtro pero todavía no
-   * filtran: no hay cuotas (Fase 11) ni contratos (Fase 9) contra qué
+   * filtran: no hay cuotas (Fase 11), y la propiedad vive en el contrato (D-51), contra qué
    * cruzar. Ver D-46.
    */
   async list(
@@ -131,6 +131,16 @@ export class RenterRepositoryImpl extends RenterRepository {
     })
   }
 
+  async setActiveContract(
+    id: string,
+    contractId: string | null,
+  ): Promise<void> {
+    await this.prisma.db.renter.update({
+      where: { id },
+      data: { activeContractId: contractId },
+    })
+  }
+
   async softDelete(id: string): Promise<void> {
     // La extensión de soft delete lo convierte en `deletedAt = now()`.
     await this.prisma.db.renter.delete({ where: { id } })
@@ -163,6 +173,7 @@ function toDomain(row: RenterRow): Renter {
     notes: row.notes,
     guarantorId: row.guarantorId,
     portalUserId: row.portalUserId,
+    activeContractId: row.activeContractId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }

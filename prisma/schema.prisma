@@ -444,15 +444,21 @@ model Property {
   tenantId String @map("tenant_id") @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  address        String         @db.VarChar(200)
-  locationId     String         @map("location_id") @db.Uuid
-  propertyTypeId String         @map("property_type_id") @db.Uuid
-  status         PropertyStatus @default(AVAILABLE)
+  address          String         @db.VarChar(200)
+  locationId       String         @map("location_id") @db.Uuid
+  propertyTypeId   String         @map("property_type_id") @db.Uuid
+  status           PropertyStatus @default(AVAILABLE)
   /// Nullable: la propiedad se puede cargar antes que su propietario.
-  ownerId        String?        @map("owner_id") @db.Uuid
-  amenityIds     String[]       @default([]) @map("amenity_ids") @db.Uuid
+  ownerId          String?        @map("owner_id") @db.Uuid
+  amenityIds       String[]       @default([]) @map("amenity_ids") @db.Uuid
   /// Notas internas: nunca se exponen en el portal público.
-  notes          String?        @db.Text
+  notes            String?        @db.Text
+  /// Contrato activo (módulo de contratos, sin FK). Lo fija y lo limpia el
+  /// módulo de contratos por `PropertiesFacade`; acá sólo se lee (D-51).
+  activeContractId String?        @map("active_contract_id") @db.Uuid
+  /// Último contrato que tuvo, activo o no. Nunca se limpia: es el "historial
+  /// de contratos" que bloquea el borrado (spec Fase 6, 3.8).
+  lastContractId   String?        @map("last_contract_id") @db.Uuid
 
   photos PropertyPhoto[]
 
@@ -465,6 +471,7 @@ model Property {
 
   @@index([tenantId, status])
   @@index([tenantId, ownerId])
+  @@index([tenantId, activeContractId])
   @@index([tenantId, propertyTypeId])
   @@index([tenantId, deletedAt])
   /// Búsqueda por dirección parcial (ILIKE): trigramas. La extensión pg_trgm
@@ -613,6 +620,10 @@ model Renter {
   guarantor   Guarantor? @relation(fields: [guarantorId], references: [id], onDelete: Restrict)
 
   portalUserId String? @map("portal_user_id") @db.Uuid
+
+  /// Contrato activo del que es titular (módulo de contratos, sin FK). Lo
+  /// fija y lo limpia el módulo de contratos por `RentersFacade` (D-51).
+  activeContractId String? @map("active_contract_id") @db.Uuid
 
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)

@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common'
 import { Role } from '@prisma/client'
+import { randomUUID } from 'node:crypto'
 import request from 'supertest'
 
 import { seedBaseMasterData } from '../prisma/lib/master-data-seed'
@@ -59,10 +60,14 @@ describe('Propietarios (e2e, Postgres)', () => {
     return response.body.data.id
   }
 
-  /** Propiedades del propietario, cargadas directo: son preparación. */
+  /**
+   * Propiedades del propietario, cargadas directo: son preparación. Una
+   * `RENTED` lleva un contrato activo (lo que cuenta para RN-07 desde la
+   * Fase 9); `RENTED_BY_HAND` es alquilada a mano, sin contrato.
+   */
   const giveProperties = async (
     ownerId: string,
-    statuses: ('AVAILABLE' | 'RENTED' | 'MAINTENANCE')[],
+    statuses: ('AVAILABLE' | 'RENTED' | 'RENTED_BY_HAND' | 'MAINTENANCE')[],
   ) => {
     for (const [i, status] of statuses.entries()) {
       await prisma.property.create({
@@ -72,7 +77,8 @@ describe('Propietarios (e2e, Postgres)', () => {
           locationId: refs.tolosa,
           propertyTypeId: refs.casa,
           ownerId,
-          status,
+          status: status === 'RENTED_BY_HAND' ? 'RENTED' : status,
+          activeContractId: status === 'RENTED' ? randomUUID() : null,
         },
       })
     }
@@ -247,6 +253,18 @@ describe('Propietarios (e2e, Postgres)', () => {
     it('con 2 activas y 1 sin contrato no aplica: sólo cuentan las activas', async () => {
       const id = await createOwner()
       await giveProperties(id, ['RENTED', 'RENTED', 'AVAILABLE'])
+
+      const response = await api(adminToken).get(`/owners/${id}`).expect(200)
+      expect(response.body.data).toMatchObject({
+        propertyCount: 3,
+        activePropertyCount: 2,
+        reducedFee: false,
+      })
+    })
+
+    it('una alquilada a mano, sin contrato, no cuenta (D-39 cerrada en la Fase 9)', async () => {
+      const id = await createOwner()
+      await giveProperties(id, ['RENTED', 'RENTED', 'RENTED_BY_HAND'])
 
       const response = await api(adminToken).get(`/owners/${id}`).expect(200)
       expect(response.body.data).toMatchObject({

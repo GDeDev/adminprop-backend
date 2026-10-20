@@ -136,6 +136,12 @@ export class PropertySummaryDto {
   @ApiProperty() address: string
   @ApiProperty({ enum: PropertyStatus }) status: PropertyStatus
   @ApiProperty({ type: String, nullable: true }) ownerId: string | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Contrato activo, si lo hay',
+  })
+  activeContractId: string | null
   @ApiProperty({ type: OwnerRefDto, nullable: true }) owner: OwnerRefDto | null
   @ApiProperty({ type: LocationRefDto, nullable: true })
   location: LocationRefDto | null

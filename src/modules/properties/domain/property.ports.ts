@@ -36,6 +36,15 @@ export abstract class PropertyRepository {
 
   abstract setStatus(id: string, status: PropertyStatus): Promise<Property>
 
+  /**
+   * Vincula el contrato activo: la propiedad pasa a alquilada y el contrato
+   * queda también como el último que tuvo. Lo llama sólo la facade.
+   */
+  abstract attachContract(id: string, contractId: string): Promise<Property>
+
+  /** Desvincula el contrato activo: la propiedad vuelve a disponible. */
+  abstract detachContract(id: string): Promise<Property>
+
   abstract softDelete(id: string): Promise<void>
 
   /**
@@ -49,20 +58,26 @@ export abstract class PropertyRepository {
 
   abstract deletePhoto(propertyId: string, photoId: string): Promise<void>
 
-  /** Cantidad de propiedades de cada propietario, por estado. */
+  /**
+   * Cantidad de propiedades (no borradas) de cada propietario, y cuántas de
+   * ellas tienen contrato activo.
+   */
   abstract countByOwners(
     ownerIds: string[],
-  ): Promise<{ ownerId: string; status: PropertyStatus; count: number }[]>
+  ): Promise<{ ownerId: string; total: number; active: number }[]>
 
   /** Las propiedades de un propietario, por dirección. Con la foto principal. */
   abstract listByOwner(ownerId: string): Promise<Property[]>
+
+  /** Dirección de cada una, en una consulta. Las borradas no aparecen. */
+  abstract findByIds(ids: string[]): Promise<Property[]>
 }
 
 /**
- * Lo que las reglas de propiedades necesitan saber de los contratos (Fase 9).
- * Hasta que existan, la implementación responde que no hay ninguno; la Fase
- * 9 la reemplaza por una que le pregunta al módulo de contratos, sin tocar
- * las reglas.
+ * Lo que las reglas de propiedades necesitan saber de los contratos. El
+ * módulo de contratos no se importa (sería un ciclo: él depende de
+ * propiedades); se lee el vínculo que ese módulo deja en la propia fila por
+ * la facade (D-51).
  */
 export abstract class PropertyContracts {
   abstract hasActiveContract(propertyId: string): Promise<boolean>
