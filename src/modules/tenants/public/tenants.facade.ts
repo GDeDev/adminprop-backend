@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
+import { Tenant } from '../domain/tenant.entity'
 import { TenantRepository } from '../domain/tenant.repository'
 
 /** Parámetros de la inmobiliaria que gobiernan los contratos (PRD 5.0). */
@@ -9,6 +10,18 @@ export interface TenantContractSettings {
   reducedFeePercentage: string
   reducedFeeThreshold: number
   contractExpiryNoticeDays: number
+}
+
+/** Parámetros de la inmobiliaria que gobiernan los cobros (PRD 5.0, RN-02). */
+export interface TenantBillingSettings {
+  /** Días del mes sin punitorio: del 1 al N. */
+  paymentGraceDays: number
+  /** Punitorio diario, en %, como string decimal ("5.00"). */
+  dailyLateFeePercentage: string
+  /** Día del mes en que se generan las cuotas del mes siguiente. */
+  installmentGenerationDay: number
+  /** Día del mes en que sale el recordatorio de pago. */
+  paymentReminderDay: number
 }
 
 /**
@@ -39,13 +52,29 @@ export class TenantsFacade {
 
   /** Honorarios, umbral y días de aviso de vencimiento de la inmobiliaria. */
   async getContractSettings(tenantId: string): Promise<TenantContractSettings> {
-    const tenant = await this.tenants.findById(tenantId)
-    if (!tenant) throw new Error(`Tenant inexistente: ${tenantId}`)
+    const tenant = await this.require(tenantId)
     return {
       standardFeePercentage: tenant.standardFeePercentage,
       reducedFeePercentage: tenant.reducedFeePercentage,
       reducedFeeThreshold: tenant.reducedFeeThreshold,
       contractExpiryNoticeDays: tenant.contractExpiryNoticeDays,
     }
+  }
+
+  /** Gracia, punitorio diario y días de generación y recordatorio (Fase 11). */
+  async getBillingSettings(tenantId: string): Promise<TenantBillingSettings> {
+    const tenant = await this.require(tenantId)
+    return {
+      paymentGraceDays: tenant.paymentGraceDays,
+      dailyLateFeePercentage: tenant.dailyLateFeePercentage,
+      installmentGenerationDay: tenant.installmentGenerationDay,
+      paymentReminderDay: tenant.paymentReminderDay,
+    }
+  }
+
+  private async require(tenantId: string): Promise<Tenant> {
+    const tenant = await this.tenants.findById(tenantId)
+    if (!tenant) throw new Error(`Tenant inexistente: ${tenantId}`)
+    return tenant
   }
 }

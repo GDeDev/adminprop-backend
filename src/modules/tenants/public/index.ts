@@ -3,4 +3,7 @@
  */
 export { TenantsModule } from '../infrastructure/modules/tenants.module'
 export { TenantsFacade } from './tenants.facade'
-export type { TenantContractSettings } from './tenants.facade'
+export type {
+  TenantBillingSettings,
+  TenantContractSettings,
+} from './tenants.facade'

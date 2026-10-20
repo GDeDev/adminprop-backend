@@ -17,6 +17,10 @@ const TENANT_FIELDS = {
   standardFeePercentage: true,
   reducedFeePercentage: true,
   contractExpiryNoticeDays: true,
+  paymentGraceDays: true,
+  dailyLateFeePercentage: true,
+  installmentGenerationDay: true,
+  paymentReminderDay: true,
 } as const
 
 type TenantRow = Prisma.TenantGetPayload<{ select: typeof TENANT_FIELDS }>
@@ -57,5 +61,9 @@ function toDomain(row: TenantRow): Tenant {
     standardFeePercentage: row.standardFeePercentage.toFixed(2),
     reducedFeePercentage: row.reducedFeePercentage.toFixed(2),
     contractExpiryNoticeDays: row.contractExpiryNoticeDays,
+    paymentGraceDays: row.paymentGraceDays,
+    dailyLateFeePercentage: row.dailyLateFeePercentage.toFixed(2),
+    installmentGenerationDay: row.installmentGenerationDay,
+    paymentReminderDay: row.paymentReminderDay,
   }
 }

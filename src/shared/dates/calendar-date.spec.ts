@@ -2,8 +2,12 @@ import {
   addDays,
   addMonths,
   daysBetween,
+  firstDayOfPeriod,
   fullMonthsBetween,
   isValidIsoDate,
+  isValidPeriod,
+  lastDayOfPeriod,
+  nextPeriod,
   periodOf,
 } from './calendar-date'
 
@@ -44,5 +48,22 @@ describe('calendar-date', () => {
 
   it('el período de un índice es el mes de la fecha', () => {
     expect(periodOf('2026-03-15')).toBe('2026-03')
+  })
+
+  it('valida períodos AAAA-MM: el mes tiene que existir', () => {
+    expect(isValidPeriod('2026-10')).toBe(true)
+    expect(isValidPeriod('2026-13')).toBe(false)
+    expect(isValidPeriod('2026-00')).toBe(false)
+    expect(isValidPeriod('2026-1')).toBe(false)
+    expect(isValidPeriod('2026-10-01')).toBe(false)
+  })
+
+  it('da el primer y el último día de un período, y el siguiente', () => {
+    expect(firstDayOfPeriod('2026-10')).toBe('2026-10-01')
+    expect(lastDayOfPeriod('2026-10')).toBe('2026-10-31')
+    expect(lastDayOfPeriod('2026-02')).toBe('2026-02-28')
+    expect(lastDayOfPeriod('2024-02')).toBe('2024-02-29')
+    expect(nextPeriod('2026-12')).toBe('2027-01')
+    expect(nextPeriod('2026-01')).toBe('2026-02')
   })
 })

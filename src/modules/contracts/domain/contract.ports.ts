@@ -91,6 +91,12 @@ export abstract class ContractRepository {
   /** Activos; con `endingBefore`, sólo los que terminaron antes de esa fecha. */
   abstract listActive(options?: { endingBefore?: IsoDate }): Promise<Contract[]>
 
+  /**
+   * Activos cuya vigencia `[startDate, endDate]` toca algún día del rango
+   * `[from, to]`, inclusive. Para generar las cuotas de un mes.
+   */
+  abstract listActiveCovering(from: IsoDate, to: IsoDate): Promise<Contract[]>
+
   abstract update(id: string, changes: ContractChanges): Promise<Contract>
 
   abstract setDocument(

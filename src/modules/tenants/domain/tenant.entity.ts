@@ -18,4 +18,12 @@ export interface Tenant {
   reducedFeePercentage: string
   /** Con cuántos días de anticipación un contrato cuenta como "por vencer". */
   contractExpiryNoticeDays: number
+  /** Días del mes sin punitorio: del 1 al N (PRD 5.0, RN-02). */
+  paymentGraceDays: number
+  /** Punitorio diario, en % ("5.00"), desde el día siguiente a la gracia. */
+  dailyLateFeePercentage: string
+  /** Día del mes en que se generan las cuotas del mes siguiente. */
+  installmentGenerationDay: number
+  /** Día del mes en que sale el recordatorio de pago. */
+  paymentReminderDay: number
 }

@@ -137,6 +137,19 @@ export class ContractRepositoryImpl extends ContractRepository {
     return rows.map(toDomain)
   }
 
+  async listActiveCovering(from: IsoDate, to: IsoDate): Promise<Contract[]> {
+    const rows = await this.prisma.db.contract.findMany({
+      where: {
+        status: ContractStatus.ACTIVE,
+        startDate: { lte: toDateColumn(to) },
+        endDate: { gte: toDateColumn(from) },
+      },
+      include: WITH_RENT_UPDATES,
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    })
+    return rows.map(toDomain)
+  }
+
   async update(id: string, changes: ContractChanges): Promise<Contract> {
     const { surety, ...rest } = changes
     const row = await this.prisma.db.contract.update({

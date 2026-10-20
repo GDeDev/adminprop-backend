@@ -1,8 +1,19 @@
 import { Injectable } from '@nestjs/common'
 
-import { IsoDate, todayIso } from '@/shared/dates/calendar-date'
+import {
+  firstDayOfPeriod,
+  IsoDate,
+  lastDayOfPeriod,
+  Period,
+  todayIso,
+} from '@/shared/dates/calendar-date'
 import { ContractLifecycle } from '../application/contract-lifecycle'
-import { ContractStatus, Currency, currentRentOf } from '../domain/contract'
+import {
+  Contract,
+  ContractStatus,
+  Currency,
+  currentRentOf,
+} from '../domain/contract'
 import { ContractRepository } from '../domain/contract.ports'
 
 /** Lo que otro módulo necesita de un contrato activo (cobros, servicios). */
@@ -67,19 +78,20 @@ export class ContractsFacade {
     propertyId: string,
   ): Promise<ActiveContractRef | null> {
     const contract = await this.contracts.findActiveByProperty(propertyId)
-    return contract
-      ? {
-          id: contract.id,
-          propertyId: contract.propertyId,
-          ownerId: contract.ownerId,
-          renterId: contract.renterId,
-          startDate: contract.startDate,
-          endDate: contract.endDate,
-          currency: contract.currency,
-          currentRent: currentRentOf(contract),
-          feePercentage: contract.feePercentage,
-        }
-      : null
+    return contract ? toActiveRef(contract) : null
+  }
+
+  /**
+   * Los contratos activos que cubren algún día del mes `AAAA-MM`, con su
+   * alquiler vigente hoy. Cobros (Fase 11) genera una cuota por cada uno; un
+   * contrato que empieza o termina a mitad de mes entra igual.
+   */
+  async listActiveForPeriod(period: Period): Promise<ActiveContractRef[]> {
+    const contracts = await this.contracts.listActiveCovering(
+      firstDayOfPeriod(period),
+      lastDayOfPeriod(period),
+    )
+    return contracts.map(toActiveRef)
   }
 
   /** Alquiler vigente, o null si el contrato no existe. */
@@ -102,5 +114,19 @@ export class ContractsFacade {
    */
   finishExpired(today: IsoDate = todayIso()): Promise<number> {
     return this.lifecycle.finishExpired(today)
+  }
+}
+
+function toActiveRef(contract: Contract): ActiveContractRef {
+  return {
+    id: contract.id,
+    propertyId: contract.propertyId,
+    ownerId: contract.ownerId,
+    renterId: contract.renterId,
+    startDate: contract.startDate,
+    endDate: contract.endDate,
+    currency: contract.currency,
+    currentRent: currentRentOf(contract),
+    feePercentage: contract.feePercentage,
   }
 }

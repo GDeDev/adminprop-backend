@@ -43,6 +43,34 @@ export function periodOf(iso: IsoDate): string {
   return iso.slice(0, 7)
 }
 
+/** `AAAA-MM`: el período de una cuota o de un índice. */
+export type Period = string
+
+const PERIOD = /^(\d{4})-(\d{2})$/
+
+/** `2026-13` pasa el formato pero no es un mes. */
+export function isValidPeriod(value: string): boolean {
+  const match = PERIOD.exec(value)
+  if (!match) return false
+  const month = +match[2]
+  return month >= 1 && month <= 12
+}
+
+/** Primer día del mes: `2026-10` → `2026-10-01`. */
+export function firstDayOfPeriod(period: Period): IsoDate {
+  return `${period}-01`
+}
+
+/** Último día del mes, mirando el calendario (28, 29, 30 o 31). */
+export function lastDayOfPeriod(period: Period): IsoDate {
+  return addDays(firstDayOfPeriod(nextPeriod(period)), -1)
+}
+
+/** El mes siguiente, cruzando el año: `2026-12` → `2027-01`. */
+export function nextPeriod(period: Period): Period {
+  return periodOf(addMonths(firstDayOfPeriod(period), 1))
+}
+
 export function addDays(iso: IsoDate, days: number): IsoDate {
   const date = toUtc(iso)
   date.setUTCDate(date.getUTCDate() + days)
