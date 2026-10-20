@@ -38,6 +38,9 @@ export abstract class CatalogRepository {
     isActive: boolean,
   ): Promise<CatalogItem>
 
+  /** Los que existan de estos ids, activos o no (para mostrar datos históricos). */
+  abstract findByIds(catalog: Catalog, ids: string[]): Promise<CatalogItem[]>
+
   /** Cuántos de estos ids existen y están activos (para la facade). */
   abstract countActive(catalog: Catalog, ids: string[]): Promise<number>
 }
@@ -53,6 +56,8 @@ export abstract class LocationRepository {
   abstract list(filter: LocationFilter): Promise<Location[]>
 
   abstract findById(id: string): Promise<Location | null>
+
+  abstract findByIds(ids: string[]): Promise<Location[]>
 
   /** Mismo padre y mismo nombre, sin distinguir mayúsculas. */
   abstract existsByName(

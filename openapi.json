@@ -3144,6 +3144,553 @@
         ]
       }
     },
+    "/api/v1/properties": {
+      "get": {
+        "operationId": "PropertiesController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "AVAILABLE",
+                "RENTED",
+                "MAINTENANCE"
+              ]
+            }
+          },
+          {
+            "name": "ownerId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "propertyTypeId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Parte de la dirección, sin distinguir mayúsculas",
+            "schema": {
+              "example": "corrientes",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Propiedades de la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/PropertySummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar, con filtros y búsqueda por dirección",
+        "tags": [
+          "Properties"
+        ]
+      },
+      "post": {
+        "operationId": "PropertiesController_create_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePropertyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Ubicación, tipo o amenity inexistente o desactivado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Alta (queda disponible)",
+        "tags": [
+          "Properties"
+        ]
+      }
+    },
+    "/api/v1/properties/{id}": {
+      "get": {
+        "operationId": "PropertiesController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ficha completa",
+        "tags": [
+          "Properties"
+        ]
+      },
+      "patch": {
+        "operationId": "PropertiesController_update_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePropertyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar (todo menos estado y fotos)",
+        "tags": [
+          "Properties"
+        ]
+      },
+      "delete": {
+        "description": "Con historial de contratos no se puede: 409.",
+        "operationId": "PropertiesController_remove_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Eliminar (borrado lógico, sólo admin)",
+        "tags": [
+          "Properties"
+        ]
+      }
+    },
+    "/api/v1/properties/{id}/status": {
+      "patch": {
+        "operationId": "PropertiesController_changeStatus_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePropertyStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Tiene un contrato activo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Transición no permitida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cambiar el estado a mano",
+        "tags": [
+          "Properties"
+        ]
+      }
+    },
+    "/api/v1/properties/{id}/photos": {
+      "post": {
+        "operationId": "PropertiesController_addPhotos_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pasaría de 20 fotos, o archivo inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Subir fotos (JPG, PNG o WebP, hasta 20 por propiedad)",
+        "tags": [
+          "Properties"
+        ]
+      }
+    },
+    "/api/v1/properties/{id}/photos/{photoId}": {
+      "delete": {
+        "operationId": "PropertiesController_deletePhoto_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "photoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Borrar una foto",
+        "tags": [
+          "Properties"
+        ]
+      }
+    },
     "/api/v1/examples": {
       "post": {
         "operationId": "ExampleItemsController_create_api/v1",
@@ -4204,6 +4751,361 @@
         },
         "required": [
           "name"
+        ]
+      },
+      "LocationRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "COUNTRY",
+              "PROVINCE",
+              "CITY",
+              "NEIGHBORHOOD"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "description": "De lo específico a lo general, sin el país",
+            "example": "Tolosa, La Plata, Buenos Aires"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isActive",
+          "level",
+          "path"
+        ]
+      },
+      "MasterDataRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isActive"
+        ]
+      },
+      "PropertySummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "RENTED",
+              "MAINTENANCE"
+            ]
+          },
+          "ownerId": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LocationRefDto"
+              }
+            ]
+          },
+          "propertyType": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MasterDataRefDto"
+              }
+            ]
+          },
+          "mainPhotoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "address",
+          "status",
+          "ownerId",
+          "location",
+          "propertyType",
+          "mainPhotoUrl",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AmenityRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "example": "waves"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isActive",
+          "icon"
+        ]
+      },
+      "PropertyPhotoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "position": {
+            "type": "number",
+            "description": "0 es la principal"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "position"
+        ]
+      },
+      "PropertyDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "RENTED",
+              "MAINTENANCE"
+            ]
+          },
+          "ownerId": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LocationRefDto"
+              }
+            ]
+          },
+          "propertyType": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MasterDataRefDto"
+              }
+            ]
+          },
+          "mainPhotoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "locationId": {
+            "type": "string"
+          },
+          "propertyTypeId": {
+            "type": "string"
+          },
+          "amenityIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "amenities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AmenityRefDto"
+            }
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PropertyPhotoDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "address",
+          "status",
+          "ownerId",
+          "location",
+          "propertyType",
+          "mainPhotoUrl",
+          "createdAt",
+          "updatedAt",
+          "locationId",
+          "propertyTypeId",
+          "amenityIds",
+          "amenities",
+          "notes",
+          "photos"
+        ]
+      },
+      "CreatePropertyDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "example": "Av. Corrientes 1234, 5° B",
+            "maxLength": 200
+          },
+          "locationId": {
+            "type": "string",
+            "description": "Localidad o barrio (maestro de ubicaciones)"
+          },
+          "propertyTypeId": {
+            "type": "string",
+            "description": "Maestro de tipos de propiedad"
+          },
+          "ownerId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Propietario (Fase 7). Se puede asignar después."
+          },
+          "amenityIds": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "description": "Notas internas. Nunca se muestran en el portal.",
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "address",
+          "locationId",
+          "propertyTypeId"
+        ]
+      },
+      "UpdatePropertyDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "example": "Av. Corrientes 1234, 5° B",
+            "maxLength": 200
+          },
+          "locationId": {
+            "type": "string",
+            "description": "Localidad o barrio (maestro de ubicaciones)"
+          },
+          "propertyTypeId": {
+            "type": "string",
+            "description": "Maestro de tipos de propiedad"
+          },
+          "ownerId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Propietario (Fase 7). Se puede asignar después."
+          },
+          "amenityIds": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "description": "Notas internas. Nunca se muestran en el portal.",
+            "maxLength": 5000
+          }
+        }
+      },
+      "ChangePropertyStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "RENTED",
+              "MAINTENANCE"
+            ],
+            "example": "MAINTENANCE"
+          }
+        },
+        "required": [
+          "status"
         ]
       },
       "CreateExampleItemDto": {

@@ -101,6 +101,7 @@ describe('GlobalExceptionFilter', () => {
     [DomainErrorKind.Conflict, 409],
     [DomainErrorKind.BusinessRule, 422],
     [DomainErrorKind.Forbidden, 403],
+    [DomainErrorKind.InvalidInput, 400],
   ])('mapea %s a %i', (kind, status) => {
     class AnyDomainError extends DomainException {
       constructor() {

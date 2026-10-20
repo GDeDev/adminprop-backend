@@ -3,5 +3,10 @@
  */
 export { MasterDataModule } from '../infrastructure/modules/master-data.module'
 export { MasterDataFacade } from './master-data.facade'
+export type {
+  AmenityRef,
+  LocationRef,
+  MasterDataRef,
+} from './master-data.facade'
 export { Catalog } from '../domain/catalog'
 export { LocationLevel } from '../domain/location'

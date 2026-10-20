@@ -37,6 +37,14 @@ export class LocationRepositoryImpl extends LocationRepository {
     return row ? toDomain(row) : null
   }
 
+  async findByIds(ids: string[]): Promise<Location[]> {
+    if (ids.length === 0) return []
+    const rows = await this.prisma.db.location.findMany({
+      where: { id: { in: ids } },
+    })
+    return rows.map(toDomain)
+  }
+
   async existsByName(
     parentId: string | null,
     name: string,

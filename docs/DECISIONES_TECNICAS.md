@@ -325,3 +325,41 @@ refreshToken, tokenType, expiresIn } }`.
 - `tenant:create` carga el catálogo base de la spec en la misma transacción del alta. El seed de demo suma localidades y barrios de ejemplo.
 - `npm run master-data:seed` (idempotente) completa las inmobiliarias que ya existían antes de esta fase. **Hay que correrlo una vez** para las creadas antes (ej. Oppido).
 - Ubicaciones base: Argentina, Buenos Aires y CABA. Las reales llegan con la importación de Tokko (Fase 21), como dice la spec.
+
+---
+
+## Fase 6
+
+> Sin supervisión, rama encadenada sobre la Fase 5. Pendiente de revisión.
+
+### D-31 · Sin FK a los maestros ni al propietario
+
+- `properties.location_id`, `property_type_id`, `amenity_ids` y `owner_id` no tienen FK: los módulos no comparten tablas (regla del CLAUDE.md, igual que en `_example-listener`). Se validan al guardar con `MasterDataFacade` (existen en la inmobiliaria y están activos).
+- Como los maestros nunca se borran (sólo se desactivan), no quedan referencias colgadas.
+- Amenities: un arreglo `uuid[]` en la propiedad, no una tabla intermedia, porque nadie filtra por amenity todavía. Si el portal público (Fase 22) lo necesita, se agrega un índice GIN sobre el arreglo.
+
+### D-32 · Las reglas que dependen de contratos van detrás de un puerto
+
+- "No pasar a disponible con contrato activo" y "no borrar con historial de contratos" necesitan la Fase 9. Las reglas le preguntan a `PropertyContracts`, cuya implementación actual (`NoContractsYet`) responde que no hay contratos. La Fase 9 la reemplaza en el módulo sin tocar las reglas ni sus tests.
+
+### D-33 · De mantenimiento a alquilada: no
+
+- La spec lista "cualquiera → mantenimiento" y "mantenimiento → disponible", pero no "mantenimiento → alquilada". Se rechaza (422): a alquilada se llega con un contrato o desde disponible.
+
+### D-34 · Una propiedad apunta a una localidad o un barrio
+
+- PRD 5.1: "cada propiedad apunta al nivel más específico (generalmente Barrio o Localidad)". Un país o una provincia no sirven como ubicación: 422.
+
+### D-35 · Fotos en tabla propia; subir primero, guardar después
+
+- `property_photos` (id, key del storage, URL, posición) en lugar de un arreglo de URLs: permite borrar una por id (spec 3.7) y el archivo del storage.
+- Se suben todos los archivos y recién después se guardan en una transacción. Si algo falla, se borran los ya subidos (spec, casos borde). Máximo 20: la foto 21 es un 400 (nuevo `DomainErrorKind.InvalidInput`).
+- Formatos: JPG, PNG y WebP, hasta 10 MB. El tipo se valida por contenido, no sólo por la extensión.
+
+### D-36 · Búsqueda por dirección con índice trigram
+
+- Un ILIKE con comodín adelante no usa un índice común. Se crea `pg_trgm` y un índice GIN sobre `address` (declarado en el schema como índice extendido). Neon y Supabase permiten `pg_trgm`.
+
+### D-37 · Listado paginado como el resto de la API
+
+- La spec muestra `{ items, total, page, limit }`; se mantiene el formato del proyecto, `{ data, pagination }` dentro del sobre. El front hace scroll infinito sobre esas páginas.

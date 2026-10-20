@@ -11,6 +11,11 @@ export enum DomainErrorKind {
   BusinessRule = 'business_rule',
   /** El usuario está autenticado pero la regla no le permite hacerlo. → 403 */
   Forbidden = 'forbidden',
+  /**
+   * El pedido excede un límite de entrada que sólo el dominio conoce (ej. más
+   * de 20 fotos por propiedad). → 400, como un error de validación.
+   */
+  InvalidInput = 'invalid_input',
 }
 
 /**

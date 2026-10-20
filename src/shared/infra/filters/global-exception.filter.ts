@@ -41,6 +41,7 @@ const DOMAIN_KIND_TO_STATUS: Record<DomainErrorKind, HttpStatus> = {
   [DomainErrorKind.NotFound]: HttpStatus.NOT_FOUND,
   [DomainErrorKind.Conflict]: HttpStatus.CONFLICT,
   [DomainErrorKind.BusinessRule]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [DomainErrorKind.InvalidInput]: HttpStatus.BAD_REQUEST,
   [DomainErrorKind.Forbidden]: HttpStatus.FORBIDDEN,
 }
 

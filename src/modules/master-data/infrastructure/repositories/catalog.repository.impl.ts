@@ -138,6 +138,15 @@ export class CatalogRepositoryImpl extends CatalogRepository {
     return toDomain(row)
   }
 
+  async findByIds(catalog: Catalog, ids: string[]): Promise<CatalogItem[]> {
+    if (ids.length === 0) return []
+    const rows = await this.delegate(catalog).findMany({
+      where: { id: { in: ids } },
+      orderBy: { name: 'asc' },
+    })
+    return rows.map(toDomain)
+  }
+
   async countActive(catalog: Catalog, ids: string[]): Promise<number> {
     if (ids.length === 0) return 0
     return this.delegate(catalog).count({
