@@ -96,6 +96,9 @@ model Tenant {
   contracts           Contract[]
   contractRentUpdates ContractRentUpdate[]
 
+  propertyServices PropertyService[]
+  advanceExpenses  AdvanceExpense[]
+
   @@map("tenants")
 }
 
@@ -807,4 +810,94 @@ model ContractRentUpdate {
 
   @@index([tenantId, contractId, effectiveFrom])
   @@map("contract_rent_updates")
+}
+
+// =============================================================================
+// Servicios y gastos adelantados (Fase 10)
+// =============================================================================
+
+/// Quién paga un servicio (spec Fase 10, 2.1: inquilino / propietario).
+enum ServicePayer {
+  RENTER
+  OWNER
+}
+
+/// Un servicio asociado a una propiedad (luz, gas, expensas...) y, si lo hay,
+/// al contrato. Sin `contract_id` es un servicio "de la propiedad", que los
+/// contratos heredan (D-66). Las referencias no llevan FK: se validan por las
+/// facades de propiedades, contratos y maestros. El estado (al día / vencido)
+/// no se guarda: se calcula al leer con `due_date` (spec 4, D-64).
+model PropertyService {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  propertyId    String  @map("property_id") @db.Uuid
+  contractId    String? @map("contract_id") @db.Uuid
+  serviceTypeId String  @map("service_type_id") @db.Uuid
+
+  paidBy   ServicePayer @map("paid_by")
+  currency Currency
+
+  hasDueDate        Boolean              @default(false) @map("has_due_date")
+  dueDate           DateTime?            @map("due_date") @db.Date
+  hasIncrease       Boolean              @default(false) @map("has_increase")
+  /// Misma escala que los aumentos del alquiler (mensual / trimestral / cuatrimestral).
+  increaseFrequency RentUpdateFrequency? @map("increase_frequency")
+  /// Si la inmobiliaria gestiona el pago o es sólo informativo (spec 7).
+  managedByAgency   Boolean              @default(false) @map("managed_by_agency")
+  notes             String?              @db.Text
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  deletedById String?   @map("deleted_by_id") @db.Uuid
+
+  @@index([tenantId, propertyId])
+  @@index([tenantId, contractId])
+  @@index([tenantId, hasDueDate, dueDate])
+  @@index([tenantId, deletedAt])
+  @@map("property_services")
+}
+
+/// Gasto que el inquilino adelantó (una reparación, un servicio) y que se le
+/// descuenta al propietario en la liquidación (RN-11). El comprobante es
+/// obligatorio (D-67). Con `settlement_id` cargado (Fase 12) la fila es
+/// inmutable (spec 4).
+model AdvanceExpense {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  contractId String @map("contract_id") @db.Uuid
+  /// Copiado del contrato al registrar el gasto.
+  renterId   String @map("renter_id") @db.Uuid
+
+  amount      Decimal  @db.Decimal(14, 2)
+  currency    Currency
+  description String   @db.VarChar(300)
+  expenseDate DateTime @map("expense_date") @db.Date
+
+  receiptKey String @map("receipt_key") @db.VarChar(500)
+  receiptUrl String @map("receipt_url") @db.VarChar(1000)
+
+  /// Liquidación que lo descontó (Fase 12, sin FK). Null = pendiente.
+  settlementId String?   @map("settlement_id") @db.Uuid
+  settledAt    DateTime? @map("settled_at") @db.Timestamptz(3)
+
+  /// Usuario que lo cargó.
+  registeredById String @map("registered_by_id") @db.Uuid
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  deletedById String?   @map("deleted_by_id") @db.Uuid
+
+  @@index([tenantId, contractId, settlementId])
+  @@index([tenantId, deletedAt])
+  @@map("advance_expenses")
 }

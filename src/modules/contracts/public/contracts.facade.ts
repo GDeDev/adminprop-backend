@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { IsoDate, todayIso } from '@/shared/dates/calendar-date'
 import { ContractLifecycle } from '../application/contract-lifecycle'
-import { Currency, currentRentOf } from '../domain/contract'
+import { ContractStatus, Currency, currentRentOf } from '../domain/contract'
 import { ContractRepository } from '../domain/contract.ports'
 
 /** Lo que otro módulo necesita de un contrato activo (cobros, servicios). */
@@ -16,6 +16,16 @@ export interface ActiveContractRef {
   currency: Currency
   currentRent: string
   feePercentage: string
+}
+
+/** Lo mínimo de un contrato en cualquier estado (servicios, gastos adelantados). */
+export interface ContractRef {
+  id: string
+  propertyId: string
+  ownerId: string
+  renterId: string
+  status: ContractStatus
+  currency: Currency
 }
 
 /**
@@ -32,6 +42,25 @@ export class ContractsFacade {
 
   async exists(id: string): Promise<boolean> {
     return (await this.contracts.findById(id)) !== null
+  }
+
+  /**
+   * El contrato en cualquier estado, o null si no existe en esta
+   * inmobiliaria. Un rescindido sigue existiendo: puede tener gastos
+   * adelantados pendientes (spec Fase 10, 7).
+   */
+  async find(id: string): Promise<ContractRef | null> {
+    const contract = await this.contracts.findById(id)
+    return contract
+      ? {
+          id: contract.id,
+          propertyId: contract.propertyId,
+          ownerId: contract.ownerId,
+          renterId: contract.renterId,
+          status: contract.status,
+          currency: contract.currency,
+        }
+      : null
   }
 
   async getActiveByProperty(

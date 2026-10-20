@@ -4,7 +4,7 @@
  */
 export { ContractsModule } from '../infrastructure/modules/contracts.module'
 export { ContractsFacade } from './contracts.facade'
-export type { ActiveContractRef } from './contracts.facade'
+export type { ActiveContractRef, ContractRef } from './contracts.facade'
 export {
   ContractStatus,
   Currency,

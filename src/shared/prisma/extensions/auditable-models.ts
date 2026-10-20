@@ -111,6 +111,12 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   Contract: { tenantScoped: true, audit: true, softDelete: false },
   ContractRentUpdate: { tenantScoped: true, audit: false, softDelete: false },
 
+  // Servicios y gastos adelantados (Fase 10): historial y borrado lógico. Un
+  // gasto adelantado es plata que se le descuenta a un tercero: cada cambio
+  // y cada baja quedan en el historial.
+  PropertyService: { tenantScoped: true, audit: true, softDelete: true },
+  AdvanceExpense: { tenantScoped: true, audit: true, softDelete: true },
+
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.
   // Auditarlos generaría una fila de historial por cada refresh.
