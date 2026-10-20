@@ -42,7 +42,7 @@ Nombres en inglés respecto de la spec: `datos-bancarios` → `bank-account`; `a
 | CBU inválido (largo o dígito verificador) → 400                              | `test/owners.e2e-spec.ts`, `owner.policy.spec.ts` |
 | Aislamiento entre inmobiliarias, también por id y al asignar a una propiedad | `test/owners.e2e-spec.ts`                         |
 
-Totales: 242 unitarios (verificados en esta sesión). **Los e2e de propietarios (`test/owners.e2e-spec.ts`) no se pudieron correr al cerrar la fase: Docker no estaba levantado.** Correr `npm run test:e2e` antes de mergear (ver `ANTES_DE_PROBAR.md`).
+Totales: 242 unitarios y 28 e2e de propietarios, verificados el 2026-10-20 contra Postgres.
 
 ## Pendiente
 
