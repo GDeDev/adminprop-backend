@@ -93,6 +93,9 @@ model Tenant {
   guarantors     Guarantor[]
   propertyPhotos PropertyPhoto[]
 
+  contracts           Contract[]
+  contractRentUpdates ContractRentUpdate[]
+
   @@map("tenants")
 }
 
@@ -666,4 +669,142 @@ model IndexValue {
 
   @@unique([indexType, period])
   @@map("index_values")
+}
+
+// ---------------------------------------------------------------------------
+// Contratos de alquiler (Fase 9, PRD 5.5)
+// ---------------------------------------------------------------------------
+
+/// Cómo se actualiza el alquiler (PRD 5.5: ICL / IPC / Fijo / Otro).
+enum RentUpdateType {
+  ICL
+  IPC
+  FIXED
+  OTHER
+}
+
+/// Cada cuántos meses se actualiza (PRD 5.5: mensual / trimestral / cuatrimestral).
+enum RentUpdateFrequency {
+  MONTHLY
+  QUARTERLY
+  FOUR_MONTHLY
+}
+
+enum ContractStatus {
+  ACTIVE
+  FINISHED
+  TERMINATED
+}
+
+/// De dónde salió cada valor del alquiler.
+enum RentUpdateSource {
+  /// El canon inicial, al crear el contrato.
+  INITIAL
+  /// Un aumento por índice (ICL/IPC), con los valores usados.
+  INDEX
+  /// Un aumento cargado a mano (contratos "Fijo"/"Otro").
+  MANUAL
+}
+
+/// Contrato de alquiler (PRD 5.5).
+///
+/// Propiedad, propietario, inquilino y garante son ids de otros módulos,
+/// **sin FK** (se validan por las facades). Nunca se borra: un contrato
+/// finalizado o rescindido es historial. El alquiler vigente no está acá:
+/// es la última fila de `contract_rent_updates` (D-53). Los servicios del
+/// contrato son de la Fase 10 (`property_services.contract_id`).
+model Contract {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  propertyId  String  @map("property_id") @db.Uuid
+  /// Copiado del propietario de la propiedad al crear el contrato.
+  ownerId     String  @map("owner_id") @db.Uuid
+  renterId    String  @map("renter_id") @db.Uuid
+  guarantorId String? @map("guarantor_id") @db.Uuid
+
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+
+  initialRent         Decimal             @map("initial_rent") @db.Decimal(14, 2)
+  currency            Currency
+  rentUpdateType      RentUpdateType      @map("rent_update_type")
+  rentUpdateFrequency RentUpdateFrequency @map("rent_update_frequency")
+  /// Depósito en garantía. Estático: no sigue a los aumentos (A-1).
+  deposit             Decimal             @db.Decimal(14, 2)
+  /// Honorarios de administración, en %, fijados al crear (spec Fase 9, 4).
+  feePercentage       Decimal             @map("fee_percentage") @db.Decimal(5, 2)
+
+  status ContractStatus @default(ACTIVE)
+
+  contractPdfKey String? @map("contract_pdf_key") @db.VarChar(500)
+  contractPdfUrl String? @map("contract_pdf_url") @db.VarChar(1000)
+  notes          String? @db.Text
+
+  // Seguro de caución (PRD 5.5)
+  hasSurety         Boolean   @default(false) @map("has_surety")
+  insurerName       String?   @map("insurer_name") @db.VarChar(150)
+  /// Obligatorio con caución: ahí va la alerta automática (RN-10).
+  insurerAlertEmail String?   @map("insurer_alert_email") @db.VarChar(255)
+  policyNumber      String?   @map("policy_number") @db.VarChar(100)
+  policyExpiresAt   DateTime? @map("policy_expires_at") @db.Date
+  policyPdfKey      String?   @map("policy_pdf_key") @db.VarChar(500)
+  policyPdfUrl      String?   @map("policy_pdf_url") @db.VarChar(1000)
+
+  // Rescisión anticipada (RN-09). Se completan al rescindir y no cambian más.
+  terminatedAt          DateTime? @map("terminated_at") @db.Date
+  terminationNotifiedAt DateTime? @map("termination_notified_at") @db.Date
+  terminationPenalty    Decimal?  @map("termination_penalty") @db.Decimal(14, 2)
+  terminationFutureRent Decimal?  @map("termination_future_rent") @db.Decimal(14, 2)
+
+  /// Contrato al que renueva (sin FK: autorreferencia que no hace falta navegar).
+  renewedFromId String? @map("renewed_from_id") @db.Uuid
+
+  rentUpdates ContractRentUpdate[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  /// Un solo contrato ACTIVO por propiedad (RN-04) y por inquilino (RN-05):
+  /// índices únicos parciales en la migración `add_contracts`.
+  @@index([tenantId, status, endDate])
+  @@index([tenantId, propertyId])
+  @@index([tenantId, renterId])
+  @@index([tenantId, ownerId])
+  @@map("contracts")
+}
+
+/// Historial del alquiler de un contrato. La primera fila es el canon
+/// inicial; cada aumento agrega una. El vigente es la de mayor
+/// `effective_from` (D-53). Con índice, guarda los valores usados para poder
+/// reconstruir la cuenta (PRD 9.5).
+model ContractRentUpdate {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contractId String   @map("contract_id") @db.Uuid
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  effectiveFrom DateTime         @map("effective_from") @db.Date
+  previousRent  Decimal?         @map("previous_rent") @db.Decimal(14, 2)
+  newRent       Decimal          @map("new_rent") @db.Decimal(14, 2)
+  source        RentUpdateSource
+
+  indexType       IndexType? @map("index_type")
+  /// `AAAA-MM` del valor anterior y del nuevo.
+  indexFromPeriod String?    @map("index_from_period") @db.VarChar(7)
+  indexToPeriod   String?    @map("index_to_period") @db.VarChar(7)
+  indexFromValue  Decimal?   @map("index_from_value") @db.Decimal(14, 6)
+  indexToValue    Decimal?   @map("index_to_value") @db.Decimal(14, 6)
+
+  /// Usuario que lo aplicó. Null si lo aplicó el cron (Fase 13).
+  appliedById String? @map("applied_by_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, contractId, effectiveFrom])
+  @@map("contract_rent_updates")
 }

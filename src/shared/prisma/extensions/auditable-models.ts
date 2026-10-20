@@ -105,6 +105,12 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   // misma dice de dónde salió y cuándo, y nunca se edita ni se borra.
   IndexValue: { tenantScoped: false, audit: false, softDelete: false },
 
+  // Contratos (Fase 9): historial de cada cambio (notas, caución, garante,
+  // estado), sin borrado lógico porque no se borran nunca. Cada aumento del
+  // alquiler es su propia fila en el historial del canon: no se audita aparte.
+  Contract: { tenantScoped: true, audit: true, softDelete: false },
+  ContractRentUpdate: { tenantScoped: true, audit: false, softDelete: false },
+
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.
   // Auditarlos generaría una fila de historial por cada refresh.
