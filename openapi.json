@@ -6066,6 +6066,760 @@
         ]
       }
     },
+    "/api/v1/properties/{propertyId}/services": {
+      "get": {
+        "description": "Todos los de la propiedad (de la propiedad y de sus contratos), cada uno con su estado calculado. `contractId` deja sólo los de ese contrato.",
+        "operationId": "ServicesController_listByProperty_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contractId",
+            "required": false,
+            "in": "query",
+            "description": "Sólo los de ese contrato.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PropertyServiceDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Servicios de una propiedad",
+        "tags": [
+          "Services"
+        ]
+      },
+      "post": {
+        "description": "Sin `contractId` es un servicio de la propiedad, que sus contratos heredan. Con vencimiento exige `dueDate`; con aumentos, `increaseFrequency`.",
+        "operationId": "ServicesController_create_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServiceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyServiceDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falta la fecha de vencimiento o la frecuencia de aumento",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Propiedad inexistente, contrato de otra propiedad, o tipo de servicio inexistente o desactivado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Alta de un servicio en una propiedad",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/api/v1/contracts/{contractId}/services": {
+      "get": {
+        "description": "Los cargados para el contrato (`scope: CONTRACT`) más los de la propiedad sin contrato, que hereda (`scope: PROPERTY`).",
+        "operationId": "ServicesController_listByContract_api/v1",
+        "parameters": [
+          {
+            "name": "contractId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContractServiceDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Servicios que aplican a un contrato",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/api/v1/services/overdue": {
+      "get": {
+        "description": "Los que tienen vencimiento y la fecha ya pasó, los más atrasados primero, con la propiedad. Filtrable por propiedad.",
+        "operationId": "ServicesController_listOverdue_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "propertyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Servicios vencidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/OverdueServiceDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Servicios vencidos de la inmobiliaria (dashboard)",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/api/v1/services/{id}": {
+      "patch": {
+        "description": "Todo menos la propiedad. Vencimiento y aumentos se validan sobre el servicio resultante.",
+        "operationId": "ServicesController_update_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateServiceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyServiceDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar un servicio",
+        "tags": [
+          "Services"
+        ]
+      },
+      "delete": {
+        "operationId": "ServicesController_remove_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Eliminar un servicio (borrado lógico)",
+        "tags": [
+          "Services"
+        ]
+      }
+    },
+    "/api/v1/contracts/{contractId}/advance-expenses": {
+      "get": {
+        "description": "`settled=true|false` filtra descontados o pendientes. Los totales son del contrato entero, sin importar el filtro.",
+        "operationId": "AdvanceExpensesController_list_api/v1",
+        "parameters": [
+          {
+            "name": "contractId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "settled",
+            "required": false,
+            "in": "query",
+            "description": "true: sólo los descontados en una liquidación; false: sólo los pendientes.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvanceExpenseListDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Gastos adelantados de un contrato",
+        "tags": [
+          "Advance expenses"
+        ]
+      },
+      "post": {
+        "description": "Multipart: `amount`, `description`, `expenseDate`, `currency?` (la del contrato si no viene) y `file` (JPG, PNG, WebP o PDF, hasta 10 MB, obligatorio). El contrato puede estar en cualquier estado.",
+        "operationId": "AdvanceExpensesController_create_api/v1",
+        "parameters": [
+          {
+            "name": "contractId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount",
+                  "description",
+                  "expenseDate",
+                  "file"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "string",
+                    "example": "15000.00"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "expenseDate": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "ARS",
+                      "USD"
+                    ]
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvanceExpenseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sin comprobante, comprobante inválido, monto no positivo o fecha inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "El contrato no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Registrar un gasto adelantado, con su comprobante",
+        "tags": [
+          "Advance expenses"
+        ]
+      }
+    },
+    "/api/v1/advance-expenses/{id}": {
+      "patch": {
+        "description": "Monto, descripción y fecha. Un gasto ya descontado en una liquidación no se edita (409).",
+        "operationId": "AdvanceExpensesController_update_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAdvanceExpenseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvanceExpenseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya descontado en una liquidación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar un gasto pendiente",
+        "tags": [
+          "Advance expenses"
+        ]
+      },
+      "delete": {
+        "description": "Un gasto ya descontado en una liquidación no se elimina (409). El comprobante se borra del storage.",
+        "operationId": "AdvanceExpensesController_remove_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya descontado en una liquidación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Eliminar un gasto pendiente (borrado lógico, sólo admin)",
+        "tags": [
+          "Advance expenses"
+        ]
+      }
+    },
     "/api/v1/examples": {
       "post": {
         "operationId": "ExampleItemsController_create_api/v1",
@@ -9520,6 +10274,634 @@
           "startDate",
           "endDate"
         ]
+      },
+      "ServiceTypeRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isActive"
+        ]
+      },
+      "PropertyServiceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "propertyId": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string",
+            "nullable": true
+          },
+          "serviceType": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceTypeRefDto"
+              }
+            ]
+          },
+          "paidBy": {
+            "type": "string",
+            "enum": [
+              "RENTER",
+              "OWNER"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "hasDueDate": {
+            "type": "boolean"
+          },
+          "dueDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "hasIncrease": {
+            "type": "boolean"
+          },
+          "increaseFrequency": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "QUARTERLY",
+              "FOUR_MONTHLY"
+            ],
+            "nullable": true
+          },
+          "managedByAgency": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "UP_TO_DATE",
+              "OVERDUE"
+            ],
+            "description": "Calculado al leer: vencido si la fecha de vencimiento ya pasó"
+          },
+          "daysOverdue": {
+            "type": "number",
+            "description": "Días desde el vencimiento; 0 si está al día"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "propertyId",
+          "contractId",
+          "serviceType",
+          "paidBy",
+          "currency",
+          "hasDueDate",
+          "dueDate",
+          "hasIncrease",
+          "increaseFrequency",
+          "managedByAgency",
+          "notes",
+          "status",
+          "daysOverdue",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateServiceDto": {
+        "type": "object",
+        "properties": {
+          "contractId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contrato al que pertenece. Sin contrato es un servicio de la propiedad, que sus contratos heredan."
+          },
+          "serviceTypeId": {
+            "type": "string",
+            "description": "Tipo de servicio del maestro (activo)."
+          },
+          "paidBy": {
+            "type": "string",
+            "enum": [
+              "RENTER",
+              "OWNER"
+            ],
+            "example": "RENTER"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "example": "ARS"
+          },
+          "hasDueDate": {
+            "type": "boolean",
+            "description": "Si tiene fecha de vencimiento (exige `dueDate`)."
+          },
+          "dueDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "example": "2026-11-10"
+          },
+          "hasIncrease": {
+            "type": "boolean",
+            "description": "Si tiene aumentos periódicos (exige `increaseFrequency`)."
+          },
+          "increaseFrequency": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "QUARTERLY",
+              "FOUR_MONTHLY"
+            ],
+            "nullable": true,
+            "example": "QUARTERLY"
+          },
+          "managedByAgency": {
+            "type": "boolean",
+            "description": "Si la inmobiliaria gestiona el pago, o es sólo informativo (igual puede tener vencimiento)."
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "serviceTypeId",
+          "paidBy",
+          "currency",
+          "hasDueDate",
+          "hasIncrease",
+          "managedByAgency"
+        ]
+      },
+      "ContractServiceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "propertyId": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string",
+            "nullable": true
+          },
+          "serviceType": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceTypeRefDto"
+              }
+            ]
+          },
+          "paidBy": {
+            "type": "string",
+            "enum": [
+              "RENTER",
+              "OWNER"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "hasDueDate": {
+            "type": "boolean"
+          },
+          "dueDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "hasIncrease": {
+            "type": "boolean"
+          },
+          "increaseFrequency": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "QUARTERLY",
+              "FOUR_MONTHLY"
+            ],
+            "nullable": true
+          },
+          "managedByAgency": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "UP_TO_DATE",
+              "OVERDUE"
+            ],
+            "description": "Calculado al leer: vencido si la fecha de vencimiento ya pasó"
+          },
+          "daysOverdue": {
+            "type": "number",
+            "description": "Días desde el vencimiento; 0 si está al día"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "CONTRACT",
+              "PROPERTY"
+            ],
+            "description": "CONTRACT: cargado para este contrato; PROPERTY: heredado de la propiedad"
+          }
+        },
+        "required": [
+          "id",
+          "propertyId",
+          "contractId",
+          "serviceType",
+          "paidBy",
+          "currency",
+          "hasDueDate",
+          "dueDate",
+          "hasIncrease",
+          "increaseFrequency",
+          "managedByAgency",
+          "notes",
+          "status",
+          "daysOverdue",
+          "createdAt",
+          "updatedAt",
+          "scope"
+        ]
+      },
+      "ServicePropertyRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "address"
+        ]
+      },
+      "OverdueServiceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "propertyId": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string",
+            "nullable": true
+          },
+          "serviceType": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceTypeRefDto"
+              }
+            ]
+          },
+          "paidBy": {
+            "type": "string",
+            "enum": [
+              "RENTER",
+              "OWNER"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "hasDueDate": {
+            "type": "boolean"
+          },
+          "dueDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "hasIncrease": {
+            "type": "boolean"
+          },
+          "increaseFrequency": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "QUARTERLY",
+              "FOUR_MONTHLY"
+            ],
+            "nullable": true
+          },
+          "managedByAgency": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "UP_TO_DATE",
+              "OVERDUE"
+            ],
+            "description": "Calculado al leer: vencido si la fecha de vencimiento ya pasó"
+          },
+          "daysOverdue": {
+            "type": "number",
+            "description": "Días desde el vencimiento; 0 si está al día"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "property": {
+            "$ref": "#/components/schemas/ServicePropertyRefDto"
+          }
+        },
+        "required": [
+          "id",
+          "propertyId",
+          "contractId",
+          "serviceType",
+          "paidBy",
+          "currency",
+          "hasDueDate",
+          "dueDate",
+          "hasIncrease",
+          "increaseFrequency",
+          "managedByAgency",
+          "notes",
+          "status",
+          "daysOverdue",
+          "createdAt",
+          "updatedAt",
+          "property"
+        ]
+      },
+      "UpdateServiceDto": {
+        "type": "object",
+        "properties": {
+          "contractId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contrato al que pertenece. Sin contrato es un servicio de la propiedad, que sus contratos heredan."
+          },
+          "serviceTypeId": {
+            "type": "string",
+            "description": "Tipo de servicio del maestro (activo)."
+          },
+          "paidBy": {
+            "type": "string",
+            "enum": [
+              "RENTER",
+              "OWNER"
+            ],
+            "example": "RENTER"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "example": "ARS"
+          },
+          "hasDueDate": {
+            "type": "boolean",
+            "description": "Si tiene fecha de vencimiento (exige `dueDate`)."
+          },
+          "dueDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "example": "2026-11-10"
+          },
+          "hasIncrease": {
+            "type": "boolean",
+            "description": "Si tiene aumentos periódicos (exige `increaseFrequency`)."
+          },
+          "increaseFrequency": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "QUARTERLY",
+              "FOUR_MONTHLY"
+            ],
+            "nullable": true,
+            "example": "QUARTERLY"
+          },
+          "managedByAgency": {
+            "type": "boolean",
+            "description": "Si la inmobiliaria gestiona el pago, o es sólo informativo (igual puede tener vencimiento)."
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          }
+        }
+      },
+      "AdvanceExpenseRegisteredByDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName"
+        ]
+      },
+      "AdvanceExpenseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string"
+          },
+          "renterId": {
+            "type": "string",
+            "description": "Copiado del contrato al registrarlo"
+          },
+          "amount": {
+            "type": "string",
+            "example": "15000.00"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "expenseDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "receiptUrl": {
+            "type": "string",
+            "description": "Comprobante (imagen o PDF)"
+          },
+          "settled": {
+            "type": "boolean",
+            "description": "Ya descontado en una liquidación"
+          },
+          "settlementId": {
+            "type": "string",
+            "nullable": true
+          },
+          "settledAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "registeredBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdvanceExpenseRegisteredByDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "contractId",
+          "renterId",
+          "amount",
+          "currency",
+          "description",
+          "expenseDate",
+          "receiptUrl",
+          "settled",
+          "settlementId",
+          "settledAt",
+          "registeredBy",
+          "createdAt"
+        ]
+      },
+      "AdvanceExpenseListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdvanceExpenseDto"
+            }
+          },
+          "pendingTotal": {
+            "type": "string",
+            "example": "15000.00",
+            "description": "Suma de los pendientes del contrato, sin importar el filtro"
+          },
+          "settledTotal": {
+            "type": "string",
+            "example": "0.00",
+            "description": "Suma de los ya descontados del contrato, sin importar el filtro"
+          }
+        },
+        "required": [
+          "items",
+          "pendingTotal",
+          "settledTotal"
+        ]
+      },
+      "UpdateAdvanceExpenseDto": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "example": "150333.33"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 300,
+            "example": "Arreglo de la canilla del baño"
+          },
+          "expenseDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-05"
+          }
+        }
       },
       "CreateExampleItemDto": {
         "type": "object",
