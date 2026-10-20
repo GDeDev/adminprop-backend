@@ -89,6 +89,8 @@ model Tenant {
 
   properties     Property[]
   owners         Owner[]
+  renters        Renter[]
+  guarantors     Guarantor[]
   propertyPhotos PropertyPhoto[]
 
   @@map("tenants")
@@ -537,4 +539,90 @@ model Owner {
   @@index([tenantId, bankCbu])
   @@index([tenantId, deletedAt])
   @@map("owners")
+}
+
+/// Con qué responde el garante (PRD 5.4): un inmueble propio o sus recibos de
+/// sueldo. El detalle es texto libre en el MVP.
+enum GuaranteeType {
+  PROPERTY
+  PAYSLIPS
+}
+
+/// Garante de un inquilino (PRD 5.4, Fase 8). Vive en el módulo de
+/// inquilinos: no existe sin ellos. Una misma persona puede garantizar a
+/// varios inquilinos.
+model Guarantor {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  firstName  String  @map("first_name") @db.VarChar(100)
+  lastName   String  @map("last_name") @db.VarChar(100)
+  /// DNI o CUIT, sólo dígitos. Único por inmobiliaria entre los no borrados
+  /// (índice parcial en la migración `add_renters`).
+  nationalId String  @map("national_id") @db.VarChar(11)
+  /// Nombre y apellido en minúsculas y sin acentos (ver `Owner.searchName`).
+  searchName String  @map("search_name") @db.VarChar(201)
+  phone      String? @db.VarChar(40)
+  email      String? @db.VarChar(255)
+  address    String? @db.VarChar(200)
+
+  guaranteeType   GuaranteeType @map("guarantee_type")
+  /// Dirección y datos registrales del inmueble, o empleador y sueldo
+  /// aproximado. Texto libre, nunca vacío.
+  guaranteeDetail String        @map("guarantee_detail") @db.Text
+  notes           String?       @db.Text
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  deletedById String?   @map("deleted_by_id") @db.Uuid
+
+  renters Renter[]
+
+  @@index([tenantId, lastName, firstName])
+  @@index([tenantId, deletedAt])
+  @@map("guarantors")
+}
+
+/// Inquilino (PRD 5.3, Fase 8). Un solo garante a la vez, con FK real: las
+/// dos tablas son del mismo módulo. `portalUserId` apunta a `users` sin FK
+/// (módulo de auth), igual que en `Owner`.
+model Renter {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  firstName  String    @map("first_name") @db.VarChar(100)
+  lastName   String    @map("last_name") @db.VarChar(100)
+  /// DNI o CUIT, sólo dígitos. Único por inmobiliaria entre los no borrados
+  /// (índice parcial en la migración `add_renters`).
+  nationalId String    @map("national_id") @db.VarChar(11)
+  /// Nombre y apellido en minúsculas y sin acentos (ver `Owner.searchName`).
+  searchName String    @map("search_name") @db.VarChar(201)
+  phone      String?   @db.VarChar(40)
+  email      String?   @db.VarChar(255)
+  address    String?   @db.VarChar(200)
+  /// Fecha (sin hora) en que entró a vivir. Opcional: muchos se cargan antes.
+  moveInDate DateTime? @map("move_in_date") @db.Date
+  notes      String?   @db.Text
+
+  guarantorId String?    @map("guarantor_id") @db.Uuid
+  guarantor   Guarantor? @relation(fields: [guarantorId], references: [id], onDelete: Restrict)
+
+  portalUserId String? @map("portal_user_id") @db.Uuid
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  deletedById String?   @map("deleted_by_id") @db.Uuid
+
+  @@index([tenantId, lastName, firstName])
+  @@index([tenantId, guarantorId])
+  @@index([tenantId, deletedAt])
+  @@map("renters")
 }

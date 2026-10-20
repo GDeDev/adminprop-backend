@@ -205,15 +205,6 @@ export class OwnerDetailDto extends OwnerSummaryDto {
   @ApiProperty({ type: [OwnerPropertyDto] }) properties: OwnerPropertyDto[]
 }
 
-export class PortalCredentialsDto {
-  @ApiProperty() userId: string
-  @ApiProperty({ description: 'Usuario del portal' }) email: string
-  @ApiProperty({
-    description: 'Se muestra una sola vez: no se puede recuperar',
-  })
-  password: string
-}
-
 class OwnerRefDto {
   @ApiProperty() id: string
   @ApiProperty() fullName: string

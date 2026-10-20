@@ -94,6 +94,12 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   // lógico. El DNI se libera con un índice parcial, no mutándolo.
   Owner: { tenantScoped: true, audit: true, softDelete: true },
 
+  // Inquilinos y garantes (Fase 8): historial (incluido cada cambio de
+  // garante, que es sensible) y borrado lógico. El DNI se libera con un
+  // índice parcial, como en propietarios.
+  Renter: { tenantScoped: true, audit: true, softDelete: true },
+  Guarantor: { tenantScoped: true, audit: true, softDelete: true },
+
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.
   // Auditarlos generaría una fila de historial por cada refresh.
