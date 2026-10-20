@@ -42,6 +42,6 @@ Totales: 228 unitarios y 129 e2e (12 suites).
 ## Pendiente
 
 - **Fase 7**: validar `ownerId` contra el módulo de propietarios (hoy se acepta cualquier UUID o null; el front todavía no lo manda).
-- **Fase 9**: reemplazar `NoContractsYet` y exponer una facade para que los contratos cambien el estado de la propiedad.
+- **Fase 9**: hecho (D-51): `PropertyContractsImpl` reemplaza a `NoContractsYet` y `PropertiesFacade.attachContract/detachContract` cambian el estado desde los contratos.
 - **Fase 22**: listado público (sólo `AVAILABLE`, sin notas).
 - Reordenar fotos (opcional en la spec): hoy la principal es la primera que se subió.

@@ -47,7 +47,7 @@ Totales: 242 unitarios y 28 e2e de propietarios, verificados el 2026-10-20 contr
 ## Pendiente
 
 - **Frontend de la fase** (listado, ficha, alta/edición con chequeo en vivo, acceso al portal): no empezado. Rama `feature/fase-07-propietarios` del frontend creada, sin commits.
-- **Fase 9**: `PropertiesFacade.portfolios()` pasa a contar propiedades con contrato activo (D-39).
+- **Fase 9**: hecho: `PropertiesFacade.portfolios()` cuenta propiedades con contrato activo (D-39, cerrada en D-51).
 - **Fase 11**: filtro `conDeuda` en el listado.
 - **Fase 12**: historial de liquidaciones en la ficha; reutilizar `appliesReducedFee` al liquidar.
 - **Fase 14**: mandar por email la contraseña del portal (hoy se muestra una vez en pantalla).

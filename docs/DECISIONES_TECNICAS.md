@@ -370,7 +370,7 @@ refreshToken, tokenType, expiresIn } }`.
 
 - La spec (3.7) bloquea la baja sólo con contratos activos. Se bloquea con **cualquier** propiedad asignada (409 con la cantidad): si no, quedarían propiedades apuntando a un propietario borrado. Para darlo de baja, primero se reasignan o se borran sus propiedades. Si Micaela prefiere la regla literal, es cambiar una condición en `DeleteOwnerHandler`.
 
-### D-39 · "Propiedad activa" para el honorario reducido = alquilada, hasta la Fase 9
+### D-39 · "Propiedad activa" para el honorario reducido = alquilada, hasta la Fase 9 (cerrada en D-51)
 
 - RN-07 cuenta propiedades con contrato activo. Todavía no hay contratos, así que `PropertiesFacade.portfolios()` cuenta las que están en estado `RENTED`. La Fase 9 cambia esa cuenta dentro de la facade; quien pregunta (propietarios, y después liquidaciones) no se entera.
 - La regla en sí (`appliesReducedFee(activas, umbral)`) vive en `owners/domain/reduced-fee.ts` y se exporta por `owners/public`: es la **única** implementación, la Fase 12 la reutiliza al liquidar. El umbral sale de `tenants.reduced_fee_threshold` (default 3); con 0, la inmobiliaria no usa el beneficio.
@@ -428,3 +428,72 @@ refreshToken, tokenType, expiresIn } }`.
 ### D-50 · `PortalCredentialsDto` vive en `auth/public`
 
 - Propietarios e inquilinos devuelven la misma respuesta al generar el acceso al portal. Dos clases con el mismo nombre en módulos distintos chocarían en el OpenAPI (un solo esquema `PortalCredentialsDto`, el último pisa al anterior). El DTO pasó al `public/` de auth, junto al tipo `PortalCredentials` que ya exportaba, y los dos módulos lo importan de ahí.
+
+## Fase 9 — Contratos (sin supervisión)
+
+### D-51 · Propiedades e inquilinos saben de su contrato activo por una columna, no importando a contratos
+
+- **Contexto**: contratos depende de propiedades, propietarios, inquilinos, inmobiliarias e índices por sus facades. Para que propiedades e inquilinos respondan "¿tiene contrato activo?" sin importar a contratos (sería un ciclo de módulos), hacía falta otro camino.
+- **Decisión**: `properties.active_contract_id` y `renters.active_contract_id` (uuid, sin FK). Sólo las escribe el módulo de contratos, por `PropertiesFacade.attachContract/detachContract` (que además pasan la propiedad a `RENTED`/`AVAILABLE`) y `RentersFacade.attachContract/detachContract`, dentro de su propia transacción. Los puertos `PropertyContracts` y `RenterContracts` conservan su API; `NoContractsYet` desapareció y las implementaciones reales (`PropertyContractsImpl`, `RenterContractsImpl`) leen esas columnas. Propiedades suma `last_contract_id`, que nunca se limpia: es el "historial de contratos" que bloquea el borrado (spec Fase 6, 3.8) y que sigue bloqueándolo después de rescindir.
+- Con eso se cierra D-39: `PropertiesFacade.portfolios()` cuenta como activas las propiedades con `active_contract_id`, no las que están en `RENTED`. Una alquilada a mano, sin contrato, ya no suma para el honorario reducido. La regla (`appliesReducedFee`) no cambió.
+- Lo que sigue sin resolverse por este camino: el filtro `propertyId` de `GET /renters` (D-46) sigue sin filtrar, porque inquilinos no conoce la propiedad de cada contrato; `GET /contracts?renterId=` es la consulta equivalente. La ficha del inquilino trae `activeContract: { id }` y el listado `activeContractId`.
+
+### D-52 · Transacciones entre módulos por contexto (`PrismaService.transaction`)
+
+- **Contexto**: crear un contrato, su canon inicial y marcar propiedad e inquilino tiene que ser atómico, pero las escrituras en propiedades e inquilinos pasan por sus facades y sus repositorios, que usan `prisma.db` y no reciben un cliente de transacción.
+- **Decisión**: `TransactionContext` (`AsyncLocalStorage`, como `RequestContext`) guarda el cliente de la transacción abierta; `prisma.db` pasó a ser un getter que devuelve ese cliente si hay uno, y `PrismaService.transaction(fn)` abre una interactiva y corre `fn` adentro. Nadie cambia de firma: cualquier repositorio llamado adentro participa. Una `transaction()` anidada se suma a la abierta. Las extensiones (tenant, soft delete, auditoría) aplican también al cliente de la transacción, así que el `tenantId` se completa igual y el alta queda auditada.
+- Límites: `db.$transaction([...])` (la forma en lote que usan los listados) no se puede abrir adentro de una interactiva; ningún flujo de esta fase lo hace. La auditoría escribe con el cliente base, fuera de la transacción: un rollback puede dejar una fila de historial de un cambio que no ocurrió (queda visible en los logs).
+
+### D-53 · El alquiler vigente es la última fila de `contract_rent_updates`
+
+- **Contexto**: el PRD guarda `monto_inicial` y pide que los aumentos queden registrados con el índice usado (9.5).
+- **Decisión**: `contracts.initial_rent` no cambia nunca. Cada aumento es una fila de `contract_rent_updates` (`effective_from`, `previous_rent`, `new_rent`, `source` `INITIAL | INDEX | MANUAL`, y con índice: tipo, períodos y valores usados, `applied_by_id`). La primera fila se crea con el contrato (`INITIAL`); el vigente es la de mayor `effective_from`. La ficha trae el historial entero (`rentUpdates`, del más reciente al más viejo). Se conserva toda la información: con índice se puede rehacer la cuenta años después.
+
+### D-54 · Índices ICL/IPC en un módulo propio, globales y cargados a mano hasta la Fase 13
+
+- **Contexto**: la spec (3.8) exige el índice del período para aplicar un aumento, y la tabla de índices es de la Fase 13.
+- **Decisión**: módulo `src/modules/indices` con la tabla `index_values` (`index_type` `ICL | IPC`, `period` `AAAA-MM`, `value` `DECIMAL(14,6)`, `source`, único por tipo y mes). **Sin `tenant_id`** (`tenantScoped: false`): el índice es un dato público, igual para todas las inmobiliarias. `POST /indices` (sólo admin: un valor mal cargado cambia el alquiler de todos los contratos que lo usen) y `GET /indices?type=`. Un mes ya cargado no se pisa (409 `INDEX_PERIOD_TAKEN`): los contratos que lo aplicaron guardaron el valor que vieron. `IndicesFacade.getValue(tipo, período)` es lo que usa contratos; la Fase 13 le suma el job que los trae de la fuente oficial y deja `source` con el nombre de la fuente.
+
+### D-55 · `PATCH /contracts/:id` edita sólo notas, caución y garante
+
+- **Contexto**: la spec no dice qué es editable después de crear.
+- **Decisión**: notas, el bloque de caución (con la misma regla del email, evaluada sobre la caución resultante) y el garante (validado). Fechas, montos, moneda, tipo y frecuencia de actualización, partes y estado **no** se editan: cambian por un aumento (`POST /contracts/:id/rent-updates`), una rescisión o una renovación, que dejan su propio registro. Un dato cargado mal en el alta se corrige rescindiendo y creando de nuevo, o en la base con registro.
+
+### D-56 · Prorrateo del canon futuro para la multa de rescisión
+
+- **Contexto**: RN-09 dice "10 % × (canon_actual × meses_o_dias_restantes)" sin definir cómo se cuentan.
+- **Decisión** (`ContractPolicy.termination`, pura y con tests): desde la fecha de notificación se cuentan **meses enteros** (mismo día de cada mes, recortado al fin de mes) mientras no pasen el fin del contrato; lo que queda son **días sueltos** hasta el fin, sin contar el día de fin. Canon futuro = alquiler vigente × meses + alquiler × días / 30, con un solo redondeo en los días (30 días = exactamente un mes; redondear por día daría 99.999,90). Multa = 10 % de eso (`TERMINATION_PENALTY_PERCENT`, constante del PRD; si alguna inmobiliaria quisiera otra, pasa a `tenants` como los honorarios). No se proyectan aumentos futuros (spec 4). Ejemplo: contrato del 1/1/2026 al 31/12/2027, alquiler 100.000, notificado el 1/12/2026 → 12 meses + 30 días → canon futuro 1.300.000, multa 130.000. La notificación va desde el inicio hasta el día anterior al fin (400 fuera de eso); `terminated_at` = fecha de notificación. La multa queda guardada en el contrato; cobrarla es de la Fase 11.
+
+### D-57 · El contrato que se está creando cuenta para el honorario reducido
+
+- **Contexto**: RN-07 habla de "3 o más propiedades con contratos activos"; al crear el tercer contrato, ¿cuenta él mismo?
+- **Decisión**: sí. Se toman las propiedades activas del propietario (`PropertiesFacade.portfolios`) **antes** de vincular el contrato y se suma 1; el tercer contrato activo del propietario ya nace con el honorario reducido (con el umbral por defecto). En una renovación la propiedad ya cuenta como activa y no se suma. Fijado al crear y nunca recalculado (spec 4); los contratos anteriores conservan el suyo.
+
+### D-58 · El propietario sale de la propiedad; `ownerId` no se recibe
+
+- **Contexto**: la spec (3.1) recibe `propietarioId` además de `propiedadId`.
+- **Decisión**: `POST /contracts` recibe `propertyId`, `renterId` y `guarantorId?`; `owner_id` se copia del propietario de la propiedad. Una propiedad sin propietario no acepta contrato (422 `CONTRACT_PROPERTY_WITHOUT_OWNER`): recibir los dos ids obligaría a validar que coincidan y a decidir qué hacer si no. El garante, si no viene, es el actual del inquilino (`null` explícito lo deja sin garante). Las referencias inexistentes son 422 (D-44): `CONTRACT_INVALID_PROPERTY`, `CONTRACT_INVALID_RENTER`, `CONTRACT_INVALID_GUARANTOR`; los conflictos de RN-04 y RN-05 son 409 (`CONTRACT_PROPERTY_ALREADY_RENTED`, `CONTRACT_RENTER_ALREADY_ACTIVE`), respaldados por índices únicos parciales (`WHERE status = 'ACTIVE'`).
+
+### D-59 · Los servicios del contrato son de la Fase 10
+
+- **Contexto**: la spec (3.1) recibe `servicios` en el alta.
+- **Decisión**: no se aceptan ni se guardan acá. La Fase 10 define `property_services` con `contract_id` nullable (spec Fase 10, 2.1): un servicio existe a nivel propiedad y se asocia al contrato cuando lo hay. Duplicarlo en `contracts` habría dejado dos fuentes de verdad.
+
+### D-60 · El aumento se aplica estricto, de a uno, con los índices del mes anterior y el nuevo
+
+- **Contexto**: la spec (3.8) pide aplicar "el aumento correspondiente" y 422 si falta el índice.
+- **Decisión**: la fecha del próximo aumento es la del último (`effective_from`) más la frecuencia (1, 3 o 4 meses). Antes de esa fecha es 409 `CONTRACT_RENT_UPDATE_NOT_DUE` (sin `force`: adelantar un aumento es cambiar el contrato); si cae después del fin, no quedan aumentos (mismo código, otro mensaje). Con ICL/IPC, nuevo = vigente × índice(mes del nuevo aumento) / índice(mes del aumento anterior), la razón con toda la precisión y un solo redondeo a centavos; falta alguno → 422 `CONTRACT_INDEX_MISSING` nombrando índice y mes. Con `FIXED`/`OTHER`, `newRent` es obligatorio (400 `CONTRACT_NEW_RENT_REQUIRED`). Cada llamada aplica un solo aumento: si hay varios atrasados, se llama varias veces; `ContractsFacade.listDueForRentUpdate(hoy)` le da al cron de la Fase 13 los contratos con uno pendiente.
+
+### D-61 · Los contratos no se borran ni se "finalizan" a mano; la renovación finaliza al original
+
+- **Contexto**: el PRD no tiene baja de contratos, y "finalizado" es un estado sin endpoint en la spec.
+- **Decisión**: sin `DELETE` (auditoría sí, borrado lógico no). A `FINISHED` se llega por renovación (`POST /contracts/:id/renew`, que exige el original activo y un inicio no anterior al suyo) o por `ContractsFacade.finishExpired(hoy)`, que cierra los activos con el fin pasado y libera propiedad e inquilino; la Fase 13 lo llama por inmobiliaria. Mientras tanto, un activo con el fin pasado se muestra con `expired: true` (PRD 9.1). `expiringSoon` (RN-12) es activo y con fin entre hoy y hoy + `tenants.contract_expiry_notice_days`, inclusive; uno vencido no está "por vencer".
+
+### D-62 · Los PDFs se validan por contenido y reemplazan al anterior
+
+- **Decisión**: `POST /contracts/:id/documents/contract` y `/policy`, multipart con el campo `file`. El handler mira los primeros bytes (`%PDF`) y el tamaño (hasta 10 MB) y responde 400 `CONTRACT_INVALID_DOCUMENT` con mensaje propio (sin `ParseFilePipe`, que daría un código genérico). Se sube el nuevo por `StoragePort` a `contracts/<id>/<kind>-<uuid>.pdf`, se guarda, y recién después se borra el anterior (un fallo al borrar se loguea y no rompe). Ninguno de los dos PDFs es obligatorio: la spec no lo exige y el escaneado suele llegar después.
+
+### Supuestos a confirmar con Micaela
+
+- **A-1 · El depósito es estático.** `contracts.deposit` se guarda al crear y no se actualiza con los aumentos (spec 4, consulta abierta). _Qué cambia si Micaela responde distinto (que sigue al alquiler)_: una tabla `contract_deposit_updates` con la misma forma que `contract_rent_updates`, una fila al crear y una por cada aumento (misma variación), y `deposit` en la ficha pasa a ser "el vigente". El alta no cambia.
+- **A-2 · Un contrato en USD guarda moneda y montos tal como vienen.** No hay cotización ni conversión en esta fase (spec 7: la conversión ocurre en el cobro, Fase 11). _Qué cambia si Micaela responde distinto (pide una cotización de referencia en el contrato)_: una columna `reference_exchange_rate` y su fecha; nada de lo de acá se recalcula.
