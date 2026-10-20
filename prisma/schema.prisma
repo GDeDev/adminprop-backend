@@ -637,3 +637,33 @@ model Renter {
   @@index([tenantId, deletedAt])
   @@map("renters")
 }
+
+// ---------------------------------------------------------------------------
+// Índices de actualización de alquileres (Fase 9; la Fase 13 los carga sola)
+// ---------------------------------------------------------------------------
+
+enum IndexType {
+  ICL
+  IPC
+}
+
+/// Valor mensual de un índice público (ICL del BCRA, IPC del INDEC).
+///
+/// **Global, sin `tenantId`**: el índice es el mismo para todas las
+/// inmobiliarias (D-54). Hoy se carga a mano por `POST /indices`; la Fase 13
+/// lo trae de la fuente oficial y deja `source` con el nombre de la fuente.
+model IndexValue {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  indexType IndexType @map("index_type")
+  /// Mes al que corresponde el valor, `AAAA-MM`.
+  period    String    @db.VarChar(7)
+  /// Decimal(14,6): el ICL se publica con varios decimales.
+  value     Decimal   @db.Decimal(14, 6)
+  /// De dónde salió: `manual`, `bcra`, `indec`...
+  source    String    @db.VarChar(40)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([indexType, period])
+  @@map("index_values")
+}

@@ -100,6 +100,11 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   Renter: { tenantScoped: true, audit: true, softDelete: true },
   Guarantor: { tenantScoped: true, audit: true, softDelete: true },
 
+  // Índices ICL/IPC (Fase 9): datos públicos, iguales para todas las
+  // inmobiliarias, así que no llevan tenant (D-54). Sin auditoría: la fila
+  // misma dice de dónde salió y cuándo, y nunca se edita ni se borra.
+  IndexValue: { tenantScoped: false, audit: false, softDelete: false },
+
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.
   // Auditarlos generaría una fila de historial por cada refresh.
