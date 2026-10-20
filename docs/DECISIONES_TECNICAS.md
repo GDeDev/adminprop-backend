@@ -395,3 +395,36 @@ refreshToken, tokenType, expiresIn } }`.
 ### D-43 · Búsqueda por nombre sin acentos, con columna derivada
 
 - `search_name` guarda "nombre apellido" en minúsculas y sin acentos, calculado al guardar; la búsqueda compara contra eso y contra el DNI, palabra por palabra en cualquier orden ("perez jose" y "jose perez" encuentran a "José Pérez"). Sin índice trigram por ahora: la cantidad de propietarios por inmobiliaria es chica (cientos, no millones).
+
+## Fase 8 — Inquilinos y garantes (sin supervisión)
+
+### D-44 · Garante inexistente → 422, no 400
+
+- La spec (6) pide 400 para un `guarantorId` que no existe. Se responde **422** con código `RENTER_INVALID_GUARANTOR`: es la misma situación que una propiedad con `ownerId` inexistente (`PROPERTY_INVALID_OWNER`, Fase 7) y el proyecto ya fijó que una referencia a algo que no existe en la inmobiliaria es una regla de negocio (`DomainErrorKind.BusinessRule` → 422), no un body mal formado (400, que queda para la validación del DTO). Cubre también al garante de otra inmobiliaria y al borrado. Si Micaela prefiere el 400 literal, es cambiar el `kind` de una excepción.
+
+### D-45 · No se borra un garante con inquilinos a cargo
+
+- La spec (3.2) bloquea la baja sólo si está vinculado a un contrato activo. Se bloquea con **cualquier** inquilino no borrado que lo tenga de garante (409 `GUARANTOR_IN_USE`, con la cantidad): si no, quedarían inquilinos apuntando a un garante borrado. Mismo criterio que D-38 para propietarios. Para darlo de baja, primero se les cambia el garante a sus inquilinos.
+- La baja del inquilino sí sigue la regla literal (409 `RENTER_HAS_ACTIVE_CONTRACT` con contrato activo) detrás del puerto `RenterContracts`, cuya única implementación hoy es `NoContractsYet`: la Fase 9 la reemplaza por una que pregunta al módulo de contratos, sin tocar la regla (mismo patrón que `PropertyContracts`, D-32).
+
+### D-46 · Filtros y campos de las Fases 9 y 11, en el contrato desde ya
+
+- `GET /renters` acepta y valida `paymentStatus` (`UP_TO_DATE | OVERDUE`) y `propertyId` (uuid), pero **no filtran** todavía: no hay cuotas (Fase 11) ni contratos (Fase 9) contra qué cruzar. Lo dice el Swagger de cada parámetro. Así el frontend deja los filtros armados (deshabilitados visualmente, como pide la spec 5.1) sin cambiar el contrato después.
+- Por lo mismo, `paymentStatus` viene siempre `null` en las vistas (tipado como enum nullable), y la ficha trae `activeContract: null` y `payments: []`, documentados como placeholders. Cuando las Fases 9 y 11 los completen, el tipo se amplía sin romper a nadie.
+
+### D-47 · Un solo módulo `renters` con las dos tablas y FK real al garante
+
+- Los garantes no existen sin inquilinos (spec 2.2, PRD 5.4), así que `guarantors` vive dentro del módulo `renters` y no en uno propio. Como las dos tablas son del mismo módulo, `renters.guarantor_id` es una **FK real** (`ON DELETE RESTRICT`), a diferencia de `owner_id` en propiedades (D-31, módulos distintos). `portal_user_id` sigue sin FK: `users` es del módulo de auth.
+- La ruta es `/renters` (y no `/tenants`): "tenant" en este sistema es la inmobiliaria. `RentersFacade` (`exists`, `describe`) queda lista para que la Fase 9 valide y muestre inquilinos en los contratos.
+
+### D-48 · Normalización de personas compartida en `shared/people`
+
+- Propietarios, inquilinos y garantes comparten nombre, DNI/CUIT, email y búsqueda sin acentos. En vez de copiar `OwnerPolicy`, lo común pasó a `src/shared/people/person-policy.ts` (`PersonPolicy`, `fullNameOf`, `personSearchWhere`): funciones puras sin Prisma ni NestJS. `PersonPolicy.parseNationalId` devuelve `null` en vez de lanzar, porque cada módulo tiene su excepción con su código (`OWNER_…`, `RENTER_…`, `GUARANTOR_…`). `OwnerPolicy` delega y conserva su API pública (los tests de la Fase 7 no cambiaron); lo propio de cada módulo (CBU, fecha de ingreso, detalle de garantía) sigue en su `domain/`.
+
+### D-49 · Fecha de ingreso como `DATE`, y como `AAAA-MM-DD` en la API
+
+- `move_in_date` es una fecha sin hora (`@db.Date`): "entró el 1 de marzo" no tiene zona horaria. En el dominio y en la API viaja como string `AAAA-MM-DD`; el repositorio la convierte a medianoche UTC al guardar y la recorta al leer, así ningún huso horario la corre un día. Se valida que exista en el calendario (`2026-02-30` → 400 `RENTER_INVALID_MOVE_IN_DATE`).
+
+### D-50 · `PortalCredentialsDto` vive en `auth/public`
+
+- Propietarios e inquilinos devuelven la misma respuesta al generar el acceso al portal. Dos clases con el mismo nombre en módulos distintos chocarían en el OpenAPI (un solo esquema `PortalCredentialsDto`, el último pisa al anterior). El DTO pasó al `public/` de auth, junto al tipo `PortalCredentials` que ya exportaba, y los dos módulos lo importan de ahí.
