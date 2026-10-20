@@ -4225,6 +4225,909 @@
         ]
       }
     },
+    "/api/v1/renters": {
+      "get": {
+        "description": "Cada inquilino trae a su garante. Los filtros `paymentStatus` (Fase 11) y `propertyId` (Fase 9) se aceptan y validan desde ya, pero todavía no filtran: no hay cuotas ni contratos contra qué cruzar.",
+        "operationId": "RentersController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Parte del nombre, del apellido o del DNI",
+            "schema": {
+              "example": "lopez",
+              "type": "string"
+            }
+          },
+          {
+            "name": "paymentStatus",
+            "required": false,
+            "in": "query",
+            "description": "Se valida pero todavía no filtra: el estado de pago llega con el motor de cobros (Fase 11).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "UP_TO_DATE",
+                "OVERDUE"
+              ]
+            }
+          },
+          {
+            "name": "propertyId",
+            "required": false,
+            "in": "query",
+            "description": "Se valida pero todavía no filtra: la propiedad del inquilino sale de su contrato (Fase 9).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inquilinos de la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/RenterSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar, con búsqueda por nombre o DNI",
+        "tags": [
+          "Renters"
+        ]
+      },
+      "post": {
+        "operationId": "RentersController_create_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRenterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenterDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DNI o fecha de ingreso inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya hay un inquilino con ese DNI",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "El garante no existe en la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Alta",
+        "tags": [
+          "Renters"
+        ]
+      }
+    },
+    "/api/v1/renters/check": {
+      "get": {
+        "description": "El DNI repetido bloquea el alta.",
+        "operationId": "RentersController_check_api/v1",
+        "parameters": [
+          {
+            "name": "nationalId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "30123456",
+              "type": "string"
+            }
+          },
+          {
+            "name": "excludeId",
+            "required": false,
+            "in": "query",
+            "description": "En una edición, el propio inquilino",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenterDataCheckDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Chequear el DNI mientras se completa el formulario",
+        "tags": [
+          "Renters"
+        ]
+      }
+    },
+    "/api/v1/renters/{id}": {
+      "get": {
+        "description": "`activeContract` (Fase 9) y `payments` (Fase 11) vienen vacíos hasta esas fases.",
+        "operationId": "RentersController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenterDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ficha completa, con el garante expandido",
+        "tags": [
+          "Renters"
+        ]
+      },
+      "patch": {
+        "description": "Incluye el cambio de garante (`guarantorId`, o null para sacarlo); queda en la auditoría.",
+        "operationId": "RentersController_update_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRenterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenterDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar",
+        "tags": [
+          "Renters"
+        ]
+      },
+      "delete": {
+        "description": "Con un contrato activo no se puede: 409.",
+        "operationId": "RentersController_remove_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Eliminar (borrado lógico, sólo admin)",
+        "tags": [
+          "Renters"
+        ]
+      }
+    },
+    "/api/v1/renters/{id}/portal-credentials": {
+      "post": {
+        "description": "Devuelve la contraseña una sola vez. Regenerarla invalida la anterior.",
+        "operationId": "RentersController_issuePortalCredentials_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalCredentialsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Otro acceso del portal ya usa ese email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "El inquilino no tiene email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Generar (o regenerar) el acceso al portal",
+        "tags": [
+          "Renters"
+        ]
+      }
+    },
+    "/api/v1/guarantors": {
+      "get": {
+        "description": "Cada garante trae cuántos inquilinos garantiza.",
+        "operationId": "GuarantorsController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Parte del nombre, del apellido o del DNI",
+            "schema": {
+              "example": "gomez",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Garantes de la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/GuarantorSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar, con búsqueda por nombre o DNI",
+        "tags": [
+          "Guarantors"
+        ]
+      },
+      "post": {
+        "operationId": "GuarantorsController_create_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGuarantorDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuarantorDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DNI inválido o detalle de la garantía vacío",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya hay un garante con ese DNI",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Alta",
+        "tags": [
+          "Guarantors"
+        ]
+      }
+    },
+    "/api/v1/guarantors/check": {
+      "get": {
+        "description": "Si el DNI ya está cargado, el formulario de inquilino puede ofrecer elegirlo en vez de crearlo.",
+        "operationId": "GuarantorsController_check_api/v1",
+        "parameters": [
+          {
+            "name": "nationalId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "27999888",
+              "type": "string"
+            }
+          },
+          {
+            "name": "excludeId",
+            "required": false,
+            "in": "query",
+            "description": "En una edición, el propio garante",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuarantorDataCheckDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Chequear el DNI mientras se completa el formulario",
+        "tags": [
+          "Guarantors"
+        ]
+      }
+    },
+    "/api/v1/guarantors/{id}": {
+      "get": {
+        "operationId": "GuarantorsController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuarantorDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ficha completa, con los inquilinos que garantiza",
+        "tags": [
+          "Guarantors"
+        ]
+      },
+      "patch": {
+        "operationId": "GuarantorsController_update_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGuarantorDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuarantorDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar",
+        "tags": [
+          "Guarantors"
+        ]
+      },
+      "delete": {
+        "description": "Si algún inquilino lo tiene de garante no se puede: 409.",
+        "operationId": "GuarantorsController_remove_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Eliminar (borrado lógico, sólo admin)",
+        "tags": [
+          "Guarantors"
+        ]
+      }
+    },
     "/api/v1/examples": {
       "post": {
         "operationId": "ExampleItemsController_create_api/v1",
@@ -6044,6 +6947,663 @@
           "email",
           "password"
         ]
+      },
+      "GuarantorRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName"
+        ]
+      },
+      "RenterSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "nationalId": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "moveInDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "description": "AAAA-MM-DD"
+          },
+          "guarantor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GuarantorRefDto"
+              }
+            ]
+          },
+          "hasPortalAccess": {
+            "type": "boolean"
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "UP_TO_DATE",
+              "OVERDUE"
+            ],
+            "nullable": true,
+            "description": "Estado de pago. Siempre null hasta el motor de cobros (Fase 11)."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "fullName",
+          "nationalId",
+          "phone",
+          "email",
+          "moveInDate",
+          "guarantor",
+          "hasPortalAccess",
+          "paymentStatus",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "RenterRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName"
+        ]
+      },
+      "RenterDataCheckDto": {
+        "type": "object",
+        "properties": {
+          "nationalIdTakenBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RenterRefDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "nationalIdTakenBy"
+        ]
+      },
+      "RenterGuarantorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "nationalId": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "guaranteeType": {
+            "type": "string",
+            "enum": [
+              "PROPERTY",
+              "PAYSLIPS"
+            ]
+          },
+          "guaranteeDetail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName",
+          "nationalId",
+          "phone",
+          "email",
+          "guaranteeType",
+          "guaranteeDetail"
+        ]
+      },
+      "RenterDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "nationalId": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "moveInDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "description": "AAAA-MM-DD"
+          },
+          "hasPortalAccess": {
+            "type": "boolean"
+          },
+          "paymentStatus": {
+            "type": "string",
+            "enum": [
+              "UP_TO_DATE",
+              "OVERDUE"
+            ],
+            "nullable": true,
+            "description": "Estado de pago. Siempre null hasta el motor de cobros (Fase 11)."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "guarantor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RenterGuarantorDto"
+              }
+            ]
+          },
+          "activeContract": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": false,
+            "description": "Contrato activo. Siempre null hasta los contratos (Fase 9)."
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false
+            },
+            "description": "Historial de pagos. Siempre vacío hasta el motor de cobros (Fase 11)."
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "fullName",
+          "nationalId",
+          "phone",
+          "email",
+          "moveInDate",
+          "hasPortalAccess",
+          "paymentStatus",
+          "createdAt",
+          "updatedAt",
+          "address",
+          "notes",
+          "guarantor",
+          "activeContract",
+          "payments"
+        ]
+      },
+      "CreateRenterDto": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "example": "Iván",
+            "maxLength": 100
+          },
+          "lastName": {
+            "type": "string",
+            "example": "López",
+            "maxLength": 100
+          },
+          "nationalId": {
+            "type": "string",
+            "example": "30123456",
+            "description": "DNI o CUIT. Se aceptan puntos y guiones; se guarda sólo en dígitos."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Hace falta para generarle acceso al portal."
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "moveInDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "example": "2026-03-01",
+            "description": "Fecha de ingreso, sin hora (AAAA-MM-DD)."
+          },
+          "guarantorId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Garante (tiene que existir en la inmobiliaria). Opcional."
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "firstName",
+          "lastName",
+          "nationalId"
+        ]
+      },
+      "UpdateRenterDto": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "example": "Iván",
+            "maxLength": 100
+          },
+          "lastName": {
+            "type": "string",
+            "example": "López",
+            "maxLength": 100
+          },
+          "nationalId": {
+            "type": "string",
+            "example": "30123456",
+            "description": "DNI o CUIT. Se aceptan puntos y guiones; se guarda sólo en dígitos."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Hace falta para generarle acceso al portal."
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "moveInDate": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "example": "2026-03-01",
+            "description": "Fecha de ingreso, sin hora (AAAA-MM-DD)."
+          },
+          "guarantorId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Garante (tiene que existir en la inmobiliaria). Opcional."
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          }
+        }
+      },
+      "GuarantorSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "nationalId": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "guaranteeType": {
+            "type": "string",
+            "enum": [
+              "PROPERTY",
+              "PAYSLIPS"
+            ]
+          },
+          "guaranteeDetail": {
+            "type": "string"
+          },
+          "renterCount": {
+            "type": "number",
+            "description": "Inquilinos que garantiza"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "fullName",
+          "nationalId",
+          "phone",
+          "email",
+          "guaranteeType",
+          "guaranteeDetail",
+          "renterCount",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "GuarantorDataCheckDto": {
+        "type": "object",
+        "properties": {
+          "nationalIdTakenBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GuarantorRefDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "nationalIdTakenBy"
+        ]
+      },
+      "GuarantorDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "nationalId": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "guaranteeType": {
+            "type": "string",
+            "enum": [
+              "PROPERTY",
+              "PAYSLIPS"
+            ]
+          },
+          "guaranteeDetail": {
+            "type": "string"
+          },
+          "renterCount": {
+            "type": "number",
+            "description": "Inquilinos que garantiza"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "renters": {
+            "description": "Inquilinos que garantiza",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RenterRefDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "fullName",
+          "nationalId",
+          "phone",
+          "email",
+          "guaranteeType",
+          "guaranteeDetail",
+          "renterCount",
+          "createdAt",
+          "updatedAt",
+          "address",
+          "notes",
+          "renters"
+        ]
+      },
+      "CreateGuarantorDto": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "example": "Marta",
+            "maxLength": 100
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Gómez",
+            "maxLength": 100
+          },
+          "nationalId": {
+            "type": "string",
+            "example": "27999888",
+            "description": "DNI o CUIT. Se aceptan puntos y guiones; se guarda sólo en dígitos."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "guaranteeType": {
+            "type": "string",
+            "enum": [
+              "PROPERTY",
+              "PAYSLIPS"
+            ],
+            "example": "PROPERTY",
+            "description": "Con qué responde: un inmueble o sus recibos de sueldo."
+          },
+          "guaranteeDetail": {
+            "type": "string",
+            "maxLength": 5000,
+            "example": "Calle 7 123, La Plata. Matrícula 12345.",
+            "description": "Texto libre, no vacío: dirección y datos registrales del inmueble, o empleador y sueldo aproximado."
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          }
+        },
+        "required": [
+          "firstName",
+          "lastName",
+          "nationalId",
+          "guaranteeType",
+          "guaranteeDetail"
+        ]
+      },
+      "UpdateGuarantorDto": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "example": "Marta",
+            "maxLength": 100
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Gómez",
+            "maxLength": 100
+          },
+          "nationalId": {
+            "type": "string",
+            "example": "27999888",
+            "description": "DNI o CUIT. Se aceptan puntos y guiones; se guarda sólo en dígitos."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "guaranteeType": {
+            "type": "string",
+            "enum": [
+              "PROPERTY",
+              "PAYSLIPS"
+            ],
+            "example": "PROPERTY",
+            "description": "Con qué responde: un inmueble o sus recibos de sueldo."
+          },
+          "guaranteeDetail": {
+            "type": "string",
+            "maxLength": 5000,
+            "example": "Calle 7 123, La Plata. Matrícula 12345.",
+            "description": "Texto libre, no vacío: dirección y datos registrales del inmueble, o empleador y sueldo aproximado."
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          }
+        }
       },
       "CreateExampleItemDto": {
         "type": "object",
