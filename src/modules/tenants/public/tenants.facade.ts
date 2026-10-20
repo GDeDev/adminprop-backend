@@ -19,4 +19,14 @@ export class TenantsFacade {
     const tenant = await this.tenants.findBySlug(slug)
     return tenant?.isActive ? tenant.id : null
   }
+
+  /**
+   * Desde cuántas propiedades activas aplica el honorario reducido (PRD 5.0,
+   * RN-07). Cada inmobiliaria define el suyo; por defecto, 3.
+   */
+  async getReducedFeeThreshold(tenantId: string): Promise<number> {
+    const tenant = await this.tenants.findById(tenantId)
+    if (!tenant) throw new Error(`Tenant inexistente: ${tenantId}`)
+    return tenant.reducedFeeThreshold
+  }
 }

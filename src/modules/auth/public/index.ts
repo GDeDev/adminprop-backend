@@ -17,3 +17,9 @@ export {
   Role,
   UserType,
 } from '../domain/enums/role.enum'
+export {
+  PortalAccountsFacade,
+  PortalEmailTakenException,
+} from './portal-accounts.facade'
+export type { PortalCredentials } from './portal-accounts.facade'
+export type { PortalRole } from '../domain/enums/role.enum'

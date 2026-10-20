@@ -7,6 +7,7 @@ import {
   AuthQueryHandlers,
 } from '@/modules/auth/application'
 import { TenantsModule } from '@/modules/tenants/public'
+import { PortalAccountsFacade } from '@/modules/auth/public/portal-accounts.facade'
 import { AuthController } from '../http/controllers/auth.controller'
 import { UsersController } from '../http/controllers/users.controller'
 import { AuthRepositories } from '../repositories'
@@ -52,9 +53,15 @@ import { RefreshTokenCleanupTask } from '../tasks/refresh-token-cleanup.task'
     AuthTokenIssuer,
     RefreshTokenCleanupTask,
     ...AuthApplicationServices,
+    PortalAccountsFacade,
     ...AuthCommandHandlers,
     ...AuthQueryHandlers,
   ],
-  exports: [...AuthRepositories, PasswordService, TokenService],
+  exports: [
+    ...AuthRepositories,
+    PasswordService,
+    TokenService,
+    PortalAccountsFacade,
+  ],
 })
 export class AuthModule {}

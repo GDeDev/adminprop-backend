@@ -7,6 +7,7 @@ import {
   MasterDataFacade,
   MasterDataRef,
 } from '@/modules/master-data/public'
+import { OwnerRef, OwnersFacade } from '@/modules/owners/public/owners.facade'
 import { Property, PropertyStatus } from '../domain/property'
 
 export interface PropertyPhotoView {
@@ -21,6 +22,8 @@ export interface PropertySummaryView {
   address: string
   status: PropertyStatus
   ownerId: string | null
+  /** Null si no tiene propietario asignado. */
+  owner: OwnerRef | null
   /** Null sólo si el maestro fue borrado a mano de la base (no debería pasar). */
   location: LocationRef | null
   propertyType: MasterDataRef | null
@@ -46,30 +49,37 @@ export interface PropertyDetailView extends PropertySummaryView {
  */
 @Injectable()
 export class PropertyViews {
-  constructor(private readonly masterData: MasterDataFacade) {}
+  constructor(
+    private readonly masterData: MasterDataFacade,
+    private readonly owners: OwnersFacade,
+  ) {}
 
   async summaries(properties: Property[]): Promise<PropertySummaryView[]> {
-    const [locations, types] = await Promise.all([
+    const [locations, types, owners] = await Promise.all([
       this.masterData.describeLocations(properties.map((p) => p.locationId)),
       this.masterData.describeCatalog(
         Catalog.PROPERTY_TYPES,
         properties.map((p) => p.propertyTypeId),
       ),
+      this.describeOwners(properties),
     ])
-    return properties.map((property) => toSummary(property, locations, types))
+    return properties.map((property) =>
+      toSummary(property, locations, types, owners),
+    )
   }
 
   async detail(property: Property): Promise<PropertyDetailView> {
-    const [locations, types, amenities] = await Promise.all([
+    const [locations, types, amenities, owners] = await Promise.all([
       this.masterData.describeLocations([property.locationId]),
       this.masterData.describeCatalog(Catalog.PROPERTY_TYPES, [
         property.propertyTypeId,
       ]),
       this.masterData.describeAmenities(property.amenityIds),
+      this.describeOwners([property]),
     ])
 
     return {
-      ...toSummary(property, locations, types),
+      ...toSummary(property, locations, types, owners),
       locationId: property.locationId,
       propertyTypeId: property.propertyTypeId,
       amenityIds: property.amenityIds,
@@ -84,18 +94,28 @@ export class PropertyViews {
       })),
     }
   }
+
+  private describeOwners(
+    properties: Property[],
+  ): Promise<Map<string, OwnerRef>> {
+    return this.owners.describe(
+      properties.flatMap((p) => (p.ownerId ? [p.ownerId] : [])),
+    )
+  }
 }
 
 function toSummary(
   property: Property,
   locations: Map<string, LocationRef>,
   types: Map<string, MasterDataRef>,
+  owners: Map<string, OwnerRef>,
 ): PropertySummaryView {
   return {
     id: property.id,
     address: property.address,
     status: property.status,
     ownerId: property.ownerId,
+    owner: (property.ownerId && owners.get(property.ownerId)) || null,
     location: locations.get(property.locationId) ?? null,
     propertyType: types.get(property.propertyTypeId) ?? null,
     mainPhotoUrl: property.photos[0]?.url ?? null,

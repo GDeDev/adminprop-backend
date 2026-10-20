@@ -1,8 +1,10 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 import { randomUUID } from 'node:crypto'
 
+import { OwnersFacade } from '@/modules/owners/public/owners.facade'
 import { Property } from '@/modules/properties/domain/property'
 import {
+  InvalidOwnerReferenceException,
   PropertyNotFoundException,
   PropertyPhotoNotFoundException,
 } from '@/modules/properties/domain/property.exceptions'
@@ -34,6 +36,16 @@ async function requireProperty(
   return property
 }
 
+/** Un propietario sólo se asigna si existe en esta inmobiliaria (Fase 7). */
+async function assertOwnerExists(
+  owners: OwnersFacade,
+  ownerId: string | null | undefined,
+): Promise<void> {
+  if (ownerId && !(await owners.exists(ownerId))) {
+    throw new InvalidOwnerReferenceException()
+  }
+}
+
 /** Alta (spec 3.1): nace `AVAILABLE`, sin fotos (tienen su endpoint). */
 @CommandHandler(CreatePropertyCommand)
 export class CreatePropertyHandler implements ICommandHandler<
@@ -43,6 +55,7 @@ export class CreatePropertyHandler implements ICommandHandler<
   constructor(
     private readonly properties: PropertyRepository,
     private readonly references: MasterDataReferences,
+    private readonly owners: OwnersFacade,
     private readonly views: PropertyViews,
   ) {}
 
@@ -53,6 +66,7 @@ export class CreatePropertyHandler implements ICommandHandler<
       propertyTypeId: data.propertyTypeId,
       amenityIds,
     })
+    await assertOwnerExists(this.owners, data.ownerId)
 
     const property = await this.properties.create({
       ...data,
@@ -73,6 +87,7 @@ export class UpdatePropertyHandler implements ICommandHandler<
   constructor(
     private readonly properties: PropertyRepository,
     private readonly references: MasterDataReferences,
+    private readonly owners: OwnersFacade,
     private readonly views: PropertyViews,
   ) {}
 
@@ -99,6 +114,10 @@ export class UpdatePropertyHandler implements ICommandHandler<
           : undefined,
       amenityIds: newAmenities?.length ? newAmenities : undefined,
     })
+
+    if (changes.ownerId !== current.ownerId) {
+      await assertOwnerExists(this.owners, changes.ownerId)
+    }
 
     if (changes.address !== undefined) {
       changes.address = PropertyPolicy.normalizeAddress(changes.address)

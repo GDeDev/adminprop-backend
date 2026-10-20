@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { forwardRef, Module } from '@nestjs/common'
 
 import {
   AddPropertyPhotosHandler,
@@ -19,13 +19,18 @@ import {
   PropertyRepository,
 } from '@/modules/properties/domain/property.ports'
 import { MasterDataModule } from '@/modules/master-data/public'
+import { OwnersModule } from '@/modules/owners/public'
+import { PropertiesFacade } from '@/modules/properties/public/properties.facade'
 import { PropertiesController } from '../http/controllers/properties.controller'
 import { NoContractsYet } from '../repositories/no-contracts-yet'
 import { PropertyRepositoryImpl } from '../repositories/property.repository.impl'
 
-/** Propiedades (spec Fase 6, PRD 5.1). */
+/**
+ * Propiedades (spec Fase 6, PRD 5.1). El `forwardRef` con propietarios está
+ * explicado en `OwnersModule`.
+ */
 @Module({
-  imports: [MasterDataModule],
+  imports: [MasterDataModule, forwardRef(() => OwnersModule)],
   controllers: [PropertiesController],
   providers: [
     { provide: PropertyRepository, useClass: PropertyRepositoryImpl },
@@ -41,6 +46,8 @@ import { PropertyRepositoryImpl } from '../repositories/property.repository.impl
     DeletePropertyHandler,
     ListPropertiesHandler,
     GetPropertyHandler,
+    PropertiesFacade,
   ],
+  exports: [PropertiesFacade],
 })
 export class PropertiesModule {}

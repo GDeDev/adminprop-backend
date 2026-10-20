@@ -36,7 +36,7 @@ export class CreatePropertyDto {
   @ApiPropertyOptional({
     type: String,
     nullable: true,
-    description: 'Propietario (Fase 7). Se puede asignar después.',
+    description: 'Propietario. Se puede asignar después.',
   })
   @IsOptional()
   @IsUUID('all')
@@ -120,6 +120,11 @@ class LocationRefDto extends MasterDataRefDto {
   path: string
 }
 
+class OwnerRefDto {
+  @ApiProperty() id: string
+  @ApiProperty() fullName: string
+}
+
 class PropertyPhotoDto {
   @ApiProperty() id: string
   @ApiProperty() url: string
@@ -131,6 +136,7 @@ export class PropertySummaryDto {
   @ApiProperty() address: string
   @ApiProperty({ enum: PropertyStatus }) status: PropertyStatus
   @ApiProperty({ type: String, nullable: true }) ownerId: string | null
+  @ApiProperty({ type: OwnerRefDto, nullable: true }) owner: OwnerRefDto | null
   @ApiProperty({ type: LocationRefDto, nullable: true })
   location: LocationRefDto | null
   @ApiProperty({ type: MasterDataRefDto, nullable: true })

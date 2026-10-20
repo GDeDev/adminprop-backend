@@ -90,6 +90,10 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   Property: { tenantScoped: true, audit: true, softDelete: true },
   PropertyPhoto: { tenantScoped: true, audit: false, softDelete: false },
 
+  // Propietarios (Fase 7): historial (incluido cada cambio de CBU) y borrado
+  // lógico. El DNI se libera con un índice parcial, no mutándolo.
+  Owner: { tenantScoped: true, audit: true, softDelete: true },
+
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.
   // Auditarlos generaría una fila de historial por cada refresh.

@@ -87,3 +87,15 @@ export class InvalidMasterDataReferenceException extends DomainException {
     )
   }
 }
+
+/** El propietario elegido no existe, es de otra inmobiliaria o fue borrado. */
+export class InvalidOwnerReferenceException extends DomainException {
+  constructor() {
+    super(
+      'PROPERTY_INVALID_OWNER',
+      'El propietario no existe',
+      DomainErrorKind.BusinessRule,
+      { field: 'ownerId' },
+    )
+  }
+}
