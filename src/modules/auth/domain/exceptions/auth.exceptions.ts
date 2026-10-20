@@ -83,10 +83,11 @@ export const AuthErrors = {
       { metadata },
     ),
 
-  sessionRevoked: () =>
+  sessionRevoked: (metadata?: Record<string, unknown>) =>
     AppException.unauthorized(
       'La sesión fue revocada. Volvé a iniciar sesión.',
       ErrorCode.SESSION_REVOKED,
+      { metadata },
     ),
 
   currentPasswordInvalid: () =>

@@ -31,3 +31,21 @@ export async function loginAs(
 
   return response.body.data.tokens.accessToken
 }
+
+/**
+ * Loguea a un propietario o inquilino (creado con `createUser` y rol OWNER o
+ * RENTER) por el login de portal, y devuelve su access token.
+ */
+export async function loginToPortalAs(
+  app: INestApplication,
+  tenantSlug: string,
+  email: string,
+  type: 'OWNER' | 'RENTER' = 'OWNER',
+): Promise<string> {
+  const response = await request(app.getHttpServer())
+    .post('/api/v1/auth/portal-login')
+    .send({ tenantSlug, email, password: TEST_PASSWORD, type })
+    .expect(200)
+
+  return response.body.data.tokens.accessToken
+}

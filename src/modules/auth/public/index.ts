@@ -10,4 +10,10 @@ export { CurrentUser } from '../infrastructure/decorators/current-user.decorator
 export { IsPublic } from '../infrastructure/decorators/is-public.decorator'
 export { Roles } from '../infrastructure/decorators/roles.decorator'
 export type { AuthenticatedUser } from '../infrastructure/types/jwt-payload.type'
-export { ALL_ROLES, Role } from '../domain/enums/role.enum'
+export {
+  ALL_ROLES,
+  INTERNAL_ROLES,
+  PORTAL_ROLES,
+  Role,
+  UserType,
+} from '../domain/enums/role.enum'

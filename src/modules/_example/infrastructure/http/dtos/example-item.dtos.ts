@@ -52,7 +52,7 @@ export class ExampleItemDto {
   @ApiProperty({ description: 'Monto con 2 decimales', example: '150333.33' })
   price: string
 
-  @ApiProperty({ nullable: true, example: null })
+  @ApiProperty({ type: String, nullable: true, example: null })
   attachmentUrl: string | null
 
   @ApiProperty({ example: '2026-09-19T12:00:00.000Z' })

@@ -8,12 +8,17 @@ Módulo de auth propio, sin dependencias externas. Reemplaza a
   y **rotado en cada uso** con detección de reuso.
 - **Contraseñas**: bcrypt, costo 12.
 - **Roles**: `ADMIN`, `EMPLOYEE`, `OWNER` y `RENTER`, un rol por usuario.
-- **Multi-tenant**: cada usuario pertenece a una inmobiliaria. El email es único
-  en todo el sistema, así que el login sigue siendo email + contraseña y el
-  `tenantId` sale del usuario y viaja en el access token. Ver
-  [MULTI-TENANCY.md](MULTI-TENANCY.md).
-- **Sin registro público**: los usuarios salen del seed y, desde la Fase 4, del
-  alta que hace el admin de cada inmobiliaria.
+- **Multi-tenant**: cada usuario pertenece a una inmobiliaria, y el `tenantId`
+  viaja en el access token. Ver [MULTI-TENANCY.md](MULTI-TENANCY.md).
+- **Dos puertas** (Fase 4):
+  - **Backoffice** (`ADMIN`, `EMPLOYEE`): email + contraseña. Su email es único
+    en todo el sistema, así que el tenant sale del usuario.
+  - **Portal** (`OWNER`, `RENTER`): slug de la inmobiliaria + email +
+    contraseña + tipo. Su email es único dentro de la inmobiliaria y el rol: la
+    misma persona puede ser propietaria en dos inmobiliarias. Son dos índices
+    únicos parciales sobre `users.email` (D-16).
+- **Sin registro público**: los usuarios salen del seed, de
+  `npm run tenant:create` (el primer admin) y de `POST /users`.
 
 ---
 
@@ -23,15 +28,46 @@ Todos cuelgan de `/api/v1/auth`.
 
 | Método | Ruta               | Auth | Qué hace                                         |
 | ------ | ------------------ | ---- | ------------------------------------------------ |
-| POST   | `/login`           | No   | Inicia sesión                                    |
+| POST   | `/login`           | No   | Inicia sesión en el backoffice (admin, empleado) |
+| POST   | `/portal-login`    | No   | Inicia sesión en el portal (propietario, inq.)   |
 | POST   | `/refresh`         | No   | Rota el par de tokens                            |
 | POST   | `/logout`          | No   | Revoca el refresh token enviado (204 siempre)    |
 | POST   | `/logout-all`      | Sí   | Cierra todas las sesiones del usuario            |
 | POST   | `/change-password` | Sí   | Cambia la contraseña y cierra todas las sesiones |
 | GET    | `/me`              | Sí   | Datos del usuario autenticado                    |
 
-Los tres primeros tienen rate limiting estricto: 10 intentos cada 15 minutos
-(`THROTTLE_AUTH_*`).
+Los dos logins y el cambio de contraseña tienen rate limiting estricto: 5
+intentos por minuto por IP (`THROTTLE_AUTH_*`). El refresh y el logout sólo el
+límite global: el refresh token no se puede adivinar, y limitarlo cortaría las
+sesiones de una oficina que sale por una sola IP (D-20).
+
+### Portal
+
+```
+POST /api/v1/auth/portal-login
+{ "tenantSlug": "demo", "email": "propietario@demo.local", "password": "…", "type": "OWNER" }
+```
+
+Responde lo mismo que `/login`. Inmobiliaria inexistente o deshabilitada,
+puerta equivocada (un propietario por `/login`, un admin por el portal) y
+contraseña incorrecta dan el mismo `401 INVALID_CREDENTIALS`.
+
+### Gestión de usuarios (`/api/v1/users`, sólo `ADMIN`)
+
+| Método | Ruta                    | Qué hace                                                 |
+| ------ | ----------------------- | -------------------------------------------------------- |
+| GET    | `/users`                | Admins y empleados, paginado; filtros `role`, `isActive` |
+| GET    | `/users/:id`            | Uno                                                      |
+| POST   | `/users`                | Alta, con contraseña inicial que define el admin         |
+| PATCH  | `/users/:id`            | Datos y rol                                              |
+| PATCH  | `/users/:id/deactivate` | Desactiva (no borra) y cierra sus sesiones               |
+| PATCH  | `/users/:id/activate`   | Reactiva                                                 |
+| PATCH  | `/users/:id/password`   | Resetea la contraseña y cierra sus sesiones              |
+
+Sólo gestiona usuarios internos de la inmobiliaria del admin: un propietario,
+un inquilino o alguien de otra inmobiliaria responde 404. Nadie puede cambiarse
+su propio rol, desactivarse ni resetearse la contraseña por acá; así una
+inmobiliaria nunca se queda sin admin (D-22).
 
 ---
 
@@ -126,8 +162,9 @@ no existe se ejecuta un `bcrypt.compare` contra un hash descartable
 (`PasswordService.burnCompare`): sin eso, la respuesta volvería mucho más rápido
 y ese delta de tiempo alcanza para enumerar qué cuentas existen.
 
-Por la misma razón, la cuenta inactiva se chequea **después** de validar la
-contraseña.
+Una cuenta o inmobiliaria deshabilitada también responde ese mismo 401 (desde
+la Fase 4; antes era un 403 que confirmaba que la contraseña era correcta). Y
+se chequea **después** de validar la contraseña, para gastar el mismo tiempo.
 
 ### Rotación con detección de reuso
 
@@ -170,20 +207,20 @@ que se verifica al validarlo.
 
 ## El access token y la revocación
 
-El access token **no se valida contra la base** en cada request. Es lo que lo
-hace barato, y el precio es que un logout o un baneo tardan hasta 15 minutos en
-hacer efecto sobre los access tokens ya emitidos (los refresh se revocan al
-instante).
+Desde la Fase 4, el guard **valida al usuario contra la base en cada request**
+(`JWT_VALIDATE_USER_ON_REQUEST`, `true` por defecto; D-19). Verifica que:
 
-Si necesitás corte inmediato:
+- el usuario exista dentro del tenant del token;
+- siga activo, y su inmobiliaria también;
+- el token no sea anterior al último cambio de contraseña.
 
-```bash
-JWT_VALIDATE_USER_ON_REQUEST=true
-```
+Si algo falla: `401 SESSION_REVOKED`, y el front cierra la sesión. Además toma
+el rol de la base, así que un cambio de rol rige desde el request siguiente.
+Cuesta una consulta por clave primaria por request.
 
-Con eso, cada request consulta el usuario y verifica que siga activo y que el
-token no sea anterior al último cambio de contraseña. Cuesta una consulta por
-request; para la mayoría de las APIs no vale la pena.
+Con `JWT_VALIDATE_USER_ON_REQUEST=false` el access token vuelve a ser
+stateless: más barato, pero desactivar a alguien tarda hasta 15 minutos en
+hacer efecto (los refresh se revocan al instante igual).
 
 ---
 
@@ -200,9 +237,19 @@ La contraseña se genera ahí y se muestra una sola vez. No se pasa por parámet
 para que no quede en el historial de la terminal. El administrador la cambia
 con `POST /auth/change-password`. Detalle en [MULTI-TENANCY.md](MULTI-TENANCY.md).
 
-Para desarrollo local, `npm run prisma:seed` crea una inmobiliaria demo con
-`admin@demo.local` / `demo-admin-1234`. Esas credenciales están en el repo a
-propósito, y por eso el seed se niega a correr con `NODE_ENV=production`.
+Para desarrollo local, `npm run prisma:seed` crea una inmobiliaria demo (slug
+`demo`) con un usuario por rol:
+
+| Rol         | Email                    | Contraseña           | Login           |
+| ----------- | ------------------------ | -------------------- | --------------- |
+| admin       | `admin@demo.local`       | `demo-admin-1234`    | `/login`        |
+| empleado    | `empleado@demo.local`    | `demo-employee-1234` | `/login`        |
+| propietario | `propietario@demo.local` | `demo-owner-1234`    | `/portal-login` |
+| inquilino   | `inquilino@demo.local`   | `demo-renter-1234`   | `/portal-login` |
+
+Esas credenciales están en el repo a propósito, y por eso el seed se niega a
+correr con `NODE_ENV=production`. Sobre una base ya sembrada, agrega sólo los
+usuarios que falten.
 
 ---
 
@@ -233,29 +280,31 @@ de él:
    demás servicios nunca ven un refresh token.
 3. **Mover `JwtAuthGuard`, los decoradores y los tipos a una librería
    compartida.** Ya están aislados en `src/modules/auth/infrastructure/{guards,decorators,types}`
-   y no dependen de Prisma salvo por `UserRepository`, que sólo se usa cuando
-   `JWT_VALIDATE_USER_ON_REQUEST=true`.
+   y no dependen de Prisma salvo por `UserRepository`, que el guard usa para
+   validar al usuario en cada request. En otro servicio, esa validación pasaría
+   a ser una consulta al de identidad (con caché) o se apagaría con
+   `JWT_VALIDATE_USER_ON_REQUEST=false`.
 
 ---
 
 ## Códigos de error
 
-| `code`                     | HTTP | Cuándo                                          |
-| -------------------------- | ---- | ----------------------------------------------- |
-| `TOKEN_MISSING`            | 401  | No vino el header `Authorization`               |
-| `TOKEN_INVALID`            | 401  | Firma inválida, malformado o tipo incorrecto    |
-| `TOKEN_EXPIRED`            | 401  | Access token vencido → refrescar                |
-| `INVALID_CREDENTIALS`      | 401  | Email o contraseña incorrectos                  |
-| `REFRESH_TOKEN_INVALID`    | 401  | Refresh inexistente o rotación concurrente      |
-| `REFRESH_TOKEN_EXPIRED`    | 401  | Refresh vencido → volver a loguear              |
-| `REFRESH_TOKEN_REUSED`     | 401  | Reuso detectado, se cerraron todas las sesiones |
-| `SESSION_REVOKED`          | 401  | Token anterior al último cambio de contraseña   |
-| `ACCOUNT_INACTIVE`         | 403  | `isActive = false`                              |
-| `ACCOUNT_LOCKED`           | 403  | Bloqueada por intentos fallidos                 |
-| `INSUFFICIENT_PERMISSIONS` | 403  | El rol no alcanza para ese endpoint             |
-| `EMAIL_ALREADY_REGISTERED` | 409  | Ya hay una cuenta con ese email                 |
-| `CURRENT_PASSWORD_INVALID` | 400  | La contraseña actual no coincide                |
-| `PASSWORD_REUSED`          | 400  | La nueva es igual a la vigente                  |
+| `code`                     | HTTP | Cuándo                                                                                                     |
+| -------------------------- | ---- | ---------------------------------------------------------------------------------------------------------- |
+| `TOKEN_MISSING`            | 401  | No vino el header `Authorization`                                                                          |
+| `TOKEN_INVALID`            | 401  | Firma inválida, malformado o tipo incorrecto                                                               |
+| `TOKEN_EXPIRED`            | 401  | Access token vencido → refrescar                                                                           |
+| `INVALID_CREDENTIALS`      | 401  | Email o contraseña incorrectos                                                                             |
+| `REFRESH_TOKEN_INVALID`    | 401  | Refresh inexistente o rotación concurrente                                                                 |
+| `REFRESH_TOKEN_EXPIRED`    | 401  | Refresh vencido → volver a loguear                                                                         |
+| `REFRESH_TOKEN_REUSED`     | 401  | Reuso detectado, se cerraron todas las sesiones                                                            |
+| `SESSION_REVOKED`          | 401  | Usuario borrado o desactivado, inmobiliaria deshabilitada, o token anterior al último cambio de contraseña |
+| `ACCOUNT_INACTIVE`         | 403  | Sólo al refrescar: cuenta o inmobiliaria deshabilitada                                                     |
+| `ACCOUNT_LOCKED`           | 403  | Bloqueada por intentos fallidos                                                                            |
+| `INSUFFICIENT_PERMISSIONS` | 403  | El rol no alcanza para ese endpoint                                                                        |
+| `EMAIL_ALREADY_REGISTERED` | 409  | Ya hay una cuenta con ese email                                                                            |
+| `CURRENT_PASSWORD_INVALID` | 400  | La contraseña actual no coincide                                                                           |
+| `PASSWORD_REUSED`          | 400  | La nueva es igual a la vigente                                                                             |
 
 El catálogo completo está en `src/shared/errors/error-codes.ts`. Ver también
 [ERROR-HANDLING.md](./ERROR-HANDLING.md).

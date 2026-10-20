@@ -88,9 +88,15 @@ model User {
   id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId     String  @map("tenant_id") @db.Uuid
   tenant       Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  /// Único en todo el sistema, no por tenant: el login es email + contraseña y
-  /// el tenant sale del usuario.
-  email        String  @unique @db.VarChar(255)
+  /// La unicidad depende de por dónde entra el usuario (Fase 4):
+  /// - ADMIN/EMPLOYEE: único en todo el sistema. El login del backoffice es
+  ///   email + contraseña y el tenant sale del usuario.
+  /// - OWNER/RENTER: único por (tenant, rol). El login de portal recibe la
+  ///   inmobiliaria, y la misma persona puede ser propietaria en dos.
+  /// Son dos índices únicos parciales (`WHERE role IN ...`) creados a mano en
+  /// la migración `scope_user_email_by_audience`: Prisma no los puede declarar
+  /// en el schema, pero tampoco los toca al generar migraciones nuevas.
+  email        String  @db.VarChar(255)
   /// Hash bcrypt. La contraseña en texto plano nunca toca la base ni los logs.
   passwordHash String  @map("password_hash") @db.VarChar(255)
   firstName    String? @map("first_name") @db.VarChar(100)

@@ -3,11 +3,18 @@ import { Prisma } from '@prisma/client'
 
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { User } from '@/modules/auth/domain/entities/user.entity'
-import { Role } from '@/modules/auth/domain/enums/role.enum'
+import {
+  INTERNAL_ROLES,
+  PortalRole,
+  Role,
+} from '@/modules/auth/domain/enums/role.enum'
 import {
   CreateUserData,
+  InternalUserFilter,
+  UpdateUserData,
   UserRepository,
 } from '@/modules/auth/domain/repositories/user.repository'
+import { PageArgs } from '@/shared/pagination/pagination'
 
 /** Normaliza el email para que el unique de la base sea case-insensitive. */
 export const normalizeEmail = (email: string): string =>
@@ -32,10 +39,24 @@ export class UserRepositoryImpl extends UserRepository {
     return row ? this.toDomain(row) : null
   }
 
-  async findByEmail(email: string): Promise<User | null> {
-    // Entre tenants a propósito: es cómo el login descubre el tenant.
-    const row = await this.prisma.unscoped.user.findUnique({
-      where: { email: normalizeEmail(email) },
+  async findInternalByEmail(email: string): Promise<User | null> {
+    // Entre tenants a propósito: es cómo el login descubre el tenant. El
+    // índice único parcial garantiza que hay a lo sumo uno.
+    const row = await this.prisma.unscoped.user.findFirst({
+      where: {
+        email: normalizeEmail(email),
+        role: { in: [...INTERNAL_ROLES] },
+      },
+      include: WITH_TENANT,
+    })
+    return row ? this.toDomain(row) : null
+  }
+
+  async findPortalUser(email: string, role: PortalRole): Promise<User | null> {
+    // Dentro del tenant del contexto: el mismo email puede existir en otra
+    // inmobiliaria, y esa no es asunto de este login.
+    const row = await this.prisma.db.user.findFirst({
+      where: { email: normalizeEmail(email), role },
       include: WITH_TENANT,
     })
     return row ? this.toDomain(row) : null
@@ -50,10 +71,17 @@ export class UserRepositoryImpl extends UserRepository {
     return row ? this.toDomain(row) : null
   }
 
-  async existsByEmail(email: string): Promise<boolean> {
+  async existsInternalByEmail(
+    email: string,
+    exceptId?: string,
+  ): Promise<boolean> {
     // Global, igual que el índice único de la base.
     const count = await this.prisma.unscoped.user.count({
-      where: { email: normalizeEmail(email) },
+      where: {
+        email: normalizeEmail(email),
+        role: { in: [...INTERNAL_ROLES] },
+        ...(exceptId ? { id: { not: exceptId } } : {}),
+      },
     })
     return count > 0
   }
@@ -69,6 +97,56 @@ export class UserRepositoryImpl extends UserRepository {
         lastName: data.lastName ?? null,
         role: data.role,
       } as Prisma.UserUncheckedCreateInput,
+      include: WITH_TENANT,
+    })
+    return this.toDomain(row)
+  }
+
+  async listInternal(
+    filter: InternalUserFilter,
+    page: PageArgs,
+  ): Promise<[User[], number]> {
+    const where: Prisma.UserWhereInput = {
+      role: filter.role ?? { in: [...INTERNAL_ROLES] },
+      ...(filter.isActive === undefined ? {} : { isActive: filter.isActive }),
+    }
+
+    // En una transacción para que la página y el total vean el mismo estado.
+    const [rows, total] = await this.prisma.db.$transaction([
+      this.prisma.db.user.findMany({
+        where,
+        include: WITH_TENANT,
+        orderBy: [
+          { lastName: { sort: 'asc', nulls: 'last' } },
+          { firstName: { sort: 'asc', nulls: 'last' } },
+          { email: 'asc' },
+        ],
+        ...page,
+      }),
+      this.prisma.db.user.count({ where }),
+    ])
+
+    return [rows.map((row) => this.toDomain(row)), total]
+  }
+
+  async update(id: string, data: UpdateUserData): Promise<User> {
+    const row = await this.prisma.db.user.update({
+      where: { id },
+      data: {
+        ...data,
+        ...(data.email === undefined
+          ? {}
+          : { email: normalizeEmail(data.email) }),
+      },
+      include: WITH_TENANT,
+    })
+    return this.toDomain(row)
+  }
+
+  async setActive(id: string, isActive: boolean): Promise<User> {
+    const row = await this.prisma.db.user.update({
+      where: { id },
+      data: { isActive },
       include: WITH_TENANT,
     })
     return this.toDomain(row)

@@ -77,8 +77,12 @@ export async function provisionTenant(
       `Ya existe una inmobiliaria con slug "${slug}".`,
     )
   }
-  // El email es único en todo el sistema, no por inmobiliaria.
-  if (await prisma.user.findUnique({ where: { email: adminEmail } })) {
+  // El email de un usuario interno es único en todo el sistema, no por
+  // inmobiliaria (índice parcial users_internal_email_key).
+  const taken = await prisma.user.findFirst({
+    where: { email: adminEmail, role: { in: [Role.ADMIN, Role.EMPLOYEE] } },
+  })
+  if (taken) {
     throw new ProvisioningError(`Ya existe un usuario con email ${adminEmail}.`)
   }
 

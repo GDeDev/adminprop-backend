@@ -35,10 +35,10 @@ export class PublicUserDto {
   @ApiProperty({ example: 'ana@ejemplo.com' })
   email: string
 
-  @ApiProperty({ example: 'Ana', nullable: true })
+  @ApiProperty({ type: String, example: 'Ana', nullable: true })
   firstName: string | null
 
-  @ApiProperty({ example: 'Gómez', nullable: true })
+  @ApiProperty({ type: String, example: 'Gómez', nullable: true })
   lastName: string | null
 
   @ApiProperty({ enum: Role, example: Role.EMPLOYEE })
@@ -47,7 +47,12 @@ export class PublicUserDto {
   @ApiProperty({ example: true })
   isActive: boolean
 
-  @ApiProperty({ nullable: true, example: '2026-01-15T10:00:00.000Z' })
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    example: '2026-01-15T10:00:00.000Z',
+  })
   lastLoginAt: Date | null
 
   @ApiProperty({ example: '2026-01-01T09:00:00.000Z' })

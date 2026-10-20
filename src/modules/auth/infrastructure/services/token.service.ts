@@ -5,6 +5,7 @@ import { createHash, randomUUID } from 'node:crypto'
 
 import { Configuration, JwtConfig } from '@/shared/config/configuration'
 import { User } from '@/modules/auth/domain/entities/user.entity'
+import { userTypeOf } from '@/modules/auth/domain/enums/role.enum'
 import { AuthErrors } from '@/modules/auth/domain/exceptions/auth.exceptions'
 import {
   AccessTokenPayload,
@@ -56,6 +57,7 @@ export class TokenService {
       sub: user.id,
       email: user.email,
       role: user.role,
+      userType: userTypeOf(user.role),
       tenantId: user.tenantId,
       typ: TOKEN_TYPE_ACCESS,
     }

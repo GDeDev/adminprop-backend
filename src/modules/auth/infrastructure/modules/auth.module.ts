@@ -2,10 +2,13 @@ import { Global, Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
 
 import {
+  AuthApplicationServices,
   AuthCommandHandlers,
   AuthQueryHandlers,
 } from '@/modules/auth/application'
+import { TenantsModule } from '@/modules/tenants/public'
 import { AuthController } from '../http/controllers/auth.controller'
+import { UsersController } from '../http/controllers/users.controller'
 import { AuthRepositories } from '../repositories'
 import { AuthTokenIssuer } from '../services/auth-token-issuer.service'
 import { PasswordService } from '../services/password.service'
@@ -38,14 +41,17 @@ import { RefreshTokenCleanupTask } from '../tasks/refresh-token-cleanup.task'
     // Sin secreto global: cada firma/verificación pasa el suyo explícito
     // (access y refresh usan secretos distintos). Ver `TokenService`.
     JwtModule.register({}),
+    // El login de portal resuelve la inmobiliaria por slug con su facade.
+    TenantsModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, UsersController],
   providers: [
     ...AuthRepositories,
     PasswordService,
     TokenService,
     AuthTokenIssuer,
     RefreshTokenCleanupTask,
+    ...AuthApplicationServices,
     ...AuthCommandHandlers,
     ...AuthQueryHandlers,
   ],

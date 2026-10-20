@@ -44,6 +44,11 @@ jobs:
       - name: Tipos
         run: npx tsc --noEmit
 
+      - name: Contrato OpenAPI al día
+        # El frontend genera sus tipos desde openapi.json. Si cambió un DTO y
+        # nadie corrió `npm run openapi:export`, el front quedaría desfasado.
+        run: npm run openapi:export && git diff --exit-code -- openapi.json
+
   security:
     name: Vulnerabilidades en dependencias
     runs-on: ubuntu-latest

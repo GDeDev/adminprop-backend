@@ -5,7 +5,7 @@ import request from 'supertest'
 import { AsyncJobsFacade } from '../src/modules/jobs/public'
 import { RequestContext } from '../src/shared/context/request-context'
 import { PrismaService } from '../src/shared/prisma/prisma.service'
-import { createTestApp, loginAs } from './utils/app'
+import { createTestApp, loginAs, loginToPortalAs } from './utils/app'
 import { createTenant, createUser, resetDatabase } from './utils/database'
 
 /**
@@ -105,7 +105,7 @@ describe('Jobs (e2e, Postgres)', () => {
       email: 'owner@a.com',
       role: Role.OWNER,
     })
-    const ownerToken = await loginAs(app, 'owner@a.com')
+    const ownerToken = await loginToPortalAs(app, 'tenant-a', 'owner@a.com')
     const jobId = await inTenant(tenantA.id, () => jobs.start('x'))
 
     await getStatus(jobId, ownerToken).expect(403)

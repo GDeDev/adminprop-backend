@@ -68,7 +68,7 @@ describe('ThrottleAuth', () => {
     jest.resetModules()
     delete process.env.THROTTLE_AUTH_LIMIT
 
-    // Se importa con la variable ausente: un decorador ansioso quedaría en 10.
+    // Se importa con la variable ausente: un decorador ansioso quedaría en 5.
     const { ThrottleAuth: Fresh } = await import('./throttle-auth.decorator')
     const { read } = decorateWith(Fresh)
 
@@ -86,7 +86,7 @@ describe('ThrottleAuth', () => {
     const { ThrottleAuth: Fresh } = await import('./throttle-auth.decorator')
     const { read } = decorateWith(Fresh)
 
-    expect(read(THROTTLER_TTL, 'short')()).toBe(900_000) // 15 minutos en ms
-    expect(read(THROTTLER_LIMIT, 'short')()).toBe(10)
+    expect(read(THROTTLER_TTL, 'short')()).toBe(60_000) // 1 minuto en ms
+    expect(read(THROTTLER_LIMIT, 'short')()).toBe(5)
   })
 })

@@ -1,5 +1,6 @@
 import { User } from '../entities/user.entity'
-import { Role } from '../enums/role.enum'
+import { PageArgs } from '@/shared/pagination/pagination'
+import { InternalRole, PortalRole, Role } from '../enums/role.enum'
 
 /** El tenant no se pasa: es el del contexto (lo completa el filtro de tenant). */
 export interface CreateUserData {
@@ -8,6 +9,20 @@ export interface CreateUserData {
   firstName?: string | null
   lastName?: string | null
   role: Role
+}
+
+/** Filtros del listado de `/users`. Sin rol: admins y empleados. */
+export interface InternalUserFilter {
+  role?: InternalRole
+  isActive?: boolean
+}
+
+/** Lo que un admin puede editar de otro usuario. Lo que no viene, no cambia. */
+export interface UpdateUserData {
+  email?: string
+  firstName?: string
+  lastName?: string
+  role?: InternalRole
 }
 
 /**
@@ -21,11 +36,19 @@ export abstract class UserRepository {
   abstract findById(id: string): Promise<User | null>
 
   /**
-   * Busca en **todos** los tenants: el login todavía no sabe a qué inmobiliaria
-   * pertenece el usuario y lo averigua con esto. El email es único global.
+   * Busca un usuario **interno** (admin o empleado) en **todos** los tenants:
+   * el login del backoffice todavía no sabe a qué inmobiliaria pertenece y lo
+   * averigua con esto. Entre internos, el email es único global.
    * La búsqueda es case-insensitive: el email se guarda normalizado.
    */
-  abstract findByEmail(email: string): Promise<User | null>
+  abstract findInternalByEmail(email: string): Promise<User | null>
+
+  /**
+   * Busca un usuario de portal (propietario o inquilino) dentro del tenant del
+   * contexto. Su email es único por inmobiliaria y rol: la misma persona puede
+   * ser propietaria en dos inmobiliarias, o propietaria e inquilina en una.
+   */
+  abstract findPortalUser(email: string, role: PortalRole): Promise<User | null>
 
   /**
    * Busca por id en **todos** los tenants. Sólo para retomar una sesión desde
@@ -33,10 +56,29 @@ export abstract class UserRepository {
    */
   abstract findByIdForSession(id: string): Promise<User | null>
 
-  /** Global, como el índice único: un email no se repite entre tenants. */
-  abstract existsByEmail(email: string): Promise<boolean>
+  /**
+   * Si hay un usuario interno con ese email, en cualquier tenant (global, como
+   * el índice único). `exceptId` excluye al propio usuario al editarlo.
+   */
+  abstract existsInternalByEmail(
+    email: string,
+    exceptId?: string,
+  ): Promise<boolean>
 
   abstract create(data: CreateUserData): Promise<User>
+
+  /**
+   * Admins y empleados del tenant del contexto, ordenados por apellido,
+   * nombre y email. Devuelve la página y el total con los mismos filtros.
+   */
+  abstract listInternal(
+    filter: InternalUserFilter,
+    page: PageArgs,
+  ): Promise<[User[], number]>
+
+  abstract update(id: string, data: UpdateUserData): Promise<User>
+
+  abstract setActive(id: string, isActive: boolean): Promise<User>
 
   /**
    * Cambia la contraseña. Sella `passwordChangedAt`, lo que invalida los access

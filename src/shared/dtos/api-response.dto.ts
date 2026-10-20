@@ -94,6 +94,7 @@ export class ApiSuccessDto<T> {
   @ApiProperty({
     description: 'Mensaje que describe el resultado de la operación',
     example: 'Operación completada correctamente',
+    type: String,
     nullable: true,
   })
   message: string | null
