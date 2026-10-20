@@ -3691,6 +3691,540 @@
         ]
       }
     },
+    "/api/v1/owners": {
+      "get": {
+        "description": "Cada propietario trae sus propiedades y si aplica el honorario reducido. El filtro \"con deuda\" llega con la Fase 11.",
+        "operationId": "OwnersController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Parte del nombre, del apellido o del DNI",
+            "schema": {
+              "example": "perez",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Propietarios de la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/OwnerSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar, con búsqueda por nombre o DNI",
+        "tags": [
+          "Owners"
+        ]
+      },
+      "post": {
+        "operationId": "OwnersController_create_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOwnerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "DNI o CBU inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya hay un propietario con ese DNI",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Alta",
+        "tags": [
+          "Owners"
+        ]
+      }
+    },
+    "/api/v1/owners/check": {
+      "get": {
+        "description": "El DNI repetido bloquea el alta; el CBU repetido sólo se advierte.",
+        "operationId": "OwnersController_check_api/v1",
+        "parameters": [
+          {
+            "name": "nationalId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "20123456",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cbu",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "0110599552000000123456",
+              "type": "string"
+            }
+          },
+          {
+            "name": "excludeId",
+            "required": false,
+            "in": "query",
+            "description": "En una edición, el propio propietario",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerDataCheckDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Chequear DNI y CBU mientras se completa el formulario",
+        "tags": [
+          "Owners"
+        ]
+      }
+    },
+    "/api/v1/owners/{id}": {
+      "get": {
+        "operationId": "OwnersController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ficha completa, con sus propiedades",
+        "tags": [
+          "Owners"
+        ]
+      },
+      "patch": {
+        "operationId": "OwnersController_update_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOwnerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar los datos personales",
+        "tags": [
+          "Owners"
+        ]
+      },
+      "delete": {
+        "description": "Con propiedades asignadas no se puede: 409.",
+        "operationId": "OwnersController_remove_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Eliminar (borrado lógico, sólo admin)",
+        "tags": [
+          "Owners"
+        ]
+      }
+    },
+    "/api/v1/owners/{id}/bank-account": {
+      "patch": {
+        "description": "Reemplaza la cuenta entera. Queda en la auditoría como un cambio aparte.",
+        "operationId": "OwnersController_updateBankAccount_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BankAccountDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "CBU inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cambiar la cuenta bancaria",
+        "tags": [
+          "Owners"
+        ]
+      }
+    },
+    "/api/v1/owners/{id}/portal-credentials": {
+      "post": {
+        "description": "Devuelve la contraseña una sola vez. Regenerarla invalida la anterior.",
+        "operationId": "OwnersController_issuePortalCredentials_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalCredentialsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Otro acceso del portal ya usa ese email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "El propietario no tiene email",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Generar (o regenerar) el acceso al portal",
+        "tags": [
+          "Owners"
+        ]
+      }
+    },
     "/api/v1/examples": {
       "post": {
         "operationId": "ExampleItemsController_create_api/v1",
@@ -4753,6 +5287,21 @@
           "name"
         ]
       },
+      "OwnerRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName"
+        ]
+      },
       "LocationRefDto": {
         "type": "object",
         "properties": {
@@ -4828,6 +5377,15 @@
             "type": "string",
             "nullable": true
           },
+          "owner": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRefDto"
+              }
+            ]
+          },
           "location": {
             "nullable": true,
             "type": "object",
@@ -4864,6 +5422,7 @@
           "address",
           "status",
           "ownerId",
+          "owner",
           "location",
           "propertyType",
           "mainPhotoUrl",
@@ -4937,6 +5496,15 @@
             "type": "string",
             "nullable": true
           },
+          "owner": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRefDto"
+              }
+            ]
+          },
           "location": {
             "nullable": true,
             "type": "object",
@@ -5001,6 +5569,7 @@
           "address",
           "status",
           "ownerId",
+          "owner",
           "location",
           "propertyType",
           "mainPhotoUrl",
@@ -5033,7 +5602,7 @@
           "ownerId": {
             "type": "string",
             "nullable": true,
-            "description": "Propietario (Fase 7). Se puede asignar después."
+            "description": "Propietario. Se puede asignar después."
           },
           "amenityIds": {
             "default": [],
@@ -5074,7 +5643,7 @@
           "ownerId": {
             "type": "string",
             "nullable": true,
-            "description": "Propietario (Fase 7). Se puede asignar después."
+            "description": "Propietario. Se puede asignar después."
           },
           "amenityIds": {
             "default": [],
@@ -5106,6 +5675,374 @@
         },
         "required": [
           "status"
+        ]
+      },
+      "OwnerSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "nationalId": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "propertyCount": {
+            "type": "number",
+            "description": "Propiedades a cargo, en cualquier estado"
+          },
+          "activePropertyCount": {
+            "type": "number",
+            "description": "Las que cuentan para el honorario reducido. Hasta la Fase 9, las alquiladas."
+          },
+          "reducedFee": {
+            "type": "boolean",
+            "description": "Honorario reducido (RN-07), calculado"
+          },
+          "hasPortalAccess": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "fullName",
+          "nationalId",
+          "phone",
+          "email",
+          "propertyCount",
+          "activePropertyCount",
+          "reducedFee",
+          "hasPortalAccess",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "OwnerDataCheckDto": {
+        "type": "object",
+        "properties": {
+          "nationalIdTakenBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRefDto"
+              }
+            ]
+          },
+          "cbuSharedWith": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnerRefDto"
+            }
+          }
+        },
+        "required": [
+          "nationalIdTakenBy",
+          "cbuSharedWith"
+        ]
+      },
+      "BankAccountViewDto": {
+        "type": "object",
+        "properties": {
+          "cbu": {
+            "type": "string",
+            "nullable": true
+          },
+          "alias": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankName": {
+            "type": "string",
+            "nullable": true
+          },
+          "holder": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "cbu",
+          "alias",
+          "bankName",
+          "holder"
+        ]
+      },
+      "OwnerPropertyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "RENTED",
+              "MAINTENANCE"
+            ]
+          },
+          "mainPhotoUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "address",
+          "status",
+          "mainPhotoUrl"
+        ]
+      },
+      "OwnerDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "nationalId": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "propertyCount": {
+            "type": "number",
+            "description": "Propiedades a cargo, en cualquier estado"
+          },
+          "activePropertyCount": {
+            "type": "number",
+            "description": "Las que cuentan para el honorario reducido. Hasta la Fase 9, las alquiladas."
+          },
+          "reducedFee": {
+            "type": "boolean",
+            "description": "Honorario reducido (RN-07), calculado"
+          },
+          "hasPortalAccess": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankAccount": {
+            "$ref": "#/components/schemas/BankAccountViewDto"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnerPropertyDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "fullName",
+          "nationalId",
+          "phone",
+          "email",
+          "propertyCount",
+          "activePropertyCount",
+          "reducedFee",
+          "hasPortalAccess",
+          "createdAt",
+          "updatedAt",
+          "address",
+          "notes",
+          "bankAccount",
+          "properties"
+        ]
+      },
+      "BankAccountDto": {
+        "type": "object",
+        "properties": {
+          "cbu": {
+            "type": "string",
+            "nullable": true,
+            "example": "0110599552000000123456",
+            "description": "22 dígitos. Se validan los dígitos verificadores."
+          },
+          "alias": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 50
+          },
+          "bankName": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
+          "holder": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 150
+          }
+        }
+      },
+      "CreateOwnerDto": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "example": "Juan",
+            "maxLength": 100
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Pérez",
+            "maxLength": 100
+          },
+          "nationalId": {
+            "type": "string",
+            "example": "20123456",
+            "description": "DNI o CUIT. Se aceptan puntos y guiones; se guarda sólo en dígitos."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Hace falta para generarle acceso al portal."
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          },
+          "bankAccount": {
+            "$ref": "#/components/schemas/BankAccountDto"
+          }
+        },
+        "required": [
+          "firstName",
+          "lastName",
+          "nationalId"
+        ]
+      },
+      "UpdateOwnerDto": {
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "example": "Juan",
+            "maxLength": 100
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Pérez",
+            "maxLength": 100
+          },
+          "nationalId": {
+            "type": "string",
+            "example": "20123456",
+            "description": "DNI o CUIT. Se aceptan puntos y guiones; se guarda sólo en dígitos."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Hace falta para generarle acceso al portal."
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
+          }
+        }
+      },
+      "PortalCredentialsDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "description": "Usuario del portal"
+          },
+          "password": {
+            "type": "string",
+            "description": "Se muestra una sola vez: no se puede recuperar"
+          }
+        },
+        "required": [
+          "userId",
+          "email",
+          "password"
         ]
       },
       "CreateExampleItemDto": {
