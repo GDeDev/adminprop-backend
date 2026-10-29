@@ -100,6 +100,13 @@ model Tenant {
   propertyServices PropertyService[]
   advanceExpenses  AdvanceExpense[]
 
+  installments           Installment[]
+  installmentCharges     InstallmentCharge[]
+  payments               Payment[]
+  installmentLateFeeDays InstallmentLateFeeDay[]
+  lateFeeAdjustments     LateFeeAdjustment[]
+  renterCredits          RenterCredit[]
+
   @@map("tenants")
 }
 
@@ -972,4 +979,300 @@ model AdvanceExpense {
   @@index([tenantId, contractId, settlementId])
   @@index([tenantId, deletedAt])
   @@map("advance_expenses")
+}
+
+// =============================================================================
+// Cobros y punitorios (Fase 11, rediseño sección 3)
+// =============================================================================
+//
+// Todo con tenant, auditado y sin borrado lógico: plata nunca se borra, se
+// anula con registro. Sin FKs hacia otros módulos (contrato, inquilino,
+// propietario, propiedad y usuario son uuid copiados); FKs internas entre
+// cuotas, pagos, cargos, ajustes y detalle diario.
+
+/// Estado guardado de una cuota. "Vencida" (OVERDUE) se calcula al leer (D-71).
+enum InstallmentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+/// Conceptos que se cobran además del alquiler.
+enum ChargeConcept {
+  SERVICE
+  TERMINATION_PENALTY
+  OTHER
+}
+
+enum ExchangeRateSource {
+  OFFICIAL
+  MEP
+  OTHER
+}
+
+enum PaymentKind {
+  /// Entró plata.
+  CASH_IN
+  /// Se aplicó un saldo a favor: no entra plata.
+  CREDIT_APPLICATION
+}
+
+enum PaymentMethod {
+  TRANSFER
+  CASH
+  CREDIT
+  OTHER
+}
+
+enum PaymentReceiver {
+  AGENCY
+  OWNER
+}
+
+enum PaymentStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  VOIDED
+}
+
+enum LateFeeAdjustmentKind {
+  REDUCE
+  WAIVE
+}
+
+enum CreditStatus {
+  AVAILABLE
+  APPLIED
+  REFUNDED
+  VOIDED
+}
+
+/// Cuota devengada: una por contrato y mes (PRD 5.6 "Pago").
+model Installment {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Copiados del contrato al generar (sin FK).
+  contractId String @map("contract_id") @db.Uuid
+  renterId   String @map("renter_id") @db.Uuid
+  ownerId    String @map("owner_id") @db.Uuid
+  propertyId String @map("property_id") @db.Uuid
+
+  /// `AAAA-MM`.
+  period       String   @db.VarChar(7)
+  /// Alquiler vigente al generar (D-72).
+  baseAmount   Decimal  @map("base_amount") @db.Decimal(14, 2)
+  currency     Currency
+  /// Último día sin punitorio: primer día + gracia − 1.
+  graceEndDate DateTime @map("grace_end_date") @db.Date
+
+  /// Snapshot de los términos resueltos al generar (D-71): cambiar el
+  /// contrato afecta cuotas futuras, no esta.
+  lateFeePercentage Decimal        @map("late_fee_percentage") @db.Decimal(5, 2)
+  lateFeeGraceDays  Int            @map("late_fee_grace_days")
+  collectionMode    CollectionMode @map("collection_mode")
+  feeMode           FeeMode        @map("fee_mode")
+  feePercentage     Decimal        @map("fee_percentage") @db.Decimal(5, 2)
+  feeAmount         Decimal?       @map("fee_amount") @db.Decimal(14, 2)
+
+  /// Condonación total del punitorio (ajuste WAIVE).
+  lateFeeWaived Boolean           @default(false) @map("late_fee_waived")
+  status        InstallmentStatus @default(PENDING)
+  /// Día en que el saldo de alquiler llegó a 0 (fecha del pago que lo cubrió).
+  paidAt        DateTime?         @map("paid_at") @db.Date
+  notes         String?           @db.Text
+
+  charges     InstallmentCharge[]
+  payments    Payment[]
+  feeDays     InstallmentLateFeeDay[]
+  adjustments LateFeeAdjustment[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, contractId, period])
+  @@index([tenantId, period, status])
+  @@index([tenantId, status, graceEndDate])
+  @@index([tenantId, renterId, status])
+  @@index([tenantId, propertyId])
+  @@index([tenantId, ownerId])
+  @@map("installments")
+}
+
+/// Un concepto además del alquiler (expensas, multa de rescisión, otro). Se
+/// anula, no se borra; anulado no cuenta. No devenga punitorio (A-10).
+model InstallmentCharge {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  installmentId String      @map("installment_id") @db.Uuid
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  concept     ChargeConcept
+  description String        @db.VarChar(300)
+  /// > 0, en la moneda de la cuota.
+  amount      Decimal       @db.Decimal(14, 2)
+
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(3)
+  voidedById String?   @map("voided_by_id") @db.Uuid
+  voidReason String?   @map("void_reason") @db.VarChar(500)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Quién lo cargó (lo completa la auditoría).
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, installmentId])
+  @@map("installment_charges")
+}
+
+/// Un pago (o una aplicación de saldo a favor) sobre una cuota. N por cuota:
+/// parciales, anticipados, en ARS o USD con cotización (Micaela #2, #6).
+model Payment {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  installmentId String      @map("installment_id") @db.Uuid
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Restrict)
+  /// Copiados de la cuota.
+  contractId    String      @map("contract_id") @db.Uuid
+  renterId      String      @map("renter_id") @db.Uuid
+
+  /// Fecha real del pago (no la de carga).
+  paidAt       DateTime @map("paid_at") @db.Date
+  paidCurrency Currency @map("paid_currency")
+  /// Lo que entregó el inquilino, en `paidCurrency`.
+  amount       Decimal  @db.Decimal(14, 2)
+
+  /// Obligatorios los tres cuando la moneda del pago no es la de la cuota
+  /// (A-9); prohibidos cuando coinciden. Pesos por 1 dólar.
+  exchangeRate             Decimal?            @map("exchange_rate") @db.Decimal(14, 4)
+  exchangeRateSource       ExchangeRateSource? @map("exchange_rate_source")
+  exchangeRateDate         DateTime?           @map("exchange_rate_date") @db.Date
+  /// El equivalente en la moneda de la cuota, con un solo redondeo.
+  amountInContractCurrency Decimal             @map("amount_in_contract_currency") @db.Decimal(14, 2)
+
+  kind       PaymentKind
+  method     PaymentMethod
+  receivedBy PaymentReceiver @map("received_by")
+  status     PaymentStatus
+
+  /// Imputación en moneda del contrato (A-8). Suman
+  /// `amountInContractCurrency − creditGenerated`.
+  lateFeeApplied  Decimal @map("late_fee_applied") @db.Decimal(14, 2)
+  rentApplied     Decimal @map("rent_applied") @db.Decimal(14, 2)
+  chargesApplied  Decimal @map("charges_applied") @db.Decimal(14, 2)
+  /// Exceso que fue a `renter_credits` (A-6).
+  creditGenerated Decimal @map("credit_generated") @db.Decimal(14, 2)
+  /// El crédito aplicado (sólo CREDIT_APPLICATION).
+  creditId        String? @map("credit_id") @db.Uuid
+
+  /// Comprobante opcional (D-74): efectivo puede no tener.
+  receiptKey String? @map("receipt_key") @db.VarChar(500)
+  receiptUrl String? @map("receipt_url") @db.VarChar(1000)
+
+  registeredById String  @map("registered_by_id") @db.Uuid
+  notes          String? @db.Text
+
+  confirmedById String?   @map("confirmed_by_id") @db.Uuid
+  confirmedAt   DateTime? @map("confirmed_at") @db.Timestamptz(3)
+
+  voidedById String?   @map("voided_by_id") @db.Uuid
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(3)
+  voidReason String?   @map("void_reason") @db.VarChar(500)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, installmentId])
+  @@index([tenantId, contractId, paidAt])
+  @@index([tenantId, renterId])
+  @@index([tenantId, status, receivedBy])
+  @@index([tenantId, creditId])
+  @@map("payments")
+}
+
+/// Un día de punitorio de una cuota saldada: cómo se armó el monto (A-4). Se
+/// escribe cuando el alquiler queda saldado (congela el cálculo); mientras
+/// está impaga se calcula al leer.
+model InstallmentLateFeeDay {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  installmentId String      @map("installment_id") @db.Uuid
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  day             DateTime @db.Date
+  /// 1 = primer día con punitorio.
+  dayNumber       Int      @map("day_number")
+  /// Alquiler impago ese día.
+  outstandingBase Decimal  @map("outstanding_base") @db.Decimal(14, 2)
+  dailyPercentage Decimal  @map("daily_percentage") @db.Decimal(5, 2)
+  amount          Decimal  @db.Decimal(14, 2)
+
+  @@unique([installmentId, dayNumber])
+  @@index([tenantId, installmentId])
+  @@map("installment_late_fee_days")
+}
+
+/// Reducción o condonación del punitorio de una cuota, con motivo (Micaela #4).
+model LateFeeAdjustment {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  installmentId String      @map("installment_id") @db.Uuid
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  kind   LateFeeAdjustmentKind
+  /// REDUCE: lo que se descuenta (> 0). WAIVE: el devengado al momento, informativo.
+  amount Decimal               @db.Decimal(14, 2)
+  reason String                @db.VarChar(500)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Quién lo hizo (lo completa la auditoría).
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, installmentId])
+  @@map("late_fee_adjustments")
+}
+
+/// Saldo a favor de un inquilino por un pago de más (A-6). Se aplica en partes
+/// (cada aplicación es un Payment CREDIT_APPLICATION) o se devuelve.
+model RenterCredit {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  renterId        String       @map("renter_id") @db.Uuid
+  contractId      String       @map("contract_id") @db.Uuid
+  currency        Currency
+  /// Original.
+  amount          Decimal      @db.Decimal(14, 2)
+  remaining       Decimal      @db.Decimal(14, 2)
+  /// El pago que lo generó.
+  originPaymentId String       @map("origin_payment_id") @db.Uuid
+  status          CreditStatus @default(AVAILABLE)
+
+  refundedAt   DateTime?      @map("refunded_at") @db.Date
+  refundMethod PaymentMethod? @map("refund_method")
+  refundedById String?        @map("refunded_by_id") @db.Uuid
+  refundNotes  String?        @map("refund_notes") @db.Text
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, renterId, status])
+  @@index([tenantId, contractId])
+  @@index([tenantId, originPaymentId])
+  @@map("renter_credits")
 }

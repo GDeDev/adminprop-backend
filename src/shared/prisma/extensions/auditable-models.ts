@@ -120,6 +120,20 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   PropertyService: { tenantScoped: true, audit: true, softDelete: true },
   AdvanceExpense: { tenantScoped: true, audit: true, softDelete: true },
 
+  // Cobros (Fase 11): todo es plata, con historial y sin borrado lógico (se
+  // anula con registro, nunca se borra). El detalle diario del punitorio se
+  // escribe de una vez al saldar la cuota: la fila misma es la traza.
+  Installment: { tenantScoped: true, audit: true, softDelete: false },
+  InstallmentCharge: { tenantScoped: true, audit: true, softDelete: false },
+  Payment: { tenantScoped: true, audit: true, softDelete: false },
+  InstallmentLateFeeDay: {
+    tenantScoped: true,
+    audit: false,
+    softDelete: false,
+  },
+  LateFeeAdjustment: { tenantScoped: true, audit: true, softDelete: false },
+  RenterCredit: { tenantScoped: true, audit: true, softDelete: false },
+
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.
   // Auditarlos generaría una fila de historial por cada refresh.
