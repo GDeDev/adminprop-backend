@@ -1,8 +1,10 @@
+import { roundMoney, toMoneyString } from '@/shared/money'
 import { PersonPolicy } from '@/shared/people/person-policy'
-import { BankAccount } from './owner'
+import { BankAccount, OwnerFeeSettings } from './owner'
 import {
   InvalidCbuException,
   InvalidNationalIdException,
+  InvalidOwnerFeeSettingsException,
 } from './owner.exceptions'
 
 const CBU_BLOCK_1_WEIGHTS = [7, 1, 3, 9, 7, 1, 3]
@@ -56,6 +58,44 @@ export const OwnerPolicy = {
       alias: PersonPolicy.clean(account.alias)?.toLowerCase() ?? null,
       bankName: PersonPolicy.clean(account.bankName),
       holder: PersonPolicy.clean(account.holder),
+    }
+  },
+
+  /**
+   * Honorarios por propietario (Fase 12, 2.1): el % override, si viene, es un
+   * número entre 0 y 100 con hasta dos decimales. Lo que no viene conserva
+   * lo que había (`current`).
+   */
+  normalizeFeeSettings(
+    current: OwnerFeeSettings,
+    changes: Partial<OwnerFeeSettings>,
+  ): OwnerFeeSettings {
+    let feePercentage = current.feePercentage
+    if (changes.feePercentage !== undefined) {
+      if (changes.feePercentage === null) {
+        feePercentage = null
+      } else {
+        let parsed
+        try {
+          parsed = roundMoney(changes.feePercentage)
+        } catch {
+          throw new InvalidOwnerFeeSettingsException('el % no es un número')
+        }
+        if (parsed.isNegative() || parsed.greaterThan(100)) {
+          throw new InvalidOwnerFeeSettingsException(
+            'el % tiene que estar entre 0 y 100',
+          )
+        }
+        feePercentage = toMoneyString(parsed)
+      }
+    }
+    return {
+      feePercentage,
+      feeIncludesLateFees:
+        changes.feeIncludesLateFees ?? current.feeIncludesLateFees,
+      feeIncludesCharges:
+        changes.feeIncludesCharges ?? current.feeIncludesCharges,
+      statementSendMode: changes.statementSendMode ?? current.statementSendMode,
     }
   },
 }

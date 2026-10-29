@@ -59,6 +59,15 @@ export enum PaymentMethod {
   CASH = 'CASH',
   CREDIT = 'CREDIT',
   OTHER = 'OTHER',
+  /** Deuda cubierta con el depósito en garantía al devolverlo (Fase 12). */
+  DEPOSIT = 'DEPOSIT',
+}
+
+/** Por qué se descuenta algo del depósito al devolverlo (Micaela #1). */
+export enum DepositDeductionConcept {
+  DEBT = 'DEBT',
+  DAMAGE = 'DAMAGE',
+  OTHER = 'OTHER',
 }
 
 export enum PaymentReceiver {
@@ -132,6 +141,8 @@ export interface Payment {
   voidedById: string | null
   voidedAt: Date | null
   voidReason: string | null
+  /** Liquidación que lo incluyó (Fase 12); null = sin liquidar. */
+  settlementId: string | null
   createdAt: Date
 }
 
@@ -210,6 +221,36 @@ export interface RenterCredit {
   refundMethod: PaymentMethod | null
   refundedById: string | null
   refundNotes: string | null
+  createdAt: Date
+}
+
+/** Una deducción del depósito, justificada. */
+export interface DepositReturnDeduction {
+  id: string
+  concept: DepositDeductionConcept
+  description: string
+  amount: string
+  /** Cuota a la que se imputó una deuda. */
+  installmentId: string | null
+  /** El pago `DEPOSIT` que se creó sobre esa cuota. */
+  paymentId: string | null
+}
+
+/**
+ * Devolución del depósito en garantía (Fase 12, 2.2; A-13 cerrado): una por
+ * contrato, con `returnedAmount + Σ deducciones = depositAmount`.
+ */
+export interface DepositReturn {
+  id: string
+  contractId: string
+  returnedAt: IsoDate
+  depositAmount: string
+  depositCurrency: Currency
+  returnedAmount: string
+  method: PaymentMethod
+  notes: string | null
+  registeredById: string
+  deductions: DepositReturnDeduction[]
   createdAt: Date
 }
 

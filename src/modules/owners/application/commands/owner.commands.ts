@@ -1,4 +1,4 @@
-import { BankAccount } from '@/modules/owners/domain/owner'
+import { BankAccount, OwnerFeeSettings } from '@/modules/owners/domain/owner'
 import { OwnerPersonalData } from '@/modules/owners/domain/owner.ports'
 
 export class CreateOwnerCommand {
@@ -19,6 +19,14 @@ export class UpdateOwnerBankAccountCommand {
   constructor(
     public readonly id: string,
     public readonly bankAccount: BankAccount,
+  ) {}
+}
+
+/** Fase 12, 2.1: honorarios y modo de envío (sólo admin). */
+export class UpdateOwnerFeeSettingsCommand {
+  constructor(
+    public readonly id: string,
+    public readonly changes: Partial<OwnerFeeSettings>,
   ) {}
 }
 

@@ -1,4 +1,4 @@
-import { BankAccount, Owner } from './owner'
+import { BankAccount, Owner, OwnerFeeSettings } from './owner'
 
 /** Datos personales: los bancarios tienen su propio camino (spec 3.5). */
 export interface OwnerPersonalData {
@@ -48,6 +48,11 @@ export abstract class OwnerRepository {
   abstract update(id: string, data: Partial<OwnerPersonalData>): Promise<Owner>
 
   abstract updateBankAccount(id: string, account: BankAccount): Promise<Owner>
+
+  abstract updateFeeSettings(
+    id: string,
+    settings: OwnerFeeSettings,
+  ): Promise<Owner>
 
   abstract setPortalUser(id: string, portalUserId: string): Promise<void>
 

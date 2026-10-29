@@ -98,6 +98,7 @@ export function payment(overrides: Partial<Payment> = {}): Payment {
     voidedById: null,
     voidedAt: null,
     voidReason: null,
+    settlementId: null,
     createdAt: at(overrides.paidAt ?? '2026-10-15'),
     ...overrides,
   }
@@ -492,6 +493,57 @@ describe('InstallmentPolicy', () => {
           null,
         ),
       ).toThrow(InvalidLateFeeAdjustmentException)
+    })
+  })
+
+  describe('chargesAppliedByConcept (Fase 12, A-16)', () => {
+    it('reparte lo imputado a cargos de cada pago entre los cargos vigentes, en orden', () => {
+      const service = charge({ amount: '3000.00', createdAt: at('2026-10-02') })
+      const penalty = charge({
+        concept: ChargeConcept.TERMINATION_PENALTY,
+        amount: '10000.00',
+        createdAt: at('2026-10-03'),
+      })
+      const first = payment({ paidAt: '2026-10-05', chargesApplied: '5000.00' })
+      const second = payment({
+        paidAt: '2026-10-06',
+        chargesApplied: '8000.00',
+      })
+      const voided = payment({
+        paidAt: '2026-10-04',
+        chargesApplied: '13000.00',
+        status: PaymentStatus.VOIDED,
+      })
+      const split = InstallmentPolicy.chargesAppliedByConcept({
+        charges: [penalty, service],
+        payments: [second, first, voided],
+      })
+      // El primero cubre las expensas (3.000) y 2.000 de la multa; el
+      // segundo, el resto de la multa. El anulado no cuenta.
+      expect(split.get(first.id)).toEqual({
+        SERVICE: '3000.00',
+        TERMINATION_PENALTY: '2000.00',
+        OTHER: '0.00',
+      })
+      expect(split.get(second.id)).toEqual({
+        SERVICE: '0.00',
+        TERMINATION_PENALTY: '8000.00',
+        OTHER: '0.00',
+      })
+      expect(split.has(voided.id)).toBe(false)
+    })
+
+    it('lo que no alcanza a ningún cargo vigente cae en OTHER', () => {
+      const paid = payment({ chargesApplied: '500.00' })
+      const split = InstallmentPolicy.chargesAppliedByConcept({
+        charges: [charge({ voidedAt: at('2026-10-20') })],
+        payments: [paid],
+      })
+      expect(split.get(paid.id)).toEqual({
+        SERVICE: '0.00',
+        TERMINATION_PENALTY: '0.00',
+        OTHER: '500.00',
+      })
     })
   })
 })

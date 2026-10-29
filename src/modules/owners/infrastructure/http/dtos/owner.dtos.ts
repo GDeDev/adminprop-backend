@@ -6,7 +6,9 @@ import {
 } from '@nestjs/swagger'
 import { Transform, Type } from 'class-transformer'
 import {
+  IsBoolean,
   IsEmail,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -16,7 +18,9 @@ import {
   ValidateNested,
 } from 'class-validator'
 
+import { StatementSendMode } from '@/modules/owners/domain/owner'
 import { PropertyStatus } from '@/modules/properties/public/properties.facade'
+import { MONEY_AMOUNT_PATTERN } from '@/shared/money'
 import { PaginationQueryDto } from '@/shared/pagination'
 
 const trimmed = ({ value }: { value: unknown }) =>
@@ -129,6 +133,42 @@ export class UpdateOwnerDto extends PartialType(
   OmitType(CreateOwnerDto, ['bankAccount'] as const),
 ) {}
 
+/** Fase 12, 2.1: todo opcional; lo que no viene no cambia. */
+export class UpdateOwnerFeeSettingsDto {
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '4.50',
+    description:
+      'Override del % de honorarios. Null vuelve a la regla por umbral de la inmobiliaria.',
+  })
+  @IsOptional()
+  @Matches(MONEY_AMOUNT_PATTERN, {
+    message: 'feePercentage debe ser un número con hasta 2 decimales',
+  })
+  feePercentage?: string | null
+
+  @ApiPropertyOptional({
+    description: 'Los punitorios cobrados entran en la base del honorario.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  feeIncludesLateFees?: boolean
+
+  @ApiPropertyOptional({
+    description:
+      'Los cargos del propietario (multa, otros) entran en la base. Los cargos SERVICE nunca.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  feeIncludesCharges?: boolean
+
+  @ApiPropertyOptional({ enum: StatementSendMode })
+  @IsOptional()
+  @IsEnum(StatementSendMode, { message: 'El modo de envío no es válido' })
+  statementSendMode?: StatementSendMode
+}
+
 export class ListOwnersQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Parte del nombre, del apellido o del DNI',
@@ -169,6 +209,15 @@ class BankAccountViewDto {
   @ApiProperty({ type: String, nullable: true }) holder: string | null
 }
 
+export class OwnerFeeSettingsDto {
+  @ApiProperty({ type: String, nullable: true, example: '4.50' })
+  feePercentage: string | null
+  @ApiProperty() feeIncludesLateFees: boolean
+  @ApiProperty() feeIncludesCharges: boolean
+  @ApiProperty({ enum: StatementSendMode })
+  statementSendMode: StatementSendMode
+}
+
 class OwnerPropertyDto {
   @ApiProperty() id: string
   @ApiProperty() address: string
@@ -202,6 +251,7 @@ export class OwnerDetailDto extends OwnerSummaryDto {
   @ApiProperty({ type: String, nullable: true }) address: string | null
   @ApiProperty({ type: String, nullable: true }) notes: string | null
   @ApiProperty({ type: BankAccountViewDto }) bankAccount: BankAccountViewDto
+  @ApiProperty({ type: OwnerFeeSettingsDto }) feeSettings: OwnerFeeSettingsDto
   @ApiProperty({ type: [OwnerPropertyDto] }) properties: OwnerPropertyDto[]
 }
 

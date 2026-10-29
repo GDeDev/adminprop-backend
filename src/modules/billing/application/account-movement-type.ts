@@ -14,6 +14,9 @@ export enum AccountMovementType {
   LATE_FEE_ADJUSTMENT = 'LATE_FEE_ADJUSTMENT',
   PAYMENT_VOIDED = 'PAYMENT_VOIDED',
   DEPOSIT_RECEIVED = 'DEPOSIT_RECEIVED',
+  /** Devolución del depósito (Fase 12): informativos, como DEPOSIT_RECEIVED. */
+  DEPOSIT_RETURNED = 'DEPOSIT_RETURNED',
+  DEPOSIT_DEDUCTION = 'DEPOSIT_DEDUCTION',
 }
 
 export enum ArrearsStatus {

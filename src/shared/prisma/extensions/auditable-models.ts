@@ -133,6 +133,14 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   },
   LateFeeAdjustment: { tenantScoped: true, audit: true, softDelete: false },
   RenterCredit: { tenantScoped: true, audit: true, softDelete: false },
+  // Devolución del depósito (Fase 12): una por contrato, con historial; sus
+  // deducciones se escriben una vez con ella y la fila es la traza.
+  DepositReturn: { tenantScoped: true, audit: true, softDelete: false },
+  DepositReturnDeduction: {
+    tenantScoped: true,
+    audit: false,
+    softDelete: false,
+  },
 
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.

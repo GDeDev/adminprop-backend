@@ -1,13 +1,11 @@
 import { Injectable } from '@nestjs/common'
 
-import { appliesReducedFee } from '@/modules/owners/public'
+import { OwnersFacade } from '@/modules/owners/public'
 import {
   PropertiesFacade,
   PropertyContractInfo,
 } from '@/modules/properties/public'
 import { RenterContractInfo, RentersFacade } from '@/modules/renters/public'
-import { TenantsFacade } from '@/modules/tenants/public'
-import { RequestContext } from '@/shared/context/request-context'
 import {
   InvalidGuarantorReferenceException,
   InvalidPropertyReferenceException,
@@ -16,7 +14,6 @@ import {
   PropertyWithoutOwnerException,
   RenterAlreadyActiveException,
 } from '../domain/contract.exceptions'
-import { ContractPolicy } from '../domain/contract.policy'
 
 /**
  * Lo que el alta y la renovación comparten: validar a las partes por las
@@ -28,7 +25,7 @@ export class ContractParties {
   constructor(
     private readonly properties: PropertiesFacade,
     private readonly renters: RentersFacade,
-    private readonly tenants: TenantsFacade,
+    private readonly owners: OwnersFacade,
   ) {}
 
   /**
@@ -88,22 +85,18 @@ export class ContractParties {
    * este momento (spec 4). Se cuenta el contrato que se está creando: el
    * tercer contrato activo del propietario ya nace con el honorario
    * reducido (D-57). En una renovación la propiedad ya cuenta como activa.
+   * Desde la Fase 12 lo resuelve propietarios: si el propietario tiene un
+   * % propio, manda sobre la regla por umbral.
    */
   async feePercentage(
     ownerId: string,
     propertyAlreadyActive: boolean,
   ): Promise<string> {
-    const tenantId = RequestContext.tenantId
-    if (!tenantId) throw new Error('Alta de contrato fuera de un tenant')
-    const [settings, portfolios] = await Promise.all([
-      this.tenants.getContractSettings(tenantId),
-      this.properties.portfolios([ownerId]),
-    ])
-    const active = portfolios.get(ownerId)?.active ?? 0
-    const activeWithThisOne = propertyAlreadyActive ? active : active + 1
-    return ContractPolicy.feePercentage(
-      appliesReducedFee(activeWithThisOne, settings.reducedFeeThreshold),
-      settings,
+    const percentage = await this.owners.feePercentageFor(
+      ownerId,
+      propertyAlreadyActive ? 0 : 1,
     )
+    if (percentage === null) throw new PropertyWithoutOwnerException()
+    return percentage
   }
 }

@@ -81,6 +81,38 @@ export class PaymentRepositoryImpl extends PaymentRepository {
     })
     return paymentToDomain(row)
   }
+
+  async listSettleable(contractId: string): Promise<Payment[]> {
+    const rows = await this.prisma.db.payment.findMany({
+      where: {
+        contractId,
+        status: 'CONFIRMED',
+        receivedBy: 'AGENCY',
+        settlementId: null,
+      },
+      orderBy: [{ paidAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+    })
+    return rows.map(paymentToDomain)
+  }
+
+  async markSettled(ids: string[], settlementId: string): Promise<number> {
+    if (ids.length === 0) return 0
+    // Sólo los libres: un pago no se liquida dos veces aunque dos
+    // liquidaciones lo pidan a la vez.
+    const result = await this.prisma.db.payment.updateMany({
+      where: { id: { in: ids }, settlementId: null },
+      data: { settlementId },
+    })
+    return result.count
+  }
+
+  async unmarkSettled(settlementId: string): Promise<number> {
+    const result = await this.prisma.db.payment.updateMany({
+      where: { settlementId },
+      data: { settlementId: null },
+    })
+    return result.count
+  }
 }
 
 function toWhere(filter: PaymentFilter): Prisma.PaymentWhereInput {

@@ -100,12 +100,14 @@ model Tenant {
   propertyServices PropertyService[]
   advanceExpenses  AdvanceExpense[]
 
-  installments           Installment[]
-  installmentCharges     InstallmentCharge[]
-  payments               Payment[]
-  installmentLateFeeDays InstallmentLateFeeDay[]
-  lateFeeAdjustments     LateFeeAdjustment[]
-  renterCredits          RenterCredit[]
+  installments            Installment[]
+  installmentCharges      InstallmentCharge[]
+  payments                Payment[]
+  installmentLateFeeDays  InstallmentLateFeeDay[]
+  lateFeeAdjustments      LateFeeAdjustment[]
+  renterCredits           RenterCredit[]
+  depositReturns          DepositReturn[]
+  depositReturnDeductions DepositReturnDeduction[]
 
   @@map("tenants")
 }
@@ -549,6 +551,14 @@ model Owner {
 
   portalUserId String? @map("portal_user_id") @db.Uuid
 
+  // Honorarios y envíos (Fase 12, 2.1; Micaela #5 y #7). El % es un override
+  // de la regla por umbral del tenant (null = la regla); los booleanos dicen
+  // qué conceptos cobrados entran en la base además del alquiler.
+  feePercentage       Decimal?          @map("fee_percentage") @db.Decimal(5, 2)
+  feeIncludesLateFees Boolean           @default(false) @map("fee_includes_late_fees")
+  feeIncludesCharges  Boolean           @default(false) @map("fee_includes_charges")
+  statementSendMode   StatementSendMode @default(BOTH) @map("statement_send_mode")
+
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
@@ -560,6 +570,14 @@ model Owner {
   @@index([tenantId, bankCbu])
   @@index([tenantId, deletedAt])
   @@map("owners")
+}
+
+/// Qué se le manda al propietario al cerrar el consolidado mensual (Micaela
+/// #7): sólo el resumen, sólo los comprobantes de cada liquidación, o ambos.
+enum StatementSendMode {
+  SUMMARY
+  RECEIPTS
+  BOTH
 }
 
 /// Con qué responde el garante (PRD 5.4): un inmueble propio o sus recibos de
@@ -1022,6 +1040,16 @@ enum PaymentMethod {
   CASH
   CREDIT
   OTHER
+  /// Deuda cubierta con el depósito en garantía al devolverlo (Fase 12).
+  DEPOSIT
+}
+
+/// Por qué se descuenta algo del depósito al devolverlo (Micaela #1).
+enum DepositDeductionConcept {
+  /// Deuda del inquilino; con cuota, crea un pago `DEPOSIT` sobre ella.
+  DEBT
+  DAMAGE
+  OTHER
 }
 
 enum PaymentReceiver {
@@ -1185,6 +1213,10 @@ model Payment {
   voidedAt   DateTime? @map("voided_at") @db.Timestamptz(3)
   voidReason String?   @map("void_reason") @db.VarChar(500)
 
+  /// Liquidación que lo incluyó (Fase 12, sin FK: lo escribe liquidaciones
+  /// por la facade). Null = todavía no se liquidó.
+  settlementId String? @map("settlement_id") @db.Uuid
+
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   createdById String?  @map("created_by_id") @db.Uuid
@@ -1195,7 +1227,60 @@ model Payment {
   @@index([tenantId, renterId])
   @@index([tenantId, status, receivedBy])
   @@index([tenantId, creditId])
+  @@index([tenantId, settlementId])
   @@map("payments")
+}
+
+/// Devolución del depósito en garantía al cerrar las cuentas del contrato
+/// (Fase 12, 2.2; Micaela #1): cuánto se devolvió y qué se descontó, con
+/// justificación. Una por contrato. `returned_amount + Σ deducciones =
+/// deposit_amount`.
+model DepositReturn {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  contractId String @map("contract_id") @db.Uuid
+
+  returnedAt      DateTime      @map("returned_at") @db.Date
+  /// Copiados del contrato al devolver.
+  depositAmount   Decimal       @map("deposit_amount") @db.Decimal(14, 2)
+  depositCurrency Currency      @map("deposit_currency")
+  returnedAmount  Decimal       @map("returned_amount") @db.Decimal(14, 2)
+  method          PaymentMethod
+  notes           String?       @db.Text
+  registeredById  String        @map("registered_by_id") @db.Uuid
+
+  deductions DepositReturnDeduction[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, contractId])
+  @@map("deposit_returns")
+}
+
+model DepositReturnDeduction {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  depositReturnId String        @map("deposit_return_id") @db.Uuid
+  depositReturn   DepositReturn @relation(fields: [depositReturnId], references: [id], onDelete: Cascade)
+
+  concept       DepositDeductionConcept
+  description   String                  @db.VarChar(300)
+  amount        Decimal                 @db.Decimal(14, 2)
+  /// Cuota a la que se imputó una deuda (sin FK).
+  installmentId String?                 @map("installment_id") @db.Uuid
+  /// El pago `DEPOSIT` que se creó sobre esa cuota.
+  paymentId     String?                 @map("payment_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, depositReturnId])
+  @@map("deposit_return_deductions")
 }
 
 /// Un día de punitorio de una cuota saldada: cómo se armó el monto (A-4). Se

@@ -1,6 +1,8 @@
+import { StatementSendMode } from './owner'
 import {
   InvalidCbuException,
   InvalidNationalIdException,
+  InvalidOwnerFeeSettingsException,
 } from './owner.exceptions'
 import { OwnerPolicy } from './owner.policy'
 import { appliesReducedFee } from './reduced-fee'
@@ -94,5 +96,49 @@ describe('OwnerPolicy.searchKey', () => {
     expect(OwnerPolicy.searchKey('  José  PÉREZ Muñoz ')).toBe(
       'jose perez munoz',
     )
+  })
+})
+
+describe('OwnerPolicy.normalizeFeeSettings (Fase 12)', () => {
+  const current = {
+    feePercentage: null,
+    feeIncludesLateFees: false,
+    feeIncludesCharges: false,
+    statementSendMode: StatementSendMode.BOTH,
+  }
+
+  it('aplica sólo lo que viene y normaliza el % a dos decimales', () => {
+    expect(
+      OwnerPolicy.normalizeFeeSettings(current, {
+        feePercentage: '4.5',
+        feeIncludesLateFees: true,
+      }),
+    ).toEqual({
+      feePercentage: '4.50',
+      feeIncludesLateFees: true,
+      feeIncludesCharges: false,
+      statementSendMode: StatementSendMode.BOTH,
+    })
+  })
+
+  it('null vuelve a la regla por umbral; fuera de 0..100 o no numérico es 400', () => {
+    expect(
+      OwnerPolicy.normalizeFeeSettings(
+        { ...current, feePercentage: '3.00' },
+        { feePercentage: null, statementSendMode: StatementSendMode.SUMMARY },
+      ),
+    ).toMatchObject({
+      feePercentage: null,
+      statementSendMode: StatementSendMode.SUMMARY,
+    })
+    expect(() =>
+      OwnerPolicy.normalizeFeeSettings(current, { feePercentage: '100.01' }),
+    ).toThrow(InvalidOwnerFeeSettingsException)
+    expect(() =>
+      OwnerPolicy.normalizeFeeSettings(current, { feePercentage: '-1' }),
+    ).toThrow(InvalidOwnerFeeSettingsException)
+    expect(() =>
+      OwnerPolicy.normalizeFeeSettings(current, { feePercentage: 'abc' }),
+    ).toThrow(InvalidOwnerFeeSettingsException)
   })
 })

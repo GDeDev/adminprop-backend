@@ -142,6 +142,7 @@ export function paymentToDomain(row: PaymentRow): Payment {
     voidedById: row.voidedById,
     voidedAt: row.voidedAt,
     voidReason: row.voidReason,
+    settlementId: row.settlementId,
     createdAt: row.createdAt,
   }
 }

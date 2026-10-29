@@ -7,13 +7,24 @@ export { BillingModule } from '../infrastructure/modules/billing.module'
 export { BillingFacade } from './billing.facade'
 export type {
   InstallmentCollection,
+  InstallmentFeeTerms,
   OverdueInstallmentRef,
+  SettleablePayment,
 } from './billing.facade'
-export { INSTALLMENT_PAID_QUEUE } from './billing-events'
-export type { InstallmentPaidPayload } from './billing-events'
+export {
+  INSTALLMENT_PAID_QUEUE,
+  PAYMENT_CONFIRMED_QUEUE,
+  PAYMENT_VOIDED_QUEUE,
+} from './billing-events'
+export type {
+  InstallmentPaidPayload,
+  PaymentConfirmedPayload,
+  PaymentVoidedPayload,
+} from './billing-events'
 export {
   ChargeConcept,
   CreditStatus,
+  DepositDeductionConcept,
   ExchangeRateSource,
   InstallmentStatus,
   LateFeeAdjustmentKind,
@@ -33,6 +44,8 @@ export type {
   RenterCreditsView,
 } from '../application/installment.views'
 export type { ContractAccountView } from '../application/contract-account.views'
+export type { DepositReturnView } from '../application/deposit-return.views'
+export type { ChargesByConcept } from '../domain/installment.policy'
 export {
   AccountMovementType,
   ArrearsStatus,

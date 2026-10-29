@@ -18,8 +18,12 @@ import {
 } from '@nestjs/swagger'
 
 import { Role, Roles } from '@/modules/auth/public'
-import { GenerateInstallmentsCommand } from '@/modules/billing/application/commands/billing.commands'
+import {
+  GenerateInstallmentsCommand,
+  RegisterDepositReturnCommand,
+} from '@/modules/billing/application/commands/billing.commands'
 import { ContractAccountView } from '@/modules/billing/application/contract-account.views'
+import { DepositReturnView } from '@/modules/billing/application/deposit-return.views'
 import { GenerationResult } from '@/modules/billing/application/installment-generator'
 import {
   BillingSummaryView,
@@ -41,6 +45,7 @@ import {
   BillingSummaryDto,
   BillingSummaryQueryDto,
   ContractAccountDto,
+  DepositReturnDto,
   GenerateInstallmentsDto,
   InstallmentBreakdownDto,
   InstallmentBreakdownQueryDto,
@@ -48,6 +53,7 @@ import {
   InstallmentGenerationResultDto,
   InstallmentSummaryDto,
   ListInstallmentsQueryDto,
+  RegisterDepositReturnDto,
 } from '../dtos/billing.dtos'
 
 /**
@@ -198,5 +204,52 @@ export class InstallmentsController {
       ContractAccountView
     >(new GetContractAccountQuery(contractId))
     return { success: true, message: null, data: result }
+  }
+
+  @Post('contracts/:contractId/deposit-return')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Devolver el depósito en garantía',
+    description:
+      'Sólo contratos finalizados, rescindidos o activos con el fin ya pasado, y una sola vez. `returnedAmount + Σ deducciones` tiene que ser el depósito. Una deducción DEBT con cuota crea un pago DEPOSIT sobre ella.',
+  })
+  @ApiResponse({ status: 201, type: DepositReturnDto })
+  @ApiResponse({
+    status: 400,
+    description: 'No cierra con el depósito, fecha o deducción inválidas',
+    type: ApiErrorDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Contrato vigente o depósito ya devuelto',
+    type: ApiErrorDto,
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'El contrato no existe',
+    type: ApiErrorDto,
+  })
+  async returnDeposit(
+    @Param('contractId', new ParseUUIDPipe()) contractId: string,
+    @Body() dto: RegisterDepositReturnDto,
+  ): Promise<ApiSuccessDto<DepositReturnView>> {
+    const result = await this.commandBus.execute<
+      RegisterDepositReturnCommand,
+      DepositReturnView
+    >(
+      new RegisterDepositReturnCommand(contractId, {
+        returnedAt: dto.returnedAt,
+        returnedAmount: dto.returnedAmount,
+        method: dto.method,
+        notes: dto.notes ?? null,
+        deductions: dto.deductions.map((d) => ({
+          concept: d.concept,
+          description: d.description,
+          amount: d.amount,
+          installmentId: d.installmentId ?? null,
+        })),
+      }),
+    )
+    return { success: true, message: 'Depósito devuelto', data: result }
   }
 }

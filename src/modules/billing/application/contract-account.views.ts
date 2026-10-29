@@ -10,6 +10,7 @@ import {
   CollectionMode,
   CreditStatus,
   Currency,
+  DepositReturn,
   FeeMode,
   Installment,
   InstallmentStatus,
@@ -21,6 +22,7 @@ import {
 } from '../domain/billing'
 import { InstallmentPolicy } from '../domain/installment.policy'
 import { AccountMovementType } from './account-movement-type'
+import { DepositReturnView } from './deposit-return.views'
 import { sumMoney } from './installment.views'
 
 export { AccountMovementType }
@@ -74,6 +76,8 @@ export interface ContractAccountDepositView {
   returnMode: DepositReturnMode
   /** FIXED: el depósito; FOLLOWS_RENT: el alquiler vigente; MANUAL: null (A-13). */
   suggestedReturn: string | null
+  /** La devolución registrada (Fase 12), si ya se hizo. */
+  returned: DepositReturnView | null
 }
 
 /** Cuenta corriente del contrato (Micaela #8). */
@@ -103,6 +107,10 @@ export function buildContractAccount(
   installments: Installment[],
   credits: RenterCredit[],
   today: IsoDate,
+  depositReturn: {
+    record: DepositReturn
+    view: DepositReturnView
+  } | null = null,
 ): ContractAccountView {
   const rows = [...installments]
     .sort((a, b) => a.period.localeCompare(b.period))
@@ -231,6 +239,34 @@ export function buildContractAccount(
       }
     }
   }
+  if (depositReturn) {
+    const ret = depositReturn.record
+    // Informativos (sin débito ni crédito): la deuda cubierta con el
+    // depósito ya aparece como PAYMENT con `method: DEPOSIT`; lo demás
+    // (daños, otros) no es deuda del inquilino en la cuenta del contrato.
+    drafts.push({
+      date: ret.returnedAt,
+      type: AccountMovementType.DEPOSIT_RETURNED,
+      description: `Depósito devuelto: ${ret.returnedAmount} ${ret.depositCurrency} de ${ret.depositAmount}`,
+      debit: null,
+      credit: null,
+      installmentId: null,
+      paymentId: null,
+      order: 9,
+    })
+    for (const deduction of ret.deductions) {
+      drafts.push({
+        date: ret.returnedAt,
+        type: AccountMovementType.DEPOSIT_DEDUCTION,
+        description: `Deducción del depósito (${deduction.concept}): ${deduction.description} — ${deduction.amount} ${ret.depositCurrency}`,
+        debit: null,
+        credit: null,
+        installmentId: deduction.installmentId,
+        paymentId: deduction.paymentId,
+        order: 10,
+      })
+    }
+  }
   for (const credit of credits) {
     if (credit.status === CreditStatus.REFUNDED && credit.refundedAt) {
       drafts.push({
@@ -325,6 +361,7 @@ export function buildContractAccount(
       currency: Currency[contract.depositCurrency],
       returnMode: contract.depositReturnMode,
       suggestedReturn: suggestedDepositReturn(contract),
+      returned: depositReturn?.view ?? null,
     },
   }
 }

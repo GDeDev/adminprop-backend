@@ -104,6 +104,8 @@ export interface PaymentView {
   voidedAt: Date | null
   voidedBy: UserRef | null
   voidReason: string | null
+  /** Liquidación que lo incluyó (Fase 12); null = sin liquidar. */
+  settlementId: string | null
   createdAt: Date
 }
 
@@ -334,6 +336,7 @@ export function toPaymentView(
     voidedAt: payment.voidedAt,
     voidedBy: user(payment.voidedById),
     voidReason: payment.voidReason,
+    settlementId: payment.settlementId,
     createdAt: payment.createdAt,
   }
 }

@@ -7,6 +7,10 @@ import {
   BillingFacade,
   INSTALLMENT_PAID_QUEUE,
   InstallmentPaidPayload,
+  PAYMENT_CONFIRMED_QUEUE,
+  PAYMENT_VOIDED_QUEUE,
+  PaymentConfirmedPayload,
+  PaymentVoidedPayload,
 } from '../src/modules/billing/public'
 import { QueuePort } from '../src/platform/queue/queue.port'
 import { RequestContext } from '../src/shared/context/request-context'
@@ -45,6 +49,8 @@ describe('Cobros (e2e, Postgres)', () => {
   let refs: { tolosa: string; casa: string }
   let refsB: { tolosa: string; casa: string }
   const paidEvents: InstallmentPaidPayload[] = []
+  const confirmedEvents: PaymentConfirmedPayload[] = []
+  const voidedEvents: PaymentVoidedPayload[] = []
 
   const api = (token: string) => ({
     get: (url: string) =>
@@ -198,6 +204,16 @@ describe('Cobros (e2e, Postgres)', () => {
       .get(QueuePort)
       .consume<InstallmentPaidPayload>(INSTALLMENT_PAID_QUEUE, async (m) => {
         paidEvents.push(m.payload)
+      })
+    await app
+      .get(QueuePort)
+      .consume<PaymentConfirmedPayload>(PAYMENT_CONFIRMED_QUEUE, async (m) => {
+        confirmedEvents.push(m.payload)
+      })
+    await app
+      .get(QueuePort)
+      .consume<PaymentVoidedPayload>(PAYMENT_VOIDED_QUEUE, async (m) => {
+        voidedEvents.push(m.payload)
       })
   })
 
@@ -1192,6 +1208,257 @@ describe('Cobros (e2e, Postgres)', () => {
       expect(
         await inTenantA(() => facade.generateInstallments(nextPeriod(period))),
       ).toMatchObject({ created: 2 })
+    })
+  })
+
+  describe('para liquidaciones (Fase 12, 2.2)', () => {
+    it('publica payment-confirmed al confirmar y payment-voided al anular; la facade entrega los pagos liquidables y los marca', async () => {
+      const contract = await createContract({ lateFeeGraceDays: 90 })
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+      await api(adminToken)
+        .post(`/billing/installments/${id}/charges`)
+        .send({ concept: 'SERVICE', description: 'Expensas', amount: '3000' })
+        .expect(201)
+      await api(adminToken)
+        .post(`/billing/installments/${id}/charges`)
+        .send({ concept: 'OTHER', description: 'Llave', amount: '1000' })
+        .expect(201)
+      // Cubre el alquiler y los dos cargos: 100.000 + 3.000 + 1.000.
+      const paid = await pay(id, { paidAt: day(5), amount: '104000' }).expect(
+        201,
+      )
+      const paymentId = paid.body.data.payment.id as string
+      expect(paid.body.data.payment.settlementId).toBeNull()
+
+      await waitFor(() =>
+        confirmedEvents.some((e) => e.paymentId === paymentId),
+      )
+      expect(
+        confirmedEvents.find((e) => e.paymentId === paymentId),
+      ).toMatchObject({
+        installmentId: id,
+        contractId: contract.id,
+        ownerId: contract.ownerId,
+        renterId: contract.renterId,
+        period: previous,
+        receivedBy: 'AGENCY',
+        kind: 'CASH_IN',
+        rentApplied: '100000.00',
+        lateFeeApplied: '0.00',
+        chargesApplied: '4000.00',
+        currency: 'ARS',
+      })
+
+      const facade = app.get(BillingFacade)
+      const settleable = await inTenantA(() =>
+        facade.listSettleablePayments(contract.id),
+      )
+      expect(settleable).toHaveLength(1)
+      expect(settleable[0]).toMatchObject({
+        paymentId,
+        installmentId: id,
+        paidAt: day(5),
+        rentApplied: '100000.00',
+        lateFeeApplied: '0.00',
+        chargesApplied: {
+          SERVICE: '3000.00',
+          TERMINATION_PENALTY: '0.00',
+          OTHER: '1000.00',
+        },
+        currency: 'ARS',
+        installment: {
+          installmentId: id,
+          period: previous,
+          baseAmount: '100000.00',
+          feeMode: 'DEDUCTED',
+          feePercentage: '5.00',
+          feeAmount: null,
+        },
+      })
+      const terms = await inTenantA(() => facade.feeTermsForInstallments([id]))
+      expect(terms.get(id)).toMatchObject({ feePercentage: '5.00' })
+
+      const settlementId = '11111111-1111-4111-8111-111111111111'
+      expect(
+        await inTenantA(() =>
+          facade.markPaymentsSettled([paymentId], settlementId),
+        ),
+      ).toBe(1)
+      expect(
+        await inTenantA(() =>
+          facade.markPaymentsSettled([paymentId], settlementId),
+        ),
+      ).toBe(0)
+      expect(
+        await inTenantA(() => facade.listSettleablePayments(contract.id)),
+      ).toEqual([])
+      expect((await detail(id)).payments[0].settlementId).toBe(settlementId)
+
+      // Anular un pago liquidado avisa con la liquidación.
+      await api(adminToken)
+        .post(`/billing/payments/${paymentId}/void`)
+        .send({ reason: 'Rebotó' })
+        .expect(200)
+      await waitFor(() => voidedEvents.some((e) => e.paymentId === paymentId))
+      expect(voidedEvents.find((e) => e.paymentId === paymentId)).toMatchObject(
+        {
+          installmentId: id,
+          contractId: contract.id,
+          settlementId,
+          rentApplied: '100000.00',
+          voidReason: 'Rebotó',
+        },
+      )
+      expect(
+        await inTenantA(() => facade.unmarkPaymentsSettled(settlementId)),
+      ).toBe(1)
+    })
+
+    it('devuelve el depósito con deducciones: una deuda imputada a una cuota crea un pago DEPOSIT y la cuenta corriente lo muestra', async () => {
+      const contract = await createContract({
+        startDate: addMonths(today, -3),
+        endDate: addDays(today, -1),
+        lateFeeGraceDays: 90,
+      })
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+      await pay(id, { paidAt: day(5), amount: '70000' }).expect(201)
+
+      const active = await createContract()
+      const stillActive = await api(adminToken)
+        .post(`/contracts/${active.id}/deposit-return`)
+        .send({
+          returnedAt: today,
+          returnedAmount: '100000',
+          method: 'TRANSFER',
+          deductions: [],
+        })
+        .expect(409)
+      expect(stillActive.body.code).toBe('DEPOSIT_RETURN_CONTRACT_ACTIVE')
+
+      const unbalanced = await api(adminToken)
+        .post(`/contracts/${contract.id}/deposit-return`)
+        .send({
+          returnedAt: today,
+          returnedAmount: '50000',
+          method: 'TRANSFER',
+          deductions: [
+            { concept: 'DAMAGE', description: 'Pintura', amount: '10000' },
+          ],
+        })
+        .expect(400)
+      expect(unbalanced.body.code).toBe('DEPOSIT_RETURN_UNBALANCED')
+
+      const tooMuch = await api(adminToken)
+        .post(`/contracts/${contract.id}/deposit-return`)
+        .send({
+          returnedAt: today,
+          returnedAmount: '50000',
+          method: 'TRANSFER',
+          deductions: [
+            {
+              concept: 'DEBT',
+              description: 'Cuota impaga',
+              amount: '50000',
+              installmentId: id,
+            },
+          ],
+        })
+        .expect(400)
+      expect(tooMuch.body.code).toBe('DEPOSIT_RETURN_INVALID_DEDUCTION')
+
+      const returned = await api(employeeToken)
+        .post(`/contracts/${contract.id}/deposit-return`)
+        .send({
+          returnedAt: today,
+          returnedAmount: '60000',
+          method: 'TRANSFER',
+          notes: 'Transferido al inquilino',
+          deductions: [
+            {
+              concept: 'DEBT',
+              description: 'Saldo de la cuota',
+              amount: '30000',
+              installmentId: id,
+            },
+            { concept: 'DAMAGE', description: 'Pintura', amount: '10000' },
+          ],
+        })
+        .expect(201)
+      expect(returned.body.data).toMatchObject({
+        contractId: contract.id,
+        returnedAt: today,
+        depositAmount: '100000.00',
+        depositCurrency: 'ARS',
+        returnedAmount: '60000.00',
+        method: 'TRANSFER',
+        notes: 'Transferido al inquilino',
+        registeredBy: { fullName: 'emp@a.com' },
+      })
+      expect(returned.body.data.deductions).toHaveLength(2)
+      const debt = returned.body.data.deductions[0]
+      expect(debt).toMatchObject({
+        concept: 'DEBT',
+        amount: '30000.00',
+        installmentId: id,
+      })
+      expect(debt.paymentId).not.toBeNull()
+      expect(returned.body.data.deductions[1]).toMatchObject({
+        concept: 'DAMAGE',
+        installmentId: null,
+        paymentId: null,
+      })
+
+      // La cuota quedó saldada con un pago DEPOSIT recibido por la inmobiliaria.
+      const full = await detail(id)
+      expect(full).toMatchObject({ status: 'PAID', rentBalance: '0.00' })
+      expect(full.payments[0]).toMatchObject({
+        id: debt.paymentId,
+        method: 'DEPOSIT',
+        kind: 'CASH_IN',
+        receivedBy: 'AGENCY',
+        status: 'CONFIRMED',
+        rentApplied: '30000.00',
+        paidAt: today,
+      })
+
+      const account = await api(adminToken)
+        .get(`/contracts/${contract.id}/account`)
+        .expect(200)
+      expect(account.body.data.deposit.returned).toMatchObject({
+        id: returned.body.data.id,
+        returnedAmount: '60000.00',
+      })
+      expect(
+        account.body.data.movements.map((m: { type: string }) => m.type),
+      ).toEqual(
+        expect.arrayContaining([
+          'PAYMENT',
+          'DEPOSIT_RETURNED',
+          'DEPOSIT_DEDUCTION',
+        ]),
+      )
+
+      const twice = await api(adminToken)
+        .post(`/contracts/${contract.id}/deposit-return`)
+        .send({
+          returnedAt: today,
+          returnedAmount: '100000',
+          method: 'CASH',
+          deductions: [],
+        })
+        .expect(409)
+      expect(twice.body.code).toBe('DEPOSIT_RETURN_EXISTS')
+      await api(adminBToken)
+        .post(`/contracts/${contract.id}/deposit-return`)
+        .send({
+          returnedAt: today,
+          returnedAmount: '100000',
+          method: 'CASH',
+          deductions: [],
+        })
+        .expect(422)
     })
   })
 

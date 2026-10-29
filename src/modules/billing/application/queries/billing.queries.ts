@@ -1,5 +1,6 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs'
 
+import { UsersFacade } from '@/modules/auth/public'
 import { todayIso } from '@/shared/dates/calendar-date'
 import { PaginatedResult, PaginationQueryDto } from '@/shared/pagination'
 import { paginateWith } from '@/shared/pagination/pagination'
@@ -10,6 +11,7 @@ import {
   PaymentStatus,
 } from '../../domain/billing'
 import {
+  DepositReturnRepository,
   InstallmentFilter,
   InstallmentRepository,
   PaymentRepository,
@@ -21,6 +23,7 @@ import {
   buildContractAccount,
   ContractAccountView,
 } from '../contract-account.views'
+import { toDepositReturnView } from '../deposit-return.views'
 import {
   BillingSummaryView,
   InstallmentBreakdownView,
@@ -193,15 +196,33 @@ export class GetContractAccountHandler implements IQueryHandler<
     private readonly references: BillingReferences,
     private readonly installments: InstallmentRepository,
     private readonly credits: RenterCreditRepository,
+    private readonly depositReturns: DepositReturnRepository,
+    private readonly users: UsersFacade,
   ) {}
 
   async execute(query: GetContractAccountQuery): Promise<ContractAccountView> {
     const contract = await this.references.requireContract(query.contractId)
-    const [installments, credits] = await Promise.all([
+    const [installments, credits, returned] = await Promise.all([
       this.installments.listAll({ contractId: contract.id }),
       this.credits.listByContract(contract.id),
+      this.depositReturns.findByContract(contract.id),
     ])
-    return buildContractAccount(contract, installments, credits, todayIso())
+    const depositReturn = returned
+      ? {
+          record: returned,
+          view: toDepositReturnView(
+            returned,
+            await this.users.describe([returned.registeredById]),
+          ),
+        }
+      : null
+    return buildContractAccount(
+      contract,
+      installments,
+      credits,
+      todayIso(),
+      depositReturn,
+    )
   }
 }
 

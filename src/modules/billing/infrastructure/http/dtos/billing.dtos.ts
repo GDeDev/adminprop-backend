@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
-import { Transform } from 'class-transformer'
+import { Transform, Type } from 'class-transformer'
 import {
+  ArrayMaxSize,
   IsArray,
   IsEnum,
   IsOptional,
@@ -9,6 +10,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator'
 
 import {
@@ -20,6 +22,7 @@ import {
   CollectionMode,
   CreditStatus,
   Currency,
+  DepositDeductionConcept,
   ExchangeRateSource,
   FeeMode,
   InstallmentStatus,
@@ -332,6 +335,63 @@ export class RefundCreditDto {
   notes?: string
 }
 
+export class DepositDeductionInputDto {
+  @ApiProperty({ enum: DepositDeductionConcept })
+  @IsEnum(DepositDeductionConcept, { message: 'El concepto no es válido' })
+  concept: DepositDeductionConcept
+
+  @ApiProperty({ maxLength: 300, example: 'Cuota de octubre impaga' })
+  @IsString()
+  @MinLength(1, { message: 'Describí la deducción' })
+  @MaxLength(300)
+  description: string
+
+  @IsMoneyAmount()
+  amount: string
+
+  @ApiPropertyOptional({
+    description:
+      'Sólo en DEBT: la cuota a la que se imputa. Crea un pago DEPOSIT sobre ella.',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  installmentId?: string
+}
+
+/** Fase 12, 2.2: `returnedAmount + Σ deducciones` tiene que ser el depósito. */
+export class RegisterDepositReturnDto {
+  @ApiProperty({ format: 'date', example: '2026-10-31' })
+  @Matches(ISO_DATE, { message: 'returnedAt tiene que ser AAAA-MM-DD' })
+  returnedAt: string
+
+  @ApiProperty({
+    type: String,
+    example: '80000.00',
+    description: 'Lo que se le devuelve al inquilino; puede ser 0.',
+  })
+  @Matches(MONEY_AMOUNT_PATTERN, {
+    message: 'returnedAmount debe ser un monto con hasta 2 decimales',
+  })
+  returnedAmount: string
+
+  @ApiProperty({ enum: PaymentMethod })
+  @IsEnum(PaymentMethod, { message: 'El medio no es válido' })
+  method: PaymentMethod
+
+  @ApiPropertyOptional({ type: String, maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string
+
+  @ApiProperty({ type: [DepositDeductionInputDto] })
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => DepositDeductionInputDto)
+  deductions: DepositDeductionInputDto[]
+}
+
 /** Para anular pagos y cargos. */
 export class VoidDto {
   @ApiProperty({ maxLength: 500 })
@@ -454,6 +514,12 @@ export class PaymentDto {
   @ApiProperty({ type: Date, nullable: true }) voidedAt: Date | null
   @ApiProperty({ type: UserRefDto, nullable: true }) voidedBy: UserRefDto | null
   @ApiProperty({ type: String, nullable: true }) voidReason: string | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Liquidación que lo incluyó (Fase 12); null = sin liquidar',
+  })
+  settlementId: string | null
   @ApiProperty() createdAt: Date
 }
 
@@ -676,6 +742,32 @@ export class ContractAccountMovementDto {
   @ApiProperty({ type: String, nullable: true }) paymentId: string | null
 }
 
+export class DepositReturnDeductionDto {
+  @ApiProperty() id: string
+  @ApiProperty({ enum: DepositDeductionConcept })
+  concept: DepositDeductionConcept
+  @ApiProperty() description: string
+  @ApiProperty({ type: String }) amount: string
+  @ApiProperty({ type: String, nullable: true }) installmentId: string | null
+  @ApiProperty({ type: String, nullable: true }) paymentId: string | null
+}
+
+export class DepositReturnDto {
+  @ApiProperty() id: string
+  @ApiProperty() contractId: string
+  @ApiProperty({ format: 'date' }) returnedAt: string
+  @ApiProperty({ type: String }) depositAmount: string
+  @ApiProperty({ enum: Currency }) depositCurrency: Currency
+  @ApiProperty({ type: String }) returnedAmount: string
+  @ApiProperty({ enum: PaymentMethod }) method: PaymentMethod
+  @ApiProperty({ type: String, nullable: true }) notes: string | null
+  @ApiProperty({ type: UserRefDto, nullable: true })
+  registeredBy: UserRefDto | null
+  @ApiProperty({ type: [DepositReturnDeductionDto] })
+  deductions: DepositReturnDeductionDto[]
+  @ApiProperty() createdAt: Date
+}
+
 export class ContractAccountDepositDto {
   @ApiProperty({ type: String }) amount: string
   @ApiProperty({ enum: Currency }) currency: Currency
@@ -687,6 +779,8 @@ export class ContractAccountDepositDto {
       'FIXED: el depósito; FOLLOWS_RENT: el alquiler vigente; MANUAL: null',
   })
   suggestedReturn: string | null
+  @ApiProperty({ type: DepositReturnDto, nullable: true })
+  returned: DepositReturnDto | null
 }
 
 export class ContractAccountDto {

@@ -270,3 +270,62 @@ export class InvalidLateFeeAdjustmentException extends DomainException {
     )
   }
 }
+
+// ---------------------------------------------------------------- Depósito
+
+export class DepositReturnExistsException extends DomainException {
+  constructor(contractId: string) {
+    super(
+      'DEPOSIT_RETURN_EXISTS',
+      'El depósito de este contrato ya se devolvió',
+      DomainErrorKind.Conflict,
+      { contractId },
+    )
+  }
+}
+
+/** Sólo se devuelve al cerrar las cuentas: contrato finalizado, rescindido o vencido. */
+export class DepositReturnContractActiveException extends DomainException {
+  constructor(contractId: string) {
+    super(
+      'DEPOSIT_RETURN_CONTRACT_ACTIVE',
+      'El contrato sigue vigente: el depósito se devuelve al terminar',
+      DomainErrorKind.Conflict,
+      { contractId },
+    )
+  }
+}
+
+/** `returnedAmount + Σ deducciones` tiene que ser exactamente el depósito. */
+export class DepositReturnUnbalancedException extends DomainException {
+  constructor(deposit: string, accounted: string) {
+    super(
+      'DEPOSIT_RETURN_UNBALANCED',
+      `Lo devuelto más las deducciones (${accounted}) tiene que ser igual al depósito (${deposit})`,
+      DomainErrorKind.InvalidInput,
+      { deposit, accounted },
+    )
+  }
+}
+
+export class InvalidDepositDeductionException extends DomainException {
+  constructor(reason: string) {
+    super(
+      'DEPOSIT_RETURN_INVALID_DEDUCTION',
+      `La deducción no sirve: ${reason}`,
+      DomainErrorKind.InvalidInput,
+      { field: 'deductions' },
+    )
+  }
+}
+
+export class InvalidDepositReturnDateException extends DomainException {
+  constructor(reason: string) {
+    super(
+      'DEPOSIT_RETURN_INVALID_DATE',
+      `La fecha de devolución no sirve: ${reason}`,
+      DomainErrorKind.InvalidInput,
+      { field: 'returnedAt' },
+    )
+  }
+}

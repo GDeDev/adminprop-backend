@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
-import { fullNameOf } from '../domain/owner'
+import { OwnerFeeResolver } from '../application/owner-fee-resolver'
+import { fullNameOf, OwnerFeeSettings } from '../domain/owner'
 import { OwnerRef, OwnerRepository } from '../domain/owner.ports'
 
 export type { OwnerRef }
@@ -11,7 +12,41 @@ export type { OwnerRef }
  */
 @Injectable()
 export class OwnersFacade {
-  constructor(private readonly owners: OwnerRepository) {}
+  constructor(
+    private readonly owners: OwnerRepository,
+    private readonly fees: OwnerFeeResolver,
+  ) {}
+
+  /**
+   * El % de honorarios que le corresponde al propietario hoy (Fase 12, 2.1):
+   * su override si lo tiene, si no la regla por umbral de la inmobiliaria
+   * (RN-06/RN-07). `extraActive` suma propiedades que todavía no cuentan
+   * como activas (el contrato que se está creando, D-57). Null si el
+   * propietario no existe.
+   */
+  async feePercentageFor(
+    ownerId: string,
+    extraActive = 0,
+  ): Promise<string | null> {
+    const owner = await this.owners.findById(ownerId)
+    if (!owner) return null
+    return this.fees.feePercentageFor(owner, extraActive)
+  }
+
+  /** Honorarios y envíos del propietario, para liquidar. Null si no existe. */
+  async feeSettings(ownerId: string): Promise<OwnerFeeSettings | null> {
+    const owner = await this.owners.findById(ownerId)
+    return owner?.feeSettings ?? null
+  }
+
+  /** Si tiene CBU o alias cargados (A-17: se avisa, no se bloquea). */
+  async hasBankAccount(ownerId: string): Promise<boolean> {
+    const owner = await this.owners.findById(ownerId)
+    return (
+      owner !== null &&
+      (owner.bankAccount.cbu !== null || owner.bankAccount.alias !== null)
+    )
+  }
 
   async exists(id: string): Promise<boolean> {
     return (await this.owners.findById(id)) !== null

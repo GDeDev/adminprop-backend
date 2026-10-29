@@ -14,7 +14,12 @@ import {
   RegisterPaymentHandler,
   VoidPaymentHandler,
 } from '@/modules/billing/application/commands/payment.handlers'
+import { RegisterDepositReturnHandler } from '@/modules/billing/application/commands/deposit-return.handler'
 import { RelayInstallmentPaidHandler } from '@/modules/billing/application/events/relay-installment-paid.handler'
+import {
+  RelayPaymentConfirmedHandler,
+  RelayPaymentVoidedHandler,
+} from '@/modules/billing/application/events/relay-payment-events.handler'
 import { InstallmentGenerator } from '@/modules/billing/application/installment-generator'
 import { InstallmentRecalculator } from '@/modules/billing/application/installment-recalculator'
 import { InstallmentViews } from '@/modules/billing/application/installment.views'
@@ -30,6 +35,7 @@ import {
 } from '@/modules/billing/application/queries/billing.queries'
 import { BillingFacade } from '@/modules/billing/public/billing.facade'
 import {
+  DepositReturnRepository,
   InstallmentRepository,
   PaymentRepository,
   RenterCreditRepository,
@@ -40,6 +46,7 @@ import { PropertiesModule } from '@/modules/properties/public'
 import { RentersModule } from '@/modules/renters/public'
 import { InstallmentsController } from '../http/controllers/billing.controller'
 import { PaymentsController } from '../http/controllers/payments.controller'
+import { DepositReturnRepositoryImpl } from '../repositories/deposit-return.repository.impl'
 import { InstallmentRepositoryImpl } from '../repositories/installment.repository.impl'
 import { PaymentRepositoryImpl } from '../repositories/payment.repository.impl'
 import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.repository.impl'
@@ -56,6 +63,7 @@ import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.reposi
     { provide: InstallmentRepository, useClass: InstallmentRepositoryImpl },
     { provide: PaymentRepository, useClass: PaymentRepositoryImpl },
     { provide: RenterCreditRepository, useClass: RenterCreditRepositoryImpl },
+    { provide: DepositReturnRepository, useClass: DepositReturnRepositoryImpl },
     BillingReferences,
     InstallmentViews,
     InstallmentGenerator,
@@ -70,7 +78,10 @@ import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.reposi
     ConfirmPaymentHandler,
     VoidPaymentHandler,
     RefundCreditHandler,
+    RegisterDepositReturnHandler,
     RelayInstallmentPaidHandler,
+    RelayPaymentConfirmedHandler,
+    RelayPaymentVoidedHandler,
     ListInstallmentsHandler,
     GetBillingSummaryHandler,
     GetInstallmentHandler,

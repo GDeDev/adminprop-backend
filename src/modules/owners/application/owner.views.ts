@@ -7,7 +7,12 @@ import {
 } from '@/modules/properties/public/properties.facade'
 import { TenantsFacade } from '@/modules/tenants/public'
 import { RequestContext } from '@/shared/context/request-context'
-import { BankAccount, fullNameOf, Owner } from '../domain/owner'
+import {
+  BankAccount,
+  fullNameOf,
+  Owner,
+  OwnerFeeSettings,
+} from '../domain/owner'
 import { appliesReducedFee } from '../domain/reduced-fee'
 
 /** Una fila del listado (spec 3.2 y 5.1). */
@@ -35,6 +40,8 @@ export interface OwnerDetailView extends OwnerSummaryView {
   address: string | null
   notes: string | null
   bankAccount: BankAccount
+  /** Honorarios y envíos (Fase 12). */
+  feeSettings: OwnerFeeSettings
   properties: OwnerPropertySummary[]
 }
 
@@ -71,6 +78,7 @@ export class OwnerViews {
       address: owner.address,
       notes: owner.notes,
       bankAccount: owner.bankAccount,
+      feeSettings: owner.feeSettings,
       properties,
     }
   }

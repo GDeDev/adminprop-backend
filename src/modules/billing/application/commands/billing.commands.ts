@@ -1,6 +1,7 @@
 import {
   ChargeConcept,
   Currency,
+  DepositDeductionConcept,
   ExchangeRateSource,
   LateFeeAdjustmentKind,
   PaymentMethod,
@@ -80,6 +81,25 @@ export class AdjustLateFeeCommand {
     public readonly kind: LateFeeAdjustmentKind,
     public readonly amount: string | null,
     public readonly reason: string,
+  ) {}
+}
+
+/** Fase 12, 2.2: devolución del depósito con deducciones justificadas. */
+export class RegisterDepositReturnCommand {
+  constructor(
+    public readonly contractId: string,
+    public readonly data: {
+      returnedAt: string
+      returnedAmount: string
+      method: PaymentMethod
+      notes: string | null
+      deductions: {
+        concept: DepositDeductionConcept
+        description: string
+        amount: string
+        installmentId: string | null
+      }[]
+    },
   ) {}
 }
 

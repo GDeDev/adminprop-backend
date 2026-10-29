@@ -1,4 +1,4 @@
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs'
 import { randomUUID } from 'node:crypto'
 
 import {
@@ -44,6 +44,10 @@ import { createLogger } from '@/shared/logging/root-logger'
 import { compareMoney, subtractMoney, toMoneyString } from '@/shared/money'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { BillingReferences } from '../billing-references'
+import {
+  PaymentConfirmedEvent,
+  PaymentVoidedEvent,
+} from '../events/payment-events'
 import { InstallmentRecalculator } from '../installment-recalculator'
 import {
   InstallmentDetailView,
@@ -72,6 +76,27 @@ function requireUser(): string {
   const userId = RequestContext.userId
   if (!userId) throw new Error('Operación de cobros sin usuario en el contexto')
   return userId
+}
+
+/**
+ * Avisa a liquidaciones (Fase 12) de cada pago que quedó confirmado. Se
+ * emite después de la transacción: si ella falla, no hay aviso que retirar.
+ */
+function publishConfirmed(
+  eventBus: EventBus,
+  installment: Installment,
+  payments: Payment[],
+): void {
+  for (const payment of payments) {
+    if (payment.status !== PaymentStatus.CONFIRMED) continue
+    eventBus.publish(
+      new PaymentConfirmedEvent(
+        payment,
+        { ownerId: installment.ownerId, period: installment.period },
+        installment.currency,
+      ),
+    )
+  }
 }
 
 /**
@@ -153,6 +178,7 @@ export class RegisterPaymentHandler implements ICommandHandler<
     private readonly storage: StoragePort,
     private readonly prisma: PrismaService,
     private readonly views: InstallmentViews,
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(
@@ -262,6 +288,10 @@ export class RegisterPaymentHandler implements ICommandHandler<
         const updated = await this.recalculator.recalculate(installment.id)
         return { payment, creditApplications, updated }
       })
+      publishConfirmed(this.eventBus, result.updated, [
+        ...result.creditApplications,
+        result.payment,
+      ])
       return this.toResult(
         result.payment,
         result.creditApplications,
@@ -306,6 +336,7 @@ export class ApplyCreditHandler implements ICommandHandler<
     private readonly recalculator: InstallmentRecalculator,
     private readonly prisma: PrismaService,
     private readonly views: InstallmentViews,
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: ApplyCreditCommand): Promise<RegisterPaymentResult> {
@@ -344,6 +375,7 @@ export class ApplyCreditHandler implements ICommandHandler<
         updated: await this.recalculator.recalculate(installment.id),
       }
     })
+    publishConfirmed(this.eventBus, updated, created)
     const detail = await this.views.detail(updated)
     const byId = new Map(detail.payments.map((p) => [p.id, p]))
     const views = created.map(
@@ -367,6 +399,7 @@ export class ConfirmPaymentHandler implements ICommandHandler<
     private readonly payments: PaymentRepository,
     private readonly installments: InstallmentRepository,
     private readonly views: InstallmentViews,
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: ConfirmPaymentCommand): Promise<PaymentView> {
@@ -382,15 +415,12 @@ export class ConfirmPaymentHandler implements ICommandHandler<
       confirmedById: requireUser(),
       confirmedAt: new Date(),
     })
-    return this.paymentView(confirmed)
-  }
-
-  private async paymentView(payment: Payment): Promise<PaymentView> {
     const installment = await this.installments.findById(payment.installmentId)
+    if (installment) publishConfirmed(this.eventBus, installment, [confirmed])
     const detail = installment ? await this.views.detail(installment) : null
     return (
-      detail?.payments.find((p) => p.id === payment.id) ??
-      toPaymentView(payment, installment?.period ?? '', new Map())
+      detail?.payments.find((p) => p.id === confirmed.id) ??
+      toPaymentView(confirmed, installment?.period ?? '', new Map())
     )
   }
 }
@@ -412,6 +442,7 @@ export class VoidPaymentHandler implements ICommandHandler<
     private readonly recalculator: InstallmentRecalculator,
     private readonly prisma: PrismaService,
     private readonly views: InstallmentViews,
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: VoidPaymentCommand): Promise<InstallmentDetailView> {
@@ -456,14 +487,30 @@ export class VoidPaymentHandler implements ICommandHandler<
           })
         }
       }
-      await this.payments.void(payment.id, {
+      const voided = await this.payments.void(payment.id, {
         voidedById,
         voidedAt: new Date(),
         voidReason: reason,
       })
-      return this.recalculator.recalculate(payment.installmentId)
+      return {
+        voided,
+        installment: await this.recalculator.recalculate(payment.installmentId),
+      }
     })
-    return this.views.detail(updated)
+    // Liquidaciones (Fase 12) decide qué hacer si el pago ya estaba liquidado
+    // (A-19); los de aplicación de crédito y los PENDING_CONFIRMATION no
+    // habían devengado nada todavía, pero el aviso viaja igual: es barato.
+    this.eventBus.publish(
+      new PaymentVoidedEvent(
+        updated.voided,
+        {
+          ownerId: updated.installment.ownerId,
+          period: updated.installment.period,
+        },
+        updated.installment.currency,
+      ),
+    )
+    return this.views.detail(updated.installment)
   }
 }
 

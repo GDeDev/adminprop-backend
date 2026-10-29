@@ -13,6 +13,7 @@ import {
 import {
   addMoney,
   compareMoney,
+  Money,
   percentageOf,
   roundMoney,
   subtractMoney,
@@ -22,6 +23,7 @@ import {
 import {
   activeCharges,
   activePayments,
+  ChargeConcept,
   Installment,
   InstallmentCharge,
   InstallmentStatus,
@@ -65,6 +67,13 @@ export interface InstallmentBalances {
   lateFeeBalance: string
   totalDue: string
   days: LateFeeDay[]
+}
+
+/** Lo imputado a cargos de un pago, abierto por concepto (Fase 12, A-16). */
+export interface ChargesByConcept {
+  SERVICE: string
+  TERMINATION_PENALTY: string
+  OTHER: string
 }
 
 /** Lo que la cuota devenga de honorarios (regla 9, A-12). */
@@ -319,6 +328,59 @@ export const InstallmentPolicy = {
         percentageOf(collectedRent, installment.feePercentage),
       ),
     }
+  },
+
+  /**
+   * Abre `chargesApplied` de cada pago por concepto de cargo (Fase 12,
+   * A-16: los cargos SERVICE no van al neto del propietario). El pago no
+   * guarda a qué cargo fue cada peso: se reconstruye imputando los pagos
+   * vigentes, en orden de fecha, a los cargos vigentes en orden de alta.
+   * Lo que no alcanza a ningún cargo (un cargo anulado después de cobrado)
+   * cae en OTHER. Determinista: dos lecturas dan lo mismo.
+   */
+  chargesAppliedByConcept(
+    installment: Pick<Installment, 'charges' | 'payments'>,
+  ): Map<string, ChargesByConcept> {
+    const remaining = activeCharges(installment)
+      .sort(
+        (a, b) =>
+          a.createdAt.getTime() - b.createdAt.getTime() ||
+          a.id.localeCompare(b.id),
+      )
+      .map((charge) => ({
+        concept: charge.concept,
+        left: toDecimal(charge.amount),
+      }))
+    const ordered = [...activePayments(installment)].sort(
+      (a, b) =>
+        a.paidAt.localeCompare(b.paidAt) ||
+        a.createdAt.getTime() - b.createdAt.getTime() ||
+        a.id.localeCompare(b.id),
+    )
+    const result = new Map<string, ChargesByConcept>()
+    for (const payment of ordered) {
+      const split: Record<ChargeConcept, Money> = {
+        SERVICE: toDecimal(ZERO),
+        TERMINATION_PENALTY: toDecimal(ZERO),
+        OTHER: toDecimal(ZERO),
+      }
+      let pending = toDecimal(payment.chargesApplied)
+      for (const charge of remaining) {
+        if (pending.lessThanOrEqualTo(0)) break
+        if (charge.left.lessThanOrEqualTo(0)) continue
+        const portion = pending.lessThan(charge.left) ? pending : charge.left
+        split[charge.concept] = split[charge.concept].plus(portion)
+        charge.left = charge.left.minus(portion)
+        pending = pending.minus(portion)
+      }
+      if (pending.greaterThan(0)) split.OTHER = split.OTHER.plus(pending)
+      result.set(payment.id, {
+        SERVICE: toMoneyString(split.SERVICE),
+        TERMINATION_PENALTY: toMoneyString(split.TERMINATION_PENALTY),
+        OTHER: toMoneyString(split.OTHER),
+      })
+    }
+    return result
   },
 
   // ------------------------------------------------------------- Cargos

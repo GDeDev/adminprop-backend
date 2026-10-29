@@ -4,6 +4,8 @@ import {
   CollectionMode,
   CreditStatus,
   Currency,
+  DepositDeductionConcept,
+  DepositReturn,
   ExchangeRateSource,
   FeeMode,
   Installment,
@@ -194,6 +196,46 @@ export abstract class PaymentRepository {
     id: string,
     data: { voidedById: string; voidedAt: Date; voidReason: string },
   ): Promise<Payment>
+
+  /**
+   * Los pagos de un contrato que una liquidación puede tomar (Fase 12):
+   * confirmados, recibidos por la inmobiliaria (plata o saldo a favor) y sin
+   * liquidación. Más viejos primero.
+   */
+  abstract listSettleable(contractId: string): Promise<Payment[]>
+
+  /** Marca los pagos como liquidados; sólo los que no lo estaban. Devuelve cuántos. */
+  abstract markSettled(ids: string[], settlementId: string): Promise<number>
+
+  /** Libera los pagos de una liquidación (cancelación o recálculo). */
+  abstract unmarkSettled(settlementId: string): Promise<number>
+}
+
+// --------------------------------------------------------------- Depósito
+
+export interface NewDepositReturn {
+  contractId: string
+  returnedAt: IsoDate
+  depositAmount: string
+  depositCurrency: Currency
+  returnedAmount: string
+  method: PaymentMethod
+  notes: string | null
+  registeredById: string
+  deductions: {
+    concept: DepositDeductionConcept
+    description: string
+    amount: string
+    installmentId: string | null
+    paymentId: string | null
+  }[]
+}
+
+/** Puerto de la devolución del depósito. Una por contrato; no se borra. */
+export abstract class DepositReturnRepository {
+  abstract create(data: NewDepositReturn): Promise<DepositReturn>
+
+  abstract findByContract(contractId: string): Promise<DepositReturn | null>
 }
 
 // ---------------------------------------------------------------- Créditos
