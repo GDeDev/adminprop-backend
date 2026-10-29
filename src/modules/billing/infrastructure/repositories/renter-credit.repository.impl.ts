@@ -32,6 +32,13 @@ export class RenterCreditRepositoryImpl extends RenterCreditRepository {
     return row ? creditToDomain(row) : null
   }
 
+  async findByOriginPayment(paymentId: string): Promise<RenterCredit | null> {
+    const row = await this.prisma.db.renterCredit.findFirst({
+      where: { originPaymentId: paymentId },
+    })
+    return row ? creditToDomain(row) : null
+  }
+
   async listAvailable(
     renterId: string,
     currency: Currency,

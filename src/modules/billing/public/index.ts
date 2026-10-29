@@ -4,6 +4,13 @@
  * por acá.
  */
 export { BillingModule } from '../infrastructure/modules/billing.module'
+export { BillingFacade } from './billing.facade'
+export type {
+  InstallmentCollection,
+  OverdueInstallmentRef,
+} from './billing.facade'
+export { INSTALLMENT_PAID_QUEUE } from './billing-events'
+export type { InstallmentPaidPayload } from './billing-events'
 export {
   ChargeConcept,
   CreditStatus,

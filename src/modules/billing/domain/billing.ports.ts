@@ -221,6 +221,9 @@ export abstract class RenterCreditRepository {
 
   abstract findById(id: string): Promise<RenterCredit | null>
 
+  /** El crédito que generó un pago, si lo hubo. */
+  abstract findByOriginPayment(paymentId: string): Promise<RenterCredit | null>
+
   /** Disponibles del inquilino en esa moneda, los más viejos primero. */
   abstract listAvailable(
     renterId: string,

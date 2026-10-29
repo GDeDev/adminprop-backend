@@ -1,0 +1,525 @@
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
+import { randomUUID } from 'node:crypto'
+
+import {
+  CreditStatus,
+  Currency,
+  Installment,
+  InstallmentStatus,
+  Payment,
+  PaymentKind,
+  PaymentMethod,
+  PaymentReceiver,
+  PaymentStatus,
+  RenterCredit,
+} from '@/modules/billing/domain/billing'
+import {
+  CreditNotAvailableException,
+  CreditNotFoundException,
+  InstallmentAlreadyPaidException,
+  InvalidPaymentDateException,
+  PaymentAlreadyConfirmedException,
+  PaymentAlreadyVoidedException,
+  PaymentCreditAlreadyUsedException,
+  PaymentNotFoundException,
+} from '@/modules/billing/domain/billing.exceptions'
+import {
+  InstallmentRepository,
+  PaymentRepository,
+  RenterCreditRepository,
+} from '@/modules/billing/domain/billing.ports'
+import {
+  InstallmentBalances,
+  InstallmentPolicy,
+} from '@/modules/billing/domain/installment.policy'
+import {
+  CreditApplicationPlan,
+  PaymentPolicy,
+} from '@/modules/billing/domain/payment.policy'
+import { StoragePort } from '@/platform/storage/storage.port'
+import { RequestContext } from '@/shared/context/request-context'
+import { errorMessage } from '@/shared/core/error-message'
+import { IsoDate, todayIso } from '@/shared/dates/calendar-date'
+import { createLogger } from '@/shared/logging/root-logger'
+import { compareMoney, subtractMoney, toMoneyString } from '@/shared/money'
+import { PrismaService } from '@/shared/prisma/prisma.service'
+import { BillingReferences } from '../billing-references'
+import { InstallmentRecalculator } from '../installment-recalculator'
+import {
+  InstallmentDetailView,
+  InstallmentViews,
+  PaymentView,
+  RenterCreditView,
+  toCreditView,
+  toPaymentView,
+} from '../installment.views'
+import {
+  ApplyCreditCommand,
+  ConfirmPaymentCommand,
+  RefundCreditCommand,
+  RegisterPaymentCommand,
+  VoidPaymentCommand,
+} from './billing.commands'
+
+/** Lo que devuelven registrar un pago y aplicar un saldo a favor. */
+export interface RegisterPaymentResult {
+  payment: PaymentView
+  creditApplications: PaymentView[]
+  installment: InstallmentDetailView
+}
+
+function requireUser(): string {
+  const userId = RequestContext.userId
+  if (!userId) throw new Error('Operación de cobros sin usuario en el contexto')
+  return userId
+}
+
+/**
+ * Aplica saldos a favor a una cuota (regla 5): un pago `CREDIT_APPLICATION`
+ * por cada crédito del plan, imputado con el orden por defecto sobre los
+ * saldos que van quedando. Devuelve los pagos creados y los saldos finales.
+ */
+async function applyCreditPlan(
+  deps: {
+    payments: PaymentRepository
+    credits: RenterCreditRepository
+  },
+  installment: Installment,
+  plan: CreditApplicationPlan[],
+  balances: InstallmentBalances,
+  paidAt: IsoDate,
+  registeredById: string,
+): Promise<{ created: Payment[]; balances: InstallmentBalances }> {
+  const created: Payment[] = []
+  let remaining = balances
+  for (const { credit, amount } of plan) {
+    const allocation = PaymentPolicy.allocate(amount, remaining, null)
+    const payment = await deps.payments.create({
+      installmentId: installment.id,
+      contractId: installment.contractId,
+      renterId: installment.renterId,
+      paidAt,
+      paidCurrency: installment.currency,
+      amount,
+      exchangeRate: null,
+      exchangeRateSource: null,
+      exchangeRateDate: null,
+      amountInContractCurrency: amount,
+      kind: PaymentKind.CREDIT_APPLICATION,
+      method: PaymentMethod.CREDIT,
+      receivedBy: PaymentReceiver.AGENCY,
+      status: PaymentStatus.CONFIRMED,
+      ...allocation,
+      creditId: credit.id,
+      receiptKey: null,
+      receiptUrl: null,
+      registeredById,
+      notes: null,
+    })
+    const left = toMoneyString(subtractMoney(credit.remaining, amount))
+    await deps.credits.update(credit.id, {
+      remaining: left,
+      status:
+        compareMoney(left, '0') === 0
+          ? CreditStatus.APPLIED
+          : CreditStatus.AVAILABLE,
+    })
+    created.push(payment)
+    remaining = PaymentPolicy.remainingAfter(remaining, allocation)
+  }
+  return { created, balances: remaining }
+}
+
+/**
+ * Registrar un pago (3.3, reglas 4, 5, 10; Micaela #2, #6, #9). Con
+ * `applyCredit` se aplican antes los saldos a favor del inquilino; después el
+ * pago se convierte a la moneda del contrato y se imputa (por defecto
+ * punitorio → alquiler → cargos); lo que sobra nace como saldo a favor. El
+ * comprobante es opcional (D-74). Todo en una transacción (D-52); el archivo
+ * se sube antes y se borra si la transacción falla.
+ */
+@CommandHandler(RegisterPaymentCommand)
+export class RegisterPaymentHandler implements ICommandHandler<
+  RegisterPaymentCommand,
+  RegisterPaymentResult
+> {
+  private readonly logger = createLogger('RegisterPaymentHandler')
+
+  constructor(
+    private readonly references: BillingReferences,
+    private readonly payments: PaymentRepository,
+    private readonly credits: RenterCreditRepository,
+    private readonly recalculator: InstallmentRecalculator,
+    private readonly storage: StoragePort,
+    private readonly prisma: PrismaService,
+    private readonly views: InstallmentViews,
+  ) {}
+
+  async execute(
+    command: RegisterPaymentCommand,
+  ): Promise<RegisterPaymentResult> {
+    const { data } = command
+    const today = todayIso()
+    const registeredById = requireUser()
+    const installment = await this.references.requireInstallment(
+      command.installmentId,
+    )
+    const paidAt = PaymentPolicy.normalizePaidAt(data.paidAt, today)
+    const amount = PaymentPolicy.normalizeAmount(data.amount)
+    const conversion = PaymentPolicy.convert(
+      amount,
+      data.paidCurrency,
+      installment.currency,
+      {
+        rate: data.exchangeRate,
+        source: data.exchangeRateSource,
+        date: data.exchangeRateDate,
+      },
+    )
+    const manual = PaymentPolicy.parseAllocation(data.allocation)
+    const receivedBy = PaymentPolicy.receiver(
+      data.receivedBy,
+      installment.collectionMode,
+    )
+    const receipt = PaymentPolicy.receiptKind(command.receipt)
+    const notes = InstallmentPolicy.normalizeNotes(data.notes)
+
+    const balances = InstallmentPolicy.balances(installment, paidAt)
+    if (compareMoney(balances.totalDue, '0') <= 0) {
+      throw new InstallmentAlreadyPaidException(installment.id)
+    }
+
+    const stored = receipt
+      ? await this.storage.upload(
+          command.receipt,
+          `payments/${installment.contractId}/${randomUUID()}.${receipt.extension}`,
+          { contentType: receipt.contentType },
+        )
+      : null
+
+    try {
+      const result = await this.prisma.transaction(async () => {
+        let remaining = balances
+        let creditApplications: Payment[] = []
+        if (data.applyCredit) {
+          const available = await this.credits.listAvailable(
+            installment.renterId,
+            installment.currency,
+          )
+          const plan = PaymentPolicy.planCreditApplications(
+            available,
+            remaining.totalDue,
+            installment.currency,
+          )
+          const applied = await applyCreditPlan(
+            { payments: this.payments, credits: this.credits },
+            installment,
+            plan,
+            remaining,
+            paidAt,
+            registeredById,
+          )
+          creditApplications = applied.created
+          remaining = applied.balances
+        }
+
+        const allocation = PaymentPolicy.allocate(
+          conversion.amountInContractCurrency,
+          remaining,
+          manual,
+        )
+        const payment = await this.payments.create({
+          installmentId: installment.id,
+          contractId: installment.contractId,
+          renterId: installment.renterId,
+          paidAt,
+          paidCurrency: data.paidCurrency,
+          amount,
+          exchangeRate: conversion.exchangeRate?.rate ?? null,
+          exchangeRateSource: conversion.exchangeRate?.source ?? null,
+          exchangeRateDate: conversion.exchangeRate?.date ?? null,
+          amountInContractCurrency: conversion.amountInContractCurrency,
+          kind: PaymentKind.CASH_IN,
+          method: data.method,
+          receivedBy,
+          status: PaymentPolicy.initialStatus(receivedBy),
+          ...allocation,
+          creditId: null,
+          receiptKey: stored?.key ?? null,
+          receiptUrl: stored?.url ?? null,
+          registeredById,
+          notes,
+        })
+        if (compareMoney(allocation.creditGenerated, '0') > 0) {
+          await this.credits.create({
+            renterId: installment.renterId,
+            contractId: installment.contractId,
+            currency: installment.currency,
+            amount: allocation.creditGenerated,
+            originPaymentId: payment.id,
+          })
+        }
+        const updated = await this.recalculator.recalculate(installment.id)
+        return { payment, creditApplications, updated }
+      })
+      return this.toResult(
+        result.payment,
+        result.creditApplications,
+        result.updated,
+      )
+    } catch (error) {
+      if (stored) await discard(this.storage, this.logger, stored.key)
+      throw error
+    }
+  }
+
+  private async toResult(
+    payment: Payment,
+    creditApplications: Payment[],
+    installment: Installment,
+  ): Promise<RegisterPaymentResult> {
+    const detail = await this.views.detail(installment)
+    const byId = new Map(detail.payments.map((p) => [p.id, p]))
+    return {
+      payment:
+        byId.get(payment.id) ??
+        toPaymentView(payment, installment.period, new Map()),
+      creditApplications: creditApplications.map(
+        (p) =>
+          byId.get(p.id) ?? toPaymentView(p, installment.period, new Map()),
+      ),
+      installment: detail,
+    }
+  }
+}
+
+/** Aplicar saldo a favor a mano (regla 5), sin plata: sólo `CREDIT_APPLICATION`. */
+@CommandHandler(ApplyCreditCommand)
+export class ApplyCreditHandler implements ICommandHandler<
+  ApplyCreditCommand,
+  RegisterPaymentResult
+> {
+  constructor(
+    private readonly references: BillingReferences,
+    private readonly payments: PaymentRepository,
+    private readonly credits: RenterCreditRepository,
+    private readonly recalculator: InstallmentRecalculator,
+    private readonly prisma: PrismaService,
+    private readonly views: InstallmentViews,
+  ) {}
+
+  async execute(command: ApplyCreditCommand): Promise<RegisterPaymentResult> {
+    const today = todayIso()
+    const registeredById = requireUser()
+    const installment = await this.references.requireInstallment(
+      command.installmentId,
+    )
+    const balances = InstallmentPolicy.balances(installment, today)
+    if (compareMoney(balances.totalDue, '0') <= 0) {
+      throw new InstallmentAlreadyPaidException(installment.id)
+    }
+    const available = await this.credits.listAvailable(
+      installment.renterId,
+      installment.currency,
+    )
+    const plan = PaymentPolicy.planCreditApplications(
+      available,
+      balances.totalDue,
+      installment.currency,
+      { creditId: command.creditId, amount: command.amount },
+    )
+    if (plan.length === 0) throw new CreditNotAvailableException()
+
+    const { created, updated } = await this.prisma.transaction(async () => {
+      const applied = await applyCreditPlan(
+        { payments: this.payments, credits: this.credits },
+        installment,
+        plan,
+        balances,
+        today,
+        registeredById,
+      )
+      return {
+        created: applied.created,
+        updated: await this.recalculator.recalculate(installment.id),
+      }
+    })
+    const detail = await this.views.detail(updated)
+    const byId = new Map(detail.payments.map((p) => [p.id, p]))
+    const views = created.map(
+      (p) => byId.get(p.id) ?? toPaymentView(p, installment.period, new Map()),
+    )
+    return {
+      payment: views[0],
+      creditApplications: views.slice(1),
+      installment: detail,
+    }
+  }
+}
+
+/** Confirmar un pago informado por el propietario (regla 8, A-11). */
+@CommandHandler(ConfirmPaymentCommand)
+export class ConfirmPaymentHandler implements ICommandHandler<
+  ConfirmPaymentCommand,
+  PaymentView
+> {
+  constructor(
+    private readonly payments: PaymentRepository,
+    private readonly installments: InstallmentRepository,
+    private readonly views: InstallmentViews,
+  ) {}
+
+  async execute(command: ConfirmPaymentCommand): Promise<PaymentView> {
+    const payment = await this.payments.findById(command.paymentId)
+    if (!payment) throw new PaymentNotFoundException(command.paymentId)
+    if (payment.status === PaymentStatus.VOIDED) {
+      throw new PaymentAlreadyVoidedException(payment.id)
+    }
+    if (payment.status === PaymentStatus.CONFIRMED) {
+      throw new PaymentAlreadyConfirmedException(payment.id)
+    }
+    const confirmed = await this.payments.confirm(payment.id, {
+      confirmedById: requireUser(),
+      confirmedAt: new Date(),
+    })
+    return this.paymentView(confirmed)
+  }
+
+  private async paymentView(payment: Payment): Promise<PaymentView> {
+    const installment = await this.installments.findById(payment.installmentId)
+    const detail = installment ? await this.views.detail(installment) : null
+    return (
+      detail?.payments.find((p) => p.id === payment.id) ??
+      toPaymentView(payment, installment?.period ?? '', new Map())
+    )
+  }
+}
+
+/**
+ * Anular un pago (regla 7, sólo admin). Deja de contar en todo; el crédito
+ * que generó tiene que estar entero (si no, 409) y pasa a VOIDED; anular una
+ * aplicación de crédito devuelve el monto al crédito. La cuota se recalcula
+ * y, si estaba congelada, vuelve a calcularse en vivo.
+ */
+@CommandHandler(VoidPaymentCommand)
+export class VoidPaymentHandler implements ICommandHandler<
+  VoidPaymentCommand,
+  InstallmentDetailView
+> {
+  constructor(
+    private readonly payments: PaymentRepository,
+    private readonly credits: RenterCreditRepository,
+    private readonly recalculator: InstallmentRecalculator,
+    private readonly prisma: PrismaService,
+    private readonly views: InstallmentViews,
+  ) {}
+
+  async execute(command: VoidPaymentCommand): Promise<InstallmentDetailView> {
+    const payment = await this.payments.findById(command.paymentId)
+    if (!payment) throw new PaymentNotFoundException(command.paymentId)
+    if (payment.status === PaymentStatus.VOIDED) {
+      throw new PaymentAlreadyVoidedException(payment.id)
+    }
+    const reason = InstallmentPolicy.normalizeReason(command.reason)
+    const voidedById = requireUser()
+
+    const generated =
+      compareMoney(payment.creditGenerated, '0') > 0
+        ? await this.credits.findByOriginPayment(payment.id)
+        : null
+    if (
+      generated &&
+      (generated.status !== CreditStatus.AVAILABLE ||
+        compareMoney(generated.remaining, generated.amount) !== 0)
+    ) {
+      throw new PaymentCreditAlreadyUsedException(generated.id)
+    }
+
+    const updated = await this.prisma.transaction(async () => {
+      if (generated) {
+        await this.credits.update(generated.id, {
+          remaining: toMoneyString('0'),
+          status: CreditStatus.VOIDED,
+        })
+      }
+      if (payment.kind === PaymentKind.CREDIT_APPLICATION && payment.creditId) {
+        const credit = await this.credits.findById(payment.creditId)
+        if (credit) {
+          await this.credits.update(credit.id, {
+            remaining: toMoneyString(
+              subtractMoney(
+                credit.remaining,
+                `-${payment.amountInContractCurrency}`,
+              ),
+            ),
+            status: CreditStatus.AVAILABLE,
+          })
+        }
+      }
+      await this.payments.void(payment.id, {
+        voidedById,
+        voidedAt: new Date(),
+        voidReason: reason,
+      })
+      return this.recalculator.recalculate(payment.installmentId)
+    })
+    return this.views.detail(updated)
+  }
+}
+
+/** Devolución de un saldo a favor (3.6, sólo admin): registrada, no borrada. */
+@CommandHandler(RefundCreditCommand)
+export class RefundCreditHandler implements ICommandHandler<
+  RefundCreditCommand,
+  RenterCreditView
+> {
+  constructor(private readonly credits: RenterCreditRepository) {}
+
+  async execute(command: RefundCreditCommand): Promise<RenterCreditView> {
+    const credit = await this.credits.findById(command.creditId)
+    if (!credit) throw new CreditNotFoundException(command.creditId)
+    if (credit.status !== CreditStatus.AVAILABLE) {
+      throw new CreditNotAvailableException(
+        'el saldo ya se aplicó, se devolvió o se anuló',
+      )
+    }
+    let refundedAt: IsoDate
+    try {
+      refundedAt = PaymentPolicy.normalizePaidAt(command.refundedAt, todayIso())
+    } catch (error) {
+      if (error instanceof InvalidPaymentDateException) {
+        throw new InvalidPaymentDateException(
+          error.message.replace('La fecha no sirve: ', ''),
+          'refundedAt',
+        )
+      }
+      throw error
+    }
+    const refunded = await this.credits.update(credit.id, {
+      remaining: toMoneyString('0'),
+      status: CreditStatus.REFUNDED,
+      refundedAt,
+      refundMethod: command.method,
+      refundedById: requireUser(),
+      refundNotes: InstallmentPolicy.normalizeNotes(command.notes),
+    })
+    return toCreditView(refunded)
+  }
+}
+
+async function discard(
+  storage: StoragePort,
+  logger: ReturnType<typeof createLogger>,
+  key: string,
+): Promise<void> {
+  try {
+    await storage.delete(key)
+  } catch (error) {
+    logger.warn(
+      { key, error: errorMessage(error) },
+      'No se pudo borrar el comprobante de un pago que no se guardó',
+    )
+  }
+}
+
+export { Currency, InstallmentStatus, RenterCredit }

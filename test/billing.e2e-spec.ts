@@ -4,6 +4,13 @@ import request from 'supertest'
 
 import { seedBaseMasterData } from '../prisma/lib/master-data-seed'
 import {
+  BillingFacade,
+  INSTALLMENT_PAID_QUEUE,
+  InstallmentPaidPayload,
+} from '../src/modules/billing/public'
+import { QueuePort } from '../src/platform/queue/queue.port'
+import { RequestContext } from '../src/shared/context/request-context'
+import {
   addDays,
   addMonths,
   lastDayOfPeriod,
@@ -14,11 +21,17 @@ import {
 import { PrismaService } from '../src/shared/prisma/prisma.service'
 import { createTestApp, loginAs } from './utils/app'
 import { createTenant, createUser, resetDatabase } from './utils/database'
+import { waitFor } from './utils/wait-for'
 
+const PDF = Buffer.from('%PDF-1.4 comprobante')
 const UNKNOWN_ID = '00000000-0000-4000-8000-000000000000'
 
 const today = todayIso()
 const period = periodOf(today)
+/** El mes pasado: todas sus fechas ya pasaron, así los pagos se fechan sin mirar qué día es hoy. */
+const previous = periodOf(addMonths(today, -1))
+const day = (n: number, inPeriod = previous) =>
+  `${inPeriod}-${String(n).padStart(2, '0')}`
 
 /** Cobros y punitorios (rediseño Fase 11): generación, saldos, pagos, créditos, aislamiento. */
 describe('Cobros (e2e, Postgres)', () => {
@@ -31,6 +44,7 @@ describe('Cobros (e2e, Postgres)', () => {
   let adminBToken: string
   let refs: { tolosa: string; casa: string }
   let refsB: { tolosa: string; casa: string }
+  const paidEvents: InstallmentPaidPayload[] = []
 
   const api = (token: string) => ({
     get: (url: string) =>
@@ -145,9 +159,46 @@ describe('Cobros (e2e, Postgres)', () => {
   const detail = async (id: string, token = adminToken) =>
     (await api(token).get(`/billing/installments/${id}`).expect(200)).body.data
 
+  /** Registra un pago por multipart; sin `file` no manda comprobante. */
+  const pay = (
+    installmentId: string,
+    fields: Record<string, string>,
+    options: { token?: string; file?: Buffer } = {},
+  ) => {
+    const req = api(options.token ?? adminToken).post(
+      `/billing/installments/${installmentId}/payments`,
+    )
+    for (const [key, value] of Object.entries({
+      paidCurrency: 'ARS',
+      method: 'TRANSFER',
+      ...fields,
+    })) {
+      req.field(key, value)
+    }
+    if (options.file) {
+      req.attach('file', options.file, {
+        filename: 'ticket.pdf',
+        contentType: 'application/pdf',
+      })
+    }
+    return req
+  }
+
+  const inTenantA = <T>(fn: () => Promise<T>) =>
+    RequestContext.run({ correlationId: 'test' }, () =>
+      RequestContext.runInTenant(tenantA.id, fn),
+    )
+
   beforeAll(async () => {
     await prisma.$connect()
     app = await createTestApp()
+    // Nadie consume la cola todavía (Fase 12): el test se suscribe para ver
+    // que el evento llegó por pg-boss.
+    await app
+      .get(QueuePort)
+      .consume<InstallmentPaidPayload>(INSTALLMENT_PAID_QUEUE, async (m) => {
+        paidEvents.push(m.payload)
+      })
   })
 
   afterAll(async () => {
@@ -455,6 +506,695 @@ describe('Cobros (e2e, Postgres)', () => {
     })
   })
 
+  describe('pagos (3.3, reglas 3 a 8)', () => {
+    it('un pago entero dentro de la gracia salda la cuota, congela el detalle y avisa por la cola', async () => {
+      const contract = await createContract({ lateFeeGraceDays: 10 })
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+
+      const response = await pay(
+        id,
+        {
+          paidAt: day(5),
+          amount: '100000',
+          notes: '  Transferencia  Galicia ',
+        },
+        { token: employeeToken, file: PDF },
+      ).expect(201)
+      expect(response.body.data.payment).toMatchObject({
+        installmentId: id,
+        contractId: contract.id,
+        renterId: contract.renterId,
+        period: previous,
+        paidAt: day(5),
+        paidCurrency: 'ARS',
+        amount: '100000.00',
+        exchangeRate: null,
+        amountInContractCurrency: '100000.00',
+        kind: 'CASH_IN',
+        method: 'TRANSFER',
+        receivedBy: 'AGENCY',
+        status: 'CONFIRMED',
+        lateFeeApplied: '0.00',
+        rentApplied: '100000.00',
+        chargesApplied: '0.00',
+        creditGenerated: '0.00',
+        notes: 'Transferencia Galicia',
+        registeredBy: { fullName: 'emp@a.com' },
+      })
+      expect(response.body.data.payment.receiptUrl).toContain('payments/')
+      expect(response.body.data.creditApplications).toEqual([])
+      expect(response.body.data.installment).toMatchObject({
+        id,
+        status: 'PAID',
+        paidAt: day(5),
+        paidTotal: '100000.00',
+        totalDue: '0.00',
+        feeDays: 0,
+        lateFeeDays: [],
+        feeOnCollected: '5000.00',
+      })
+
+      await waitFor(() => paidEvents.some((e) => e.installmentId === id))
+      expect(paidEvents.find((e) => e.installmentId === id)).toEqual({
+        installmentId: id,
+        contractId: contract.id,
+        ownerId: contract.ownerId,
+        period: previous,
+      })
+
+      // Sobre una cuota saldada no se cobra más.
+      const again = await pay(id, { paidAt: day(6), amount: '1' }).expect(409)
+      expect(again.body.code).toBe('INSTALLMENT_ALREADY_PAID')
+
+      const paidList = await api(adminToken)
+        .get(`/billing/installments?period=${previous}&status=PAID`)
+        .expect(200)
+      expect(paidList.body.data.data.map((i: { id: string }) => i.id)).toEqual([
+        id,
+      ])
+    })
+
+    it('dos pagos parciales: el punitorio del segundo tramo baja con el saldo (A-3, A-8)', async () => {
+      // Gracia 0: el punitorio corre desde el día 1 del mes pasado, 5 % de
+      // 100.000 = 5.000 por día sobre el saldo impago.
+      const contract = await createContract()
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+
+      // Día 2: deben 100.000 + 2 días × 5.000 = 110.000. Pagan 60.000:
+      // primero el punitorio (10.000), después alquiler (50.000).
+      const first = await pay(id, { paidAt: day(2), amount: '60000' }).expect(
+        201,
+      )
+      expect(first.body.data.payment).toMatchObject({
+        lateFeeApplied: '10000.00',
+        rentApplied: '50000.00',
+        chargesApplied: '0.00',
+        creditGenerated: '0.00',
+      })
+      expect(first.body.data.installment).toMatchObject({
+        status: 'OVERDUE',
+        rentBalance: '50000.00',
+        paidAt: null,
+      })
+
+      // Días 3 y 4 devengan sobre 50.000: 2.500 cada uno. Día 4 deben
+      // 50.000 + 5.000 = 55.000 → saldada el día 4.
+      const breakdown = await api(adminToken)
+        .get(`/billing/installments/${id}/breakdown?asOf=${day(4)}`)
+        .expect(200)
+      expect(breakdown.body.data).toMatchObject({
+        feeDays: 4,
+        lateFeeAccrued: '15000.00',
+        lateFeePaid: '10000.00',
+        lateFeeBalance: '5000.00',
+        rentBalance: '50000.00',
+        totalDue: '55000.00',
+      })
+      const second = await pay(id, {
+        paidAt: day(4),
+        amount: '55000',
+        method: 'CASH',
+      }).expect(201)
+      expect(second.body.data.payment).toMatchObject({
+        lateFeeApplied: '5000.00',
+        rentApplied: '50000.00',
+      })
+      expect(second.body.data.installment).toMatchObject({
+        status: 'PAID',
+        paidAt: day(4),
+        feeDays: 4,
+        lateFeeAccrued: '15000.00',
+        totalDue: '0.00',
+      })
+      expect(
+        second.body.data.installment.lateFeeDays.map(
+          (d: { outstandingBase: string; amount: string }) => [
+            d.outstandingBase,
+            d.amount,
+          ],
+        ),
+      ).toEqual([
+        ['100000.00', '5000.00'],
+        ['100000.00', '5000.00'],
+        ['50000.00', '2500.00'],
+        ['50000.00', '2500.00'],
+      ])
+      // Congelado: a hoy sigue siendo lo mismo.
+      expect(await detail(id)).toMatchObject({
+        feeDays: 4,
+        lateFeeAccrued: '15000.00',
+        status: 'PAID',
+      })
+
+      // Imputación manual: cada concepto hasta su saldo.
+      const other = await createContract()
+      await generate(previous)
+      const second2 = await installmentOf(other.id, previous)
+      const manual = await pay(second2.id, {
+        paidAt: day(1),
+        amount: '20000',
+        allocation: JSON.stringify({ lateFee: '0', rent: '20000' }),
+      }).expect(201)
+      expect(manual.body.data.payment).toMatchObject({
+        lateFeeApplied: '0.00',
+        rentApplied: '20000.00',
+      })
+      const bad = await pay(second2.id, {
+        paidAt: day(2),
+        amount: '20000',
+        allocation: JSON.stringify({ lateFee: '0', rent: '90000' }),
+      }).expect(400)
+      expect(bad.body.code).toBe('PAYMENT_INVALID_ALLOCATION')
+      const future = await pay(second2.id, {
+        paidAt: addDays(today, 1),
+        amount: '1',
+      }).expect(400)
+      expect(future.body.code).toBe('PAYMENT_INVALID_DATE')
+      const zero = await pay(second2.id, {
+        paidAt: day(2),
+        amount: '0',
+      }).expect(400)
+      expect(zero.body.code).toBe('PAYMENT_INVALID_AMOUNT')
+      const badReceipt = await pay(
+        second2.id,
+        { paidAt: day(2), amount: '10' },
+        { file: Buffer.from('no soy un pdf') },
+      ).expect(400)
+      expect(badReceipt.body.code).toBe('PAYMENT_INVALID_RECEIPT')
+    })
+
+    it('un contrato en USD cobra en pesos con cotización obligatoria (A-9)', async () => {
+      // Gracia larga: la cuota del mes pasado sigue sin punitorio hoy.
+      const contract = await createContract({
+        currency: 'USD',
+        initialRent: '1000',
+        lateFeeGraceDays: 90,
+      })
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+
+      const noRate = await pay(id, {
+        paidAt: day(3),
+        amount: '744000',
+        paidCurrency: 'ARS',
+      }).expect(400)
+      expect(noRate.body.code).toBe('PAYMENT_EXCHANGE_RATE_REQUIRED')
+
+      const paid = await pay(id, {
+        paidAt: day(3),
+        amount: '744000',
+        paidCurrency: 'ARS',
+        exchangeRate: '1488',
+        exchangeRateSource: 'MEP',
+        exchangeRateDate: day(3),
+      }).expect(201)
+      expect(paid.body.data.payment).toMatchObject({
+        paidCurrency: 'ARS',
+        amount: '744000.00',
+        exchangeRate: '1488.0000',
+        exchangeRateSource: 'MEP',
+        exchangeRateDate: day(3),
+        amountInContractCurrency: '500.00',
+        rentApplied: '500.00',
+      })
+      expect(paid.body.data.installment).toMatchObject({
+        status: 'PARTIAL',
+        currency: 'USD',
+        rentBalance: '500.00',
+        paidTotal: '500.00',
+      })
+
+      const notAllowed = await pay(id, {
+        paidAt: day(4),
+        amount: '500',
+        paidCurrency: 'USD',
+        exchangeRate: '1488',
+        exchangeRateSource: 'MEP',
+        exchangeRateDate: day(4),
+      }).expect(400)
+      expect(notAllowed.body.code).toBe('PAYMENT_EXCHANGE_RATE_NOT_ALLOWED')
+
+      const rest = await pay(id, {
+        paidAt: day(4),
+        amount: '500',
+        paidCurrency: 'USD',
+      }).expect(201)
+      expect(rest.body.data.installment.status).toBe('PAID')
+    })
+
+    it('cobro directo del propietario: el pago nace informado y se confirma; la lista de pendientes lo muestra (A-11)', async () => {
+      const contract = await createContract({
+        collectionMode: 'OWNER_DIRECT',
+        lateFeeGraceDays: 31,
+      })
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+
+      const informed = await pay(id, {
+        paidAt: day(5),
+        amount: '100000',
+      }).expect(201)
+      const paymentId = informed.body.data.payment.id as string
+      expect(informed.body.data.payment).toMatchObject({
+        receivedBy: 'OWNER',
+        status: 'PENDING_CONFIRMATION',
+        confirmedAt: null,
+      })
+      // Cuenta como pagado igual: la cuota queda saldada.
+      expect(informed.body.data.installment).toMatchObject({
+        status: 'PAID',
+        pendingConfirmationTotal: '100000.00',
+        feeOnCollected: '0.00',
+      })
+
+      const pending = await api(adminToken)
+        .get('/billing/payments?status=PENDING_CONFIRMATION&receivedBy=OWNER')
+        .expect(200)
+      expect(pending.body.data.pagination.total).toBe(1)
+      expect(pending.body.data.data[0]).toMatchObject({
+        id: paymentId,
+        renter: { id: contract.renterId },
+        property: { id: contract.propertyId },
+        currency: 'ARS',
+      })
+
+      const confirmed = await api(employeeToken)
+        .post(`/billing/payments/${paymentId}/confirm`)
+        .expect(200)
+      expect(confirmed.body.data).toMatchObject({
+        id: paymentId,
+        status: 'CONFIRMED',
+        confirmedBy: { fullName: 'emp@a.com' },
+      })
+      expect(confirmed.body.data.confirmedAt).not.toBeNull()
+      const twice = await api(adminToken)
+        .post(`/billing/payments/${paymentId}/confirm`)
+        .expect(409)
+      expect(twice.body.code).toBe('PAYMENT_ALREADY_CONFIRMED')
+      expect((await detail(id)).feeOnCollected).toBe('5000.00')
+
+      const byContract = await api(adminToken)
+        .get(
+          `/billing/payments?contractId=${contract.id}&from=${day(1)}&to=${day(31 > 28 ? 28 : 31)}`,
+        )
+        .expect(200)
+      expect(byContract.body.data.pagination.total).toBe(1)
+
+      // La facade de liquidaciones ve lo cobrado por el propietario.
+      const collections = await inTenantA(() =>
+        app.get(BillingFacade).collectionsByInstallment([id]),
+      )
+      expect(collections.get(id)).toMatchObject({
+        rentCollectedByAgency: '0.00',
+        rentCollectedByOwner: '100000.00',
+        feeOnCollected: '5000.00',
+        collectionMode: 'OWNER_DIRECT',
+      })
+    })
+
+    it('anular un pago (sólo admin) reabre la cuota y vuelve a calcular el punitorio en vivo', async () => {
+      const contract = await createContract()
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+      const paid = await pay(id, { paidAt: day(2), amount: '110000' }).expect(
+        201,
+      )
+      const paymentId = paid.body.data.payment.id as string
+      expect(paid.body.data.installment).toMatchObject({
+        status: 'PAID',
+        feeDays: 2,
+      })
+
+      await api(employeeToken)
+        .post(`/billing/payments/${paymentId}/void`)
+        .send({ reason: 'x' })
+        .expect(403)
+
+      const voided = await api(adminToken)
+        .post(`/billing/payments/${paymentId}/void`)
+        .send({ reason: 'Transferencia rechazada' })
+        .expect(200)
+      expect(voided.body.data).toMatchObject({
+        id,
+        status: 'OVERDUE',
+        paidAt: null,
+        paidTotal: '0.00',
+        rentBalance: '100000.00',
+      })
+      // Sin el pago, el punitorio sigue corriendo hasta hoy.
+      expect(voided.body.data.feeDays).toBeGreaterThan(2)
+      expect(voided.body.data.payments[0]).toMatchObject({
+        id: paymentId,
+        status: 'VOIDED',
+        voidReason: 'Transferencia rechazada',
+        voidedBy: { fullName: 'admin@a.com' },
+      })
+      const twice = await api(adminToken)
+        .post(`/billing/payments/${paymentId}/void`)
+        .send({ reason: 'otra vez' })
+        .expect(409)
+      expect(twice.body.code).toBe('PAYMENT_ALREADY_VOIDED')
+
+      const account = await api(adminToken)
+        .get(`/contracts/${contract.id}/account`)
+        .expect(200)
+      expect(
+        account.body.data.movements.map((m: { type: string }) => m.type),
+      ).toEqual(
+        expect.arrayContaining([
+          'PAYMENT',
+          'PAYMENT_VOIDED',
+          'LATE_FEE_ACCRUED',
+        ]),
+      )
+      expect(account.body.data.totals.collected).toBe('0.00')
+    })
+
+    it('el exceso genera saldo a favor, que se aplica solo al próximo pago, a mano, o se devuelve (A-6)', async () => {
+      const contract = await createContract({ lateFeeGraceDays: 31 })
+      await generate(previous)
+      await generate(period)
+      const first = await installmentOf(contract.id, previous)
+      const second = await installmentOf(contract.id, period)
+
+      const over = await pay(first.id, {
+        paidAt: day(5),
+        amount: '130000',
+      }).expect(201)
+      expect(over.body.data.payment).toMatchObject({
+        rentApplied: '100000.00',
+        creditGenerated: '30000.00',
+      })
+      expect(over.body.data.installment.status).toBe('PAID')
+
+      const credits = await api(adminToken)
+        .get(`/billing/renters/${contract.renterId}/credits`)
+        .expect(200)
+      expect(credits.body.data).toMatchObject({
+        renterId: contract.renterId,
+        totals: [{ currency: 'ARS', available: '30000.00' }],
+      })
+      expect(credits.body.data.credits).toHaveLength(1)
+      const creditId = credits.body.data.credits[0].id as string
+      expect(credits.body.data.credits[0]).toMatchObject({
+        amount: '30000.00',
+        remaining: '30000.00',
+        status: 'AVAILABLE',
+        originPaymentId: over.body.data.payment.id,
+      })
+      expect((await detail(second.id)).creditsAvailable).toBe('30000.00')
+
+      // Anular el pago que generó el crédito mientras está entero lo anula.
+      // (Se prueba con otro contrato más abajo; acá se aplica a mano.)
+      const applied = await api(employeeToken)
+        .post(`/billing/installments/${second.id}/apply-credit`)
+        .send({ amount: '10000' })
+        .expect(201)
+      expect(applied.body.data.payment).toMatchObject({
+        kind: 'CREDIT_APPLICATION',
+        method: 'CREDIT',
+        status: 'CONFIRMED',
+        amount: '10000.00',
+        rentApplied: '10000.00',
+        creditId,
+      })
+      expect(applied.body.data.installment).toMatchObject({
+        status: 'PARTIAL',
+        rentBalance: '90000.00',
+        creditsAvailable: '20000.00',
+      })
+
+      // Al cobrar, primero se aplica el crédito que queda, después la plata.
+      const cash = await pay(second.id, {
+        paidAt: today,
+        amount: '70000',
+      }).expect(201)
+      expect(cash.body.data.creditApplications).toHaveLength(1)
+      expect(cash.body.data.creditApplications[0]).toMatchObject({
+        kind: 'CREDIT_APPLICATION',
+        amount: '20000.00',
+        rentApplied: '20000.00',
+      })
+      expect(cash.body.data.payment).toMatchObject({
+        kind: 'CASH_IN',
+        rentApplied: '70000.00',
+        creditGenerated: '0.00',
+      })
+      expect(cash.body.data.installment).toMatchObject({
+        status: 'PAID',
+        creditsAvailable: '0.00',
+      })
+      const used = await api(adminToken)
+        .get(`/billing/renters/${contract.renterId}/credits`)
+        .expect(200)
+      expect(used.body.data.credits[0]).toMatchObject({
+        remaining: '0.00',
+        status: 'APPLIED',
+      })
+      const none = await api(adminToken)
+        .post(`/billing/installments/${second.id}/apply-credit`)
+        .send({})
+        .expect(409)
+      expect(none.body.code).toBe('INSTALLMENT_ALREADY_PAID')
+
+      // Anular el pago original ahora falla: su crédito ya se usó.
+      const stuck = await api(adminToken)
+        .post(`/billing/payments/${over.body.data.payment.id}/void`)
+        .send({ reason: 'error' })
+        .expect(409)
+      expect(stuck.body.code).toBe('PAYMENT_CREDIT_ALREADY_USED')
+
+      // Devolución: otro crédito, sin usar.
+      const other = await createContract({ lateFeeGraceDays: 31 })
+      await generate(previous)
+      const otherInstallment = await installmentOf(other.id, previous)
+      await pay(otherInstallment.id, {
+        paidAt: day(5),
+        amount: '150000',
+      }).expect(201)
+      const otherCredits = await api(adminToken)
+        .get(`/billing/renters/${other.renterId}/credits`)
+        .expect(200)
+      const refundable = otherCredits.body.data.credits[0].id as string
+      await api(employeeToken)
+        .post(`/billing/credits/${refundable}/refund`)
+        .send({ refundedAt: today, method: 'TRANSFER' })
+        .expect(403)
+      const refunded = await api(adminToken)
+        .post(`/billing/credits/${refundable}/refund`)
+        .send({
+          refundedAt: today,
+          method: 'TRANSFER',
+          notes: 'CBU del inquilino',
+        })
+        .expect(200)
+      expect(refunded.body.data).toMatchObject({
+        status: 'REFUNDED',
+        remaining: '0.00',
+        refundedAt: today,
+        refundMethod: 'TRANSFER',
+        refundNotes: 'CBU del inquilino',
+      })
+      const again = await api(adminToken)
+        .post(`/billing/credits/${refundable}/refund`)
+        .send({ refundedAt: today, method: 'CASH' })
+        .expect(409)
+      expect(again.body.code).toBe('CREDIT_NOT_AVAILABLE')
+      const unknownRenter = await api(adminToken)
+        .get(`/billing/renters/${UNKNOWN_ID}/credits`)
+        .expect(404)
+      expect(unknownRenter.body.code).toBe('CREDIT_RENTER_NOT_FOUND')
+    })
+
+    it('condonar o reducir el punitorio es de admin y queda registrado (Micaela #4)', async () => {
+      const contract = await createContract()
+      await generate(period)
+      const { id } = await installmentOf(contract.id)
+      const accrued = (await detail(id)).lateFeeAccrued as string
+      expect(Number(accrued)).toBeGreaterThan(0)
+
+      await api(employeeToken)
+        .post(`/billing/installments/${id}/late-fee-adjustments`)
+        .send({ kind: 'WAIVE', reason: 'x' })
+        .expect(403)
+
+      const tooMuch = await api(adminToken)
+        .post(`/billing/installments/${id}/late-fee-adjustments`)
+        .send({ kind: 'REDUCE', amount: '99999999', reason: 'Acuerdo' })
+        .expect(400)
+      expect(tooMuch.body.code).toBe('LATE_FEE_INVALID_ADJUSTMENT')
+
+      const reduced = await api(adminToken)
+        .post(`/billing/installments/${id}/late-fee-adjustments`)
+        .send({
+          kind: 'REDUCE',
+          amount: '1000',
+          reason: 'Acuerdo con el inquilino',
+        })
+        .expect(201)
+      expect(reduced.body.data).toMatchObject({
+        lateFeeAccrued: accrued,
+        lateFeeAdjusted: '1000.00',
+        lateFeeBalance: (Number(accrued) - 1000).toFixed(2),
+      })
+      expect(reduced.body.data.lateFeeAdjustments[0]).toMatchObject({
+        kind: 'REDUCE',
+        amount: '1000.00',
+        reason: 'Acuerdo con el inquilino',
+        createdBy: { fullName: 'admin@a.com' },
+      })
+
+      const waived = await api(adminToken)
+        .post(`/billing/installments/${id}/late-fee-adjustments`)
+        .send({ kind: 'WAIVE', reason: 'Primera vez que se atrasa' })
+        .expect(201)
+      expect(waived.body.data).toMatchObject({
+        lateFeeWaived: true,
+        lateFeeAccrued: '0.00',
+        lateFeeBalance: '0.00',
+        totalDue: '100000.00',
+        status: 'OVERDUE',
+        feeDays: 0,
+        lateFeeDays: [],
+      })
+      expect(waived.body.data.lateFeeAdjustments[1]).toMatchObject({
+        kind: 'WAIVE',
+        amount: accrued,
+      })
+      const twice = await api(adminToken)
+        .post(`/billing/installments/${id}/late-fee-adjustments`)
+        .send({ kind: 'WAIVE', reason: 'otra' })
+        .expect(400)
+      expect(twice.body.code).toBe('LATE_FEE_INVALID_ADJUSTMENT')
+
+      // Condonado, pagar el alquiler solo salda la cuota.
+      const paid = await pay(id, { paidAt: today, amount: '100000' }).expect(
+        201,
+      )
+      expect(paid.body.data.installment.status).toBe('PAID')
+    })
+
+    it('un cargo (multa de rescisión) suma al saldo, no devenga punitorio y se anula si nada se le imputó (A-10)', async () => {
+      const contract = await createContract({ lateFeeGraceDays: 90 })
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+
+      const charged = await api(employeeToken)
+        .post(`/billing/installments/${id}/charges`)
+        .send({
+          concept: 'TERMINATION_PENALTY',
+          description: 'Multa por rescisión anticipada',
+          amount: '10000',
+        })
+        .expect(201)
+      expect(charged.body.data).toMatchObject({
+        chargesTotal: '10000.00',
+        chargesBalance: '10000.00',
+        totalDue: '110000.00',
+        lateFeeAccrued: '0.00',
+      })
+      const chargeId = charged.body.data.charges[0].id as string
+      expect(charged.body.data.charges[0]).toMatchObject({
+        concept: 'TERMINATION_PENALTY',
+        description: 'Multa por rescisión anticipada',
+        amount: '10000.00',
+        createdBy: { fullName: 'emp@a.com' },
+        voidedAt: null,
+      })
+      const bad = await api(adminToken)
+        .post(`/billing/installments/${id}/charges`)
+        .send({ concept: 'OTHER', description: 'x', amount: '0' })
+        .expect(400)
+      expect(bad.body.code).toBe('CHARGE_INVALID_AMOUNT')
+
+      // Paga el alquiler y parte del cargo: ya no se puede anular.
+      await pay(id, { paidAt: day(5), amount: '105000' }).expect(201)
+      const stuck = await api(adminToken)
+        .post(`/billing/charges/${chargeId}/void`)
+        .send({ reason: 'error' })
+        .expect(409)
+      expect(stuck.body.code).toBe('CHARGE_HAS_ALLOCATIONS')
+
+      // Otro cargo sin imputar sí se anula, y la cuota queda PARTIAL por el resto.
+      const second = await api(adminToken)
+        .post(`/billing/installments/${id}/charges`)
+        .send({ concept: 'SERVICE', description: 'Expensas', amount: '3000' })
+        .expect(201)
+      const secondId = second.body.data.charges[1].id as string
+      const voided = await api(adminToken)
+        .post(`/billing/charges/${secondId}/void`)
+        .send({ reason: 'Cargado dos veces' })
+        .expect(200)
+      expect(voided.body.data).toMatchObject({
+        chargesTotal: '10000.00',
+        chargesBalance: '5000.00',
+        status: 'PARTIAL',
+      })
+      expect(voided.body.data.charges[1]).toMatchObject({
+        voidReason: 'Cargado dos veces',
+      })
+      await pay(id, { paidAt: day(6), amount: '5000' }).expect(201)
+      const onPaid = await api(adminToken)
+        .post(`/billing/installments/${id}/charges`)
+        .send({ concept: 'OTHER', description: 'Tarde', amount: '1' })
+        .expect(409)
+      expect(onPaid.body.code).toBe('INSTALLMENT_ALREADY_PAID')
+    })
+
+    it('la mora por inquilino resume vencidas, días y saldos; la facade da lo mismo', async () => {
+      const overdue = await createContract()
+      const upToDate = await createContract({ lateFeeGraceDays: 31 })
+      await generate(period)
+      const paid = await installmentOf(upToDate.id)
+      await pay(paid.id, { paidAt: today, amount: '100000' }).expect(201)
+
+      const arrears = await api(adminToken)
+        .get(
+          `/billing/arrears?renterId=${overdue.renterId}&renterId=${upToDate.renterId}&renterIds=${UNKNOWN_ID}`,
+        )
+        .expect(200)
+      expect(arrears.body.data).toHaveLength(3)
+      const todayDay = Number(today.slice(8, 10))
+      expect(arrears.body.data[0]).toEqual({
+        renterId: overdue.renterId,
+        status: 'OVERDUE',
+        overdueInstallments: 1,
+        maxDaysOverdue: todayDay,
+        lateFeeAccrued: [
+          { currency: 'ARS', amount: (todayDay * 5000).toFixed(2) },
+        ],
+        balance: [
+          { currency: 'ARS', amount: (100000 + todayDay * 5000).toFixed(2) },
+        ],
+      })
+      expect(arrears.body.data[1]).toMatchObject({
+        renterId: upToDate.renterId,
+        status: 'UP_TO_DATE',
+        overdueInstallments: 0,
+        lateFeeAccrued: [],
+        balance: [],
+      })
+      expect(arrears.body.data[2]).toMatchObject({
+        renterId: UNKNOWN_ID,
+        status: 'UP_TO_DATE',
+      })
+
+      const facade = app.get(BillingFacade)
+      const viaFacade = await inTenantA(() =>
+        facade.arrearsByRenter([overdue.renterId]),
+      )
+      expect(viaFacade[0]).toMatchObject({ status: 'OVERDUE' })
+      const overdueList = await inTenantA(() => facade.listOverdue())
+      expect(overdueList.map((i) => i.contractId)).toEqual([overdue.id])
+      expect(overdueList[0].daysOverdue).toBe(todayDay)
+      expect(
+        await inTenantA(() => facade.generateInstallments(nextPeriod(period))),
+      ).toMatchObject({ created: 2 })
+    })
+  })
+
   describe('aislamiento entre inmobiliarias', () => {
     it('la generación y los listados son por inmobiliaria; otra no ve la cuota ni la cuenta corriente', async () => {
       const contract = await createContract()
@@ -473,6 +1213,52 @@ describe('Cobros (e2e, Postgres)', () => {
         .expect(200)
       expect(list.body.data.pagination.total).toBe(1)
       expect(list.body.data.data[0].contract.id).not.toBe(contract.id)
+    })
+
+    it('otra inmobiliaria no cobra, confirma, anula ni ve pagos, cargos o créditos ajenos', async () => {
+      const contract = await createContract({ collectionMode: 'OWNER_DIRECT' })
+      await generate(period)
+      const { id } = await installmentOf(contract.id)
+      const paid = await pay(id, { paidAt: today, amount: '20000' }).expect(201)
+      const paymentId = paid.body.data.payment.id as string
+      const charged = await api(adminToken)
+        .post(`/billing/installments/${id}/charges`)
+        .send({ concept: 'OTHER', description: 'x', amount: '100' })
+        .expect(201)
+      const chargeId = charged.body.data.charges[0].id as string
+
+      const b = api(adminBToken)
+      await pay(
+        id,
+        { paidAt: today, amount: '1' },
+        { token: adminBToken },
+      ).expect(404)
+      await b.post(`/billing/payments/${paymentId}/confirm`).expect(404)
+      await b
+        .post(`/billing/payments/${paymentId}/void`)
+        .send({ reason: 'x' })
+        .expect(404)
+      await b
+        .post(`/billing/charges/${chargeId}/void`)
+        .send({ reason: 'x' })
+        .expect(404)
+      await b
+        .post(`/billing/installments/${id}/late-fee-adjustments`)
+        .send({ kind: 'WAIVE', reason: 'x' })
+        .expect(404)
+      await b
+        .post(`/billing/installments/${id}/apply-credit`)
+        .send({})
+        .expect(404)
+      await b.get(`/billing/renters/${contract.renterId}/credits`).expect(404)
+      const payments = await b
+        .get('/billing/payments?status=PENDING_CONFIRMATION')
+        .expect(200)
+      expect(payments.body.data.pagination.total).toBe(0)
+      const arrears = await b
+        .get(`/billing/arrears?renterId=${contract.renterId}`)
+        .expect(200)
+      expect(arrears.body.data[0]).toMatchObject({ status: 'UP_TO_DATE' })
     })
   })
 })

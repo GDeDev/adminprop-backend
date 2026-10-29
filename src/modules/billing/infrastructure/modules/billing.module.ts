@@ -2,15 +2,33 @@ import { Module } from '@nestjs/common'
 
 import { BillingReferences } from '@/modules/billing/application/billing-references'
 import { GenerateInstallmentsHandler } from '@/modules/billing/application/commands/generate-installments.handler'
+import {
+  AdjustLateFeeHandler,
+  CreateChargeHandler,
+  VoidChargeHandler,
+} from '@/modules/billing/application/commands/installment.handlers'
+import {
+  ApplyCreditHandler,
+  ConfirmPaymentHandler,
+  RefundCreditHandler,
+  RegisterPaymentHandler,
+  VoidPaymentHandler,
+} from '@/modules/billing/application/commands/payment.handlers'
+import { RelayInstallmentPaidHandler } from '@/modules/billing/application/events/relay-installment-paid.handler'
 import { InstallmentGenerator } from '@/modules/billing/application/installment-generator'
+import { InstallmentRecalculator } from '@/modules/billing/application/installment-recalculator'
 import { InstallmentViews } from '@/modules/billing/application/installment.views'
 import {
+  GetArrearsHandler,
   GetBillingSummaryHandler,
   GetContractAccountHandler,
   GetInstallmentBreakdownHandler,
   GetInstallmentHandler,
   ListInstallmentsHandler,
+  ListPaymentsHandler,
+  ListRenterCreditsHandler,
 } from '@/modules/billing/application/queries/billing.queries'
+import { BillingFacade } from '@/modules/billing/public/billing.facade'
 import {
   InstallmentRepository,
   PaymentRepository,
@@ -21,6 +39,7 @@ import { OwnersModule } from '@/modules/owners/public'
 import { PropertiesModule } from '@/modules/properties/public'
 import { RentersModule } from '@/modules/renters/public'
 import { InstallmentsController } from '../http/controllers/billing.controller'
+import { PaymentsController } from '../http/controllers/payments.controller'
 import { InstallmentRepositoryImpl } from '../repositories/installment.repository.impl'
 import { PaymentRepositoryImpl } from '../repositories/payment.repository.impl'
 import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.repository.impl'
@@ -32,7 +51,7 @@ import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.reposi
  */
 @Module({
   imports: [ContractsModule, RentersModule, OwnersModule, PropertiesModule],
-  controllers: [InstallmentsController],
+  controllers: [InstallmentsController, PaymentsController],
   providers: [
     { provide: InstallmentRepository, useClass: InstallmentRepositoryImpl },
     { provide: PaymentRepository, useClass: PaymentRepositoryImpl },
@@ -40,13 +59,27 @@ import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.reposi
     BillingReferences,
     InstallmentViews,
     InstallmentGenerator,
+    InstallmentRecalculator,
+    BillingFacade,
     GenerateInstallmentsHandler,
+    CreateChargeHandler,
+    VoidChargeHandler,
+    AdjustLateFeeHandler,
+    RegisterPaymentHandler,
+    ApplyCreditHandler,
+    ConfirmPaymentHandler,
+    VoidPaymentHandler,
+    RefundCreditHandler,
+    RelayInstallmentPaidHandler,
     ListInstallmentsHandler,
     GetBillingSummaryHandler,
     GetInstallmentHandler,
     GetInstallmentBreakdownHandler,
     GetContractAccountHandler,
+    ListPaymentsHandler,
+    ListRenterCreditsHandler,
+    GetArrearsHandler,
   ],
-  exports: [],
+  exports: [BillingFacade],
 })
 export class BillingModule {}
