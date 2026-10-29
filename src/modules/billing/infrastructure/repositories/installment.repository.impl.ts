@@ -178,6 +178,7 @@ export class InstallmentRepositoryImpl extends InstallmentRepository {
  */
 function toWhere(filter: InstallmentFilter): Prisma.InstallmentWhereInput {
   const where: Prisma.InstallmentWhereInput = {
+    ...(filter.ids ? { id: { in: filter.ids } } : {}),
     ...(filter.period ? { period: filter.period } : {}),
     ...(filter.contractId ? { contractId: filter.contractId } : {}),
     ...(filter.renterId ? { renterId: filter.renterId } : {}),
@@ -199,6 +200,8 @@ function toWhere(filter: InstallmentFilter): Prisma.InstallmentWhereInput {
   } else if (filter.unpaidGraceEndBefore) {
     where.status = { not: InstallmentStatus.PAID }
     where.graceEndDate = { lt: toDateColumn(filter.unpaidGraceEndBefore) }
+  } else if (filter.unpaid) {
+    where.status = { not: InstallmentStatus.PAID }
   }
   return where
 }

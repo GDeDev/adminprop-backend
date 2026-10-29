@@ -46,6 +46,7 @@ export interface NewInstallment {
 }
 
 export interface InstallmentFilter {
+  ids?: string[]
   period?: Period
   /** `OVERDUE` se traduce a "con saldo y gracia vencida" en la consulta. */
   status?: InstallmentStatus
@@ -55,6 +56,8 @@ export interface InstallmentFilter {
   propertyId?: string
   ownerId?: string
   collectionMode?: CollectionMode
+  /** Sólo las no saldadas (PENDING o PARTIAL). */
+  unpaid?: boolean
   /** Impagas (no PAID) cuya gracia terminó antes de esta fecha: vencidas. */
   unpaidGraceEndBefore?: IsoDate
   /** Para `PENDING`/`PARTIAL`: gracia que termina en esta fecha o después. */

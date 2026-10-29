@@ -16,6 +16,7 @@ import { RentersModule } from '@/modules/renters/public'
 import { IndicesModule } from '@/modules/indices/public'
 import { ContractsModule } from '@/modules/contracts/public'
 import { ServicesModule } from '@/modules/services/public'
+import { BillingModule } from '@/modules/billing/public'
 import { ExampleModule } from '@/modules/_example/public'
 import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
 import { QueueModule } from '@/platform/queue/queue.module'
@@ -56,6 +57,7 @@ import { SharedModule } from './shared/shared.module'
     IndicesModule,
     ContractsModule,
     ServicesModule,
+    BillingModule,
     // Módulos de referencia (Fase 1). No se borran.
     ExampleModule,
     ExampleListenerModule,
