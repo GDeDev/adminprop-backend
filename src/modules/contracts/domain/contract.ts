@@ -14,11 +14,42 @@ export enum RentUpdateType {
   OTHER = 'OTHER',
 }
 
-/** Cada cuántos meses (PRD 5.5: mensual / trimestral / cuatrimestral). */
+/**
+ * Cada cuántos meses (PRD 5.5: mensual / trimestral / cuatrimestral; Micaela
+ * #8 sumó semestral y anual).
+ */
 export enum RentUpdateFrequency {
   MONTHLY = 'MONTHLY',
   QUARTERLY = 'QUARTERLY',
   FOUR_MONTHLY = 'FOUR_MONTHLY',
+  SEMIANNUAL = 'SEMIANNUAL',
+  ANNUAL = 'ANNUAL',
+}
+
+/** Cómo se devuelve el depósito al terminar (Micaela #1). */
+export enum DepositReturnMode {
+  /** Se devuelve lo recibido. */
+  FIXED = 'FIXED',
+  /** El equivalente al alquiler vigente al terminar. */
+  FOLLOWS_RENT = 'FOLLOWS_RENT',
+  /** Se define a mano al cerrar las cuentas (Fase 12). */
+  MANUAL = 'MANUAL',
+}
+
+/** Quién cobra el alquiler (Micaela #9). */
+export enum CollectionMode {
+  AGENCY = 'AGENCY',
+  OWNER_DIRECT = 'OWNER_DIRECT',
+}
+
+/** Cómo cobra sus honorarios la inmobiliaria (Micaela #10). */
+export enum FeeMode {
+  /** Los descuenta de lo cobrado al liquidar. */
+  DEDUCTED = 'DEDUCTED',
+  /** El propietario los paga después. */
+  OWNER_PAYS = 'OWNER_PAYS',
+  /** El inquilino los paga aparte, por cuenta del propietario. */
+  RENTER_PAYS_ON_BEHALF = 'RENTER_PAYS_ON_BEHALF',
 }
 
 export enum ContractStatus {
@@ -52,8 +83,57 @@ export interface RentUpdate {
   indexToPeriod: string | null
   indexFromValue: string | null
   indexToValue: string | null
+  /** El % fijo aplicado (FIXED con `fixedIncreasePercentage`); null si no. */
+  fixedPercentage: string | null
   /** Null si lo aplicó el cron. */
   appliedById: string | null
+  createdAt: Date
+}
+
+/**
+ * Una fila de los términos de cobro (D-70): vigencias que nunca se pisan.
+ * `lateFeePercentage` y `lateFeeGraceDays` en null heredan los del tenant.
+ * Montos como string decimal.
+ */
+export interface BillingTerms {
+  id: string
+  effectiveFrom: IsoDate
+  collectionMode: CollectionMode
+  feeMode: FeeMode
+  /** % de honorarios vigente. */
+  feePercentage: string
+  /** Importe fijo de honorarios; si está, manda sobre el %. */
+  feeAmount: string | null
+  lateFeePercentage: string | null
+  lateFeeGraceDays: number | null
+  notes: string | null
+  /** Null en la fila inicial. */
+  changedById: string | null
+  createdAt: Date
+}
+
+/** Lo que el contrato puede heredar de la inmobiliaria en los términos. */
+export interface LateFeeDefaults {
+  /** Punitorio diario, en %, como string decimal. */
+  dailyLateFeePercentage: string
+  /** Días del mes sin punitorio: del 1 al N. */
+  paymentGraceDays: number
+}
+
+/** Términos con los fallbacks del tenant ya resueltos. */
+export interface ResolvedBillingTerms {
+  id: string
+  effectiveFrom: IsoDate
+  collectionMode: CollectionMode
+  feeMode: FeeMode
+  feePercentage: string
+  feeAmount: string | null
+  lateFeePercentage: string
+  lateFeeGraceDays: number
+  inheritedLateFeePercentage: boolean
+  inheritedLateFeeGraceDays: boolean
+  notes: string | null
+  changedById: string | null
   createdAt: Date
 }
 
@@ -90,9 +170,13 @@ export interface Contract {
   currency: Currency
   rentUpdateType: RentUpdateType
   rentUpdateFrequency: RentUpdateFrequency
-  /** Estático: no sigue a los aumentos (A-1). */
+  /** Por el importe y la moneda recibidos (Micaela #1). */
   deposit: string
-  /** En %, fijado al crear (spec Fase 9, 4). */
+  depositCurrency: Currency
+  depositReturnMode: DepositReturnMode
+  /** Con `rentUpdateType = FIXED`, el % que se aplica solo en cada aumento. */
+  fixedIncreasePercentage: string | null
+  /** En %, fijado al crear (spec Fase 9, 4). El vigente está en `billingTerms`. */
   feePercentage: string
   status: ContractStatus
   contractPdfKey: string | null
@@ -103,6 +187,8 @@ export interface Contract {
   renewedFromId: string | null
   /** Del más reciente al más viejo. Nunca vacío: siempre está el inicial. */
   rentUpdates: RentUpdate[]
+  /** Del más reciente al más viejo. Nunca vacío: la primera nace con el contrato. */
+  billingTerms: BillingTerms[]
   createdAt: Date
   updatedAt: Date
 }
@@ -110,4 +196,16 @@ export interface Contract {
 /** El alquiler vigente: la última fila del historial. */
 export function currentRentOf(contract: Contract): string {
   return contract.rentUpdates[0].newRent
+}
+
+/**
+ * Los términos vigentes a una fecha: la fila más nueva con `effectiveFrom`
+ * ≤ fecha. Antes de la primera (no debería pasar: nace con el inicio) rige
+ * la primera.
+ */
+export function billingTermsInForce(
+  terms: BillingTerms[],
+  date: IsoDate,
+): BillingTerms {
+  return terms.find((t) => t.effectiveFrom <= date) ?? terms[terms.length - 1]
 }

@@ -205,3 +205,39 @@ export class RenewalStartInvalidException extends DomainException {
     )
   }
 }
+
+/** Los términos nuevos no pueden regir antes que los últimos cargados (D-70). */
+export class BillingTermsNotAfterLatestException extends DomainException {
+  constructor(latestEffectiveFrom: string) {
+    super(
+      'CONTRACT_BILLING_TERMS_NOT_AFTER_LATEST',
+      `Los términos vigentes rigen desde el ${latestEffectiveFrom}: los nuevos no pueden empezar antes`,
+      DomainErrorKind.Conflict,
+      { latestEffectiveFrom },
+    )
+  }
+}
+
+/** Los términos rigen dentro de la vigencia del contrato. */
+export class BillingTermsOutOfRangeException extends DomainException {
+  constructor() {
+    super(
+      'CONTRACT_BILLING_TERMS_OUT_OF_RANGE',
+      'La fecha desde la que rigen los términos tiene que estar dentro del contrato',
+      DomainErrorKind.InvalidInput,
+      { field: 'effectiveFrom' },
+    )
+  }
+}
+
+/** Un % fuera de 0–100, un importe no positivo o una gracia negativa. */
+export class InvalidBillingTermsException extends DomainException {
+  constructor(field: string, reason: string) {
+    super(
+      'CONTRACT_INVALID_BILLING_TERMS',
+      `${field}: ${reason}`,
+      DomainErrorKind.InvalidInput,
+      { field },
+    )
+  }
+}

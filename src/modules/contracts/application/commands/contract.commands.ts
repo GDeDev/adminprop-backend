@@ -1,5 +1,8 @@
 import {
+  CollectionMode,
   Currency,
+  DepositReturnMode,
+  FeeMode,
   RentUpdateFrequency,
   RentUpdateType,
 } from '@/modules/contracts/domain/contract'
@@ -17,8 +20,24 @@ export interface ContractTerms {
   rentUpdateType: RentUpdateType
   rentUpdateFrequency: RentUpdateFrequency
   deposit: string
+  /** Null: la del contrato. */
+  depositCurrency: Currency | null
+  /** Null: FIXED. */
+  depositReturnMode: DepositReturnMode | null
+  fixedIncreasePercentage: string | null
   notes: string | null
   surety: SuretyData
+  /** Términos de cobro iniciales; lo que no venga toma el default (D-70). */
+  billing: BillingTermsInput
+}
+
+/** Los términos de cobro tal como los manda el cliente. */
+export interface BillingTermsInput {
+  collectionMode: CollectionMode | null
+  feeMode: FeeMode | null
+  feeAmount: string | null
+  lateFeePercentage: string | null
+  lateFeeGraceDays: number | null
 }
 
 export class CreateContractCommand {
@@ -38,6 +57,27 @@ export class UpdateContractCommand {
       notes?: string | null
       guarantorId?: string | null
       surety?: Partial<SuretyData>
+      depositReturnMode?: DepositReturnMode
+    },
+  ) {}
+}
+
+/** Una fila nueva de términos de cobro (D-70). Lo que no viene se copia de la vigente. */
+export class ChangeBillingTermsCommand {
+  constructor(
+    public readonly id: string,
+    public readonly changes: {
+      /** Default: hoy. */
+      effectiveFrom?: string
+      collectionMode?: CollectionMode
+      feeMode?: FeeMode
+      feePercentage?: string
+      /** `null` explícito vuelve al %. */
+      feeAmount?: string | null
+      /** `null` explícito vuelve al del tenant. */
+      lateFeePercentage?: string | null
+      lateFeeGraceDays?: number | null
+      notes?: string | null
     },
   ) {}
 }
@@ -54,7 +94,10 @@ export class UploadContractDocumentCommand {
 export class ApplyRentUpdateCommand {
   constructor(
     public readonly id: string,
-    /** Sólo para contratos "Fijo" u "Otro": el nuevo alquiler. */
+    /**
+     * El nuevo alquiler a mano. Obligatorio en FIXED sin % fijo y en OTHER;
+     * opcional en FIXED con % fijo y en ICL/IPC (ajuste manual autorizado).
+     */
     public readonly newRent: string | undefined,
   ) {}
 }
@@ -73,11 +116,12 @@ export class RenewContractCommand {
     public readonly endDate: string,
     /** Lo que no venga se copia del contrato original. */
     public readonly overrides: Partial<
-      Omit<ContractTerms, 'startDate' | 'endDate' | 'surety'>
+      Omit<ContractTerms, 'startDate' | 'endDate' | 'surety' | 'billing'>
     > & {
       renterId?: string
       guarantorId?: string | null
       surety?: Partial<SuretyData>
+      billing?: Partial<BillingTermsInput>
     },
   ) {}
 }

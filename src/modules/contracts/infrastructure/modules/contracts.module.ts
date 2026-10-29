@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common'
 
+import { BillingTermsResolver } from '@/modules/contracts/application/billing-terms-resolver'
 import {
   ApplyRentUpdateHandler,
+  ChangeBillingTermsHandler,
   CreateContractHandler,
   RenewContractHandler,
   TerminateContractHandler,
@@ -45,9 +47,11 @@ import { ContractRepositoryImpl } from '../repositories/contract.repository.impl
     ContractViews,
     ContractParties,
     ContractLifecycle,
+    BillingTermsResolver,
     ContractsFacade,
     CreateContractHandler,
     UpdateContractHandler,
+    ChangeBillingTermsHandler,
     UploadContractDocumentHandler,
     ApplyRentUpdateHandler,
     TerminateContractHandler,

@@ -26,6 +26,7 @@ import {
 import { Role, Roles } from '@/modules/auth/public'
 import {
   ApplyRentUpdateCommand,
+  ChangeBillingTermsCommand,
   CreateContractCommand,
   RenewContractCommand,
   TerminateContractCommand,
@@ -55,6 +56,8 @@ import { PaginatedResult } from '@/shared/pagination'
 import { ApiPaginatedResponse } from '@/shared/pagination/api-paginated-response.decorator'
 import {
   ApplyRentUpdateDto,
+  ChangeBillingTermsDto,
+  ContractBillingTermsInputDto,
   ContractDetailDto,
   ContractSummaryDto,
   CreateContractDto,
@@ -82,6 +85,31 @@ function toSurety(dto: {
     policyNumber: dto.policyNumber ?? null,
     policyExpiresAt: dto.policyExpiresAt ?? null,
   }
+}
+
+/** Los términos de cobro del alta: lo que no vino queda en null (default). */
+function toBillingInput(dto: ContractBillingTermsInputDto) {
+  return {
+    collectionMode: dto.collectionMode ?? null,
+    feeMode: dto.feeMode ?? null,
+    feeAmount: dto.feeAmount ?? null,
+    lateFeePercentage: dto.lateFeePercentage ?? null,
+    lateFeeGraceDays: dto.lateFeeGraceDays ?? null,
+  }
+}
+
+/** Sólo los términos que vinieron; el resto se copia del contrato original. */
+function toPartialBilling(dto: Partial<ContractBillingTermsInputDto>) {
+  const result: Partial<ReturnType<typeof toBillingInput>> = {}
+  if (dto.collectionMode !== undefined)
+    result.collectionMode = dto.collectionMode
+  if (dto.feeMode !== undefined) result.feeMode = dto.feeMode
+  if (dto.feeAmount !== undefined) result.feeAmount = dto.feeAmount
+  if (dto.lateFeePercentage !== undefined)
+    result.lateFeePercentage = dto.lateFeePercentage
+  if (dto.lateFeeGraceDays !== undefined)
+    result.lateFeeGraceDays = dto.lateFeeGraceDays
+  return result
 }
 
 /** Sólo lo que vino: la mezcla con lo actual la hace el handler. */
@@ -238,18 +266,68 @@ export class ContractsController {
         rentUpdateType: dto.rentUpdateType,
         rentUpdateFrequency: dto.rentUpdateFrequency,
         deposit: dto.deposit,
+        depositCurrency: dto.depositCurrency ?? null,
+        depositReturnMode: dto.depositReturnMode ?? null,
+        fixedIncreasePercentage: dto.fixedIncreasePercentage ?? null,
         notes: dto.notes ?? null,
         surety: toSurety(dto),
+        billing: toBillingInput(dto),
       }),
     )
     return { success: true, message: 'Contrato creado', data: contract }
   }
 
+  @Post(':id/billing-terms')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Cambiar los términos de cobro (sólo admin)',
+    description:
+      'Agrega una vigencia nueva: modalidad de cobro, honorarios (% o importe fijo) y punitorio. Lo que no viene se copia de la vigente; las anteriores quedan en el historial y las cuotas ya generadas no cambian.',
+  })
+  @ApiResponse({ status: 201, type: ContractDetailDto })
+  @ApiResponse({
+    status: 400,
+    description: 'Fecha fuera del contrato o valores inválidos',
+    type: ApiErrorDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'La fecha es anterior a los términos vigentes, o el contrato no está activo',
+    type: ApiErrorDto,
+  })
+  async changeBillingTerms(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: ChangeBillingTermsDto,
+  ): Promise<ApiSuccessDto<ContractDetailView>> {
+    const contract = await this.commandBus.execute<
+      ChangeBillingTermsCommand,
+      ContractDetailView
+    >(
+      new ChangeBillingTermsCommand(id, {
+        effectiveFrom: dto.effectiveFrom,
+        collectionMode: dto.collectionMode,
+        feeMode: dto.feeMode,
+        feePercentage: dto.feePercentage,
+        feeAmount: dto.feeAmount,
+        lateFeePercentage: dto.lateFeePercentage,
+        lateFeeGraceDays: dto.lateFeeGraceDays,
+        notes: dto.notes,
+      }),
+    )
+    return {
+      success: true,
+      message: 'Términos de cobro actualizados',
+      data: contract,
+    }
+  }
+
   @Patch(':id')
   @ApiOperation({
-    summary: 'Editar notas, caución o garante',
+    summary: 'Editar notas, caución, garante o modo de devolución del depósito',
     description:
-      'Fechas, montos, partes y estado no se editan: cambian por un aumento, una rescisión o una renovación.',
+      'Fechas, montos, partes y estado no se editan: cambian por un aumento, una rescisión o una renovación. Los términos de cobro cambian por POST /contracts/:id/billing-terms.',
   })
   @ApiResponse({ status: 200, type: ContractDetailDto })
   @ApiResponse({ status: 400, type: ApiErrorDto })
@@ -266,6 +344,7 @@ export class ContractsController {
         notes: dto.notes,
         guarantorId: dto.guarantorId,
         surety: dto.surety ? toPartialSurety(dto.surety) : undefined,
+        depositReturnMode: dto.depositReturnMode,
       }),
     )
     return { success: true, message: 'Contrato actualizado', data: contract }
@@ -421,8 +500,12 @@ export class ContractsController {
         rentUpdateType: dto.rentUpdateType,
         rentUpdateFrequency: dto.rentUpdateFrequency,
         deposit: dto.deposit,
+        depositCurrency: dto.depositCurrency,
+        depositReturnMode: dto.depositReturnMode,
+        fixedIncreasePercentage: dto.fixedIncreasePercentage,
         notes: dto.notes,
         surety: suretyGiven ? toPartialSurety(dto) : undefined,
+        billing: toPartialBilling(dto),
       }),
     )
     return { success: true, message: 'Contrato renovado', data: contract }

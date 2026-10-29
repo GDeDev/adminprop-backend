@@ -93,8 +93,9 @@ model Tenant {
   guarantors     Guarantor[]
   propertyPhotos PropertyPhoto[]
 
-  contracts           Contract[]
-  contractRentUpdates ContractRentUpdate[]
+  contracts            Contract[]
+  contractRentUpdates  ContractRentUpdate[]
+  contractBillingTerms ContractBillingTerms[]
 
   propertyServices PropertyService[]
   advanceExpenses  AdvanceExpense[]
@@ -691,6 +692,34 @@ enum RentUpdateFrequency {
   MONTHLY
   QUARTERLY
   FOUR_MONTHLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+/// Cómo se devuelve el depósito al terminar el contrato (Micaela #1).
+enum DepositReturnMode {
+  /// Se devuelve lo que se recibió.
+  FIXED
+  /// Se devuelve el equivalente al alquiler vigente al terminar.
+  FOLLOWS_RENT
+  /// El monto se define a mano al cerrar las cuentas.
+  MANUAL
+}
+
+/// Quién cobra el alquiler (Micaela #9).
+enum CollectionMode {
+  AGENCY
+  OWNER_DIRECT
+}
+
+/// Cómo cobra sus honorarios la inmobiliaria (Micaela #10).
+enum FeeMode {
+  /// Los descuenta de lo cobrado al liquidar.
+  DEDUCTED
+  /// El propietario los paga después.
+  OWNER_PAYS
+  /// El inquilino los paga aparte, por cuenta del propietario.
+  RENTER_PAYS_ON_BEHALF
 }
 
 enum ContractStatus {
@@ -730,14 +759,19 @@ model Contract {
   startDate DateTime @map("start_date") @db.Date
   endDate   DateTime @map("end_date") @db.Date
 
-  initialRent         Decimal             @map("initial_rent") @db.Decimal(14, 2)
-  currency            Currency
-  rentUpdateType      RentUpdateType      @map("rent_update_type")
-  rentUpdateFrequency RentUpdateFrequency @map("rent_update_frequency")
-  /// Depósito en garantía. Estático: no sigue a los aumentos (A-1).
-  deposit             Decimal             @db.Decimal(14, 2)
+  initialRent             Decimal             @map("initial_rent") @db.Decimal(14, 2)
+  currency                Currency
+  rentUpdateType          RentUpdateType      @map("rent_update_type")
+  rentUpdateFrequency     RentUpdateFrequency @map("rent_update_frequency")
+  /// Depósito en garantía, por el importe y la moneda recibidos (Micaela #1).
+  deposit                 Decimal             @db.Decimal(14, 2)
+  depositCurrency         Currency            @map("deposit_currency")
+  depositReturnMode       DepositReturnMode   @default(FIXED) @map("deposit_return_mode")
+  /// Con `rentUpdateType = FIXED`, el % que se aplica solo en cada aumento.
+  fixedIncreasePercentage Decimal?            @map("fixed_increase_percentage") @db.Decimal(5, 2)
   /// Honorarios de administración, en %, fijados al crear (spec Fase 9, 4).
-  feePercentage       Decimal             @map("fee_percentage") @db.Decimal(5, 2)
+  /// El vigente sale de `contract_billing_terms` (D-70).
+  feePercentage           Decimal             @map("fee_percentage") @db.Decimal(5, 2)
 
   status ContractStatus @default(ACTIVE)
 
@@ -764,7 +798,8 @@ model Contract {
   /// Contrato al que renueva (sin FK: autorreferencia que no hace falta navegar).
   renewedFromId String? @map("renewed_from_id") @db.Uuid
 
-  rentUpdates ContractRentUpdate[]
+  rentUpdates  ContractRentUpdate[]
+  billingTerms ContractBillingTerms[]
 
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -803,6 +838,9 @@ model ContractRentUpdate {
   indexFromValue  Decimal?   @map("index_from_value") @db.Decimal(14, 6)
   indexToValue    Decimal?   @map("index_to_value") @db.Decimal(14, 6)
 
+  /// % fijo aplicado (contratos FIXED con `fixedIncreasePercentage`).
+  fixedPercentage Decimal? @map("fixed_percentage") @db.Decimal(5, 2)
+
   /// Usuario que lo aplicó. Null si lo aplicó el cron (Fase 13).
   appliedById String? @map("applied_by_id") @db.Uuid
 
@@ -810,6 +848,40 @@ model ContractRentUpdate {
 
   @@index([tenantId, contractId, effectiveFrom])
   @@map("contract_rent_updates")
+}
+
+/// Términos de cobro de un contrato, como vigencias (D-70): nunca se pisan,
+/// cada cambio es una fila nueva con `effectiveFrom`. La primera nace con el
+/// contrato. El punitorio null hereda el del tenant.
+model ContractBillingTerms {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contractId String   @map("contract_id") @db.Uuid
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  effectiveFrom     DateTime       @map("effective_from") @db.Date
+  collectionMode    CollectionMode @map("collection_mode")
+  feeMode           FeeMode        @map("fee_mode")
+  /// % de honorarios vigente.
+  feePercentage     Decimal        @map("fee_percentage") @db.Decimal(5, 2)
+  /// Importe fijo de honorarios; si está, manda sobre el %.
+  feeAmount         Decimal?       @map("fee_amount") @db.Decimal(14, 2)
+  /// Null = el de la inmobiliaria (`daily_late_fee_percentage`).
+  lateFeePercentage Decimal?       @map("late_fee_percentage") @db.Decimal(5, 2)
+  /// Null = el de la inmobiliaria (`payment_grace_days`).
+  lateFeeGraceDays  Int?           @map("late_fee_grace_days")
+  notes             String?        @db.Text
+  /// Null en la fila inicial (la crea el alta del contrato).
+  changedById       String?        @map("changed_by_id") @db.Uuid
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, contractId, effectiveFrom])
+  @@map("contract_billing_terms")
 }
 
 // =============================================================================

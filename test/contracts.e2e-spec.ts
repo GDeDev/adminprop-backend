@@ -153,6 +153,12 @@ describe('Contratos (e2e, Postgres)', () => {
     }
   }
 
+  /** [propertyId, renterId] libres, para armar un body a mano. */
+  const partyIds = async (): Promise<[string, string]> => {
+    const { propertyId, renterId } = await parties()
+    return [propertyId, renterId]
+  }
+
   const loadIndex = (indexType: string, period: string, value: string) =>
     api(adminToken)
       .post('/indices')
@@ -1055,12 +1061,254 @@ describe('Contratos (e2e, Postgres)', () => {
     })
   })
 
+  describe('términos de cobro, depósito y aumentos nuevos (Fase 11, D-70)', () => {
+    it('el alta nace con términos por defecto y el punitorio heredado de la inmobiliaria', async () => {
+      const startDate = addMonths(today, -2)
+      const { id } = await createContract({ startDate, currency: 'USD' })
+      const detail = await api(adminToken).get(`/contracts/${id}`).expect(200)
+      expect(detail.body.data).toMatchObject({
+        feePercentage: '5.00',
+        collectionMode: 'AGENCY',
+        feeMode: 'DEDUCTED',
+        depositCurrency: 'USD',
+        depositReturnMode: 'FIXED',
+        fixedIncreasePercentage: null,
+        billingTerms: {
+          effectiveFrom: startDate,
+          collectionMode: 'AGENCY',
+          feeMode: 'DEDUCTED',
+          feePercentage: '5.00',
+          feeAmount: null,
+          lateFeePercentage: '5.00',
+          lateFeeGraceDays: 10,
+          inheritedLateFeePercentage: true,
+          inheritedLateFeeGraceDays: true,
+          changedBy: null,
+        },
+      })
+      expect(detail.body.data.billingTermsHistory).toHaveLength(1)
+      expect(detail.body.data.billingTermsHistory[0]).toMatchObject({
+        lateFeePercentage: null,
+        lateFeeGraceDays: null,
+      })
+    })
+
+    it('el alta acepta términos propios, moneda y modo del depósito y % fijo', async () => {
+      const { id } = await createContract({
+        currency: 'USD',
+        depositCurrency: 'ARS',
+        depositReturnMode: 'FOLLOWS_RENT',
+        fixedIncreasePercentage: '10',
+        collectionMode: 'OWNER_DIRECT',
+        feeMode: 'OWNER_PAYS',
+        feeAmount: '20000',
+        lateFeePercentage: '2.5',
+        lateFeeGraceDays: 5,
+      })
+      const detail = await api(adminToken).get(`/contracts/${id}`).expect(200)
+      expect(detail.body.data).toMatchObject({
+        depositCurrency: 'ARS',
+        depositReturnMode: 'FOLLOWS_RENT',
+        fixedIncreasePercentage: '10.00',
+        collectionMode: 'OWNER_DIRECT',
+        feeMode: 'OWNER_PAYS',
+        billingTerms: {
+          feeAmount: '20000.00',
+          lateFeePercentage: '2.50',
+          lateFeeGraceDays: 5,
+          inheritedLateFeePercentage: false,
+          inheritedLateFeeGraceDays: false,
+        },
+      })
+
+      const list = await api(adminToken).get('/contracts').expect(200)
+      expect(list.body.data.data[0]).toMatchObject({
+        collectionMode: 'OWNER_DIRECT',
+        feeMode: 'OWNER_PAYS',
+      })
+
+      const [propertyId, renterId] = await partyIds()
+      const bad = await api(adminToken)
+        .post('/contracts')
+        .send(contractBody(propertyId, renterId, { lateFeePercentage: '150' }))
+        .expect(400)
+      expect(bad.body.code).toBe('CONTRACT_INVALID_BILLING_TERMS')
+    })
+
+    it('cambiar los términos agrega una vigencia (sólo admin) y conserva el historial', async () => {
+      const { id } = await createContract({ startDate: addMonths(today, -2) })
+
+      await api(employeeToken)
+        .post(`/contracts/${id}/billing-terms`)
+        .send({ feeMode: 'OWNER_PAYS' })
+        .expect(403)
+
+      const changed = await api(adminToken)
+        .post(`/contracts/${id}/billing-terms`)
+        .send({
+          collectionMode: 'OWNER_DIRECT',
+          feeAmount: '30000',
+          lateFeeGraceDays: 15,
+          notes: 'Pasa a cobrar el propietario',
+        })
+        .expect(201)
+      expect(changed.body.data).toMatchObject({
+        collectionMode: 'OWNER_DIRECT',
+        feeMode: 'DEDUCTED',
+        feePercentage: '5.00',
+        billingTerms: {
+          effectiveFrom: today,
+          collectionMode: 'OWNER_DIRECT',
+          feeAmount: '30000.00',
+          lateFeePercentage: '5.00',
+          lateFeeGraceDays: 15,
+          inheritedLateFeePercentage: true,
+          inheritedLateFeeGraceDays: false,
+          notes: 'Pasa a cobrar el propietario',
+          changedBy: { id: admin.id },
+        },
+      })
+      expect(changed.body.data.billingTermsHistory).toHaveLength(2)
+      expect(changed.body.data.billingTermsHistory[1]).toMatchObject({
+        collectionMode: 'AGENCY',
+        feeAmount: null,
+      })
+
+      // feeAmount null vuelve al %; lo demás se copia de la vigente.
+      const back = await api(adminToken)
+        .post(`/contracts/${id}/billing-terms`)
+        .send({ feeAmount: null, feePercentage: '4' })
+        .expect(201)
+      expect(back.body.data.billingTerms).toMatchObject({
+        collectionMode: 'OWNER_DIRECT',
+        feeAmount: null,
+        feePercentage: '4.00',
+        lateFeeGraceDays: 15,
+      })
+      expect(back.body.data.feePercentage).toBe('4.00')
+
+      const before = await api(adminToken)
+        .post(`/contracts/${id}/billing-terms`)
+        .send({ effectiveFrom: addDays(today, -1) })
+        .expect(409)
+      expect(before.body.code).toBe('CONTRACT_BILLING_TERMS_NOT_AFTER_LATEST')
+
+      const outside = await api(adminToken)
+        .post(`/contracts/${id}/billing-terms`)
+        .send({ effectiveFrom: addMonths(today, 30) })
+        .expect(400)
+      expect(outside.body.code).toBe('CONTRACT_BILLING_TERMS_OUT_OF_RANGE')
+
+      // Una vigencia futura no cambia lo vigente hoy.
+      const future = await api(adminToken)
+        .post(`/contracts/${id}/billing-terms`)
+        .send({ effectiveFrom: addDays(today, 10), feeMode: 'OWNER_PAYS' })
+        .expect(201)
+      expect(future.body.data.feeMode).toBe('DEDUCTED')
+      expect(future.body.data.billingTermsHistory[0].feeMode).toBe('OWNER_PAYS')
+    })
+
+    it('el modo de devolución del depósito se edita por PATCH', async () => {
+      const { id } = await createContract()
+      const updated = await api(adminToken)
+        .patch(`/contracts/${id}`)
+        .send({ depositReturnMode: 'MANUAL' })
+        .expect(200)
+      expect(updated.body.data.depositReturnMode).toBe('MANUAL')
+    })
+
+    it('FIXED con % fijo calcula el aumento solo y lo registra; ICL acepta un ajuste manual al día', async () => {
+      const startDate = addMonths(today, -3)
+      const fixed = await createContract({
+        startDate,
+        fixedIncreasePercentage: '10',
+      })
+      const applied = await api(adminToken)
+        .post(`/contracts/${fixed.id}/rent-updates`)
+        .send({})
+        .expect(201)
+      expect(applied.body.data.currentRent).toBe('110000.00')
+      expect(applied.body.data.rentUpdates[0]).toMatchObject({
+        source: 'MANUAL',
+        indexType: null,
+        fixedPercentage: '10.00',
+      })
+
+      const indexed = await createContract({
+        startDate: addMonths(today, -2),
+        rentUpdateType: 'ICL',
+        rentUpdateFrequency: 'MONTHLY',
+      })
+      const manual = await api(adminToken)
+        .post(`/contracts/${indexed.id}/rent-updates`)
+        .send({ newRent: '105000' })
+        .expect(201)
+      expect(manual.body.data.rentUpdates[0]).toMatchObject({
+        newRent: '105000.00',
+        source: 'MANUAL',
+        indexType: null,
+        fixedPercentage: null,
+      })
+
+      const semiannual = await createContract({
+        startDate: addMonths(today, -3),
+        rentUpdateFrequency: 'SEMIANNUAL',
+      })
+      const notDue = await api(adminToken)
+        .post(`/contracts/${semiannual.id}/rent-updates`)
+        .send({ newRent: '1' })
+        .expect(409)
+      expect(notDue.body.code).toBe('CONTRACT_RENT_UPDATE_NOT_DUE')
+      const detail = await api(adminToken)
+        .get(`/contracts/${semiannual.id}`)
+        .expect(200)
+      expect(detail.body.data.nextRentUpdateOn).toBe(
+        addMonths(addMonths(today, -3), 6),
+      )
+    })
+
+    it('la facade entrega los términos resueltos para las cuotas del mes', async () => {
+      const { id } = await createContract({
+        startDate: addMonths(today, -2),
+        lateFeeGraceDays: 3,
+      })
+      const facade = app.get(ContractsFacade)
+      const [active] = await inTenantA(() =>
+        facade.listActiveForPeriod(periodOf(today)),
+      )
+      expect(active).toMatchObject({
+        id,
+        currentRent: '100000.00',
+        depositReturnMode: 'FIXED',
+        billingTerms: {
+          collectionMode: 'AGENCY',
+          lateFeePercentage: '5.00',
+          lateFeeGraceDays: 3,
+          inheritedLateFeePercentage: true,
+          inheritedLateFeeGraceDays: false,
+        },
+      })
+      const found = await inTenantA(() => facade.find(id))
+      expect(found).toMatchObject({
+        currency: 'ARS',
+        deposit: '100000.00',
+        depositCurrency: 'ARS',
+        currentRent: '100000.00',
+        billingTerms: { feePercentage: '5.00' },
+      })
+    })
+  })
+
   describe('aislamiento entre inmobiliarias', () => {
     it('otra inmobiliaria no ve ni opera el contrato', async () => {
       const { id } = await createContract()
       const b = api(adminBToken)
 
       await b.get(`/contracts/${id}`).expect(404)
+      await b
+        .post(`/contracts/${id}/billing-terms`)
+        .send({ feeMode: 'OWNER_PAYS' })
+        .expect(404)
       await b.patch(`/contracts/${id}`).send({ notes: 'x' }).expect(404)
       await b
         .post(`/contracts/${id}/terminate`)

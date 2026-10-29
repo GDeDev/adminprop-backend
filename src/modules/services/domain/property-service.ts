@@ -20,6 +20,8 @@ export enum IncreaseFrequency {
   MONTHLY = 'MONTHLY',
   QUARTERLY = 'QUARTERLY',
   FOUR_MONTHLY = 'FOUR_MONTHLY',
+  SEMIANNUAL = 'SEMIANNUAL',
+  ANNUAL = 'ANNUAL',
 }
 
 /** Calculado al leer, nunca guardado (spec 4, D-64). */

@@ -110,6 +110,9 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   // alquiler es su propia fila en el historial del canon: no se audita aparte.
   Contract: { tenantScoped: true, audit: true, softDelete: false },
   ContractRentUpdate: { tenantScoped: true, audit: false, softDelete: false },
+  // Los términos de cobro son vigencias que nunca se pisan (D-70); se auditan
+  // porque cambian plata (honorarios, punitorio) y quién cobra.
+  ContractBillingTerms: { tenantScoped: true, audit: true, softDelete: false },
 
   // Servicios y gastos adelantados (Fase 10): historial y borrado lógico. Un
   // gasto adelantado es plata que se le descuenta a un tercero: cada cambio

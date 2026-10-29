@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
+import { UserRef, UsersFacade } from '@/modules/auth/public'
 import { OwnerRef, OwnersFacade } from '@/modules/owners/public'
 import { PropertiesFacade, PropertyRef } from '@/modules/properties/public'
 import {
@@ -11,16 +12,24 @@ import { TenantsFacade } from '@/modules/tenants/public'
 import { RequestContext } from '@/shared/context/request-context'
 import { IsoDate, todayIso } from '@/shared/dates/calendar-date'
 import {
+  BillingTerms,
+  billingTermsInForce,
+  CollectionMode,
   Contract,
   ContractStatus,
   Currency,
   currentRentOf,
+  DepositReturnMode,
+  FeeMode,
+  LateFeeDefaults,
   RentIndex,
   RentUpdateFrequency,
   RentUpdateSource,
   RentUpdateType,
+  ResolvedBillingTerms,
 } from '../domain/contract'
 import { ContractPolicy, Timeline } from '../domain/contract.policy'
+import { BillingTermsResolver } from './billing-terms-resolver'
 
 /** Una fila del listado (spec 3.2, 5.1). Montos como string decimal. */
 export interface ContractSummaryView {
@@ -43,9 +52,29 @@ export interface ContractSummaryView {
   expiringSoon: boolean
   /** Activo y con el fin ya pasado, sin renovar. */
   expired: boolean
+  /** El % de honorarios vigente hoy (términos de cobro, D-70). */
   feePercentage: string
+  collectionMode: CollectionMode
+  feeMode: FeeMode
   createdAt: Date
   updatedAt: Date
+}
+
+/** Una fila del historial de términos, con los valores crudos. */
+export interface ContractBillingTermsView extends Omit<
+  BillingTerms,
+  'changedById'
+> {
+  /** Null en la fila inicial o si el usuario se borró. */
+  changedBy: UserRef | null
+}
+
+/** Los términos vigentes hoy, con el punitorio resuelto contra el tenant. */
+export interface ContractCurrentBillingTermsView extends Omit<
+  ResolvedBillingTerms,
+  'changedById'
+> {
+  changedBy: UserRef | null
 }
 
 export interface ContractSuretyView {
@@ -75,6 +104,7 @@ export interface ContractRentUpdateView {
   indexToPeriod: string | null
   indexFromValue: string | null
   indexToValue: string | null
+  fixedPercentage: string | null
   appliedById: string | null
   createdAt: Date
 }
@@ -84,6 +114,12 @@ export interface ContractDetailView extends ContractSummaryView {
   guarantor: GuarantorRef | null
   initialRent: string
   deposit: string
+  depositCurrency: Currency
+  depositReturnMode: DepositReturnMode
+  fixedIncreasePercentage: string | null
+  billingTerms: ContractCurrentBillingTermsView
+  /** De la más nueva a la más vieja. */
+  billingTermsHistory: ContractBillingTermsView[]
   rentUpdateType: RentUpdateType
   rentUpdateFrequency: RentUpdateFrequency
   notes: string | null
@@ -119,6 +155,8 @@ export class ContractViews {
     private readonly owners: OwnersFacade,
     private readonly renters: RentersFacade,
     private readonly tenants: TenantsFacade,
+    private readonly users: UsersFacade,
+    private readonly billingTerms: BillingTermsResolver,
   ) {}
 
   async summaries(contracts: Contract[]): Promise<ContractSummaryView[]> {
@@ -134,13 +172,20 @@ export class ContractViews {
   }
 
   async detail(contract: Contract): Promise<ContractDetailView> {
-    const [parties, noticeDays, guarantors] = await Promise.all([
-      this.describeParties([contract]),
-      this.noticeDays(),
-      this.renters.describeGuarantors(
-        contract.guarantorId ? [contract.guarantorId] : [],
-      ),
-    ])
+    const [parties, noticeDays, guarantors, defaults, users] =
+      await Promise.all([
+        this.describeParties([contract]),
+        this.noticeDays(),
+        this.renters.describeGuarantors(
+          contract.guarantorId ? [contract.guarantorId] : [],
+        ),
+        this.billingTerms.defaults(),
+        this.users.describe(
+          contract.billingTerms.flatMap((t) =>
+            t.changedById ? [t.changedById] : [],
+          ),
+        ),
+      ])
     const today = todayIso()
     const summary = toSummary(contract, parties, today, noticeDays)
     const latest = contract.rentUpdates[0]
@@ -158,6 +203,16 @@ export class ContractViews {
         (contract.guarantorId && guarantors.get(contract.guarantorId)) || null,
       initialRent: contract.initialRent,
       deposit: contract.deposit,
+      depositCurrency: contract.depositCurrency,
+      depositReturnMode: contract.depositReturnMode,
+      fixedIncreasePercentage: contract.fixedIncreasePercentage,
+      billingTerms: toCurrentTerms(contract, today, defaults, users),
+      billingTermsHistory: contract.billingTerms.map(
+        ({ changedById, ...terms }) => ({
+          ...terms,
+          changedBy: (changedById && users.get(changedById)) || null,
+        }),
+      ),
       rentUpdateType: contract.rentUpdateType,
       rentUpdateFrequency: contract.rentUpdateFrequency,
       notes: contract.notes,
@@ -213,6 +268,7 @@ function toSummary(
   today: IsoDate,
   noticeDays: number,
 ): ContractSummaryView {
+  const current = billingTermsInForce(contract.billingTerms, today)
   return {
     id: contract.id,
     property: parties.properties.get(contract.propertyId) ?? null,
@@ -237,8 +293,26 @@ function toSummary(
       noticeDays,
     ),
     expired: ContractPolicy.isExpired(contract.status, contract.endDate, today),
-    feePercentage: contract.feePercentage,
+    feePercentage: current.feePercentage,
+    collectionMode: current.collectionMode,
+    feeMode: current.feeMode,
     createdAt: contract.createdAt,
     updatedAt: contract.updatedAt,
+  }
+}
+
+function toCurrentTerms(
+  contract: Contract,
+  today: IsoDate,
+  defaults: LateFeeDefaults,
+  users: Map<string, UserRef>,
+): ContractCurrentBillingTermsView {
+  const { changedById, ...resolved } = ContractPolicy.resolveBillingTerms(
+    billingTermsInForce(contract.billingTerms, today),
+    defaults,
+  )
+  return {
+    ...resolved,
+    changedBy: (changedById && users.get(changedById)) || null,
   }
 }

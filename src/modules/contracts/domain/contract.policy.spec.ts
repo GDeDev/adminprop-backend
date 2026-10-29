@@ -1,6 +1,15 @@
-import { ContractStatus, RentUpdateFrequency } from './contract'
 import {
+  BillingTerms,
+  CollectionMode,
+  ContractStatus,
+  FeeMode,
+  RentUpdateFrequency,
+} from './contract'
+import {
+  BillingTermsNotAfterLatestException,
+  BillingTermsOutOfRangeException,
   ContractDatesInvalidException,
+  InvalidBillingTermsException,
   InvalidContractDateException,
   NewRentRequiredException,
   RenewalStartInvalidException,
@@ -61,6 +70,8 @@ describe('ContractPolicy', () => {
       [RentUpdateFrequency.MONTHLY, '2026-02-15'],
       [RentUpdateFrequency.QUARTERLY, '2026-04-15'],
       [RentUpdateFrequency.FOUR_MONTHLY, '2026-05-15'],
+      [RentUpdateFrequency.SEMIANNUAL, '2026-07-15'],
+      [RentUpdateFrequency.ANNUAL, '2027-01-15'],
     ])('con frecuencia %s, desde el 15/1 cae el %s', (frequency, expected) => {
       expect(ContractPolicy.nextRentUpdateOn('2026-01-15', frequency)).toBe(
         expected,
@@ -89,6 +100,114 @@ describe('ContractPolicy', () => {
       expect(ContractPolicy.indexedRent('150333.33', '1500', '1500')).toBe(
         '150333.33',
       )
+    })
+  })
+
+  describe('aumento por % fijo (Micaela #8)', () => {
+    it('aplica el % con un solo redondeo', () => {
+      expect(ContractPolicy.fixedIncreaseRent('100000.00', '10')).toBe(
+        '110000.00',
+      )
+      // 150.333,33 × 1,075 = 161.608,32975 → 161.608,33
+      expect(ContractPolicy.fixedIncreaseRent('150333.33', '7.5')).toBe(
+        '161608.33',
+      )
+      expect(ContractPolicy.fixedIncreaseRent('100000.00', '0')).toBe(
+        '100000.00',
+      )
+    })
+  })
+
+  describe('términos de cobro (D-70)', () => {
+    const terms = (
+      effectiveFrom: string,
+      overrides: Partial<BillingTerms> = {},
+    ): BillingTerms => ({
+      id: effectiveFrom,
+      effectiveFrom,
+      collectionMode: CollectionMode.AGENCY,
+      feeMode: FeeMode.DEDUCTED,
+      feePercentage: '5.00',
+      feeAmount: null,
+      lateFeePercentage: null,
+      lateFeeGraceDays: null,
+      notes: null,
+      changedById: null,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      ...overrides,
+    })
+    const DEFAULTS = { dailyLateFeePercentage: '5', paymentGraceDays: 10 }
+
+    it('valida porcentajes, importe fijo y gracia', () => {
+      expect(ContractPolicy.normalizePercentage('7.5', 'x')).toBe('7.50')
+      expect(() => ContractPolicy.normalizePercentage('101', 'x')).toThrow(
+        InvalidBillingTermsException,
+      )
+      expect(() => ContractPolicy.normalizePercentage('-1', 'x')).toThrow(
+        InvalidBillingTermsException,
+      )
+      expect(() => ContractPolicy.normalizePercentage('abc', 'x')).toThrow(
+        InvalidBillingTermsException,
+      )
+      expect(ContractPolicy.normalizeFeeAmount(null)).toBeNull()
+      expect(ContractPolicy.normalizeFeeAmount('25000')).toBe('25000.00')
+      expect(() => ContractPolicy.normalizeFeeAmount('0')).toThrow(
+        InvalidBillingTermsException,
+      )
+      expect(ContractPolicy.normalizeGraceDays(null)).toBeNull()
+      expect(ContractPolicy.normalizeGraceDays(0)).toBe(0)
+      expect(() => ContractPolicy.normalizeGraceDays(-1)).toThrow(
+        InvalidBillingTermsException,
+      )
+      expect(() => ContractPolicy.normalizeGraceDays(1.5)).toThrow(
+        InvalidBillingTermsException,
+      )
+    })
+
+    it('la fecha de los términos nuevos va dentro del contrato y no antes de los vigentes', () => {
+      const assert = (date: string) =>
+        ContractPolicy.assertBillingTermsEffectiveFrom(
+          date,
+          '2026-06-01',
+          '2026-01-01',
+          '2027-12-31',
+        )
+      expect(() => assert('2026-06-01')).not.toThrow()
+      expect(() => assert('2026-09-01')).not.toThrow()
+      expect(() => assert('2026-05-31')).toThrow(
+        BillingTermsNotAfterLatestException,
+      )
+      expect(() => assert('2025-12-31')).toThrow(
+        BillingTermsOutOfRangeException,
+      )
+      expect(() => assert('2028-01-01')).toThrow(
+        BillingTermsOutOfRangeException,
+      )
+    })
+
+    it('resuelve el punitorio contra el tenant sólo donde el contrato no lo fijó', () => {
+      expect(
+        ContractPolicy.resolveBillingTerms(terms('2026-01-01'), DEFAULTS),
+      ).toMatchObject({
+        lateFeePercentage: '5.00',
+        lateFeeGraceDays: 10,
+        inheritedLateFeePercentage: true,
+        inheritedLateFeeGraceDays: true,
+      })
+      expect(
+        ContractPolicy.resolveBillingTerms(
+          terms('2026-01-01', {
+            lateFeePercentage: '2.00',
+            lateFeeGraceDays: 5,
+          }),
+          DEFAULTS,
+        ),
+      ).toMatchObject({
+        lateFeePercentage: '2.00',
+        lateFeeGraceDays: 5,
+        inheritedLateFeePercentage: false,
+        inheritedLateFeeGraceDays: false,
+      })
     })
   })
 

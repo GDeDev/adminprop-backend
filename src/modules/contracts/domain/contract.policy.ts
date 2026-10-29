@@ -15,9 +15,18 @@ import {
   toDecimal,
   toMoneyString,
 } from '@/shared/money'
-import { ContractStatus, RentUpdateFrequency } from './contract'
 import {
+  BillingTerms,
+  ContractStatus,
+  LateFeeDefaults,
+  RentUpdateFrequency,
+  ResolvedBillingTerms,
+} from './contract'
+import {
+  BillingTermsNotAfterLatestException,
+  BillingTermsOutOfRangeException,
   ContractDatesInvalidException,
+  InvalidBillingTermsException,
   InvalidContractDateException,
   NewRentRequiredException,
   RenewalStartInvalidException,
@@ -39,6 +48,8 @@ const MONTHS_PER_UPDATE: Record<RentUpdateFrequency, number> = {
   [RentUpdateFrequency.MONTHLY]: 1,
   [RentUpdateFrequency.QUARTERLY]: 3,
   [RentUpdateFrequency.FOUR_MONTHLY]: 4,
+  [RentUpdateFrequency.SEMIANNUAL]: 6,
+  [RentUpdateFrequency.ANNUAL]: 12,
 }
 
 export interface FeeSettings {
@@ -120,6 +131,100 @@ export const ContractPolicy = {
   ): string {
     const ratio = toDecimal(indexToValue).dividedBy(toDecimal(indexFromValue))
     return toMoneyString(multiplyMoney(currentRent, ratio))
+  },
+
+  /**
+   * Aumento por % fijo (Micaela #8): `nuevo = vigente × (1 + % / 100)`, con
+   * un solo redondeo a centavos.
+   */
+  fixedIncreaseRent(currentRent: string, percentage: string): string {
+    const factor = toDecimal(percentage).dividedBy(100).plus(1)
+    return toMoneyString(multiplyMoney(currentRent, factor))
+  },
+
+  /** Un % entre 0 y 100, con hasta dos decimales. */
+  normalizePercentage(value: string, field: string): string {
+    let percentage
+    try {
+      percentage = roundMoney(value)
+    } catch {
+      throw new InvalidBillingTermsException(field, 'tiene que ser un número')
+    }
+    if (percentage.isNegative() || percentage.greaterThan(100)) {
+      throw new InvalidBillingTermsException(
+        field,
+        'tiene que estar entre 0 y 100',
+      )
+    }
+    return toMoneyString(percentage)
+  },
+
+  /** El importe fijo de honorarios, mayor que cero. Null = se usa el %. */
+  normalizeFeeAmount(value: string | null): string | null {
+    if (value === null) return null
+    let amount
+    try {
+      amount = roundMoney(value)
+    } catch {
+      throw new InvalidBillingTermsException(
+        'feeAmount',
+        'tiene que ser un número',
+      )
+    }
+    if (amount.lessThanOrEqualTo(0)) {
+      throw new InvalidBillingTermsException(
+        'feeAmount',
+        'tiene que ser mayor que cero',
+      )
+    }
+    return toMoneyString(amount)
+  },
+
+  /** Días de gracia: entero de 0 o más. Null = el del tenant. */
+  normalizeGraceDays(value: number | null): number | null {
+    if (value === null) return null
+    if (!Number.isInteger(value) || value < 0) {
+      throw new InvalidBillingTermsException(
+        'lateFeeGraceDays',
+        'tiene que ser un entero de cero o más',
+      )
+    }
+    return value
+  },
+
+  /**
+   * Los términos nuevos rigen desde una fecha dentro del contrato y no
+   * anterior a los últimos cargados (D-70): la misma fecha vale (corrige la
+   * fila del día; la más nueva manda).
+   */
+  assertBillingTermsEffectiveFrom(
+    effectiveFrom: IsoDate,
+    latestEffectiveFrom: IsoDate,
+    startDate: IsoDate,
+    endDate: IsoDate,
+  ): void {
+    if (effectiveFrom < startDate || effectiveFrom > endDate) {
+      throw new BillingTermsOutOfRangeException()
+    }
+    if (effectiveFrom < latestEffectiveFrom) {
+      throw new BillingTermsNotAfterLatestException(latestEffectiveFrom)
+    }
+  },
+
+  /** Completa el punitorio con el del tenant donde el contrato no lo fijó. */
+  resolveBillingTerms(
+    terms: BillingTerms,
+    defaults: LateFeeDefaults,
+  ): ResolvedBillingTerms {
+    return {
+      ...terms,
+      lateFeePercentage:
+        terms.lateFeePercentage ??
+        toMoneyString(defaults.dailyLateFeePercentage),
+      lateFeeGraceDays: terms.lateFeeGraceDays ?? defaults.paymentGraceDays,
+      inheritedLateFeePercentage: terms.lateFeePercentage === null,
+      inheritedLateFeeGraceDays: terms.lateFeeGraceDays === null,
+    }
   },
 
   /** Un aumento a mano tiene que traer un monto mayor que cero. */

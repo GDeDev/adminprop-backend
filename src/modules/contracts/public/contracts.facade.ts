@@ -7,12 +7,16 @@ import {
   Period,
   todayIso,
 } from '@/shared/dates/calendar-date'
+import { BillingTermsResolver } from '../application/billing-terms-resolver'
 import { ContractLifecycle } from '../application/contract-lifecycle'
 import {
   Contract,
   ContractStatus,
   Currency,
   currentRentOf,
+  DepositReturnMode,
+  LateFeeDefaults,
+  ResolvedBillingTerms,
 } from '../domain/contract'
 import { ContractRepository } from '../domain/contract.ports'
 
@@ -26,10 +30,16 @@ export interface ActiveContractRef {
   endDate: IsoDate
   currency: Currency
   currentRent: string
+  /** El % vigente (igual a `billingTerms.feePercentage`). */
   feePercentage: string
+  deposit: string
+  depositCurrency: Currency
+  depositReturnMode: DepositReturnMode
+  /** Vigentes a la fecha pedida, con el punitorio del tenant ya resuelto. */
+  billingTerms: ResolvedBillingTerms
 }
 
-/** Lo mínimo de un contrato en cualquier estado (servicios, gastos adelantados). */
+/** Lo mínimo de un contrato en cualquier estado (servicios, gastos, cobros). */
 export interface ContractRef {
   id: string
   propertyId: string
@@ -37,6 +47,14 @@ export interface ContractRef {
   renterId: string
   status: ContractStatus
   currency: Currency
+  startDate: IsoDate
+  endDate: IsoDate
+  currentRent: string
+  deposit: string
+  depositCurrency: Currency
+  depositReturnMode: DepositReturnMode
+  /** Vigentes hoy, resueltos. */
+  billingTerms: ResolvedBillingTerms
 }
 
 /**
@@ -49,6 +67,7 @@ export class ContractsFacade {
   constructor(
     private readonly contracts: ContractRepository,
     private readonly lifecycle: ContractLifecycle,
+    private readonly billingTerms: BillingTermsResolver,
   ) {}
 
   async exists(id: string): Promise<boolean> {
@@ -62,36 +81,63 @@ export class ContractsFacade {
    */
   async find(id: string): Promise<ContractRef | null> {
     const contract = await this.contracts.findById(id)
-    return contract
-      ? {
-          id: contract.id,
-          propertyId: contract.propertyId,
-          ownerId: contract.ownerId,
-          renterId: contract.renterId,
-          status: contract.status,
-          currency: contract.currency,
-        }
-      : null
+    if (!contract) return null
+    return {
+      id: contract.id,
+      propertyId: contract.propertyId,
+      ownerId: contract.ownerId,
+      renterId: contract.renterId,
+      status: contract.status,
+      currency: contract.currency,
+      startDate: contract.startDate,
+      endDate: contract.endDate,
+      currentRent: currentRentOf(contract),
+      deposit: contract.deposit,
+      depositCurrency: contract.depositCurrency,
+      depositReturnMode: contract.depositReturnMode,
+      billingTerms: await this.billingTerms.inForce(contract, todayIso()),
+    }
   }
 
   async getActiveByProperty(
     propertyId: string,
   ): Promise<ActiveContractRef | null> {
     const contract = await this.contracts.findActiveByProperty(propertyId)
-    return contract ? toActiveRef(contract) : null
+    if (!contract) return null
+    const today = todayIso()
+    return toActiveRef(
+      contract,
+      this.billingTerms.resolve(
+        contract,
+        today,
+        await this.billingTerms.defaults(),
+      ),
+    )
   }
 
   /**
    * Los contratos activos que cubren algún día del mes `AAAA-MM`, con su
-   * alquiler vigente hoy. Cobros (Fase 11) genera una cuota por cada uno; un
-   * contrato que empieza o termina a mitad de mes entra igual.
+   * alquiler vigente hoy y los términos vigentes al primer día del mes (o al
+   * inicio del contrato si empieza después). Cobros (Fase 11) genera una
+   * cuota por cada uno; un contrato que empieza o termina a mitad de mes
+   * entra igual (A-7).
    */
   async listActiveForPeriod(period: Period): Promise<ActiveContractRef[]> {
-    const contracts = await this.contracts.listActiveCovering(
-      firstDayOfPeriod(period),
-      lastDayOfPeriod(period),
+    const firstDay = firstDayOfPeriod(period)
+    const [contracts, defaults] = await Promise.all([
+      this.contracts.listActiveCovering(firstDay, lastDayOfPeriod(period)),
+      this.billingTerms.defaults(),
+    ])
+    return contracts.map((contract) =>
+      toActiveRef(
+        contract,
+        this.billingTerms.resolve(
+          contract,
+          contract.startDate > firstDay ? contract.startDate : firstDay,
+          defaults,
+        ),
+      ),
     )
-    return contracts.map(toActiveRef)
   }
 
   /** Alquiler vigente, o null si el contrato no existe. */
@@ -117,7 +163,10 @@ export class ContractsFacade {
   }
 }
 
-function toActiveRef(contract: Contract): ActiveContractRef {
+function toActiveRef(
+  contract: Contract,
+  billingTerms: ResolvedBillingTerms,
+): ActiveContractRef {
   return {
     id: contract.id,
     propertyId: contract.propertyId,
@@ -127,6 +176,12 @@ function toActiveRef(contract: Contract): ActiveContractRef {
     endDate: contract.endDate,
     currency: contract.currency,
     currentRent: currentRentOf(contract),
-    feePercentage: contract.feePercentage,
+    feePercentage: billingTerms.feePercentage,
+    deposit: contract.deposit,
+    depositCurrency: contract.depositCurrency,
+    depositReturnMode: contract.depositReturnMode,
+    billingTerms,
   }
 }
+
+export type { LateFeeDefaults }

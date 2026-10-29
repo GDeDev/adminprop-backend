@@ -2,9 +2,13 @@ import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 
 import {
+  BillingTerms,
+  CollectionMode,
   Contract,
   ContractStatus,
   Currency,
+  DepositReturnMode,
+  FeeMode,
   RentIndex,
   RentUpdate,
   RentUpdateFrequency,
@@ -12,6 +16,7 @@ import {
   RentUpdateType,
 } from '@/modules/contracts/domain/contract'
 import {
+  BillingTermsChange,
   ContractChanges,
   ContractDocumentKind,
   ContractFilter,
@@ -23,9 +28,15 @@ import {
 import { IsoDate } from '@/shared/dates/calendar-date'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 
-/** El historial del alquiler viaja siempre con el contrato, el último primero. */
+/**
+ * El historial del alquiler y el de los términos de cobro viajan siempre con
+ * el contrato, el último primero.
+ */
 const WITH_RENT_UPDATES = {
   rentUpdates: {
+    orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }],
+  },
+  billingTerms: {
     orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }],
   },
 } satisfies Prisma.ContractInclude
@@ -34,6 +45,7 @@ type ContractRow = Prisma.ContractGetPayload<{
   include: typeof WITH_RENT_UPDATES
 }>
 type RentUpdateRow = ContractRow['rentUpdates'][number]
+type BillingTermsRow = ContractRow['billingTerms'][number]
 
 /**
  * Siempre `prisma.db`: tenant y auditoría se aplican solos, y dentro de
@@ -46,8 +58,8 @@ export class ContractRepositoryImpl extends ContractRepository {
   }
 
   async create(data: NewContract): Promise<Contract> {
-    const { surety, startDate, endDate, ...rest } = data
-    // Dos altas y no un `create` anidado: el `tenantId` lo completa la
+    const { surety, startDate, endDate, billingTerms, ...rest } = data
+    // Tres altas y no un `create` anidado: el `tenantId` lo completa la
     // extensión, y sólo lo hace en la operación de primer nivel.
     return this.prisma.transaction(async () => {
       const created = await this.prisma.db.contract.create({
@@ -70,6 +82,13 @@ export class ContractRepositoryImpl extends ContractRepository {
           newRent: data.initialRent,
           source: RentUpdateSource.INITIAL,
         } as Prisma.ContractRentUpdateUncheckedCreateInput,
+      })
+      await this.prisma.db.contractBillingTerms.create({
+        data: {
+          ...billingTerms,
+          contractId: created.id,
+          effectiveFrom: toDateColumn(startDate),
+        } as Prisma.ContractBillingTermsUncheckedCreateInput,
       })
       return this.findOrThrow(created.id)
     })
@@ -199,6 +218,20 @@ export class ContractRepositoryImpl extends ContractRepository {
     return this.findOrThrow(contractId)
   }
 
+  async addBillingTerms(
+    contractId: string,
+    terms: BillingTermsChange,
+  ): Promise<Contract> {
+    await this.prisma.db.contractBillingTerms.create({
+      data: {
+        ...terms,
+        contractId,
+        effectiveFrom: toDateColumn(terms.effectiveFrom),
+      } as Prisma.ContractBillingTermsUncheckedCreateInput,
+    })
+    return this.findOrThrow(contractId)
+  }
+
   async terminate(id: string, data: TerminationData): Promise<Contract> {
     const row = await this.prisma.db.contract.update({
       where: { id },
@@ -269,6 +302,9 @@ function toDomain(row: ContractRow): Contract {
     rentUpdateType: RentUpdateType[row.rentUpdateType],
     rentUpdateFrequency: RentUpdateFrequency[row.rentUpdateFrequency],
     deposit: money(row.deposit),
+    depositCurrency: Currency[row.depositCurrency],
+    depositReturnMode: DepositReturnMode[row.depositReturnMode],
+    fixedIncreasePercentage: money(row.fixedIncreasePercentage),
     feePercentage: money(row.feePercentage),
     status: ContractStatus[row.status],
     contractPdfKey: row.contractPdfKey,
@@ -297,6 +333,7 @@ function toDomain(row: ContractRow): Contract {
         : null,
     renewedFromId: row.renewedFromId,
     rentUpdates: row.rentUpdates.map(rentUpdateToDomain),
+    billingTerms: row.billingTerms.map(billingTermsToDomain),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -314,7 +351,24 @@ function rentUpdateToDomain(row: RentUpdateRow): RentUpdate {
     indexToPeriod: row.indexToPeriod,
     indexFromValue: row.indexFromValue ? row.indexFromValue.toFixed(6) : null,
     indexToValue: row.indexToValue ? row.indexToValue.toFixed(6) : null,
+    fixedPercentage: money(row.fixedPercentage),
     appliedById: row.appliedById,
+    createdAt: row.createdAt,
+  }
+}
+
+function billingTermsToDomain(row: BillingTermsRow): BillingTerms {
+  return {
+    id: row.id,
+    effectiveFrom: fromDateColumn(row.effectiveFrom),
+    collectionMode: CollectionMode[row.collectionMode],
+    feeMode: FeeMode[row.feeMode],
+    feePercentage: money(row.feePercentage),
+    feeAmount: money(row.feeAmount),
+    lateFeePercentage: money(row.lateFeePercentage),
+    lateFeeGraceDays: row.lateFeeGraceDays,
+    notes: row.notes,
+    changedById: row.changedById,
     createdAt: row.createdAt,
   }
 }

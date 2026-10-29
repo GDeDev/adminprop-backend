@@ -9,22 +9,27 @@ import {
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
   MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator'
 
 import {
+  CollectionMode,
   ContractStatus,
   Currency,
+  DepositReturnMode,
+  FeeMode,
   RentUpdateFrequency,
   RentUpdateSource,
   RentUpdateType,
 } from '@/modules/contracts/domain/contract'
-import { IsMoneyAmount } from '@/shared/money'
+import { IsMoneyAmount, MONEY_AMOUNT_PATTERN } from '@/shared/money'
 import { PaginationQueryDto } from '@/shared/pagination'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -35,6 +40,64 @@ const emptyToNull = ({ value }: { value: unknown }) =>
 
 const toBoolean = ({ value }: { value: unknown }) =>
   value === 'true' ? true : value === 'false' ? false : value
+
+/** Un % con hasta dos decimales ("5", "5.5", "12.50"). El rango lo valida el dominio. */
+const PERCENTAGE = /^\d{1,3}(\.\d{1,2})?$/
+
+/** Los términos de cobro que se eligen al armar o renovar un contrato (D-70). */
+export class ContractBillingTermsInputDto {
+  @ApiPropertyOptional({
+    enum: CollectionMode,
+    description: 'Quién cobra el alquiler. Default AGENCY.',
+  })
+  @IsOptional()
+  @IsEnum(CollectionMode, { message: 'La modalidad de cobro no es válida' })
+  collectionMode?: CollectionMode
+
+  @ApiPropertyOptional({
+    enum: FeeMode,
+    description: 'Cómo cobra sus honorarios la inmobiliaria. Default DEDUCTED.',
+  })
+  @IsOptional()
+  @IsEnum(FeeMode, { message: 'La modalidad de honorarios no es válida' })
+  feeMode?: FeeMode
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '25000.00',
+    description: 'Importe fijo de honorarios; si viene, manda sobre el %.',
+  })
+  @IsOptional()
+  @Matches(MONEY_AMOUNT_PATTERN, {
+    message: 'feeAmount debe ser un monto con hasta 2 decimales',
+  })
+  feeAmount?: string | null
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '5.00',
+    description: 'Punitorio diario en %. Si no viene, el de la inmobiliaria.',
+  })
+  @IsOptional()
+  @Matches(PERCENTAGE, {
+    message: 'lateFeePercentage debe ser un porcentaje con hasta 2 decimales',
+  })
+  lateFeePercentage?: string | null
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    example: 10,
+    description:
+      'Días del mes sin punitorio. Si no viene, los de la inmobiliaria.',
+  })
+  @IsOptional()
+  @IsInt({ message: 'lateFeeGraceDays tiene que ser un entero' })
+  @Min(0)
+  lateFeeGraceDays?: number | null
+}
 
 export class ContractSuretyInputDto {
   @ApiProperty({ description: 'Si el contrato exige seguro de caución' })
@@ -132,6 +195,39 @@ export class CreateContractDto {
   @IsMoneyAmount()
   deposit: string
 
+  @ApiPropertyOptional({
+    enum: Currency,
+    description:
+      'Moneda en que se recibió el depósito. Default: la del contrato.',
+  })
+  @IsOptional()
+  @IsEnum(Currency, { message: 'La moneda del depósito no es válida' })
+  depositCurrency?: Currency
+
+  @ApiPropertyOptional({
+    enum: DepositReturnMode,
+    description: 'Cómo se devuelve el depósito al terminar. Default FIXED.',
+  })
+  @IsOptional()
+  @IsEnum(DepositReturnMode, {
+    message: 'El modo de devolución del depósito no es válido',
+  })
+  depositReturnMode?: DepositReturnMode
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '10.00',
+    description:
+      'Con rentUpdateType FIXED: el % que se aplica solo en cada aumento. Sin él, el aumento se carga a mano.',
+  })
+  @IsOptional()
+  @Matches(PERCENTAGE, {
+    message:
+      'fixedIncreasePercentage debe ser un porcentaje con hasta 2 decimales',
+  })
+  fixedIncreasePercentage?: string | null
+
   @ApiProperty({ description: 'Si el contrato exige seguro de caución' })
   @IsBoolean()
   hasSurety: boolean
@@ -180,9 +276,91 @@ export class CreateContractDto {
   @IsString()
   @MaxLength(5000)
   notes?: string | null
+
+  @ApiPropertyOptional({
+    enum: CollectionMode,
+    description: 'Quién cobra el alquiler. Default AGENCY.',
+  })
+  @IsOptional()
+  @IsEnum(CollectionMode, { message: 'La modalidad de cobro no es válida' })
+  collectionMode?: CollectionMode
+
+  @ApiPropertyOptional({
+    enum: FeeMode,
+    description: 'Cómo cobra sus honorarios la inmobiliaria. Default DEDUCTED.',
+  })
+  @IsOptional()
+  @IsEnum(FeeMode, { message: 'La modalidad de honorarios no es válida' })
+  feeMode?: FeeMode
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '25000.00',
+    description: 'Importe fijo de honorarios; si viene, manda sobre el %.',
+  })
+  @IsOptional()
+  @Matches(MONEY_AMOUNT_PATTERN, {
+    message: 'feeAmount debe ser un monto con hasta 2 decimales',
+  })
+  feeAmount?: string | null
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '5.00',
+    description: 'Punitorio diario en %. Si no viene, el de la inmobiliaria.',
+  })
+  @IsOptional()
+  @Matches(PERCENTAGE, {
+    message: 'lateFeePercentage debe ser un porcentaje con hasta 2 decimales',
+  })
+  lateFeePercentage?: string | null
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    example: 10,
+    description:
+      'Días del mes sin punitorio. Si no viene, los de la inmobiliaria.',
+  })
+  @IsOptional()
+  @IsInt({ message: 'lateFeeGraceDays tiene que ser un entero' })
+  @Min(0)
+  lateFeeGraceDays?: number | null
 }
 
 export class PartialSuretyDto extends PartialType(ContractSuretyInputDto) {}
+
+/**
+ * Una fila nueva de términos de cobro (D-70, sólo admin). Lo que no viene se
+ * copia de la vigente; `feeAmount: null` vuelve al %; el punitorio en null
+ * vuelve al de la inmobiliaria.
+ */
+export class ChangeBillingTermsDto extends ContractBillingTermsInputDto {
+  @ApiPropertyOptional({
+    format: 'date',
+    example: '2026-11-01',
+    description:
+      'Desde cuándo rigen. Default hoy. No anterior a los términos vigentes y dentro del contrato.',
+  })
+  @IsOptional()
+  @Matches(ISO_DATE, { message: 'effectiveFrom tiene que ser AAAA-MM-DD' })
+  effectiveFrom?: string
+
+  @ApiPropertyOptional({ type: String, example: '5.00', description: 'En %' })
+  @IsOptional()
+  @Matches(PERCENTAGE, {
+    message: 'feePercentage debe ser un porcentaje con hasta 2 decimales',
+  })
+  feePercentage?: string
+
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string | null
+}
 
 /**
  * Sólo notas, caución y garante (D-55). Fechas, montos, partes y estado
@@ -212,6 +390,13 @@ export class UpdateContractDto {
   @ValidateNested()
   @Type(() => PartialSuretyDto)
   surety?: PartialSuretyDto
+
+  @ApiPropertyOptional({ enum: DepositReturnMode })
+  @IsOptional()
+  @IsEnum(DepositReturnMode, {
+    message: 'El modo de devolución del depósito no es válido',
+  })
+  depositReturnMode?: DepositReturnMode
 }
 
 /**
@@ -247,7 +432,7 @@ export class ApplyRentUpdateDto {
     type: String,
     example: '120000.00',
     description:
-      'Sólo para contratos FIXED u OTHER: el nuevo alquiler. Con ICL/IPC se ignora, sale del índice.',
+      'El nuevo alquiler a mano. Obligatorio en FIXED sin % fijo y en OTHER. Opcional en FIXED con % fijo (si no viene se calcula) y en ICL/IPC (ajuste manual autorizado; si no viene, sale del índice).',
   })
   @IsOptional()
   @IsString()
@@ -346,10 +531,53 @@ export class ContractSummaryDto {
   expiringSoon: boolean
   @ApiProperty({ description: 'Activo y con el fin ya pasado, sin renovar' })
   expired: boolean
-  @ApiProperty({ type: String, example: '5.00', description: 'En %' })
+  @ApiProperty({
+    type: String,
+    example: '5.00',
+    description: 'En %: el vigente hoy según los términos de cobro',
+  })
   feePercentage: string
+  @ApiProperty({ enum: CollectionMode }) collectionMode: CollectionMode
+  @ApiProperty({ enum: FeeMode }) feeMode: FeeMode
   @ApiProperty() createdAt: Date
   @ApiProperty() updatedAt: Date
+}
+
+export class ContractBillingTermsDto {
+  @ApiProperty() id: string
+  @ApiProperty({ format: 'date' }) effectiveFrom: string
+  @ApiProperty({ enum: CollectionMode }) collectionMode: CollectionMode
+  @ApiProperty({ enum: FeeMode }) feeMode: FeeMode
+  @ApiProperty({ type: String, example: '5.00' }) feePercentage: string
+  @ApiProperty({ type: String, nullable: true }) feeAmount: string | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Null = el de la inmobiliaria',
+  })
+  lateFeePercentage: string | null
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Null = los de la inmobiliaria',
+  })
+  lateFeeGraceDays: number | null
+  @ApiProperty({ type: String, nullable: true }) notes: string | null
+  @ApiProperty({ type: ContractPartyRefDto, nullable: true })
+  changedBy: ContractPartyRefDto | null
+  @ApiProperty() createdAt: Date
+}
+
+/** Los vigentes hoy, con el punitorio ya resuelto contra la inmobiliaria. */
+export class ContractCurrentBillingTermsDto extends ContractBillingTermsDto {
+  @ApiProperty({ type: String, example: '5.00' })
+  declare lateFeePercentage: string
+  @ApiProperty({ type: Number, example: 10 })
+  declare lateFeeGraceDays: number
+  @ApiProperty({ description: 'El % de punitorio es el de la inmobiliaria' })
+  inheritedLateFeePercentage: boolean
+  @ApiProperty({ description: 'La gracia es la de la inmobiliaria' })
+  inheritedLateFeeGraceDays: boolean
 }
 
 export class ContractSuretyDto {
@@ -384,6 +612,12 @@ export class ContractRentUpdateDto {
   indexToPeriod: string | null
   @ApiProperty({ type: String, nullable: true }) indexFromValue: string | null
   @ApiProperty({ type: String, nullable: true }) indexToValue: string | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'El % fijo aplicado (FIXED con fixedIncreasePercentage)',
+  })
+  fixedPercentage: string | null
   @ApiProperty({ type: String, nullable: true }) appliedById: string | null
   @ApiProperty() createdAt: Date
 }
@@ -400,9 +634,21 @@ export class ContractDetailDto extends ContractSummaryDto {
   @ApiProperty({ type: String }) initialRent: string
   @ApiProperty({
     type: String,
-    description: 'Estático: no sigue a los aumentos',
+    description: 'Lo recibido, en depositCurrency',
   })
   deposit: string
+  @ApiProperty({ enum: Currency }) depositCurrency: Currency
+  @ApiProperty({ enum: DepositReturnMode })
+  depositReturnMode: DepositReturnMode
+  @ApiProperty({ type: String, nullable: true, example: '10.00' })
+  fixedIncreasePercentage: string | null
+  @ApiProperty({ type: ContractCurrentBillingTermsDto })
+  billingTerms: ContractCurrentBillingTermsDto
+  @ApiProperty({
+    type: [ContractBillingTermsDto],
+    description: 'Historial de términos de cobro, del más nuevo al más viejo',
+  })
+  billingTermsHistory: ContractBillingTermsDto[]
   @ApiProperty({ enum: RentUpdateType }) rentUpdateType: RentUpdateType
   @ApiProperty({ enum: RentUpdateFrequency })
   rentUpdateFrequency: RentUpdateFrequency

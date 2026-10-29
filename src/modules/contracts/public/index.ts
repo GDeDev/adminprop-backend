@@ -6,13 +6,19 @@ export { ContractsModule } from '../infrastructure/modules/contracts.module'
 export { ContractsFacade } from './contracts.facade'
 export type { ActiveContractRef, ContractRef } from './contracts.facade'
 export {
+  CollectionMode,
   ContractStatus,
   Currency,
+  DepositReturnMode,
+  FeeMode,
   RentUpdateFrequency,
   RentUpdateSource,
   RentUpdateType,
 } from '../domain/contract'
+export type { ResolvedBillingTerms } from '../domain/contract'
 export type {
+  ContractBillingTermsView,
+  ContractCurrentBillingTermsView,
   ContractDetailView,
   ContractRentUpdateView,
   ContractSummaryView,

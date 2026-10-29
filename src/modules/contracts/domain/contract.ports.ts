@@ -1,8 +1,11 @@
 import { IsoDate } from '@/shared/dates/calendar-date'
 import {
+  CollectionMode,
   Contract,
   ContractStatus,
   Currency,
+  DepositReturnMode,
+  FeeMode,
   RentIndex,
   RentUpdateFrequency,
   RentUpdateSource,
@@ -23,10 +26,32 @@ export interface NewContract {
   rentUpdateType: RentUpdateType
   rentUpdateFrequency: RentUpdateFrequency
   deposit: string
+  depositCurrency: Currency
+  depositReturnMode: DepositReturnMode
+  fixedIncreasePercentage: string | null
   feePercentage: string
   notes: string | null
   surety: SuretyData
   renewedFromId: string | null
+  /** La primera fila de términos, vigente desde `startDate` (D-70). */
+  billingTerms: NewBillingTerms
+}
+
+/** Los términos de cobro, sin fecha ni autor. Montos como string decimal. */
+export interface NewBillingTerms {
+  collectionMode: CollectionMode
+  feeMode: FeeMode
+  feePercentage: string
+  feeAmount: string | null
+  lateFeePercentage: string | null
+  lateFeeGraceDays: number | null
+}
+
+/** Una fila nueva de términos (D-70). */
+export interface BillingTermsChange extends NewBillingTerms {
+  effectiveFrom: IsoDate
+  notes: string | null
+  changedById: string | null
 }
 
 /** La caución sin los archivos: los PDFs tienen su propio endpoint. */
@@ -37,6 +62,7 @@ export interface ContractChanges {
   notes?: string | null
   guarantorId?: string | null
   surety?: SuretyData
+  depositReturnMode?: DepositReturnMode
 }
 
 export interface NewRentUpdate {
@@ -49,6 +75,7 @@ export interface NewRentUpdate {
   indexToPeriod: string | null
   indexFromValue: string | null
   indexToValue: string | null
+  fixedPercentage: string | null
   appliedById: string | null
 }
 
@@ -108,6 +135,12 @@ export abstract class ContractRepository {
   abstract addRentUpdate(
     contractId: string,
     update: NewRentUpdate,
+  ): Promise<Contract>
+
+  /** Agrega una fila de términos de cobro; las anteriores no se tocan. */
+  abstract addBillingTerms(
+    contractId: string,
+    terms: BillingTermsChange,
   ): Promise<Contract>
 
   abstract terminate(id: string, data: TerminationData): Promise<Contract>

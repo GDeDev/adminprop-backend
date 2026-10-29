@@ -2,9 +2,13 @@ import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 import { randomUUID } from 'node:crypto'
 
 import {
+  billingTermsInForce,
+  CollectionMode,
   Contract,
   ContractStatus,
   currentRentOf,
+  DepositReturnMode,
+  FeeMode,
   RentUpdateSource,
   RentUpdateType,
 } from '@/modules/contracts/domain/contract'
@@ -17,7 +21,9 @@ import {
 } from '@/modules/contracts/domain/contract.exceptions'
 import { ContractPolicy } from '@/modules/contracts/domain/contract.policy'
 import {
+  BillingTermsChange,
   ContractRepository,
+  NewBillingTerms,
   NewContract,
   SuretyData,
 } from '@/modules/contracts/domain/contract.ports'
@@ -40,6 +46,8 @@ import {
 } from '../contract.views'
 import {
   ApplyRentUpdateCommand,
+  BillingTermsInput,
+  ChangeBillingTermsCommand,
   ContractTerms,
   CreateContractCommand,
   RenewContractCommand,
@@ -91,8 +99,43 @@ function normalizeTerms(terms: ContractTerms) {
     rentUpdateType: terms.rentUpdateType,
     rentUpdateFrequency: terms.rentUpdateFrequency,
     deposit: toMoneyString(terms.deposit),
+    depositCurrency: terms.depositCurrency ?? terms.currency,
+    depositReturnMode: terms.depositReturnMode ?? DepositReturnMode.FIXED,
+    fixedIncreasePercentage:
+      terms.fixedIncreasePercentage === null
+        ? null
+        : ContractPolicy.normalizePercentage(
+            terms.fixedIncreasePercentage,
+            'fixedIncreasePercentage',
+          ),
     notes: PersonPolicy.normalizeNotes(terms.notes),
     surety: normalizeSurety(terms.surety),
+    billing: terms.billing,
+  }
+}
+
+/**
+ * Los términos de cobro iniciales (D-70): cobra la inmobiliaria y descuenta
+ * sus honorarios al liquidar, salvo que se indique otra cosa; el % es el
+ * fijado por D-57; el punitorio se hereda del tenant si no se fija.
+ */
+function normalizeBillingTerms(
+  input: BillingTermsInput,
+  feePercentage: string,
+): NewBillingTerms {
+  return {
+    collectionMode: input.collectionMode ?? CollectionMode.AGENCY,
+    feeMode: input.feeMode ?? FeeMode.DEDUCTED,
+    feePercentage,
+    feeAmount: ContractPolicy.normalizeFeeAmount(input.feeAmount),
+    lateFeePercentage:
+      input.lateFeePercentage === null
+        ? null
+        : ContractPolicy.normalizePercentage(
+            input.lateFeePercentage,
+            'lateFeePercentage',
+          ),
+    lateFeeGraceDays: ContractPolicy.normalizeGraceDays(input.lateFeeGraceDays),
   }
 }
 
@@ -128,14 +171,16 @@ export class CreateContractHandler implements ICommandHandler<
     const ownerId = property.ownerId as string
     const feePercentage = await this.parties.feePercentage(ownerId, false)
 
+    const { billing, ...contractTerms } = terms
     const data: NewContract = {
-      ...terms,
+      ...contractTerms,
       propertyId: property.id,
       ownerId,
       renterId: renter.id,
       guarantorId,
       feePercentage,
       renewedFromId: null,
+      billingTerms: normalizeBillingTerms(billing, feePercentage),
     }
     const contract = await this.prisma.transaction(async () => {
       const created = await this.contracts.create(data)
@@ -192,8 +237,81 @@ export class UpdateContractHandler implements ICommandHandler<
       // sobre lo que vino: sacar el email de un contrato con caución es error.
       next.surety = normalizeSurety({ ...contract.surety, ...changes.surety })
     }
+    if (changes.depositReturnMode !== undefined) {
+      next.depositReturnMode = changes.depositReturnMode
+    }
 
     const updated = await this.contracts.update(contract.id, next)
+    return this.views.detail(updated)
+  }
+}
+
+/**
+ * Cambio de términos de cobro (D-70, sólo admin): una fila nueva que rige
+ * desde `effectiveFrom` (hoy por defecto). Lo que no viene se copia de la
+ * fila vigente; `feeAmount: null` vuelve al %, y el punitorio en null vuelve
+ * al del tenant. Las filas anteriores no se tocan: las cuotas ya generadas
+ * conservan su snapshot (D-71).
+ */
+@CommandHandler(ChangeBillingTermsCommand)
+export class ChangeBillingTermsHandler implements ICommandHandler<
+  ChangeBillingTermsCommand,
+  ContractDetailView
+> {
+  constructor(
+    private readonly contracts: ContractRepository,
+    private readonly views: ContractViews,
+  ) {}
+
+  async execute(
+    command: ChangeBillingTermsCommand,
+  ): Promise<ContractDetailView> {
+    const contract = await requireContract(this.contracts, command.id)
+    requireActive(contract)
+    const { changes } = command
+    const latest = contract.billingTerms[0]
+    const effectiveFrom = changes.effectiveFrom
+      ? ContractPolicy.normalizeDate(changes.effectiveFrom, 'effectiveFrom')
+      : todayIso()
+    ContractPolicy.assertBillingTermsEffectiveFrom(
+      effectiveFrom,
+      latest.effectiveFrom,
+      contract.startDate,
+      contract.endDate,
+    )
+
+    const terms: BillingTermsChange = {
+      effectiveFrom,
+      collectionMode: changes.collectionMode ?? latest.collectionMode,
+      feeMode: changes.feeMode ?? latest.feeMode,
+      feePercentage:
+        changes.feePercentage === undefined
+          ? latest.feePercentage
+          : ContractPolicy.normalizePercentage(
+              changes.feePercentage,
+              'feePercentage',
+            ),
+      feeAmount:
+        changes.feeAmount === undefined
+          ? latest.feeAmount
+          : ContractPolicy.normalizeFeeAmount(changes.feeAmount),
+      lateFeePercentage:
+        changes.lateFeePercentage === undefined
+          ? latest.lateFeePercentage
+          : changes.lateFeePercentage === null
+            ? null
+            : ContractPolicy.normalizePercentage(
+                changes.lateFeePercentage,
+                'lateFeePercentage',
+              ),
+      lateFeeGraceDays:
+        changes.lateFeeGraceDays === undefined
+          ? latest.lateFeeGraceDays
+          : ContractPolicy.normalizeGraceDays(changes.lateFeeGraceDays),
+      notes: PersonPolicy.normalizeNotes(changes.notes ?? null),
+      changedById: RequestContext.userId ?? null,
+    }
+    const updated = await this.contracts.addBillingTerms(contract.id, terms)
     return this.views.detail(updated)
   }
 }
@@ -304,21 +422,35 @@ export class ApplyRentUpdateHandler implements ICommandHandler<
     const indexed =
       contract.rentUpdateType === RentUpdateType.ICL ||
       contract.rentUpdateType === RentUpdateType.IPC
+    const fixedPercentage =
+      contract.rentUpdateType === RentUpdateType.FIXED
+        ? contract.fixedIncreasePercentage
+        : null
 
-    const updated = indexed
-      ? await this.applyIndex(contract, latest.effectiveFrom, effectiveFrom)
-      : await this.contracts.addRentUpdate(contract.id, {
-          effectiveFrom,
-          previousRent: currentRent,
-          newRent: ContractPolicy.normalizeNewRent(command.newRent),
-          source: RentUpdateSource.MANUAL,
-          indexType: null,
-          indexFromPeriod: null,
-          indexToPeriod: null,
-          indexFromValue: null,
-          indexToValue: null,
-          appliedById: RequestContext.userId ?? null,
-        })
+    // Con índice y sin monto, manda el índice. Con monto, es un ajuste
+    // manual autorizado (Micaela #8): vale sólo si el aumento está al día,
+    // regla que ya pasó arriba (nunca se adelanta, D-60). Con % fijo y sin
+    // monto, se calcula solo y queda registrado el % aplicado.
+    const manual = command.newRent !== undefined
+    const updated =
+      indexed && !manual
+        ? await this.applyIndex(contract, latest.effectiveFrom, effectiveFrom)
+        : await this.contracts.addRentUpdate(contract.id, {
+            effectiveFrom,
+            previousRent: currentRent,
+            newRent:
+              !manual && fixedPercentage !== null
+                ? ContractPolicy.fixedIncreaseRent(currentRent, fixedPercentage)
+                : ContractPolicy.normalizeNewRent(command.newRent),
+            source: RentUpdateSource.MANUAL,
+            indexType: null,
+            indexFromPeriod: null,
+            indexToPeriod: null,
+            indexFromValue: null,
+            indexToValue: null,
+            fixedPercentage: !manual ? fixedPercentage : null,
+            appliedById: RequestContext.userId ?? null,
+          })
     return this.views.detail(updated)
   }
 
@@ -348,6 +480,7 @@ export class ApplyRentUpdateHandler implements ICommandHandler<
       indexToPeriod: toPeriod,
       indexFromValue: fromValue,
       indexToValue: toValue,
+      fixedPercentage: null,
       appliedById: RequestContext.userId ?? null,
     })
   }
@@ -453,8 +586,18 @@ export class RenewContractHandler implements ICommandHandler<
       rentUpdateFrequency:
         overrides.rentUpdateFrequency ?? original.rentUpdateFrequency,
       deposit: overrides.deposit ?? original.deposit,
+      depositCurrency: overrides.depositCurrency ?? original.depositCurrency,
+      depositReturnMode:
+        overrides.depositReturnMode ?? original.depositReturnMode,
+      fixedIncreasePercentage:
+        overrides.fixedIncreasePercentage === undefined
+          ? original.fixedIncreasePercentage
+          : overrides.fixedIncreasePercentage,
       notes: overrides.notes === undefined ? original.notes : overrides.notes,
       surety: { ...original.surety, ...overrides.surety },
+      // Los términos vigentes hoy siguen en el contrato nuevo, salvo lo que
+      // se indique; el % de honorarios se fija de nuevo (D-57).
+      billing: { ...currentBillingInput(original), ...overrides.billing },
     })
     ContractPolicy.assertRenewalStart(terms.startDate, original.startDate)
 
@@ -470,14 +613,16 @@ export class RenewContractHandler implements ICommandHandler<
       true,
     )
 
+    const { billing, ...contractTerms } = terms
     const data: NewContract = {
-      ...terms,
+      ...contractTerms,
       propertyId: original.propertyId,
       ownerId: original.ownerId,
       renterId,
       guarantorId,
       feePercentage,
       renewedFromId: original.id,
+      billingTerms: normalizeBillingTerms(billing, feePercentage),
     }
     const renewed = await this.prisma.transaction(async () => {
       // Primero se cierra el original: el índice único de "un activo por
@@ -492,5 +637,17 @@ export class RenewContractHandler implements ICommandHandler<
       return created
     })
     return this.views.detail(renewed)
+  }
+}
+
+/** Los términos vigentes hoy, como entrada para el contrato que renueva. */
+function currentBillingInput(contract: Contract): BillingTermsInput {
+  const current = billingTermsInForce(contract.billingTerms, todayIso())
+  return {
+    collectionMode: current.collectionMode,
+    feeMode: current.feeMode,
+    feeAmount: current.feeAmount,
+    lateFeePercentage: current.lateFeePercentage,
+    lateFeeGraceDays: current.lateFeeGraceDays,
   }
 }
