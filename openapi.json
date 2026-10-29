@@ -5518,7 +5518,7 @@
         ]
       },
       "patch": {
-        "description": "Fechas, montos, partes y estado no se editan: cambian por un aumento, una rescisión o una renovación.",
+        "description": "Fechas, montos, partes y estado no se editan: cambian por un aumento, una rescisión o una renovación. Los términos de cobro cambian por POST /contracts/:id/billing-terms.",
         "operationId": "ContractsController_update_api/v1",
         "parameters": [
           {
@@ -5587,7 +5587,7 @@
             "bearer": []
           }
         ],
-        "summary": "Editar notas, caución o garante",
+        "summary": "Editar notas, caución, garante o modo de devolución del depósito",
         "tags": [
           "Contracts"
         ]
@@ -5666,6 +5666,83 @@
           }
         ],
         "summary": "Desglose de la multa por rescisión, sin rescindir",
+        "tags": [
+          "Contracts"
+        ]
+      }
+    },
+    "/api/v1/contracts/{id}/billing-terms": {
+      "post": {
+        "description": "Agrega una vigencia nueva: modalidad de cobro, honorarios (% o importe fijo) y punitorio. Lo que no viene se copia de la vigente; las anteriores quedan en el historial y las cuotas ya generadas no cambian.",
+        "operationId": "ContractsController_changeBillingTerms_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeBillingTermsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Fecha fuera del contrato o valores inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "La fecha es anterior a los términos vigentes, o el contrato no está activo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cambiar los términos de cobro (sólo admin)",
         "tags": [
           "Contracts"
         ]
@@ -6817,6 +6894,1442 @@
         "summary": "Eliminar un gasto pendiente (borrado lógico, sólo admin)",
         "tags": [
           "Advance expenses"
+        ]
+      }
+    },
+    "/api/v1/billing/installments/generate": {
+      "post": {
+        "description": "Una cuota por contrato activo que cubre el mes, con el alquiler vigente y los términos de cobro copiados. Sin `period`, el mes siguiente. Correrlo dos veces no duplica.",
+        "operationId": "InstallmentsController_generate_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateInstallmentsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallmentGenerationResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Generar las cuotas de un mes (idempotente)",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/installments": {
+      "get": {
+        "description": "Filtros por mes, estado (OVERDUE calculado), contrato, inquilino, propiedad, propietario y modalidad de cobro.",
+        "operationId": "InstallmentsController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "OVERDUE: con saldo y la gracia vencida. PENDING y PARTIAL excluyen las vencidas.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "PARTIAL",
+                "OVERDUE",
+                "PAID"
+              ]
+            }
+          },
+          {
+            "name": "contractId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "renterId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "propertyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ownerId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "collectionMode",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "AGENCY",
+                "OWNER_DIRECT"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cuotas de la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/InstallmentSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar cuotas con saldos a hoy",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/installments/summary": {
+      "get": {
+        "description": "Cantidades por estado, base, cargos, cobrado (por quién lo recibió), punitorio devengado y cobrado, honorarios devengados y saldo.",
+        "operationId": "InstallmentsController_summary_api/v1",
+        "parameters": [
+          {
+            "name": "period",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingSummaryDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resumen del mes por moneda",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/installments/{id}": {
+      "get": {
+        "description": "Saldos a hoy, cargos, pagos (con cotización e imputación), ajustes del punitorio, detalle diario y saldo a favor disponible.",
+        "operationId": "InstallmentsController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallmentDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ficha de la cuota",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/installments/{id}/breakdown": {
+      "get": {
+        "description": "Base, cargos, días y punitorio, pagado por concepto, saldos, crédito disponible y total a pagar, recalculados a `asOf` (default hoy).",
+        "operationId": "InstallmentsController_breakdown_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "asOf",
+            "required": false,
+            "in": "query",
+            "description": "Fecha del desglose. Default hoy.",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallmentBreakdownDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Desglose a una fecha",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/contracts/{contractId}/account": {
+      "get": {
+        "description": "Totales, cuotas y movimientos cronológicos (devengado, cargos, punitorio, pagos, saldos a favor, anulaciones) más el depósito con su devolución sugerida. El contrato puede estar en cualquier estado.",
+        "operationId": "InstallmentsController_account_api/v1",
+        "parameters": [
+          {
+            "name": "contractId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractAccountDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "El contrato no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cuenta corriente del contrato",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/installments/{id}/charges": {
+      "post": {
+        "description": "Expensas, multa de rescisión u otro concepto, en la moneda de la cuota. Sólo sobre una cuota no saldada. No devenga punitorio.",
+        "operationId": "PaymentsController_createCharge_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChargeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallmentDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cuota saldada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Agregar un cargo a la cuota",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/charges/{id}/void": {
+      "post": {
+        "description": "El cargo queda registrado como anulado y deja de contar.",
+        "operationId": "PaymentsController_voidCharge_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallmentDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya anulado, o con pagos imputados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anular un cargo sin imputaciones",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/installments/{id}/payments": {
+      "post": {
+        "description": "Multipart. Parcial o total, en la moneda del contrato o en la otra con cotización (fuente, fecha, valor). Se aplican antes los saldos a favor (`applyCredit`, default true); después el pago se imputa punitorio → alquiler → cargos, o según `allocation` (JSON). El exceso queda como saldo a favor. Recibido por el propietario nace pendiente de confirmación.",
+        "operationId": "PaymentsController_registerPayment_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "paidAt",
+                  "amount",
+                  "paidCurrency",
+                  "method"
+                ],
+                "properties": {
+                  "paidAt": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "amount": {
+                    "type": "string",
+                    "example": "150000.00"
+                  },
+                  "paidCurrency": {
+                    "type": "string",
+                    "enum": [
+                      "ARS",
+                      "USD"
+                    ]
+                  },
+                  "exchangeRate": {
+                    "type": "string",
+                    "example": "1487.5000"
+                  },
+                  "exchangeRateSource": {
+                    "type": "string",
+                    "enum": [
+                      "OFFICIAL",
+                      "MEP",
+                      "OTHER"
+                    ]
+                  },
+                  "exchangeRateDate": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "TRANSFER",
+                      "CASH",
+                      "OTHER"
+                    ]
+                  },
+                  "receivedBy": {
+                    "type": "string",
+                    "enum": [
+                      "AGENCY",
+                      "OWNER"
+                    ]
+                  },
+                  "allocation": {
+                    "type": "string",
+                    "example": "{\"lateFee\":\"0.00\",\"rent\":\"100000.00\",\"charges\":\"0.00\"}"
+                  },
+                  "applyCredit": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  },
+                  "notes": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterPaymentResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Monto, fecha, cotización, imputación o comprobante inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cuota saldada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Registrar un pago",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/installments/{id}/apply-credit": {
+      "post": {
+        "description": "Sin plata: aplica los créditos disponibles del inquilino en la moneda del contrato (o uno puntual, hasta un monto). `payment` es la primera aplicación; `creditApplications`, las demás.",
+        "operationId": "PaymentsController_applyCredit_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyCreditDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterPaymentResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Sin saldo a favor disponible, otra moneda, o cuota saldada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Aplicar saldo a favor a la cuota, a mano",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/installments/{id}/late-fee-adjustments": {
+      "post": {
+        "description": "REDUCE descuenta `amount` del punitorio pendiente; WAIVE lo condona entero y deja de devengar. Siempre con motivo.",
+        "operationId": "PaymentsController_adjustLateFee_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLateFeeAdjustmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallmentDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reducir o condonar el punitorio (sólo admin)",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/payments": {
+      "get": {
+        "description": "Filtros por contrato, inquilino, estado (pendientes de confirmación), quién lo recibió y rango de fechas de pago.",
+        "operationId": "PaymentsController_listPayments_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "contractId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "renterId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING_CONFIRMATION",
+                "CONFIRMED",
+                "VOIDED"
+              ]
+            }
+          },
+          {
+            "name": "receivedBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "AGENCY",
+                "OWNER"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Fecha de pago desde",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Fecha de pago hasta",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pagos de la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/PaymentListItemDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar pagos",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/payments/{id}/confirm": {
+      "post": {
+        "description": "No cambia saldos (A-11): es control interno.",
+        "operationId": "PaymentsController_confirmPayment_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya confirmado o anulado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirmar un pago informado por el propietario",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/payments/{id}/void": {
+      "post": {
+        "description": "Deja de contar en todo y la cuota se recalcula. El saldo a favor que generó tiene que estar sin usar; anular una aplicación de crédito devuelve el monto al crédito.",
+        "operationId": "PaymentsController_voidPayment_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallmentDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya anulado, o el crédito que generó ya se usó",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anular un pago (sólo admin)",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/renters/{renterId}/credits": {
+      "get": {
+        "description": "Disponibles, aplicados, devueltos y anulados, con el total disponible por moneda.",
+        "operationId": "PaymentsController_listCredits_api/v1",
+        "parameters": [
+          {
+            "name": "renterId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenterCreditsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Saldos a favor de un inquilino",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/credits/{id}/refund": {
+      "post": {
+        "description": "Registra la devolución: fecha, medio y notas. Sólo un crédito disponible.",
+        "operationId": "PaymentsController_refundCredit_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundCreditDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenterCreditDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "El crédito no está disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Devolver un saldo a favor (sólo admin)",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/api/v1/billing/arrears": {
+      "get": {
+        "description": "`?renterId=a&renterId=b` o `?renterIds=a,b`. Una fila por id pedido aunque no tenga cuotas (UP_TO_DATE). Para badges en listados y fichas.",
+        "operationId": "PaymentsController_arrears_api/v1",
+        "parameters": [
+          {
+            "name": "renterId",
+            "required": false,
+            "in": "query",
+            "description": "Repetible: `?renterId=a&renterId=b`.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "renterIds",
+            "required": false,
+            "in": "query",
+            "description": "Alternativa: ids separados por coma.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RenterArrearsDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mora por inquilino",
+        "tags": [
+          "Billing"
         ]
       }
     },
@@ -9518,7 +11031,22 @@
           "feePercentage": {
             "type": "string",
             "example": "5.00",
-            "description": "En %"
+            "description": "En %: el vigente hoy según los términos de cobro"
+          },
+          "collectionMode": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER_DIRECT"
+            ]
+          },
+          "feeMode": {
+            "type": "string",
+            "enum": [
+              "DEDUCTED",
+              "OWNER_PAYS",
+              "RENTER_PAYS_ON_BEHALF"
+            ]
           },
           "createdAt": {
             "format": "date-time",
@@ -9545,8 +11073,172 @@
           "expiringSoon",
           "expired",
           "feePercentage",
+          "collectionMode",
+          "feeMode",
           "createdAt",
           "updatedAt"
+        ]
+      },
+      "ContractCurrentBillingTermsDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "collectionMode": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER_DIRECT"
+            ]
+          },
+          "feeMode": {
+            "type": "string",
+            "enum": [
+              "DEDUCTED",
+              "OWNER_PAYS",
+              "RENTER_PAYS_ON_BEHALF"
+            ]
+          },
+          "feePercentage": {
+            "type": "string",
+            "example": "5.00"
+          },
+          "feeAmount": {
+            "type": "string",
+            "nullable": true
+          },
+          "lateFeePercentage": {
+            "type": "string",
+            "nullable": true,
+            "description": "Null = el de la inmobiliaria",
+            "example": "5.00"
+          },
+          "lateFeeGraceDays": {
+            "type": "number",
+            "nullable": true,
+            "description": "Null = los de la inmobiliaria",
+            "example": 10
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "changedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractPartyRefDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "inheritedLateFeePercentage": {
+            "type": "boolean",
+            "description": "El % de punitorio es el de la inmobiliaria"
+          },
+          "inheritedLateFeeGraceDays": {
+            "type": "boolean",
+            "description": "La gracia es la de la inmobiliaria"
+          }
+        },
+        "required": [
+          "id",
+          "effectiveFrom",
+          "collectionMode",
+          "feeMode",
+          "feePercentage",
+          "feeAmount",
+          "lateFeePercentage",
+          "lateFeeGraceDays",
+          "notes",
+          "changedBy",
+          "createdAt",
+          "inheritedLateFeePercentage",
+          "inheritedLateFeeGraceDays"
+        ]
+      },
+      "ContractBillingTermsDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          },
+          "collectionMode": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER_DIRECT"
+            ]
+          },
+          "feeMode": {
+            "type": "string",
+            "enum": [
+              "DEDUCTED",
+              "OWNER_PAYS",
+              "RENTER_PAYS_ON_BEHALF"
+            ]
+          },
+          "feePercentage": {
+            "type": "string",
+            "example": "5.00"
+          },
+          "feeAmount": {
+            "type": "string",
+            "nullable": true
+          },
+          "lateFeePercentage": {
+            "type": "string",
+            "nullable": true,
+            "description": "Null = el de la inmobiliaria"
+          },
+          "lateFeeGraceDays": {
+            "type": "number",
+            "nullable": true,
+            "description": "Null = los de la inmobiliaria"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "changedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractPartyRefDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "effectiveFrom",
+          "collectionMode",
+          "feeMode",
+          "feePercentage",
+          "feeAmount",
+          "lateFeePercentage",
+          "lateFeeGraceDays",
+          "notes",
+          "changedBy",
+          "createdAt"
         ]
       },
       "ContractSuretyDto": {
@@ -9664,6 +11356,11 @@
             "type": "string",
             "nullable": true
           },
+          "fixedPercentage": {
+            "type": "string",
+            "nullable": true,
+            "description": "El % fijo aplicado (FIXED con fixedIncreasePercentage)"
+          },
           "appliedById": {
             "type": "string",
             "nullable": true
@@ -9684,6 +11381,7 @@
           "indexToPeriod",
           "indexFromValue",
           "indexToValue",
+          "fixedPercentage",
           "appliedById",
           "createdAt"
         ]
@@ -9794,7 +11492,22 @@
           "feePercentage": {
             "type": "string",
             "example": "5.00",
-            "description": "En %"
+            "description": "En %: el vigente hoy según los términos de cobro"
+          },
+          "collectionMode": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER_DIRECT"
+            ]
+          },
+          "feeMode": {
+            "type": "string",
+            "enum": [
+              "DEDUCTED",
+              "OWNER_PAYS",
+              "RENTER_PAYS_ON_BEHALF"
+            ]
           },
           "createdAt": {
             "format": "date-time",
@@ -9818,7 +11531,37 @@
           },
           "deposit": {
             "type": "string",
-            "description": "Estático: no sigue a los aumentos"
+            "description": "Lo recibido, en depositCurrency"
+          },
+          "depositCurrency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "depositReturnMode": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "FOLLOWS_RENT",
+              "MANUAL"
+            ]
+          },
+          "fixedIncreasePercentage": {
+            "type": "string",
+            "nullable": true,
+            "example": "10.00"
+          },
+          "billingTerms": {
+            "$ref": "#/components/schemas/ContractCurrentBillingTermsDto"
+          },
+          "billingTermsHistory": {
+            "description": "Historial de términos de cobro, del más nuevo al más viejo",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContractBillingTermsDto"
+            }
           },
           "rentUpdateType": {
             "type": "string",
@@ -9834,7 +11577,9 @@
             "enum": [
               "MONTHLY",
               "QUARTERLY",
-              "FOUR_MONTHLY"
+              "FOUR_MONTHLY",
+              "SEMIANNUAL",
+              "ANNUAL"
             ]
           },
           "notes": {
@@ -9908,11 +11653,18 @@
           "expiringSoon",
           "expired",
           "feePercentage",
+          "collectionMode",
+          "feeMode",
           "createdAt",
           "updatedAt",
           "guarantor",
           "initialRent",
           "deposit",
+          "depositCurrency",
+          "depositReturnMode",
+          "fixedIncreasePercentage",
+          "billingTerms",
+          "billingTermsHistory",
           "rentUpdateType",
           "rentUpdateFrequency",
           "notes",
@@ -10014,13 +11766,38 @@
             "enum": [
               "MONTHLY",
               "QUARTERLY",
-              "FOUR_MONTHLY"
+              "FOUR_MONTHLY",
+              "SEMIANNUAL",
+              "ANNUAL"
             ],
             "example": "QUARTERLY"
           },
           "deposit": {
             "type": "string",
             "example": "150333.33"
+          },
+          "depositCurrency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "description": "Moneda en que se recibió el depósito. Default: la del contrato."
+          },
+          "depositReturnMode": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "FOLLOWS_RENT",
+              "MANUAL"
+            ],
+            "description": "Cómo se devuelve el depósito al terminar. Default FIXED."
+          },
+          "fixedIncreasePercentage": {
+            "type": "string",
+            "nullable": true,
+            "example": "10.00",
+            "description": "Con rentUpdateType FIXED: el % que se aplica solo en cada aumento. Sin él, el aumento se carga a mano."
           },
           "hasSurety": {
             "type": "boolean",
@@ -10051,6 +11828,41 @@
             "type": "string",
             "nullable": true,
             "maxLength": 5000
+          },
+          "collectionMode": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER_DIRECT"
+            ],
+            "description": "Quién cobra el alquiler. Default AGENCY."
+          },
+          "feeMode": {
+            "type": "string",
+            "enum": [
+              "DEDUCTED",
+              "OWNER_PAYS",
+              "RENTER_PAYS_ON_BEHALF"
+            ],
+            "description": "Cómo cobra sus honorarios la inmobiliaria. Default DEDUCTED."
+          },
+          "feeAmount": {
+            "type": "string",
+            "nullable": true,
+            "example": "25000.00",
+            "description": "Importe fijo de honorarios; si viene, manda sobre el %."
+          },
+          "lateFeePercentage": {
+            "type": "string",
+            "nullable": true,
+            "example": "5.00",
+            "description": "Punitorio diario en %. Si no viene, el de la inmobiliaria."
+          },
+          "lateFeeGraceDays": {
+            "type": "number",
+            "nullable": true,
+            "example": 10,
+            "description": "Días del mes sin punitorio. Si no viene, los de la inmobiliaria."
           }
         },
         "required": [
@@ -10065,6 +11877,62 @@
           "deposit",
           "hasSurety"
         ]
+      },
+      "ChangeBillingTermsDto": {
+        "type": "object",
+        "properties": {
+          "collectionMode": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER_DIRECT"
+            ],
+            "description": "Quién cobra el alquiler. Default AGENCY."
+          },
+          "feeMode": {
+            "type": "string",
+            "enum": [
+              "DEDUCTED",
+              "OWNER_PAYS",
+              "RENTER_PAYS_ON_BEHALF"
+            ],
+            "description": "Cómo cobra sus honorarios la inmobiliaria. Default DEDUCTED."
+          },
+          "feeAmount": {
+            "type": "string",
+            "nullable": true,
+            "example": "25000.00",
+            "description": "Importe fijo de honorarios; si viene, manda sobre el %."
+          },
+          "lateFeePercentage": {
+            "type": "string",
+            "nullable": true,
+            "example": "5.00",
+            "description": "Punitorio diario en %. Si no viene, el de la inmobiliaria."
+          },
+          "lateFeeGraceDays": {
+            "type": "number",
+            "nullable": true,
+            "example": 10,
+            "description": "Días del mes sin punitorio. Si no viene, los de la inmobiliaria."
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-01",
+            "description": "Desde cuándo rigen. Default hoy. No anterior a los términos vigentes y dentro del contrato."
+          },
+          "feePercentage": {
+            "type": "string",
+            "example": "5.00",
+            "description": "En %"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        }
       },
       "PartialSuretyDto": {
         "type": "object",
@@ -10116,6 +11984,14 @@
                 "$ref": "#/components/schemas/PartialSuretyDto"
               }
             ]
+          },
+          "depositReturnMode": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "FOLLOWS_RENT",
+              "MANUAL"
+            ]
           }
         }
       },
@@ -10125,7 +12001,7 @@
           "newRent": {
             "type": "string",
             "example": "120000.00",
-            "description": "Sólo para contratos FIXED u OTHER: el nuevo alquiler. Con ICL/IPC se ignora, sale del índice."
+            "description": "El nuevo alquiler a mano. Obligatorio en FIXED sin % fijo y en OTHER. Opcional en FIXED con % fijo (si no viene se calcula) y en ICL/IPC (ajuste manual autorizado; si no viene, sale del índice)."
           }
         }
       },
@@ -10217,13 +12093,38 @@
             "enum": [
               "MONTHLY",
               "QUARTERLY",
-              "FOUR_MONTHLY"
+              "FOUR_MONTHLY",
+              "SEMIANNUAL",
+              "ANNUAL"
             ],
             "example": "QUARTERLY"
           },
           "deposit": {
             "type": "string",
             "example": "150333.33"
+          },
+          "depositCurrency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "description": "Moneda en que se recibió el depósito. Default: la del contrato."
+          },
+          "depositReturnMode": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "FOLLOWS_RENT",
+              "MANUAL"
+            ],
+            "description": "Cómo se devuelve el depósito al terminar. Default FIXED."
+          },
+          "fixedIncreasePercentage": {
+            "type": "string",
+            "nullable": true,
+            "example": "10.00",
+            "description": "Con rentUpdateType FIXED: el % que se aplica solo en cada aumento. Sin él, el aumento se carga a mano."
           },
           "hasSurety": {
             "type": "boolean",
@@ -10254,6 +12155,41 @@
             "type": "string",
             "nullable": true,
             "maxLength": 5000
+          },
+          "collectionMode": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER_DIRECT"
+            ],
+            "description": "Quién cobra el alquiler. Default AGENCY."
+          },
+          "feeMode": {
+            "type": "string",
+            "enum": [
+              "DEDUCTED",
+              "OWNER_PAYS",
+              "RENTER_PAYS_ON_BEHALF"
+            ],
+            "description": "Cómo cobra sus honorarios la inmobiliaria. Default DEDUCTED."
+          },
+          "feeAmount": {
+            "type": "string",
+            "nullable": true,
+            "example": "25000.00",
+            "description": "Importe fijo de honorarios; si viene, manda sobre el %."
+          },
+          "lateFeePercentage": {
+            "type": "string",
+            "nullable": true,
+            "example": "5.00",
+            "description": "Punitorio diario en %. Si no viene, el de la inmobiliaria."
+          },
+          "lateFeeGraceDays": {
+            "type": "number",
+            "nullable": true,
+            "example": 10,
+            "description": "Días del mes sin punitorio. Si no viene, los de la inmobiliaria."
           },
           "renterId": {
             "type": "string",
@@ -10346,7 +12282,9 @@
             "enum": [
               "MONTHLY",
               "QUARTERLY",
-              "FOUR_MONTHLY"
+              "FOUR_MONTHLY",
+              "SEMIANNUAL",
+              "ANNUAL"
             ],
             "nullable": true
           },
@@ -10444,7 +12382,9 @@
             "enum": [
               "MONTHLY",
               "QUARTERLY",
-              "FOUR_MONTHLY"
+              "FOUR_MONTHLY",
+              "SEMIANNUAL",
+              "ANNUAL"
             ],
             "nullable": true,
             "example": "QUARTERLY"
@@ -10520,7 +12460,9 @@
             "enum": [
               "MONTHLY",
               "QUARTERLY",
-              "FOUR_MONTHLY"
+              "FOUR_MONTHLY",
+              "SEMIANNUAL",
+              "ANNUAL"
             ],
             "nullable": true
           },
@@ -10647,7 +12589,9 @@
             "enum": [
               "MONTHLY",
               "QUARTERLY",
-              "FOUR_MONTHLY"
+              "FOUR_MONTHLY",
+              "SEMIANNUAL",
+              "ANNUAL"
             ],
             "nullable": true
           },
@@ -10749,7 +12693,9 @@
             "enum": [
               "MONTHLY",
               "QUARTERLY",
-              "FOUR_MONTHLY"
+              "FOUR_MONTHLY",
+              "SEMIANNUAL",
+              "ANNUAL"
             ],
             "nullable": true,
             "example": "QUARTERLY"
@@ -10902,6 +12848,1805 @@
             "example": "2026-10-05"
           }
         }
+      },
+      "GenerateInstallmentsDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string",
+            "example": "2026-11",
+            "description": "Mes `AAAA-MM`. Si no viene, el mes siguiente al actual."
+          }
+        }
+      },
+      "InstallmentGenerationResultDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string",
+            "example": "2026-11"
+          },
+          "contracts": {
+            "type": "number",
+            "description": "Contratos activos que cubren el mes"
+          },
+          "created": {
+            "type": "number"
+          },
+          "skipped": {
+            "type": "number",
+            "description": "Ya tenían su cuota"
+          }
+        },
+        "required": [
+          "period",
+          "contracts",
+          "created",
+          "skipped"
+        ]
+      },
+      "InstallmentContractRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "PropertyRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "address"
+        ]
+      },
+      "InstallmentSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "contract": {
+            "$ref": "#/components/schemas/InstallmentContractRefDto"
+          },
+          "property": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PropertyRefDto"
+              }
+            ]
+          },
+          "renter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RenterRefDto"
+              }
+            ]
+          },
+          "owner": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRefDto"
+              }
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "baseAmount": {
+            "type": "string",
+            "example": "200000.00"
+          },
+          "chargesTotal": {
+            "type": "string"
+          },
+          "lateFeeAccrued": {
+            "type": "string",
+            "description": "Punitorio devengado a hoy"
+          },
+          "lateFeeAdjusted": {
+            "type": "string",
+            "description": "Σ reducciones"
+          },
+          "lateFeeWaived": {
+            "type": "boolean"
+          },
+          "lateFeeBalance": {
+            "type": "string"
+          },
+          "paidTotal": {
+            "type": "string",
+            "description": "Imputado por los pagos vigentes"
+          },
+          "rentBalance": {
+            "type": "string"
+          },
+          "chargesBalance": {
+            "type": "string"
+          },
+          "totalDue": {
+            "type": "string"
+          },
+          "pendingConfirmationTotal": {
+            "type": "string",
+            "description": "Informado por el propietario, sin confirmar"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PARTIAL",
+              "OVERDUE",
+              "PAID"
+            ]
+          },
+          "graceEndDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "feeDays": {
+            "type": "number",
+            "description": "Días con punitorio"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "collectionMode": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER_DIRECT"
+            ]
+          },
+          "feeMode": {
+            "type": "string",
+            "enum": [
+              "DEDUCTED",
+              "OWNER_PAYS",
+              "RENTER_PAYS_ON_BEHALF"
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "period",
+          "contract",
+          "property",
+          "renter",
+          "owner",
+          "currency",
+          "baseAmount",
+          "chargesTotal",
+          "lateFeeAccrued",
+          "lateFeeAdjusted",
+          "lateFeeWaived",
+          "lateFeeBalance",
+          "paidTotal",
+          "rentBalance",
+          "chargesBalance",
+          "totalDue",
+          "pendingConfirmationTotal",
+          "status",
+          "graceEndDate",
+          "feeDays",
+          "paidAt",
+          "collectionMode",
+          "feeMode",
+          "createdAt"
+        ]
+      },
+      "BillingSummaryByCurrencyDto": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "total": {
+            "type": "number"
+          },
+          "pending": {
+            "type": "number"
+          },
+          "partial": {
+            "type": "number"
+          },
+          "overdue": {
+            "type": "number"
+          },
+          "paid": {
+            "type": "number"
+          },
+          "baseTotal": {
+            "type": "string"
+          },
+          "chargesTotal": {
+            "type": "string"
+          },
+          "collectedTotal": {
+            "type": "string"
+          },
+          "collectedByAgency": {
+            "type": "string"
+          },
+          "collectedByOwner": {
+            "type": "string"
+          },
+          "pendingConfirmationTotal": {
+            "type": "string"
+          },
+          "lateFeeAccrued": {
+            "type": "string"
+          },
+          "lateFeeCollected": {
+            "type": "string"
+          },
+          "feeAccruedOnBase": {
+            "type": "string"
+          },
+          "feeAccruedOnCollected": {
+            "type": "string"
+          },
+          "balanceTotal": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "total",
+          "pending",
+          "partial",
+          "overdue",
+          "paid",
+          "baseTotal",
+          "chargesTotal",
+          "collectedTotal",
+          "collectedByAgency",
+          "collectedByOwner",
+          "pendingConfirmationTotal",
+          "lateFeeAccrued",
+          "lateFeeCollected",
+          "feeAccruedOnBase",
+          "feeAccruedOnCollected",
+          "balanceTotal"
+        ]
+      },
+      "BillingSummaryDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "byCurrency": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillingSummaryByCurrencyDto"
+            }
+          }
+        },
+        "required": [
+          "period",
+          "byCurrency"
+        ]
+      },
+      "UserRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName"
+        ]
+      },
+      "InstallmentChargeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "concept": {
+            "type": "string",
+            "enum": [
+              "SERVICE",
+              "TERMINATION_PENALTY",
+              "OTHER"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "createdBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "voidedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "voidReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "concept",
+          "description",
+          "amount",
+          "createdBy",
+          "createdAt",
+          "voidedAt",
+          "voidReason"
+        ]
+      },
+      "PaymentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "installmentId": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string"
+          },
+          "renterId": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "paidCurrency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "description": "En paidCurrency"
+          },
+          "exchangeRate": {
+            "type": "string",
+            "nullable": true,
+            "example": "1487.5000"
+          },
+          "exchangeRateSource": {
+            "type": "string",
+            "enum": [
+              "OFFICIAL",
+              "MEP",
+              "OTHER"
+            ],
+            "nullable": true
+          },
+          "exchangeRateDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "amountInContractCurrency": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "CASH_IN",
+              "CREDIT_APPLICATION"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "TRANSFER",
+              "CASH",
+              "CREDIT",
+              "OTHER"
+            ]
+          },
+          "receivedBy": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING_CONFIRMATION",
+              "CONFIRMED",
+              "VOIDED"
+            ]
+          },
+          "lateFeeApplied": {
+            "type": "string"
+          },
+          "rentApplied": {
+            "type": "string"
+          },
+          "chargesApplied": {
+            "type": "string"
+          },
+          "creditGenerated": {
+            "type": "string"
+          },
+          "creditId": {
+            "type": "string",
+            "nullable": true
+          },
+          "receiptUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "registeredBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "confirmedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "confirmedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "voidedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "voidedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "voidReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "installmentId",
+          "contractId",
+          "renterId",
+          "period",
+          "paidAt",
+          "paidCurrency",
+          "amount",
+          "exchangeRate",
+          "exchangeRateSource",
+          "exchangeRateDate",
+          "amountInContractCurrency",
+          "kind",
+          "method",
+          "receivedBy",
+          "status",
+          "lateFeeApplied",
+          "rentApplied",
+          "chargesApplied",
+          "creditGenerated",
+          "creditId",
+          "receiptUrl",
+          "notes",
+          "registeredBy",
+          "confirmedAt",
+          "confirmedBy",
+          "voidedAt",
+          "voidedBy",
+          "voidReason",
+          "createdAt"
+        ]
+      },
+      "LateFeeAdjustmentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "REDUCE",
+              "WAIVE"
+            ]
+          },
+          "amount": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "createdBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "amount",
+          "reason",
+          "createdBy",
+          "createdAt"
+        ]
+      },
+      "LateFeeDayDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "dayNumber": {
+            "type": "number"
+          },
+          "outstandingBase": {
+            "type": "string"
+          },
+          "dailyPercentage": {
+            "type": "string",
+            "example": "5.00"
+          },
+          "amount": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "dayNumber",
+          "outstandingBase",
+          "dailyPercentage",
+          "amount"
+        ]
+      },
+      "InstallmentDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "contract": {
+            "$ref": "#/components/schemas/InstallmentContractRefDto"
+          },
+          "property": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PropertyRefDto"
+              }
+            ]
+          },
+          "renter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RenterRefDto"
+              }
+            ]
+          },
+          "owner": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRefDto"
+              }
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "baseAmount": {
+            "type": "string",
+            "example": "200000.00"
+          },
+          "chargesTotal": {
+            "type": "string"
+          },
+          "lateFeeAccrued": {
+            "type": "string",
+            "description": "Punitorio devengado a hoy"
+          },
+          "lateFeeAdjusted": {
+            "type": "string",
+            "description": "Σ reducciones"
+          },
+          "lateFeeWaived": {
+            "type": "boolean"
+          },
+          "lateFeeBalance": {
+            "type": "string"
+          },
+          "paidTotal": {
+            "type": "string",
+            "description": "Imputado por los pagos vigentes"
+          },
+          "rentBalance": {
+            "type": "string"
+          },
+          "chargesBalance": {
+            "type": "string"
+          },
+          "totalDue": {
+            "type": "string"
+          },
+          "pendingConfirmationTotal": {
+            "type": "string",
+            "description": "Informado por el propietario, sin confirmar"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PARTIAL",
+              "OVERDUE",
+              "PAID"
+            ]
+          },
+          "graceEndDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "feeDays": {
+            "type": "number",
+            "description": "Días con punitorio"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "collectionMode": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER_DIRECT"
+            ]
+          },
+          "feeMode": {
+            "type": "string",
+            "enum": [
+              "DEDUCTED",
+              "OWNER_PAYS",
+              "RENTER_PAYS_ON_BEHALF"
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lateFeePercentage": {
+            "type": "string",
+            "example": "5.00"
+          },
+          "lateFeeGraceDays": {
+            "type": "number"
+          },
+          "feePercentage": {
+            "type": "string",
+            "example": "5.00"
+          },
+          "feeAmount": {
+            "type": "string",
+            "nullable": true
+          },
+          "feeOnBase": {
+            "type": "string"
+          },
+          "feeOnCollected": {
+            "type": "string"
+          },
+          "charges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InstallmentChargeDto"
+            }
+          },
+          "payments": {
+            "description": "Más nuevos primero",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentDto"
+            }
+          },
+          "lateFeeAdjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LateFeeAdjustmentDto"
+            }
+          },
+          "lateFeeDays": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LateFeeDayDto"
+            }
+          },
+          "creditsAvailable": {
+            "type": "string",
+            "description": "Disponible del inquilino en la moneda del contrato"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "period",
+          "contract",
+          "property",
+          "renter",
+          "owner",
+          "currency",
+          "baseAmount",
+          "chargesTotal",
+          "lateFeeAccrued",
+          "lateFeeAdjusted",
+          "lateFeeWaived",
+          "lateFeeBalance",
+          "paidTotal",
+          "rentBalance",
+          "chargesBalance",
+          "totalDue",
+          "pendingConfirmationTotal",
+          "status",
+          "graceEndDate",
+          "feeDays",
+          "paidAt",
+          "collectionMode",
+          "feeMode",
+          "createdAt",
+          "lateFeePercentage",
+          "lateFeeGraceDays",
+          "feePercentage",
+          "feeAmount",
+          "feeOnBase",
+          "feeOnCollected",
+          "charges",
+          "payments",
+          "lateFeeAdjustments",
+          "lateFeeDays",
+          "creditsAvailable",
+          "notes",
+          "updatedAt"
+        ]
+      },
+      "InstallmentBreakdownDto": {
+        "type": "object",
+        "properties": {
+          "installmentId": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PARTIAL",
+              "OVERDUE",
+              "PAID"
+            ]
+          },
+          "baseAmount": {
+            "type": "string"
+          },
+          "chargesTotal": {
+            "type": "string"
+          },
+          "graceEndDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "feeDays": {
+            "type": "number"
+          },
+          "lateFeePercentage": {
+            "type": "string"
+          },
+          "lateFeeAccrued": {
+            "type": "string"
+          },
+          "lateFeeAdjusted": {
+            "type": "string"
+          },
+          "lateFeeWaived": {
+            "type": "boolean"
+          },
+          "rentPaid": {
+            "type": "string"
+          },
+          "chargesPaid": {
+            "type": "string"
+          },
+          "lateFeePaid": {
+            "type": "string"
+          },
+          "rentBalance": {
+            "type": "string"
+          },
+          "chargesBalance": {
+            "type": "string"
+          },
+          "lateFeeBalance": {
+            "type": "string"
+          },
+          "totalDue": {
+            "type": "string"
+          },
+          "creditAvailable": {
+            "type": "string"
+          },
+          "totalDueAfterCredit": {
+            "type": "string"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LateFeeDayDto"
+            }
+          }
+        },
+        "required": [
+          "installmentId",
+          "period",
+          "currency",
+          "asOf",
+          "status",
+          "baseAmount",
+          "chargesTotal",
+          "graceEndDate",
+          "feeDays",
+          "lateFeePercentage",
+          "lateFeeAccrued",
+          "lateFeeAdjusted",
+          "lateFeeWaived",
+          "rentPaid",
+          "chargesPaid",
+          "lateFeePaid",
+          "rentBalance",
+          "chargesBalance",
+          "lateFeeBalance",
+          "totalDue",
+          "creditAvailable",
+          "totalDueAfterCredit",
+          "days"
+        ]
+      },
+      "ContractAccountContractDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "collectionMode": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER_DIRECT"
+            ]
+          },
+          "feeMode": {
+            "type": "string",
+            "enum": [
+              "DEDUCTED",
+              "OWNER_PAYS",
+              "RENTER_PAYS_ON_BEHALF"
+            ]
+          },
+          "depositReturnMode": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "FOLLOWS_RENT",
+              "MANUAL"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "currency",
+          "collectionMode",
+          "feeMode",
+          "depositReturnMode"
+        ]
+      },
+      "ContractAccountTotalsDto": {
+        "type": "object",
+        "properties": {
+          "accrued": {
+            "type": "string"
+          },
+          "chargesTotal": {
+            "type": "string"
+          },
+          "lateFeeAccrued": {
+            "type": "string"
+          },
+          "lateFeeAdjusted": {
+            "type": "string"
+          },
+          "collected": {
+            "type": "string"
+          },
+          "collectedByAgency": {
+            "type": "string"
+          },
+          "collectedByOwner": {
+            "type": "string"
+          },
+          "pendingConfirmation": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "string"
+          },
+          "creditsAvailable": {
+            "type": "string"
+          },
+          "feeAccruedOnBase": {
+            "type": "string"
+          },
+          "feeAccruedOnCollected": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accrued",
+          "chargesTotal",
+          "lateFeeAccrued",
+          "lateFeeAdjusted",
+          "collected",
+          "collectedByAgency",
+          "collectedByOwner",
+          "pendingConfirmation",
+          "balance",
+          "creditsAvailable",
+          "feeAccruedOnBase",
+          "feeAccruedOnCollected"
+        ]
+      },
+      "ContractAccountInstallmentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "baseAmount": {
+            "type": "string"
+          },
+          "chargesTotal": {
+            "type": "string"
+          },
+          "lateFeeAccrued": {
+            "type": "string"
+          },
+          "lateFeeBalance": {
+            "type": "string"
+          },
+          "paidTotal": {
+            "type": "string"
+          },
+          "totalDue": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PARTIAL",
+              "OVERDUE",
+              "PAID"
+            ]
+          },
+          "graceEndDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "period",
+          "baseAmount",
+          "chargesTotal",
+          "lateFeeAccrued",
+          "lateFeeBalance",
+          "paidTotal",
+          "totalDue",
+          "status",
+          "graceEndDate",
+          "paidAt"
+        ]
+      },
+      "ContractAccountMovementDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "INSTALLMENT",
+              "CHARGE",
+              "LATE_FEE_ACCRUED",
+              "PAYMENT",
+              "CREDIT_APPLIED",
+              "CREDIT_GENERATED",
+              "CREDIT_REFUNDED",
+              "LATE_FEE_ADJUSTMENT",
+              "PAYMENT_VOIDED",
+              "DEPOSIT_RECEIVED"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "string",
+            "nullable": true
+          },
+          "credit": {
+            "type": "string",
+            "nullable": true
+          },
+          "balance": {
+            "type": "string",
+            "description": "Saldo acumulado (deuda positiva)"
+          },
+          "installmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "paymentId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "date",
+          "type",
+          "description",
+          "debit",
+          "credit",
+          "balance",
+          "installmentId",
+          "paymentId"
+        ]
+      },
+      "ContractAccountDepositDto": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "returnMode": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "FOLLOWS_RENT",
+              "MANUAL"
+            ]
+          },
+          "suggestedReturn": {
+            "type": "string",
+            "nullable": true,
+            "description": "FIXED: el depósito; FOLLOWS_RENT: el alquiler vigente; MANUAL: null"
+          }
+        },
+        "required": [
+          "amount",
+          "currency",
+          "returnMode",
+          "suggestedReturn"
+        ]
+      },
+      "ContractAccountDto": {
+        "type": "object",
+        "properties": {
+          "contract": {
+            "$ref": "#/components/schemas/ContractAccountContractDto"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/ContractAccountTotalsDto"
+          },
+          "installments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContractAccountInstallmentDto"
+            }
+          },
+          "movements": {
+            "description": "Cronológico ascendente",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContractAccountMovementDto"
+            }
+          },
+          "deposit": {
+            "$ref": "#/components/schemas/ContractAccountDepositDto"
+          }
+        },
+        "required": [
+          "contract",
+          "totals",
+          "installments",
+          "movements",
+          "deposit"
+        ]
+      },
+      "CreateChargeDto": {
+        "type": "object",
+        "properties": {
+          "concept": {
+            "type": "string",
+            "enum": [
+              "SERVICE",
+              "TERMINATION_PENALTY",
+              "OTHER"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 300,
+            "example": "Expensas de octubre"
+          },
+          "amount": {
+            "type": "string",
+            "example": "150333.33"
+          }
+        },
+        "required": [
+          "concept",
+          "description",
+          "amount"
+        ]
+      },
+      "VoidDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "RegisterPaymentResultDto": {
+        "type": "object",
+        "properties": {
+          "payment": {
+            "$ref": "#/components/schemas/PaymentDto"
+          },
+          "creditApplications": {
+            "description": "Aplicaciones de saldo a favor hechas en la misma operación",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentDto"
+            }
+          },
+          "installment": {
+            "$ref": "#/components/schemas/InstallmentDetailDto"
+          }
+        },
+        "required": [
+          "payment",
+          "creditApplications",
+          "installment"
+        ]
+      },
+      "ApplyCreditDto": {
+        "type": "object",
+        "properties": {
+          "creditId": {
+            "type": "string",
+            "description": "Un crédito puntual; si no, los disponibles del más viejo al más nuevo."
+          },
+          "amount": {
+            "type": "string",
+            "example": "20000.00",
+            "description": "Hasta este monto; si no, hasta cubrir la deuda."
+          }
+        }
+      },
+      "CreateLateFeeAdjustmentDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "REDUCE",
+              "WAIVE"
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "example": "5000.00",
+            "description": "Sólo REDUCE: lo que se descuenta del punitorio."
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "kind",
+          "reason"
+        ]
+      },
+      "PaymentListItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "installmentId": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string"
+          },
+          "renterId": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "paidCurrency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "description": "En paidCurrency"
+          },
+          "exchangeRate": {
+            "type": "string",
+            "nullable": true,
+            "example": "1487.5000"
+          },
+          "exchangeRateSource": {
+            "type": "string",
+            "enum": [
+              "OFFICIAL",
+              "MEP",
+              "OTHER"
+            ],
+            "nullable": true
+          },
+          "exchangeRateDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "amountInContractCurrency": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "CASH_IN",
+              "CREDIT_APPLICATION"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "TRANSFER",
+              "CASH",
+              "CREDIT",
+              "OTHER"
+            ]
+          },
+          "receivedBy": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING_CONFIRMATION",
+              "CONFIRMED",
+              "VOIDED"
+            ]
+          },
+          "lateFeeApplied": {
+            "type": "string"
+          },
+          "rentApplied": {
+            "type": "string"
+          },
+          "chargesApplied": {
+            "type": "string"
+          },
+          "creditGenerated": {
+            "type": "string"
+          },
+          "creditId": {
+            "type": "string",
+            "nullable": true
+          },
+          "receiptUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "registeredBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "confirmedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "confirmedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "voidedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "voidedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "voidReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "renter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RenterRefDto"
+              }
+            ]
+          },
+          "property": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PropertyRefDto"
+              }
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "description": "La del contrato"
+          }
+        },
+        "required": [
+          "id",
+          "installmentId",
+          "contractId",
+          "renterId",
+          "period",
+          "paidAt",
+          "paidCurrency",
+          "amount",
+          "exchangeRate",
+          "exchangeRateSource",
+          "exchangeRateDate",
+          "amountInContractCurrency",
+          "kind",
+          "method",
+          "receivedBy",
+          "status",
+          "lateFeeApplied",
+          "rentApplied",
+          "chargesApplied",
+          "creditGenerated",
+          "creditId",
+          "receiptUrl",
+          "notes",
+          "registeredBy",
+          "confirmedAt",
+          "confirmedBy",
+          "voidedAt",
+          "voidedBy",
+          "voidReason",
+          "createdAt",
+          "renter",
+          "property",
+          "currency"
+        ]
+      },
+      "CreditTotalDto": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "available": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "available"
+        ]
+      },
+      "RenterCreditDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "renterId": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "amount": {
+            "type": "string"
+          },
+          "remaining": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "APPLIED",
+              "REFUNDED",
+              "VOIDED"
+            ]
+          },
+          "originPaymentId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "refundedAt": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "refundMethod": {
+            "type": "string",
+            "enum": [
+              "TRANSFER",
+              "CASH",
+              "CREDIT",
+              "OTHER"
+            ],
+            "nullable": true
+          },
+          "refundNotes": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "renterId",
+          "contractId",
+          "currency",
+          "amount",
+          "remaining",
+          "status",
+          "originPaymentId",
+          "createdAt",
+          "refundedAt",
+          "refundMethod",
+          "refundNotes"
+        ]
+      },
+      "RenterCreditsDto": {
+        "type": "object",
+        "properties": {
+          "renterId": {
+            "type": "string"
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreditTotalDto"
+            }
+          },
+          "credits": {
+            "description": "Todos, más nuevos primero",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RenterCreditDto"
+            }
+          }
+        },
+        "required": [
+          "renterId",
+          "totals",
+          "credits"
+        ]
+      },
+      "RefundCreditDto": {
+        "type": "object",
+        "properties": {
+          "refundedAt": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-20"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "TRANSFER",
+              "CASH",
+              "CREDIT",
+              "OTHER"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "refundedAt",
+          "method"
+        ]
+      },
+      "MoneyByCurrencyDto": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "amount": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ]
+      },
+      "RenterArrearsDto": {
+        "type": "object",
+        "properties": {
+          "renterId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "UP_TO_DATE",
+              "PENDING",
+              "OVERDUE"
+            ]
+          },
+          "overdueInstallments": {
+            "type": "number"
+          },
+          "maxDaysOverdue": {
+            "type": "number"
+          },
+          "lateFeeAccrued": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyByCurrencyDto"
+            }
+          },
+          "balance": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyByCurrencyDto"
+            }
+          }
+        },
+        "required": [
+          "renterId",
+          "status",
+          "overdueInstallments",
+          "maxDaysOverdue",
+          "lateFeeAccrued",
+          "balance"
+        ]
       },
       "CreateExampleItemDto": {
         "type": "object",
