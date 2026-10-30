@@ -95,10 +95,10 @@ Totales: 365 unitarios (38 nuevos: `contract.policy.spec.ts`, `installment.polic
 ## Pendiente
 
 - **Frontend de la fase** (`/cobros`, ficha de la cuota, cuenta corriente y términos en la ficha del contrato, badge de mora, wizard): se hace en paralelo contra los DTOs de arriba.
-- **Fase 12**: consumir la cola `installment-paid`; usar `BillingFacade.collectionsByInstallment` (alquiler cobrado por quién, honorarios devengados, `feeMode`) y `ServicesFacade.pendingExpensesByContract`; devolución del depósito con deducciones (A-13); honorarios por propietario con conceptos (A-12); cuenta corriente de honorarios de la modalidad `OWNER_DIRECT`.
+- ~~**Fase 12**: consumir la cola `installment-paid`; devolución del depósito con deducciones (A-13); honorarios por propietario con conceptos (A-12); cuenta corriente de honorarios de la modalidad `OWNER_DIRECT`.~~ **Hecho en la Fase 12** (`docs/tecnica/fase-12.md`): liquidaciones consume `installment-paid`, `payment-confirmed` y `payment-voided`, y usa `BillingFacade.listSettleablePayments` / `markPaymentsSettled` / `feeTermsForInstallments` (no `collectionsByInstallment`, que queda para resúmenes) y `ServicesFacade.pendingExpensesByContract` / `markExpensesSettled`. La devolución del depósito vive en cobros (`POST /contracts/:id/deposit-return`).
 - **Fase 13**: cron de generación (`BillingFacade.generateInstallments`) el día `installment_generation_day`; recordatorios con `BillingFacade.listOverdue`.
 - **Fase 18**: `BillingFacade.arrearsByRenter` para el portal del inquilino.
-- Los honorarios no se cobran en esta fase (sólo se devengan): `feeMode` queda registrado para la Fase 12.
+- ~~Los honorarios no se cobran en esta fase (sólo se devengan): `feeMode` queda registrado para la Fase 12.~~ **Hecho en la Fase 12**: se descuentan al liquidar o nacen como honorarios a cobrar.
 - La multa de rescisión no se carga automáticamente como cargo `TERMINATION_PENALTY`: la agrega el usuario.
 - `GET /renters` sigue con `paymentStatus: null` (D-46): el frontend lo reemplaza por `GET /billing/arrears`.
 - Un `ExchangeRateProvider` (BCRA) que precargue la cotización, si Micaela lo pide (A-9).
