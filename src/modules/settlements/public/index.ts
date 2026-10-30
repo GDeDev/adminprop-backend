@@ -12,3 +12,11 @@ export {
   SettlementStatus,
   StatementStatus,
 } from '../domain/settlement'
+export {
+  SETTLEMENT_CONFIRMED_QUEUE,
+  STATEMENT_CLOSED_QUEUE,
+} from './settlement-events'
+export type {
+  SettlementConfirmedPayload,
+  StatementClosedPayload,
+} from './settlement-events'
