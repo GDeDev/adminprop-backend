@@ -5,8 +5,12 @@ import request from 'supertest'
 import { seedBaseMasterData } from '../prisma/lib/master-data-seed'
 import {
   SETTLEMENT_CONFIRMED_QUEUE,
+  STATEMENT_CLOSED_QUEUE,
   SettlementConfirmedPayload,
+  SettlementsFacade,
+  StatementClosedPayload,
 } from '../src/modules/settlements/public'
+import { RequestContext } from '../src/shared/context/request-context'
 import { QueuePort } from '../src/platform/queue/queue.port'
 import {
   addDays,
@@ -41,6 +45,12 @@ describe('Liquidaciones (e2e, Postgres)', () => {
   let refs: { tolosa: string; casa: string }
   let refsB: { tolosa: string; casa: string }
   const confirmedEvents: SettlementConfirmedPayload[] = []
+  const closedEvents: StatementClosedPayload[] = []
+
+  const inTenantA = <T>(fn: () => Promise<T>) =>
+    RequestContext.run({ correlationId: 'test' }, () =>
+      RequestContext.runInTenant(tenantA.id, fn),
+    )
 
   const api = (token: string) => ({
     get: (url: string) =>
@@ -181,10 +191,15 @@ describe('Liquidaciones (e2e, Postgres)', () => {
     forPeriod: string,
     amount = '100000',
     paidAt = day(5, forPeriod === period ? period : previous),
+    fields: Record<string, string> = {},
   ) => {
     await generate(forPeriod)
     const installment = await installmentOf(contractId, forPeriod)
-    const response = await pay(installment.id, { paidAt, amount }).expect(201)
+    const response = await pay(installment.id, {
+      paidAt,
+      amount,
+      ...fields,
+    }).expect(201)
     return {
       installmentId: installment.id as string,
       paymentId: response.body.data.payment.id as string,
@@ -268,6 +283,11 @@ describe('Liquidaciones (e2e, Postgres)', () => {
           confirmedEvents.push(m.payload)
         },
       )
+    await app
+      .get(QueuePort)
+      .consume<StatementClosedPayload>(STATEMENT_CLOSED_QUEUE, async (m) => {
+        closedEvents.push(m.payload)
+      })
   })
 
   afterAll(async () => {
@@ -714,7 +734,550 @@ describe('Liquidaciones (e2e, Postgres)', () => {
     })
   })
 
+  describe('consolidado mensual por propietario (4.7, Micaela #7)', () => {
+    /** Confirma la pendiente que dejó el listener y devuelve su id. */
+    const settleAndConfirm = async (contractId: string) => {
+      const id = await waitForDraft(contractId)
+      await api(adminToken).post(`/settlements/${id}/confirm`).expect(200)
+      return id
+    }
+
+    it('se arma a mano con liquidaciones confirmadas del propietario, se cierra con totales congelados y modo de envío, y se reabre (admin)', async () => {
+      const ownerId = await createOwner()
+      const first = await createContract({}, { ownerId })
+      const second = await createContract(
+        { currency: 'USD', initialRent: '1000', deposit: '1000' },
+        { ownerId },
+      )
+      const pending = await createContract({}, { ownerId })
+      const other = await createContract()
+      await payInstallment(first.id, previous)
+      await payInstallment(second.id, previous, '1000', undefined, {
+        paidCurrency: 'USD',
+      })
+      await payInstallment(pending.id, previous)
+      await payInstallment(other.id, previous)
+      const firstId = await settleAndConfirm(first.id)
+      const secondId = await settleAndConfirm(second.id)
+      const pendingId = await waitForDraft(pending.id)
+      const otherId = await settleAndConfirm(other.id)
+
+      const missing = await api(adminToken)
+        .post('/statements')
+        .send({ ownerId: UNKNOWN_ID, period })
+        .expect(422)
+      expect(missing.body.code).toBe('STATEMENT_INVALID_OWNER')
+      const created = await api(employeeToken)
+        .post('/statements')
+        .send({ ownerId, period })
+        .expect(201)
+      expect(created.body.data).toMatchObject({
+        owner: { id: ownerId },
+        period,
+        status: 'OPEN',
+        sendMode: 'BOTH',
+        settlementsCount: 0,
+        totals: [],
+        settlements: [],
+        closedAt: null,
+        closedBy: null,
+      })
+      const id = created.body.data.id as string
+      const taken = await api(adminToken)
+        .post('/statements')
+        .send({ ownerId, period })
+        .expect(409)
+      expect(taken.body.code).toBe('STATEMENT_PERIOD_TAKEN')
+
+      const candidates = await api(adminToken)
+        .get(`/statements/${id}/candidates`)
+        .expect(200)
+      expect(
+        candidates.body.data.map((s: { id: string }) => s.id).sort(),
+      ).toEqual([firstId, secondId].sort())
+
+      const notConfirmed = await api(adminToken)
+        .post(`/statements/${id}/settlements`)
+        .send({ settlementIds: [pendingId] })
+        .expect(409)
+      expect(notConfirmed.body.code).toBe('SETTLEMENT_NOT_CONFIRMED')
+      const mismatch = await api(adminToken)
+        .post(`/statements/${id}/settlements`)
+        .send({ settlementIds: [otherId] })
+        .expect(422)
+      expect(mismatch.body.code).toBe('SETTLEMENT_OWNER_MISMATCH')
+
+      const added = await api(adminToken)
+        .post(`/statements/${id}/settlements`)
+        .send({ settlementIds: [firstId] })
+        .expect(200)
+      expect(added.body.data).toMatchObject({ settlementsCount: 1 })
+      expect(added.body.data.totals).toEqual([
+        {
+          currency: 'ARS',
+          rentTotal: '100000.00',
+          lateFeeTotal: '0.00',
+          chargesTotal: '0.00',
+          feeTotal: '5000.00',
+          expensesTotal: '0.00',
+          adjustmentsTotal: '0.00',
+          netTotal: '95000.00',
+          transferredTotal: '0.00',
+        },
+      ])
+      expect((await detail(firstId)).statementId).toBe(id)
+
+      // Ya en otro consolidado → 409; en el mismo, idempotente.
+      const another = await api(adminToken)
+        .post('/statements')
+        .send({ ownerId, period: '2030-01' })
+        .expect(201)
+      const inOther = await api(adminToken)
+        .post(`/statements/${another.body.data.id}/settlements`)
+        .send({ settlementIds: [firstId] })
+        .expect(409)
+      expect(inOther.body.code).toBe('SETTLEMENT_ALREADY_IN_STATEMENT')
+      const again = await api(adminToken)
+        .post(`/statements/${id}/settlements`)
+        .send({ settlementIds: [firstId, secondId] })
+        .expect(200)
+      expect(again.body.data.settlementsCount).toBe(2)
+      expect(
+        again.body.data.totals.map((t: { currency: string }) => t.currency),
+      ).toEqual(['ARS', 'USD'])
+
+      const removed = await api(adminToken)
+        .delete(`/statements/${id}/settlements/${secondId}`)
+        .expect(200)
+      expect(removed.body.data.settlementsCount).toBe(1)
+      expect((await detail(secondId)).statementId).toBeNull()
+      await api(adminToken)
+        .delete(`/statements/${id}/settlements/${secondId}`)
+        .expect(404)
+
+      // Transferir parte antes de cerrar: el total transferido entra al consolidado.
+      await transfer(firstId, { amount: '20000' }).expect(201)
+
+      const closed = await api(employeeToken)
+        .post(`/statements/${id}/close`)
+        .send({ sendMode: 'SUMMARY' })
+        .expect(200)
+      expect(closed.body.data).toMatchObject({
+        status: 'CLOSED',
+        sendMode: 'SUMMARY',
+        settlementsCount: 1,
+        closedBy: { fullName: 'emp@a.com' },
+      })
+      expect(closed.body.data.closedAt).not.toBeNull()
+      expect(closed.body.data.totals[0]).toMatchObject({
+        currency: 'ARS',
+        netTotal: '95000.00',
+        transferredTotal: '20000.00',
+      })
+      expect(closed.body.data.settlements[0]).toMatchObject({
+        id: firstId,
+        transferredTotal: '20000.00',
+      })
+      await waitFor(() => closedEvents.some((e) => e.statementId === id))
+      expect(closedEvents.find((e) => e.statementId === id)).toEqual({
+        statementId: id,
+        ownerId,
+        period,
+        sendMode: 'SUMMARY',
+      })
+
+      // Cerrado: congelado. Una transferencia nueva no lo cambia.
+      await transfer(firstId, { amount: '75000' }).expect(201)
+      const frozen = await api(adminToken).get(`/statements/${id}`).expect(200)
+      expect(frozen.body.data.totals[0].transferredTotal).toBe('20000.00')
+      const notOpen = await api(adminToken)
+        .post(`/statements/${id}/settlements`)
+        .send({ settlementIds: [secondId] })
+        .expect(409)
+      expect(notOpen.body.code).toBe('STATEMENT_NOT_OPEN')
+      const twice = await api(adminToken)
+        .post(`/statements/${id}/close`)
+        .send({})
+        .expect(409)
+      expect(twice.body.code).toBe('STATEMENT_NOT_OPEN')
+
+      await api(employeeToken).post(`/statements/${id}/reopen`).expect(403)
+      const reopened = await api(adminToken)
+        .post(`/statements/${id}/reopen`)
+        .expect(200)
+      expect(reopened.body.data).toMatchObject({
+        status: 'OPEN',
+        closedAt: null,
+        closedBy: null,
+      })
+      // Abierto, los totales vuelven a estar en vivo.
+      expect(reopened.body.data.totals[0].transferredTotal).toBe('95000.00')
+      const notClosed = await api(adminToken)
+        .post(`/statements/${id}/reopen`)
+        .expect(409)
+      expect(notClosed.body.code).toBe('STATEMENT_NOT_CLOSED')
+
+      const list = await api(adminToken)
+        .get(`/statements?ownerId=${ownerId}&status=OPEN`)
+        .expect(200)
+      expect(list.body.data.pagination.total).toBe(2)
+      await api(adminToken).get(`/statements/${UNKNOWN_ID}`).expect(404)
+
+      const facade = app.get(SettlementsFacade)
+      const byOwner = await inTenantA(() => facade.statementsByOwner(ownerId))
+      expect(byOwner).toHaveLength(2)
+      const pdf = await inTenantA(() => facade.statementForPdf(id))
+      expect(pdf?.settlements[0].owner?.id).toBe(ownerId)
+      const history = await inTenantA(() => facade.listByOwner(ownerId))
+      expect(history).toHaveLength(3)
+    })
+  })
+
+  describe('cuenta de honorarios (4.8, Micaela #9B y #10)', () => {
+    it('un alquiler cobrado por el propietario devenga el honorario al confirmarse; los pagos se imputan a los más viejos y el exceso espera al siguiente', async () => {
+      const contract = await createContract({
+        collectionMode: 'OWNER_DIRECT',
+        feeMode: 'OWNER_PAYS',
+      })
+      const ownerId = contract.ownerId
+      // Punitorios en la base (Micaela #5), para ver que la regla del propietario manda.
+      await api(adminToken)
+        .patch(`/owners/${ownerId}/fee-settings`)
+        .send({ feeIncludesLateFees: true })
+        .expect(200)
+
+      await generate(previous)
+      const installment = await installmentOf(contract.id, previous)
+      const informed = await pay(installment.id, {
+        paidAt: day(5),
+        amount: '100000',
+      }).expect(201)
+      const paymentId = informed.body.data.payment.id as string
+      expect(informed.body.data.payment.status).toBe('PENDING_CONFIRMATION')
+
+      // Informado no devenga; confirmado sí.
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const before = await api(adminToken)
+        .get(`/owners/${ownerId}/fee-account`)
+        .expect(200)
+      expect(before.body.data).toMatchObject({
+        ownerId,
+        totals: [],
+        receivables: [],
+        payments: [],
+        movements: [],
+      })
+      await api(adminToken)
+        .post(`/billing/payments/${paymentId}/confirm`)
+        .expect(200)
+      await waitFor(
+        async () =>
+          (
+            await api(adminToken)
+              .get(`/fee-receivables?ownerId=${ownerId}`)
+              .expect(200)
+          ).body.data.pagination.total === 1,
+      )
+      const receivables = await api(adminToken)
+        .get(`/fee-receivables?ownerId=${ownerId}&status=PENDING`)
+        .expect(200)
+      const receivable = receivables.body.data.data[0]
+      expect(receivable).toMatchObject({
+        owner: { id: ownerId },
+        contract: { id: contract.id },
+        property: { id: contract.propertyId },
+        installmentPeriod: previous,
+        currency: 'ARS',
+        source: 'OWNER_DIRECT_PAYMENT',
+        payer: 'OWNER',
+        amount: '5000.00',
+        paidAmount: '0.00',
+        status: 'PENDING',
+        feePercentage: '5.00',
+        feeAmountFixed: null,
+        baseAmount: '100000.00',
+        needsReview: false,
+      })
+      const account = await api(adminToken)
+        .get(`/owners/${ownerId}/fee-account`)
+        .expect(200)
+      expect(account.body.data.totals).toEqual([
+        {
+          currency: 'ARS',
+          accrued: '5000.00',
+          collected: '0.00',
+          pending: '5000.00',
+          unallocated: '0.00',
+        },
+      ])
+
+      // Pago parcial del propietario, con comprobante.
+      const feePay = (fields: Record<string, string>, token = adminToken) => {
+        const req = api(token).post('/fee-payments')
+        for (const [key, value] of Object.entries({
+          ownerId,
+          paidAt: today,
+          currency: 'ARS',
+          method: 'TRANSFER',
+          paidBy: 'OWNER',
+          ...fields,
+        })) {
+          req.field(key, value)
+        }
+        return req.attach('file', PDF, {
+          filename: 'comprobante.pdf',
+          contentType: 'application/pdf',
+        })
+      }
+      const partial = await feePay({ amount: '3000' }, employeeToken).expect(
+        201,
+      )
+      expect(partial.body.data).toMatchObject({
+        ownerId,
+        contractId: null,
+        paidAt: today,
+        amount: '3000.00',
+        currency: 'ARS',
+        method: 'TRANSFER',
+        paidBy: 'OWNER',
+        unallocatedAmount: '0.00',
+        registeredBy: { fullName: 'emp@a.com' },
+        voidedAt: null,
+        allocations: [{ feeReceivableId: receivable.id, amount: '3000.00' }],
+      })
+      expect(partial.body.data.receiptUrl).toContain('fee-payments/')
+      const bad = await feePay({ amount: '0' }).expect(400)
+      expect(bad.body.code).toBe('FEE_PAYMENT_INVALID_AMOUNT')
+      const badOwner = await feePay({
+        ownerId: UNKNOWN_ID,
+        amount: '1',
+      }).expect(422)
+      expect(badOwner.body.code).toBe('FEE_PAYMENT_INVALID_OWNER')
+      const badContract = await feePay({
+        contractId: UNKNOWN_ID,
+        amount: '1',
+      }).expect(422)
+      expect(badContract.body.code).toBe('FEE_PAYMENT_INVALID_CONTRACT')
+
+      // Cubre el resto y sobran 2.000 sin imputar.
+      const rest = await feePay({ amount: '4000', paidBy: 'RENTER' }).expect(
+        201,
+      )
+      expect(rest.body.data).toMatchObject({
+        unallocatedAmount: '2000.00',
+        allocations: [{ feeReceivableId: receivable.id, amount: '2000.00' }],
+      })
+      const paid = await api(adminToken)
+        .get(`/fee-receivables?ownerId=${ownerId}&status=PAID`)
+        .expect(200)
+      expect(paid.body.data.data[0]).toMatchObject({
+        id: receivable.id,
+        paidAmount: '5000.00',
+      })
+      const afterPayments = await api(adminToken)
+        .get(`/owners/${ownerId}/fee-account`)
+        .expect(200)
+      expect(afterPayments.body.data.totals[0]).toEqual({
+        currency: 'ARS',
+        accrued: '5000.00',
+        collected: '5000.00',
+        pending: '0.00',
+        unallocated: '2000.00',
+      })
+      expect(
+        afterPayments.body.data.movements.map(
+          (m: { type: string; balance: string }) => [m.type, m.balance],
+        ),
+      ).toEqual([
+        ['ACCRUED', '5000.00'],
+        ['PAYMENT', '2000.00'],
+        ['PAYMENT', '-2000.00'],
+      ])
+
+      // El próximo honorario devengado toma solo los 2.000 que sobraban.
+      await generate(period)
+      const next = await installmentOf(contract.id, period)
+      const nextPaid = await pay(next.id, {
+        paidAt: today,
+        amount: '100000',
+      }).expect(201)
+      await api(adminToken)
+        .post(`/billing/payments/${nextPaid.body.data.payment.id}/confirm`)
+        .expect(200)
+      await waitFor(
+        async () =>
+          (
+            await api(adminToken)
+              .get(`/fee-receivables?ownerId=${ownerId}&status=PARTIAL`)
+              .expect(200)
+          ).body.data.pagination.total === 1,
+      )
+      const second = (
+        await api(adminToken)
+          .get(`/fee-receivables?ownerId=${ownerId}&status=PARTIAL`)
+          .expect(200)
+      ).body.data.data[0]
+      expect(second).toMatchObject({
+        installmentPeriod: period,
+        amount: '5000.00',
+        paidAmount: '2000.00',
+      })
+      const restPayment = await api(adminToken)
+        .get(`/owners/${ownerId}/fee-account`)
+        .expect(200)
+      const restView = restPayment.body.data.payments.find(
+        (p: { id: string }) => p.id === rest.body.data.id,
+      )
+      expect(restView).toMatchObject({ unallocatedAmount: '0.00' })
+      expect(restView.allocations).toHaveLength(2)
+
+      // Anular el segundo pago (admin) devuelve ambos receivables a lo que debían.
+      await api(employeeToken)
+        .post(`/fee-payments/${rest.body.data.id}/void`)
+        .send({ reason: 'x' })
+        .expect(403)
+      const voided = await api(adminToken)
+        .post(`/fee-payments/${rest.body.data.id}/void`)
+        .send({ reason: 'Rebotó' })
+        .expect(200)
+      expect(voided.body.data).toMatchObject({
+        voidReason: 'Rebotó',
+        unallocatedAmount: '0.00',
+      })
+      expect(voided.body.data.voidedAt).not.toBeNull()
+      const twice = await api(adminToken)
+        .post(`/fee-payments/${rest.body.data.id}/void`)
+        .send({ reason: 'otra' })
+        .expect(409)
+      expect(twice.body.code).toBe('FEE_PAYMENT_ALREADY_VOIDED')
+      const afterVoid = await api(adminToken)
+        .get(`/owners/${ownerId}/fee-account`)
+        .expect(200)
+      expect(afterVoid.body.data.totals[0]).toEqual({
+        currency: 'ARS',
+        accrued: '10000.00',
+        collected: '3000.00',
+        pending: '7000.00',
+        unallocated: '0.00',
+      })
+      expect(
+        afterVoid.body.data.receivables.map(
+          (r: { status: string; paidAmount: string }) => [
+            r.status,
+            r.paidAmount,
+          ],
+        ),
+      ).toEqual([
+        ['PENDING', '0.00'],
+        ['PARTIAL', '3000.00'],
+      ])
+
+      // Un pago con saldo sin imputar se aplica a mano cuando hay pendientes.
+      const big = await feePay({ amount: '20000' }).expect(201)
+      expect(big.body.data.unallocatedAmount).toBe('13000.00')
+      const allocated = await api(adminToken)
+        .post(`/fee-payments/${big.body.data.id}/allocate`)
+        .expect(200)
+      expect(allocated.body.data.unallocatedAmount).toBe('13000.00')
+
+      // Anular el pago del inquilino que originó el segundo honorario: ya
+      // tiene cobros, así que queda para revisión en vez de anularse.
+      await api(adminToken)
+        .post(`/billing/payments/${nextPaid.body.data.payment.id}/void`)
+        .send({ reason: 'Error de carga' })
+        .expect(200)
+      await waitFor(async () =>
+        (
+          await api(adminToken).get(`/fee-receivables?ownerId=${ownerId}`)
+        ).body.data.data.some((r: { needsReview: boolean }) => r.needsReview),
+      )
+
+      const facade = app.get(SettlementsFacade)
+      expect(await inTenantA(() => facade.feeAccountSummary(ownerId))).toEqual([
+        {
+          currency: 'ARS',
+          accrued: '10000.00',
+          collected: '10000.00',
+          pending: '0.00',
+          unallocated: '13000.00',
+        },
+      ])
+      await api(adminToken).get(`/owners/${UNKNOWN_ID}/fee-account`).expect(422)
+    })
+
+    it('un honorario sin cobros se anula cuando se anula el pago que lo generó', async () => {
+      const contract = await createContract({
+        collectionMode: 'OWNER_DIRECT',
+        feeMode: 'OWNER_PAYS',
+      })
+      await generate(previous)
+      const installment = await installmentOf(contract.id, previous)
+      const informed = await pay(installment.id, {
+        paidAt: day(5),
+        amount: '100000',
+      }).expect(201)
+      const paymentId = informed.body.data.payment.id as string
+      await api(adminToken)
+        .post(`/billing/payments/${paymentId}/confirm`)
+        .expect(200)
+      await waitFor(
+        async () =>
+          (
+            await api(adminToken).get(
+              `/fee-receivables?contractId=${contract.id}`,
+            )
+          ).body.data.pagination.total === 1,
+      )
+      await api(adminToken)
+        .post(`/billing/payments/${paymentId}/void`)
+        .send({ reason: 'Nunca llegó' })
+        .expect(200)
+      await waitFor(
+        async () =>
+          (
+            await api(adminToken).get(
+              `/fee-receivables?contractId=${contract.id}&status=VOIDED`,
+            )
+          ).body.data.pagination.total === 1,
+      )
+      const account = await api(adminToken)
+        .get(`/owners/${contract.ownerId}/fee-account`)
+        .expect(200)
+      expect(account.body.data.totals[0]).toMatchObject({
+        accrued: '0.00',
+        pending: '0.00',
+      })
+      expect(
+        account.body.data.movements.map((m: { type: string }) => m.type),
+      ).toEqual(['ACCRUED', 'RECEIVABLE_VOIDED'])
+    })
+  })
+
   describe('aislamiento entre inmobiliarias', () => {
+    it('otra inmobiliaria no ve consolidados ni la cuenta de honorarios ajenos', async () => {
+      const contract = await createContract()
+      const created = await api(adminToken)
+        .post('/statements')
+        .send({ ownerId: contract.ownerId, period })
+        .expect(201)
+      const b = api(adminBToken)
+      await b.get(`/statements/${created.body.data.id}`).expect(404)
+      await b
+        .post(`/statements/${created.body.data.id}/close`)
+        .send({})
+        .expect(404)
+      const foreignOwner = await b
+        .post('/statements')
+        .send({ ownerId: contract.ownerId, period })
+        .expect(422)
+      expect(foreignOwner.body.code).toBe('STATEMENT_INVALID_OWNER')
+      await b.get(`/owners/${contract.ownerId}/fee-account`).expect(422)
+      const list = await b.get('/statements').expect(200)
+      expect(list.body.data.pagination.total).toBe(0)
+      const receivables = await b.get('/fee-receivables').expect(200)
+      expect(receivables.body.data.pagination.total).toBe(0)
+    })
+
     it('otra inmobiliaria no ve, no crea, no ajusta ni confirma liquidaciones ajenas', async () => {
       const contract = await createContract()
       await payInstallment(contract.id, previous)

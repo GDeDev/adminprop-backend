@@ -59,6 +59,7 @@ export interface SettlementFilter {
   statuses?: SettlementStatus[]
   /** `null` = sin consolidado. */
   statementId?: string | null
+  statementIds?: string[]
 }
 
 export interface SettlementChanges extends Partial<SettlementTotals> {

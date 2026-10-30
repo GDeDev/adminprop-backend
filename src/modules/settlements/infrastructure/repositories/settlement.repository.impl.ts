@@ -234,5 +234,8 @@ function toWhere(filter: SettlementFilter): Prisma.SettlementWhereInput {
     ...(filter.statementId !== undefined
       ? { statementId: filter.statementId }
       : {}),
+    ...(filter.statementIds
+      ? { statementId: { in: filter.statementIds } }
+      : {}),
   }
 }

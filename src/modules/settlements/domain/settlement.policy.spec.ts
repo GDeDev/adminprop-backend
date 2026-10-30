@@ -334,4 +334,44 @@ describe('SettlementPolicy', () => {
       )
     })
   })
+
+  describe('consolidado (4.7)', () => {
+    it('suma las liquidaciones por moneda sin mezclar', () => {
+      const base = {
+        rentTotal: '100000.00',
+        lateFeeTotal: '1000.00',
+        ownerChargesTotal: '500.00',
+        feeTotal: '5000.00',
+        expensesTotal: '200.00',
+        adjustmentsTotal: '-100.00',
+        netAmount: '96200.00',
+        transferredTotal: '96200.00',
+      }
+      expect(
+        SettlementPolicy.statementTotals([
+          { currency: Currency.ARS, ...base },
+          {
+            currency: Currency.ARS,
+            ...base,
+            netAmount: '-5.00',
+            transferredTotal: '0.00',
+          },
+          { currency: Currency.USD, ...base, rentTotal: '1000.00' },
+        ]),
+      ).toEqual([
+        {
+          currency: 'ARS',
+          rentTotal: '200000.00',
+          lateFeeTotal: '2000.00',
+          chargesTotal: '1000.00',
+          feeTotal: '10000.00',
+          expensesTotal: '400.00',
+          adjustmentsTotal: '-200.00',
+          netTotal: '96195.00',
+          transferredTotal: '96200.00',
+        },
+        expect.objectContaining({ currency: 'USD', rentTotal: '1000.00' }),
+      ])
+    })
+  })
 })

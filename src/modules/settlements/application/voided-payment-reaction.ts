@@ -5,10 +5,16 @@ import { createLogger } from '@/shared/logging/root-logger'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import {
   isConfirmed,
+  Settlement,
   SettlementAdjustmentConcept,
   SettlementStatus,
 } from '../domain/settlement'
-import { SettlementRepository } from '../domain/settlement.ports'
+import {
+  FeeReceivableRepository,
+  SettlementRepository,
+} from '../domain/settlement.ports'
+import { FeeReceivableStatus } from '../domain/settlement'
+import { compareMoney } from '@/shared/money'
 import { SettlementPolicy } from '../domain/settlement.policy'
 import { SettlementDrafts } from './settlement-drafts'
 
@@ -25,11 +31,13 @@ export class VoidedPaymentReaction {
 
   constructor(
     private readonly settlements: SettlementRepository,
+    private readonly receivables: FeeReceivableRepository,
     private readonly drafts: SettlementDrafts,
     private readonly prisma: PrismaService,
   ) {}
 
   async handle(payload: PaymentVoidedPayload): Promise<void> {
+    await this.voidReceivable(payload)
     if (!payload.settlementId) return
     const settlement = await this.settlements.findById(payload.settlementId)
     if (!settlement) {
@@ -45,6 +53,36 @@ export class VoidedPaymentReaction {
     }
     if (!isConfirmed(settlement)) return
 
+    await this.deductInNextDraft(settlement, payload)
+  }
+
+  /**
+   * El honorario devengado por un pago cobrado por el propietario (4.8): se
+   * anula si no tiene cobros; si los tiene, queda marcado para revisión.
+   */
+  private async voidReceivable(payload: PaymentVoidedPayload): Promise<void> {
+    const receivable = await this.receivables.findByOriginPayment(
+      payload.paymentId,
+    )
+    if (!receivable || receivable.status === FeeReceivableStatus.VOIDED) return
+    if (compareMoney(receivable.paidAmount, '0') > 0) {
+      this.logger.warn(
+        { receivableId: receivable.id, paymentId: payload.paymentId },
+        'Se anuló un pago cuyo honorario ya tiene cobros: queda para revisión manual',
+      )
+      await this.receivables.update(receivable.id, { needsReview: true })
+      return
+    }
+    await this.receivables.update(receivable.id, {
+      status: FeeReceivableStatus.VOIDED,
+      voidedAt: new Date(),
+    })
+  }
+
+  private async deductInNextDraft(
+    settlement: Settlement,
+    payload: PaymentVoidedPayload,
+  ): Promise<void> {
     const line = settlement.payments.find(
       (p) => p.paymentId === payload.paymentId,
     )

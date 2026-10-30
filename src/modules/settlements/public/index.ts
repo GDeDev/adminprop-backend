@@ -4,6 +4,22 @@
  * 15) y el dashboard (Fase 19) entran por la facade.
  */
 export { SettlementsModule } from '../infrastructure/modules/settlements.module'
+export { SettlementsFacade } from './settlements.facade'
+export type {
+  SettlementDetailView,
+  SettlementSummaryView,
+} from '../application/settlement.views'
+export type {
+  OwnerStatementDetailView,
+  OwnerStatementSummaryView,
+} from '../application/statement.views'
+export type {
+  FeePaymentView,
+  FeeReceivableView,
+  OwnerFeeAccountView,
+} from '../application/fee.views'
+export type { FeeAccountTotals, FeeMovement } from '../domain/fee.policy'
+export { FeeMovementType } from '../domain/fee.policy'
 export {
   FeePayer,
   FeeReceivableSource,

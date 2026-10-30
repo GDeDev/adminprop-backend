@@ -23,6 +23,7 @@ import {
   FeeMode,
   isConfirmed,
   OwnerFeeRules,
+  OwnerStatementTotals,
   PendingExpense,
   Settlement,
   SettlementAdjustment,
@@ -338,6 +339,44 @@ export const SettlementPolicy = {
       voided.lateFeeApplied,
       voided.ownerChargesApplied,
     ])
+  },
+
+  /**
+   * Totales del consolidado por moneda (3.2, 4.7): suma de sus liquidaciones
+   * sin mezclar monedas. Los cargos son los del propietario; los honorarios
+   * se informan se descuenten o no.
+   */
+  statementTotals(
+    settlements: Pick<
+      Settlement,
+      | 'currency'
+      | 'rentTotal'
+      | 'lateFeeTotal'
+      | 'ownerChargesTotal'
+      | 'feeTotal'
+      | 'expensesTotal'
+      | 'adjustmentsTotal'
+      | 'netAmount'
+      | 'transferredTotal'
+    >[],
+  ): OwnerStatementTotals[] {
+    const currencies = [...new Set(settlements.map((s) => s.currency))].sort()
+    return currencies.map((currency) => {
+      const group = settlements.filter((s) => s.currency === currency)
+      const total = (pick: (s: (typeof group)[number]) => string) =>
+        sum(group.map(pick))
+      return {
+        currency,
+        rentTotal: total((s) => s.rentTotal),
+        lateFeeTotal: total((s) => s.lateFeeTotal),
+        chargesTotal: total((s) => s.ownerChargesTotal),
+        feeTotal: total((s) => s.feeTotal),
+        expensesTotal: total((s) => s.expensesTotal),
+        adjustmentsTotal: total((s) => s.adjustmentsTotal),
+        netTotal: total((s) => s.netAmount),
+        transferredTotal: total((s) => s.transferredTotal),
+      }
+    })
   },
 
   activeAdjustments,

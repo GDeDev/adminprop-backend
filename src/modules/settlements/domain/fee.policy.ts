@@ -242,7 +242,7 @@ export const FeePolicy = {
       payment: (p: FeePayment) => string
     },
   ): FeeMovement[] {
-    type Draft = Omit<FeeMovement, 'balance'> & { order: number }
+    type Draft = Omit<FeeMovement, 'balance'> & { order: number; stamp: number }
     const drafts: Draft[] = []
     const day = (d: Date) => d.toISOString().slice(0, 10)
     for (const r of receivables) {
@@ -254,6 +254,7 @@ export const FeePolicy = {
         credit: null,
         currency: r.currency,
         order: 0,
+        stamp: r.createdAt.getTime(),
       })
       if (r.status === FeeReceivableStatus.VOIDED && r.voidedAt) {
         drafts.push({
@@ -264,6 +265,7 @@ export const FeePolicy = {
           credit: r.amount,
           currency: r.currency,
           order: 3,
+          stamp: r.voidedAt.getTime(),
         })
       }
     }
@@ -276,6 +278,7 @@ export const FeePolicy = {
         credit: p.amount,
         currency: p.currency,
         order: 1,
+        stamp: p.createdAt.getTime(),
       })
       if (p.voidedAt) {
         drafts.push({
@@ -286,12 +289,18 @@ export const FeePolicy = {
           credit: null,
           currency: p.currency,
           order: 2,
+          stamp: p.voidedAt.getTime(),
         })
       }
     }
-    drafts.sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order)
+    // Mismo día: por hora de alta, así dos pagos del mismo día salen en el
+    // orden en que se cargaron.
+    drafts.sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) || a.stamp - b.stamp || a.order - b.order,
+    )
     const running = new Map<Currency, string>()
-    return drafts.map(({ order: _order, ...draft }) => {
+    return drafts.map(({ order: _order, stamp: _stamp, ...draft }) => {
       const previous = running.get(draft.currency) ?? ZERO
       const balance = toMoneyString(
         subtractMoney(

@@ -20,7 +20,30 @@ import {
   RelaySettlementConfirmedHandler,
   RelayStatementClosedHandler,
 } from '@/modules/settlements/application/events/settlement-events'
+import {
+  AllocateFeePaymentHandler,
+  RegisterFeePaymentHandler,
+  VoidFeePaymentHandler,
+} from '@/modules/settlements/application/commands/fee.handlers'
+import {
+  AddStatementSettlementsHandler,
+  CloseStatementHandler,
+  CreateStatementHandler,
+  RemoveStatementSettlementHandler,
+  ReopenStatementHandler,
+} from '@/modules/settlements/application/commands/statement.handlers'
 import { FeeAccountService } from '@/modules/settlements/application/fee-account.service'
+import { FeeViews } from '@/modules/settlements/application/fee.views'
+import { OwnerDirectFeeReaction } from '@/modules/settlements/application/owner-direct-fee-reaction'
+import {
+  GetOwnerFeeAccountHandler,
+  GetStatementHandler,
+  ListFeeReceivablesHandler,
+  ListStatementCandidatesHandler,
+  ListStatementsHandler,
+} from '@/modules/settlements/application/queries/statement.queries'
+import { StatementViews } from '@/modules/settlements/application/statement.views'
+import { SettlementsFacade } from '@/modules/settlements/public/settlements.facade'
 import {
   GetSettlementHandler,
   ListSettlementsHandler,
@@ -36,7 +59,9 @@ import {
   SettlementRepository,
 } from '@/modules/settlements/domain/settlement.ports'
 import { BillingEventsConsumer } from '../consumers/billing-events.consumer'
+import { FeesController } from '../http/controllers/fees.controller'
 import { SettlementsController } from '../http/controllers/settlements.controller'
+import { StatementsController } from '../http/controllers/statements.controller'
 import {
   FeePaymentRepositoryImpl,
   FeeReceivableRepositoryImpl,
@@ -59,7 +84,7 @@ import { SettlementRepositoryImpl } from '../repositories/settlement.repository.
     PropertiesModule,
     RentersModule,
   ],
-  controllers: [SettlementsController],
+  controllers: [SettlementsController, StatementsController, FeesController],
   providers: [
     { provide: SettlementRepository, useClass: SettlementRepositoryImpl },
     {
@@ -71,9 +96,13 @@ import { SettlementRepositoryImpl } from '../repositories/settlement.repository.
     SettlementReferences,
     SettlementDrafts,
     SettlementViews,
+    StatementViews,
+    FeeViews,
     FeeAccountService,
     VoidedPaymentReaction,
+    OwnerDirectFeeReaction,
     BillingEventsConsumer,
+    SettlementsFacade,
     CreateSettlementHandler,
     RecalculateSettlementHandler,
     CreateSettlementAdjustmentHandler,
@@ -86,6 +115,20 @@ import { SettlementRepositoryImpl } from '../repositories/settlement.repository.
     RelayStatementClosedHandler,
     ListSettlementsHandler,
     GetSettlementHandler,
+    CreateStatementHandler,
+    AddStatementSettlementsHandler,
+    RemoveStatementSettlementHandler,
+    CloseStatementHandler,
+    ReopenStatementHandler,
+    RegisterFeePaymentHandler,
+    VoidFeePaymentHandler,
+    AllocateFeePaymentHandler,
+    ListStatementsHandler,
+    GetStatementHandler,
+    ListStatementCandidatesHandler,
+    ListFeeReceivablesHandler,
+    GetOwnerFeeAccountHandler,
   ],
+  exports: [SettlementsFacade],
 })
 export class SettlementsModule {}
