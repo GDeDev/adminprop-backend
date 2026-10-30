@@ -4158,6 +4158,83 @@
         ]
       }
     },
+    "/api/v1/owners/{id}/fee-settings": {
+      "patch": {
+        "description": "Override del % de honorarios (null = regla por umbral de la inmobiliaria), qué conceptos cobrados entran en la base además del alquiler, y qué se le manda al cerrar el consolidado. Lo que no viene no cambia.",
+        "operationId": "OwnersController_updateFeeSettings_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOwnerFeeSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "% inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Honorarios y modo de envío (sólo admin)",
+        "tags": [
+          "Owners"
+        ]
+      }
+    },
     "/api/v1/owners/{id}/portal-credentials": {
       "post": {
         "description": "Devuelve la contraseña una sola vez. Regenerarla invalida la anterior.",
@@ -7353,6 +7430,93 @@
         ]
       }
     },
+    "/api/v1/contracts/{contractId}/deposit-return": {
+      "post": {
+        "description": "Sólo contratos finalizados, rescindidos o activos con el fin ya pasado, y una sola vez. `returnedAmount + Σ deducciones` tiene que ser el depósito. Una deducción DEBT con cuota crea un pago DEPOSIT sobre ella.",
+        "operationId": "InstallmentsController_returnDeposit_api/v1",
+        "parameters": [
+          {
+            "name": "contractId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDepositReturnDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepositReturnDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No cierra con el depósito, fecha o deducción inválidas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Contrato vigente o depósito ya devuelto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "El contrato no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Devolver el depósito en garantía",
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
     "/api/v1/billing/installments/{id}/charges": {
       "post": {
         "description": "Expensas, multa de rescisión u otro concepto, en la moneda de la cuota. Sólo sobre una cuota no saldada. No devenga punitorio.",
@@ -8330,6 +8494,2019 @@
         "summary": "Mora por inquilino",
         "tags": [
           "Billing"
+        ]
+      }
+    },
+    "/api/v1/settlements": {
+      "post": {
+        "description": "Toma los pagos cobrados por la inmobiliaria sin liquidar, los gastos adelantados pendientes en la moneda del contrato y calcula los honorarios cuota por cuota. Una sola pendiente por contrato.",
+        "operationId": "SettlementsController_create_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSettlementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya hay una pendiente, o no hay nada que liquidar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "El contrato no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Crear la liquidación pendiente de un contrato",
+        "tags": [
+          "Settlements"
+        ]
+      },
+      "get": {
+        "description": "Filtros por propietario, propiedad, contrato, mes y estado.",
+        "operationId": "SettlementsController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "ownerId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "propertyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contractId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "CONFIRMED",
+                "TRANSFERRED",
+                "CANCELLED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liquidaciones de la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/SettlementSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar liquidaciones",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/owners/{ownerId}/settlements": {
+      "get": {
+        "description": "Ficha del propietario y portal (Fase 17).",
+        "operationId": "SettlementsController_listByOwner_api/v1",
+        "parameters": [
+          {
+            "name": "ownerId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "CONFIRMED",
+                "TRANSFERRED",
+                "CANCELLED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liquidaciones del propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/SettlementSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Historial de liquidaciones de un propietario",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/settlements/{id}": {
+      "get": {
+        "description": "Pagos incluidos con su cuota, gastos, honorarios con base y modalidad, ajustes, transferencias y consolidado.",
+        "operationId": "SettlementsController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ficha de la liquidación",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/settlements/{id}/recalculate": {
+      "post": {
+        "description": "Vuelve a tomar pagos y gastos; los ajustes manuales se conservan.",
+        "operationId": "SettlementsController_recalculate_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No está pendiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Recalcular una liquidación pendiente",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/settlements/{id}/adjustments": {
+      "post": {
+        "description": "Sólo sobre una pendiente. El monto es positivo; el concepto da el signo.",
+        "operationId": "SettlementsController_addAdjustment_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSettlementAdjustmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No está pendiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Agregar una retención, un adelanto u otro ajuste",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/settlements/adjustments/{id}/void": {
+      "post": {
+        "description": "Sólo mientras la liquidación está pendiente.",
+        "operationId": "SettlementsController_voidAdjustment_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya anulado o liquidación no pendiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anular un ajuste",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/settlements/{id}/confirm": {
+      "post": {
+        "description": "Congela los números, marca los pagos y los gastos como liquidados y, si los honorarios no se descuentan, los devenga en la cuenta del propietario. Inmutable desde ahí.",
+        "operationId": "SettlementsController_confirm_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No está pendiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirmar la liquidación",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/settlements/{id}/cancel": {
+      "post": {
+        "description": "Libera sus pagos y gastos para la próxima liquidación del contrato.",
+        "operationId": "SettlementsController_cancel_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No está pendiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cancelar una liquidación pendiente (sólo admin)",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/settlements/{id}/transfers": {
+      "post": {
+        "description": "Multipart. Sólo sobre una confirmada o transferida; la suma no puede superar el neto. Al cubrirlo, la liquidación pasa a TRANSFERRED.",
+        "operationId": "SettlementsController_registerTransfer_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "transferredAt",
+                  "amount",
+                  "method"
+                ],
+                "properties": {
+                  "transferredAt": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "amount": {
+                    "type": "string",
+                    "example": "95000.00"
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "TRANSFER",
+                      "CASH",
+                      "OTHER"
+                    ]
+                  },
+                  "notes": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Monto, fecha o comprobante inválidos, o supera el neto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No está confirmada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Registrar una transferencia al propietario",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/settlements/transfers/{id}/void": {
+      "post": {
+        "description": "Resta del total transferido; la liquidación puede volver a CONFIRMED (A-18).",
+        "operationId": "SettlementsController_voidTransfer_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya anulada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anular una transferencia (sólo admin)",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/statements": {
+      "post": {
+        "description": "Nace abierto y vacío, con el modo de envío del propietario. Uno por propietario y mes.",
+        "operationId": "StatementsController_create_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOwnerStatementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerStatementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya hay uno para ese mes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "El propietario no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Abrir el consolidado del mes de un propietario",
+        "tags": [
+          "Settlements"
+        ]
+      },
+      "get": {
+        "operationId": "StatementsController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "ownerId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OPEN",
+                "CLOSED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consolidados de la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/OwnerStatementSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar consolidados",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/statements/{id}": {
+      "get": {
+        "description": "Sus liquidaciones con alquiler, punitorios, cargos, honorarios, gastos, ajustes, neto y transferido, y los totales por moneda.",
+        "operationId": "StatementsController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerStatementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ficha del consolidado",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/statements/{id}/candidates": {
+      "get": {
+        "description": "Confirmadas o transferidas, sin consolidado.",
+        "operationId": "StatementsController_candidates_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SettlementSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Liquidaciones del propietario que se pueden agregar",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/statements/{id}/settlements": {
+      "post": {
+        "description": "Sólo confirmadas o transferidas, del mismo propietario y sin consolidado.",
+        "operationId": "StatementsController_addSettlements_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddStatementSettlementsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerStatementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cerrado, no confirmada o ya consolidada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "De otro propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Agregar liquidaciones al consolidado",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/statements/{id}/settlements/{settlementId}": {
+      "delete": {
+        "operationId": "StatementsController_removeSettlement_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "settlementId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerStatementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cerrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Quitar una liquidación del consolidado (sólo abierto)",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/statements/{id}/close": {
+      "post": {
+        "description": "Congela los totales por moneda y el modo de envío; emite el evento para el email y el PDF.",
+        "operationId": "StatementsController_close_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseOwnerStatementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerStatementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya cerrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cerrar el consolidado",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/statements/{id}/reopen": {
+      "post": {
+        "operationId": "StatementsController_reopen_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerStatementDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya abierto",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reabrir un consolidado cerrado (sólo admin)",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/fee-receivables": {
+      "get": {
+        "description": "Filtros por propietario, contrato y estado. Más nuevos primero.",
+        "operationId": "FeesController_listReceivables_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "ownerId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contractId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "PARTIAL",
+                "PAID",
+                "VOIDED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Honorarios devengados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/FeeReceivableDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Honorarios a cobrar",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/owners/{ownerId}/fee-account": {
+      "get": {
+        "description": "Devengado, cobrado, pendiente y sin imputar por moneda; receivables, pagos y movimientos cronológicos.",
+        "operationId": "FeesController_account_api/v1",
+        "parameters": [
+          {
+            "name": "ownerId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerFeeAccountDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "El propietario no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cuenta de honorarios de un propietario",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/fee-payments": {
+      "post": {
+        "description": "Multipart. Lo paga el propietario o el inquilino por su cuenta. Se imputa a los honorarios pendientes más viejos (del contrato, si viene) en esa moneda; el exceso queda sin imputar.",
+        "operationId": "FeesController_registerPayment_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ownerId",
+                  "paidAt",
+                  "amount",
+                  "currency",
+                  "method",
+                  "paidBy"
+                ],
+                "properties": {
+                  "ownerId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "contractId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "paidAt": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "amount": {
+                    "type": "string",
+                    "example": "5000.00"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "ARS",
+                      "USD"
+                    ]
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "TRANSFER",
+                      "CASH",
+                      "OTHER"
+                    ]
+                  },
+                  "paidBy": {
+                    "type": "string",
+                    "enum": [
+                      "OWNER",
+                      "RENTER"
+                    ]
+                  },
+                  "notes": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeePaymentDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Monto, fecha o comprobante inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Propietario o contrato inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Registrar un pago de honorarios",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/fee-payments/{id}/void": {
+      "post": {
+        "description": "Deshace sus imputaciones: los honorarios vuelven a estar pendientes.",
+        "operationId": "FeesController_voidPayment_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeePaymentDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya anulado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anular un pago de honorarios (sólo admin)",
+        "tags": [
+          "Settlements"
+        ]
+      }
+    },
+    "/api/v1/fee-payments/{id}/allocate": {
+      "post": {
+        "description": "A los honorarios pendientes de hoy del propietario (y del contrato, si el pago vino con uno).",
+        "operationId": "FeesController_allocate_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeePaymentDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Anulado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Imputar el saldo sin asignar de un pago",
+        "tags": [
+          "Settlements"
         ]
       }
     },
@@ -9914,6 +12091,36 @@
           "holder"
         ]
       },
+      "OwnerFeeSettingsDto": {
+        "type": "object",
+        "properties": {
+          "feePercentage": {
+            "type": "string",
+            "nullable": true,
+            "example": "4.50"
+          },
+          "feeIncludesLateFees": {
+            "type": "boolean"
+          },
+          "feeIncludesCharges": {
+            "type": "boolean"
+          },
+          "statementSendMode": {
+            "type": "string",
+            "enum": [
+              "SUMMARY",
+              "RECEIPTS",
+              "BOTH"
+            ]
+          }
+        },
+        "required": [
+          "feePercentage",
+          "feeIncludesLateFees",
+          "feeIncludesCharges",
+          "statementSendMode"
+        ]
+      },
       "OwnerPropertyDto": {
         "type": "object",
         "properties": {
@@ -10003,6 +12210,9 @@
           "bankAccount": {
             "$ref": "#/components/schemas/BankAccountViewDto"
           },
+          "feeSettings": {
+            "$ref": "#/components/schemas/OwnerFeeSettingsDto"
+          },
           "properties": {
             "type": "array",
             "items": {
@@ -10027,6 +12237,7 @@
           "address",
           "notes",
           "bankAccount",
+          "feeSettings",
           "properties"
         ]
       },
@@ -10141,6 +12352,33 @@
             "type": "string",
             "nullable": true,
             "maxLength": 5000
+          }
+        }
+      },
+      "UpdateOwnerFeeSettingsDto": {
+        "type": "object",
+        "properties": {
+          "feePercentage": {
+            "type": "string",
+            "nullable": true,
+            "example": "4.50",
+            "description": "Override del % de honorarios. Null vuelve a la regla por umbral de la inmobiliaria."
+          },
+          "feeIncludesLateFees": {
+            "type": "boolean",
+            "description": "Los punitorios cobrados entran en la base del honorario."
+          },
+          "feeIncludesCharges": {
+            "type": "boolean",
+            "description": "Los cargos del propietario (multa, otros) entran en la base. Los cargos SERVICE nunca."
+          },
+          "statementSendMode": {
+            "type": "string",
+            "enum": [
+              "SUMMARY",
+              "RECEIPTS",
+              "BOTH"
+            ]
           }
         }
       },
@@ -13302,7 +15540,8 @@
               "TRANSFER",
               "CASH",
               "CREDIT",
-              "OTHER"
+              "OTHER",
+              "DEPOSIT"
             ]
           },
           "receivedBy": {
@@ -13385,6 +15624,11 @@
             "type": "string",
             "nullable": true
           },
+          "settlementId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Liquidación que lo incluyó (Fase 12); null = sin liquidar"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -13420,6 +15664,7 @@
           "voidedAt",
           "voidedBy",
           "voidReason",
+          "settlementId",
           "createdAt"
         ]
       },
@@ -14013,7 +16258,9 @@
               "CREDIT_REFUNDED",
               "LATE_FEE_ADJUSTMENT",
               "PAYMENT_VOIDED",
-              "DEPOSIT_RECEIVED"
+              "DEPOSIT_RECEIVED",
+              "DEPOSIT_RETURNED",
+              "DEPOSIT_DEDUCTION"
             ]
           },
           "description": {
@@ -14051,6 +16298,118 @@
           "paymentId"
         ]
       },
+      "DepositReturnDeductionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "concept": {
+            "type": "string",
+            "enum": [
+              "DEBT",
+              "DAMAGE",
+              "OTHER"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "installmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "paymentId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "concept",
+          "description",
+          "amount",
+          "installmentId",
+          "paymentId"
+        ]
+      },
+      "DepositReturnDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string"
+          },
+          "returnedAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "depositAmount": {
+            "type": "string"
+          },
+          "depositCurrency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "returnedAmount": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "TRANSFER",
+              "CASH",
+              "CREDIT",
+              "OTHER",
+              "DEPOSIT"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "registeredBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "deductions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DepositReturnDeductionDto"
+            }
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "contractId",
+          "returnedAt",
+          "depositAmount",
+          "depositCurrency",
+          "returnedAmount",
+          "method",
+          "notes",
+          "registeredBy",
+          "deductions",
+          "createdAt"
+        ]
+      },
       "ContractAccountDepositDto": {
         "type": "object",
         "properties": {
@@ -14076,13 +16435,23 @@
             "type": "string",
             "nullable": true,
             "description": "FIXED: el depósito; FOLLOWS_RENT: el alquiler vigente; MANUAL: null"
+          },
+          "returned": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DepositReturnDto"
+              }
+            ]
           }
         },
         "required": [
           "amount",
           "currency",
           "returnMode",
-          "suggestedReturn"
+          "suggestedReturn",
+          "returned"
         ]
       },
       "ContractAccountDto": {
@@ -14117,6 +16486,78 @@
           "installments",
           "movements",
           "deposit"
+        ]
+      },
+      "DepositDeductionInputDto": {
+        "type": "object",
+        "properties": {
+          "concept": {
+            "type": "string",
+            "enum": [
+              "DEBT",
+              "DAMAGE",
+              "OTHER"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 300,
+            "example": "Cuota de octubre impaga"
+          },
+          "amount": {
+            "type": "string",
+            "example": "150333.33"
+          },
+          "installmentId": {
+            "type": "string",
+            "description": "Sólo en DEBT: la cuota a la que se imputa. Crea un pago DEPOSIT sobre ella."
+          }
+        },
+        "required": [
+          "concept",
+          "description",
+          "amount"
+        ]
+      },
+      "RegisterDepositReturnDto": {
+        "type": "object",
+        "properties": {
+          "returnedAt": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-31"
+          },
+          "returnedAmount": {
+            "type": "string",
+            "example": "80000.00",
+            "description": "Lo que se le devuelve al inquilino; puede ser 0."
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "TRANSFER",
+              "CASH",
+              "CREDIT",
+              "OTHER",
+              "DEPOSIT"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "deductions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DepositDeductionInputDto"
+            }
+          }
+        },
+        "required": [
+          "returnedAt",
+          "returnedAmount",
+          "method",
+          "deductions"
         ]
       },
       "CreateChargeDto": {
@@ -14289,7 +16730,8 @@
               "TRANSFER",
               "CASH",
               "CREDIT",
-              "OTHER"
+              "OTHER",
+              "DEPOSIT"
             ]
           },
           "receivedBy": {
@@ -14372,6 +16814,11 @@
             "type": "string",
             "nullable": true
           },
+          "settlementId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Liquidación que lo incluyó (Fase 12); null = sin liquidar"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -14433,6 +16880,7 @@
           "voidedAt",
           "voidedBy",
           "voidReason",
+          "settlementId",
           "createdAt",
           "renter",
           "property",
@@ -14510,7 +16958,8 @@
               "TRANSFER",
               "CASH",
               "CREDIT",
-              "OTHER"
+              "OTHER",
+              "DEPOSIT"
             ],
             "nullable": true
           },
@@ -14574,7 +17023,8 @@
               "TRANSFER",
               "CASH",
               "CREDIT",
-              "OTHER"
+              "OTHER",
+              "DEPOSIT"
             ]
           },
           "notes": {
@@ -14646,6 +17096,1222 @@
           "maxDaysOverdue",
           "lateFeeAccrued",
           "balance"
+        ]
+      },
+      "CreateSettlementDto": {
+        "type": "object",
+        "properties": {
+          "contractId": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10",
+            "description": "Mes de la liquidación. Si no viene, el mes actual."
+          }
+        },
+        "required": [
+          "contractId"
+        ]
+      },
+      "SettlementContractRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "SettlementPaymentDto": {
+        "type": "object",
+        "properties": {
+          "paymentId": {
+            "type": "string"
+          },
+          "installmentId": {
+            "type": "string"
+          },
+          "installmentPeriod": {
+            "type": "string",
+            "example": "2026-09"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "rentApplied": {
+            "type": "string"
+          },
+          "lateFeeApplied": {
+            "type": "string"
+          },
+          "ownerChargesApplied": {
+            "type": "string"
+          },
+          "serviceChargesApplied": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "paymentId",
+          "installmentId",
+          "installmentPeriod",
+          "paidAt",
+          "rentApplied",
+          "lateFeeApplied",
+          "ownerChargesApplied",
+          "serviceChargesApplied"
+        ]
+      },
+      "SettlementExpenseDto": {
+        "type": "object",
+        "properties": {
+          "expenseId": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "expenseDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          }
+        },
+        "required": [
+          "expenseId",
+          "description",
+          "expenseDate",
+          "amount",
+          "currency"
+        ]
+      },
+      "SettlementAdjustmentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "concept": {
+            "type": "string",
+            "enum": [
+              "WITHHOLDING",
+              "OWNER_ADVANCE",
+              "OTHER_DEDUCTION",
+              "OTHER_CREDIT"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Siempre positivo; el signo lo da el concepto"
+          },
+          "createdBy": {
+            "nullable": true,
+            "description": "Null en los automáticos",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "voidedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "voidReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "concept",
+          "description",
+          "amount",
+          "createdBy",
+          "createdAt",
+          "voidedAt",
+          "voidReason"
+        ]
+      },
+      "SettlementTransferDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "transferredAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "TRANSFER",
+              "CASH",
+              "CREDIT",
+              "OTHER",
+              "DEPOSIT"
+            ]
+          },
+          "receiptUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "registeredBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "voidedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "transferredAt",
+          "amount",
+          "method",
+          "receiptUrl",
+          "notes",
+          "registeredBy",
+          "voidedAt"
+        ]
+      },
+      "SettlementDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10",
+            "description": "Mes en que se liquida"
+          },
+          "sequence": {
+            "type": "number",
+            "description": "Parcial N del mes"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "TRANSFERRED",
+              "CANCELLED"
+            ]
+          },
+          "contract": {
+            "$ref": "#/components/schemas/SettlementContractRefDto"
+          },
+          "property": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PropertyRefDto"
+              }
+            ]
+          },
+          "owner": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRefDto"
+              }
+            ]
+          },
+          "renter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RenterRefDto"
+              }
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "rentTotal": {
+            "type": "string"
+          },
+          "lateFeeTotal": {
+            "type": "string"
+          },
+          "ownerChargesTotal": {
+            "type": "string",
+            "description": "Cargos TERMINATION_PENALTY y OTHER"
+          },
+          "serviceChargesTotal": {
+            "type": "string",
+            "description": "Cargos SERVICE: no entran al neto"
+          },
+          "feeTotal": {
+            "type": "string"
+          },
+          "feeDeducted": {
+            "type": "boolean",
+            "description": "Los honorarios se descontaron del neto"
+          },
+          "expensesTotal": {
+            "type": "string"
+          },
+          "adjustmentsTotal": {
+            "type": "string",
+            "description": "Con signo"
+          },
+          "netAmount": {
+            "type": "string",
+            "description": "Puede ser negativo"
+          },
+          "transferredTotal": {
+            "type": "string"
+          },
+          "statementId": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasVoidedPayments": {
+            "type": "boolean"
+          },
+          "confirmedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "feeMode": {
+            "type": "string",
+            "enum": [
+              "DEDUCTED",
+              "OWNER_PAYS",
+              "RENTER_PAYS_ON_BEHALF"
+            ],
+            "description": "De la cuota más reciente incluida"
+          },
+          "feePercentage": {
+            "type": "string",
+            "example": "5.00"
+          },
+          "feeAmountFixed": {
+            "type": "string",
+            "nullable": true
+          },
+          "feeBase": {
+            "type": "string",
+            "description": "Sobre qué se calculó el honorario"
+          },
+          "mixedFeeTerms": {
+            "type": "boolean",
+            "description": "Las cuotas incluidas tenían términos distintos"
+          },
+          "ownerBankAccountMissing": {
+            "type": "boolean",
+            "description": "El propietario no tiene cuenta bancaria cargada (A-17: se avisa)"
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettlementPaymentDto"
+            }
+          },
+          "expenses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettlementExpenseDto"
+            }
+          },
+          "skippedExpenses": {
+            "description": "Gastos pendientes en otra moneda que el contrato: no se descuentan",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettlementExpenseDto"
+            }
+          },
+          "adjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettlementAdjustmentDto"
+            }
+          },
+          "transfers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettlementTransferDto"
+            }
+          },
+          "confirmedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "cancelledAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "period",
+          "sequence",
+          "status",
+          "contract",
+          "property",
+          "owner",
+          "renter",
+          "currency",
+          "rentTotal",
+          "lateFeeTotal",
+          "ownerChargesTotal",
+          "serviceChargesTotal",
+          "feeTotal",
+          "feeDeducted",
+          "expensesTotal",
+          "adjustmentsTotal",
+          "netAmount",
+          "transferredTotal",
+          "statementId",
+          "hasVoidedPayments",
+          "confirmedAt",
+          "createdAt",
+          "feeMode",
+          "feePercentage",
+          "feeAmountFixed",
+          "feeBase",
+          "mixedFeeTerms",
+          "ownerBankAccountMissing",
+          "payments",
+          "expenses",
+          "skippedExpenses",
+          "adjustments",
+          "transfers",
+          "confirmedBy",
+          "cancelledAt",
+          "cancelReason",
+          "notes",
+          "updatedAt"
+        ]
+      },
+      "SettlementSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10",
+            "description": "Mes en que se liquida"
+          },
+          "sequence": {
+            "type": "number",
+            "description": "Parcial N del mes"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "TRANSFERRED",
+              "CANCELLED"
+            ]
+          },
+          "contract": {
+            "$ref": "#/components/schemas/SettlementContractRefDto"
+          },
+          "property": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PropertyRefDto"
+              }
+            ]
+          },
+          "owner": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRefDto"
+              }
+            ]
+          },
+          "renter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RenterRefDto"
+              }
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "rentTotal": {
+            "type": "string"
+          },
+          "lateFeeTotal": {
+            "type": "string"
+          },
+          "ownerChargesTotal": {
+            "type": "string",
+            "description": "Cargos TERMINATION_PENALTY y OTHER"
+          },
+          "serviceChargesTotal": {
+            "type": "string",
+            "description": "Cargos SERVICE: no entran al neto"
+          },
+          "feeTotal": {
+            "type": "string"
+          },
+          "feeDeducted": {
+            "type": "boolean",
+            "description": "Los honorarios se descontaron del neto"
+          },
+          "expensesTotal": {
+            "type": "string"
+          },
+          "adjustmentsTotal": {
+            "type": "string",
+            "description": "Con signo"
+          },
+          "netAmount": {
+            "type": "string",
+            "description": "Puede ser negativo"
+          },
+          "transferredTotal": {
+            "type": "string"
+          },
+          "statementId": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasVoidedPayments": {
+            "type": "boolean"
+          },
+          "confirmedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "period",
+          "sequence",
+          "status",
+          "contract",
+          "property",
+          "owner",
+          "renter",
+          "currency",
+          "rentTotal",
+          "lateFeeTotal",
+          "ownerChargesTotal",
+          "serviceChargesTotal",
+          "feeTotal",
+          "feeDeducted",
+          "expensesTotal",
+          "adjustmentsTotal",
+          "netAmount",
+          "transferredTotal",
+          "statementId",
+          "hasVoidedPayments",
+          "confirmedAt",
+          "createdAt"
+        ]
+      },
+      "CreateSettlementAdjustmentDto": {
+        "type": "object",
+        "properties": {
+          "concept": {
+            "type": "string",
+            "enum": [
+              "WITHHOLDING",
+              "OWNER_ADVANCE",
+              "OTHER_DEDUCTION",
+              "OTHER_CREDIT"
+            ],
+            "description": "WITHHOLDING, OWNER_ADVANCE y OTHER_DEDUCTION restan; OTHER_CREDIT suma."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 300,
+            "example": "Retención IIBB"
+          },
+          "amount": {
+            "type": "string",
+            "example": "150333.33"
+          }
+        },
+        "required": [
+          "concept",
+          "description",
+          "amount"
+        ]
+      },
+      "CreateOwnerStatementDto": {
+        "type": "object",
+        "properties": {
+          "ownerId": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          }
+        },
+        "required": [
+          "ownerId",
+          "period"
+        ]
+      },
+      "OwnerStatementTotalsDto": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "rentTotal": {
+            "type": "string"
+          },
+          "lateFeeTotal": {
+            "type": "string"
+          },
+          "chargesTotal": {
+            "type": "string",
+            "description": "Cargos del propietario"
+          },
+          "feeTotal": {
+            "type": "string"
+          },
+          "expensesTotal": {
+            "type": "string"
+          },
+          "adjustmentsTotal": {
+            "type": "string",
+            "description": "Con signo"
+          },
+          "netTotal": {
+            "type": "string"
+          },
+          "transferredTotal": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "rentTotal",
+          "lateFeeTotal",
+          "chargesTotal",
+          "feeTotal",
+          "expensesTotal",
+          "adjustmentsTotal",
+          "netTotal",
+          "transferredTotal"
+        ]
+      },
+      "OwnerStatementDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "owner": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRefDto"
+              }
+            ]
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CLOSED"
+            ]
+          },
+          "sendMode": {
+            "type": "string",
+            "enum": [
+              "SUMMARY",
+              "RECEIPTS",
+              "BOTH"
+            ]
+          },
+          "settlementsCount": {
+            "type": "number"
+          },
+          "totals": {
+            "description": "Por moneda; congelados al cerrar, en vivo mientras está abierto",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnerStatementTotalsDto"
+            }
+          },
+          "closedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "settlements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettlementSummaryDto"
+            }
+          },
+          "closedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "owner",
+          "period",
+          "status",
+          "sendMode",
+          "settlementsCount",
+          "totals",
+          "closedAt",
+          "createdAt",
+          "settlements",
+          "closedBy",
+          "notes"
+        ]
+      },
+      "OwnerStatementSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "owner": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRefDto"
+              }
+            ]
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CLOSED"
+            ]
+          },
+          "sendMode": {
+            "type": "string",
+            "enum": [
+              "SUMMARY",
+              "RECEIPTS",
+              "BOTH"
+            ]
+          },
+          "settlementsCount": {
+            "type": "number"
+          },
+          "totals": {
+            "description": "Por moneda; congelados al cerrar, en vivo mientras está abierto",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnerStatementTotalsDto"
+            }
+          },
+          "closedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "owner",
+          "period",
+          "status",
+          "sendMode",
+          "settlementsCount",
+          "totals",
+          "closedAt",
+          "createdAt"
+        ]
+      },
+      "AddStatementSettlementsDto": {
+        "type": "object",
+        "properties": {
+          "settlementIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "settlementIds"
+        ]
+      },
+      "CloseOwnerStatementDto": {
+        "type": "object",
+        "properties": {
+          "sendMode": {
+            "type": "string",
+            "enum": [
+              "SUMMARY",
+              "RECEIPTS",
+              "BOTH"
+            ],
+            "description": "Default: el del consolidado (que nació con el del propietario)."
+          }
+        }
+      },
+      "FeeReceivableDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "owner": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OwnerRefDto"
+              }
+            ]
+          },
+          "contract": {
+            "$ref": "#/components/schemas/SettlementContractRefDto"
+          },
+          "property": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PropertyRefDto"
+              }
+            ]
+          },
+          "installmentPeriod": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "OWNER_DIRECT_PAYMENT",
+              "SETTLEMENT_NOT_DEDUCTED"
+            ]
+          },
+          "payer": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "RENTER"
+            ]
+          },
+          "amount": {
+            "type": "string"
+          },
+          "paidAmount": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "PARTIAL",
+              "PAID",
+              "VOIDED"
+            ]
+          },
+          "feePercentage": {
+            "type": "string",
+            "example": "5.00"
+          },
+          "feeAmountFixed": {
+            "type": "string",
+            "nullable": true
+          },
+          "baseAmount": {
+            "type": "string"
+          },
+          "needsReview": {
+            "type": "boolean",
+            "description": "Su pago de origen se anuló con cobros imputados"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "owner",
+          "contract",
+          "property",
+          "installmentPeriod",
+          "currency",
+          "source",
+          "payer",
+          "amount",
+          "paidAmount",
+          "status",
+          "feePercentage",
+          "feeAmountFixed",
+          "baseAmount",
+          "needsReview",
+          "createdAt"
+        ]
+      },
+      "FeeAccountTotalsDto": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "accrued": {
+            "type": "string"
+          },
+          "collected": {
+            "type": "string"
+          },
+          "pending": {
+            "type": "string"
+          },
+          "unallocated": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "accrued",
+          "collected",
+          "pending",
+          "unallocated"
+        ]
+      },
+      "FeePaymentAllocationDto": {
+        "type": "object",
+        "properties": {
+          "feeReceivableId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "feeReceivableId",
+          "amount"
+        ]
+      },
+      "FeePaymentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string",
+            "nullable": true
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "TRANSFER",
+              "CASH",
+              "CREDIT",
+              "OTHER",
+              "DEPOSIT"
+            ]
+          },
+          "paidBy": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "RENTER"
+            ]
+          },
+          "unallocatedAmount": {
+            "type": "string"
+          },
+          "receiptUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "registeredBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "voidedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "voidReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "allocations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeePaymentAllocationDto"
+            }
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ownerId",
+          "contractId",
+          "paidAt",
+          "amount",
+          "currency",
+          "method",
+          "paidBy",
+          "unallocatedAmount",
+          "receiptUrl",
+          "notes",
+          "registeredBy",
+          "voidedAt",
+          "voidReason",
+          "allocations",
+          "createdAt"
+        ]
+      },
+      "FeeMovementDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "ACCRUED",
+              "PAYMENT",
+              "PAYMENT_VOIDED",
+              "RECEIVABLE_VOIDED"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "debit": {
+            "type": "string",
+            "nullable": true
+          },
+          "credit": {
+            "type": "string",
+            "nullable": true
+          },
+          "balance": {
+            "type": "string",
+            "description": "Saldo acumulado por moneda (deuda positiva)"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          }
+        },
+        "required": [
+          "date",
+          "type",
+          "description",
+          "debit",
+          "credit",
+          "balance",
+          "currency"
+        ]
+      },
+      "OwnerFeeAccountDto": {
+        "type": "object",
+        "properties": {
+          "ownerId": {
+            "type": "string"
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeeAccountTotalsDto"
+            }
+          },
+          "receivables": {
+            "description": "Más nuevos primero",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeeReceivableDto"
+            }
+          },
+          "payments": {
+            "description": "Más nuevos primero",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeePaymentDto"
+            }
+          },
+          "movements": {
+            "description": "Cronológicos",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeeMovementDto"
+            }
+          }
+        },
+        "required": [
+          "ownerId",
+          "totals",
+          "receivables",
+          "payments",
+          "movements"
         ]
       },
       "CreateExampleItemDto": {
