@@ -12,7 +12,6 @@ import {
   PaymentConfirmedPayload,
   PaymentVoidedPayload,
 } from '../src/modules/billing/public'
-import { QueuePort } from '../src/platform/queue/queue.port'
 import { RequestContext } from '../src/shared/context/request-context'
 import {
   addDays,
@@ -48,9 +47,26 @@ describe('Cobros (e2e, Postgres)', () => {
   let adminBToken: string
   let refs: { tolosa: string; casa: string }
   let refsB: { tolosa: string; casa: string }
-  const paidEvents: InstallmentPaidPayload[] = []
-  const confirmedEvents: PaymentConfirmedPayload[] = []
-  const voidedEvents: PaymentVoidedPayload[] = []
+  /**
+   * Lo publicado en una cola, leído de las tablas de pg-boss. El test no se
+   * suscribe: liquidaciones (Fase 12) ya consume estas colas y pg-boss le
+   * entrega cada trabajo a un solo worker, así que competir por el mensaje
+   * haría al test intermitente.
+   */
+  const published = async <T>(queue: string): Promise<T[]> => {
+    const rows = await prisma.$queryRawUnsafe<{ data: { payload: T } }[]>(
+      `SELECT data FROM pgboss.job WHERE name = $1
+       UNION ALL SELECT data FROM pgboss.archive WHERE name = $1`,
+      queue,
+    )
+    return rows.map((row) => row.data.payload)
+  }
+  const paidEvents = () =>
+    published<InstallmentPaidPayload>(INSTALLMENT_PAID_QUEUE.name)
+  const confirmedEvents = () =>
+    published<PaymentConfirmedPayload>(PAYMENT_CONFIRMED_QUEUE.name)
+  const voidedEvents = () =>
+    published<PaymentVoidedPayload>(PAYMENT_VOIDED_QUEUE.name)
 
   const api = (token: string) => ({
     get: (url: string) =>
@@ -198,23 +214,6 @@ describe('Cobros (e2e, Postgres)', () => {
   beforeAll(async () => {
     await prisma.$connect()
     app = await createTestApp()
-    // Nadie consume la cola todavía (Fase 12): el test se suscribe para ver
-    // que el evento llegó por pg-boss.
-    await app
-      .get(QueuePort)
-      .consume<InstallmentPaidPayload>(INSTALLMENT_PAID_QUEUE, async (m) => {
-        paidEvents.push(m.payload)
-      })
-    await app
-      .get(QueuePort)
-      .consume<PaymentConfirmedPayload>(PAYMENT_CONFIRMED_QUEUE, async (m) => {
-        confirmedEvents.push(m.payload)
-      })
-    await app
-      .get(QueuePort)
-      .consume<PaymentVoidedPayload>(PAYMENT_VOIDED_QUEUE, async (m) => {
-        voidedEvents.push(m.payload)
-      })
   })
 
   afterAll(async () => {
@@ -571,8 +570,10 @@ describe('Cobros (e2e, Postgres)', () => {
         feeOnCollected: '5000.00',
       })
 
-      await waitFor(() => paidEvents.some((e) => e.installmentId === id))
-      expect(paidEvents.find((e) => e.installmentId === id)).toEqual({
+      await waitFor(async () =>
+        (await paidEvents()).some((e) => e.installmentId === id),
+      )
+      expect((await paidEvents()).find((e) => e.installmentId === id)).toEqual({
         installmentId: id,
         contractId: contract.id,
         ownerId: contract.ownerId,
@@ -1231,11 +1232,11 @@ describe('Cobros (e2e, Postgres)', () => {
       const paymentId = paid.body.data.payment.id as string
       expect(paid.body.data.payment.settlementId).toBeNull()
 
-      await waitFor(() =>
-        confirmedEvents.some((e) => e.paymentId === paymentId),
+      await waitFor(async () =>
+        (await confirmedEvents()).some((e) => e.paymentId === paymentId),
       )
       expect(
-        confirmedEvents.find((e) => e.paymentId === paymentId),
+        (await confirmedEvents()).find((e) => e.paymentId === paymentId),
       ).toMatchObject({
         installmentId: id,
         contractId: contract.id,
@@ -1300,16 +1301,18 @@ describe('Cobros (e2e, Postgres)', () => {
         .post(`/billing/payments/${paymentId}/void`)
         .send({ reason: 'Rebotó' })
         .expect(200)
-      await waitFor(() => voidedEvents.some((e) => e.paymentId === paymentId))
-      expect(voidedEvents.find((e) => e.paymentId === paymentId)).toMatchObject(
-        {
-          installmentId: id,
-          contractId: contract.id,
-          settlementId,
-          rentApplied: '100000.00',
-          voidReason: 'Rebotó',
-        },
+      await waitFor(async () =>
+        (await voidedEvents()).some((e) => e.paymentId === paymentId),
       )
+      expect(
+        (await voidedEvents()).find((e) => e.paymentId === paymentId),
+      ).toMatchObject({
+        installmentId: id,
+        contractId: contract.id,
+        settlementId,
+        rentApplied: '100000.00',
+        voidReason: 'Rebotó',
+      })
       expect(
         await inTenantA(() => facade.unmarkPaymentsSettled(settlementId)),
       ).toBe(1)
