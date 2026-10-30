@@ -142,6 +142,25 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
     softDelete: false,
   },
 
+  // Liquidaciones (Fase 12): plata, con historial y sin borrado lógico. Las
+  // líneas (pagos y gastos incluidos) y los totales del consolidado son
+  // snapshots que se reescriben en cada recálculo: la fila es la traza. Las
+  // imputaciones de un pago de honorarios se escriben una vez con él.
+  Settlement: { tenantScoped: true, audit: true, softDelete: false },
+  SettlementPayment: { tenantScoped: true, audit: false, softDelete: false },
+  SettlementExpense: { tenantScoped: true, audit: false, softDelete: false },
+  SettlementAdjustment: { tenantScoped: true, audit: true, softDelete: false },
+  SettlementTransfer: { tenantScoped: true, audit: true, softDelete: false },
+  OwnerStatement: { tenantScoped: true, audit: true, softDelete: false },
+  OwnerStatementTotal: { tenantScoped: true, audit: false, softDelete: false },
+  FeeReceivable: { tenantScoped: true, audit: true, softDelete: false },
+  FeePayment: { tenantScoped: true, audit: true, softDelete: false },
+  FeePaymentAllocation: {
+    tenantScoped: true,
+    audit: false,
+    softDelete: false,
+  },
+
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.
   // Auditarlos generaría una fila de historial por cada refresh.

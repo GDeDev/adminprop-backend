@@ -109,6 +109,17 @@ model Tenant {
   depositReturns          DepositReturn[]
   depositReturnDeductions DepositReturnDeduction[]
 
+  settlements           Settlement[]
+  settlementPayments    SettlementPayment[]
+  settlementExpenses    SettlementExpense[]
+  settlementAdjustments SettlementAdjustment[]
+  settlementTransfers   SettlementTransfer[]
+  ownerStatements       OwnerStatement[]
+  ownerStatementTotals  OwnerStatementTotal[]
+  feeReceivables        FeeReceivable[]
+  feePayments           FeePayment[]
+  feePaymentAllocations FeePaymentAllocation[]
+
   @@map("tenants")
 }
 
@@ -1360,4 +1371,395 @@ model RenterCredit {
   @@index([tenantId, contractId])
   @@index([tenantId, originPaymentId])
   @@map("renter_credits")
+}
+
+// =============================================================================
+// Liquidaciones (Fase 12, rediseño sección 3). Todas con tenant, auditadas,
+// sin borrado lógico. Referencias a otros módulos como uuid sin FK.
+// =============================================================================
+
+enum SettlementStatus {
+  /// Recalculable; una sola por contrato.
+  PENDING
+  /// Inmutable: pagos y gastos marcados, honorarios devengados.
+  CONFIRMED
+  /// Las transferencias cubren el neto.
+  TRANSFERRED
+  /// Sólo desde PENDING (admin).
+  CANCELLED
+}
+
+/// Rubros manuales de la liquidación (A-20). Los tres primeros restan del
+/// neto; OTHER_CREDIT suma.
+enum SettlementAdjustmentConcept {
+  WITHHOLDING
+  OWNER_ADVANCE
+  OTHER_DEDUCTION
+  OTHER_CREDIT
+}
+
+enum StatementStatus {
+  OPEN
+  CLOSED
+}
+
+/// De dónde nace un honorario a cobrar: el propietario cobró el alquiler
+/// directo (modalidad B), o la liquidación no lo descontó (OWNER_PAYS /
+/// RENTER_PAYS_ON_BEHALF).
+enum FeeReceivableSource {
+  OWNER_DIRECT_PAYMENT
+  SETTLEMENT_NOT_DEDUCTED
+}
+
+enum FeePayer {
+  OWNER
+  RENTER
+}
+
+enum FeeReceivableStatus {
+  PENDING
+  PARTIAL
+  PAID
+  VOIDED
+}
+
+/// Liquidación individual: un contrato, una propiedad, un propietario (3.1).
+/// `period` es el mes en que se liquida, no el de la cuota; `sequence`
+/// numera las parciales del mismo mes.
+model Settlement {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Copiados del contrato (sin FK).
+  contractId String   @map("contract_id") @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  ownerId    String   @map("owner_id") @db.Uuid
+  renterId   String   @map("renter_id") @db.Uuid
+  currency   Currency
+
+  period   String           @db.VarChar(7)
+  sequence Int
+  status   SettlementStatus @default(PENDING)
+
+  /// Sumas de los pagos incluidos, en la moneda del contrato.
+  rentTotal           Decimal @map("rent_total") @db.Decimal(14, 2)
+  lateFeeTotal        Decimal @map("late_fee_total") @db.Decimal(14, 2)
+  /// Cargos TERMINATION_PENALTY y OTHER: van al propietario.
+  ownerChargesTotal   Decimal @map("owner_charges_total") @db.Decimal(14, 2)
+  /// Cargos SERVICE: se informan, no entran al neto (A-16).
+  serviceChargesTotal Decimal @map("service_charges_total") @db.Decimal(14, 2)
+
+  /// Honorarios (4.2): base según el propietario, % y fijo de la cuota más
+  /// reciente, total sumado por cuota, y si se descuentan del neto.
+  feeBase        Decimal  @map("fee_base") @db.Decimal(14, 2)
+  feePercentage  Decimal  @map("fee_percentage") @db.Decimal(5, 2)
+  feeAmountFixed Decimal? @map("fee_amount_fixed") @db.Decimal(14, 2)
+  feeTotal       Decimal  @map("fee_total") @db.Decimal(14, 2)
+  feeMode        FeeMode  @map("fee_mode")
+  feeDeducted    Boolean  @map("fee_deducted")
+  /// Las cuotas incluidas tenían términos distintos.
+  mixedFeeTerms  Boolean  @default(false) @map("mixed_fee_terms")
+
+  /// Gastos adelantados pendientes en la moneda del contrato (RN-11).
+  expensesTotal    Decimal @map("expenses_total") @db.Decimal(14, 2)
+  /// Σ ajustes vigentes con signo.
+  adjustmentsTotal Decimal @map("adjustments_total") @db.Decimal(14, 2)
+  /// Puede ser negativo: el propietario debe (4.3).
+  netAmount        Decimal @map("net_amount") @db.Decimal(14, 2)
+  transferredTotal Decimal @map("transferred_total") @db.Decimal(14, 2)
+
+  /// Consolidado al que pertenece (sin FK).
+  statementId       String? @map("statement_id") @db.Uuid
+  /// Un pago incluido se anuló después de confirmar (A-19).
+  hasVoidedPayments Boolean @default(false) @map("has_voided_payments")
+
+  confirmedAt   DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  confirmedById String?   @map("confirmed_by_id") @db.Uuid
+  cancelledAt   DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById String?   @map("cancelled_by_id") @db.Uuid
+  cancelReason  String?   @map("cancel_reason") @db.VarChar(500)
+  notes         String?   @db.Text
+
+  payments    SettlementPayment[]
+  expenses    SettlementExpense[]
+  adjustments SettlementAdjustment[]
+  transfers   SettlementTransfer[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  /// Una sola PENDING por contrato: índice único parcial en la migración
+  /// `add_settlements`.
+  @@index([tenantId, contractId, period])
+  @@index([tenantId, ownerId, status])
+  @@index([tenantId, propertyId])
+  @@index([tenantId, status, period])
+  @@index([tenantId, statementId])
+  @@map("settlements")
+}
+
+/// Un pago incluido, con snapshot de lo que aportó. `payment_id` es único:
+/// un pago se liquida una vez (al cancelar la liquidación se liberan).
+model SettlementPayment {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  settlementId String     @map("settlement_id") @db.Uuid
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  paymentId             String   @map("payment_id") @db.Uuid
+  installmentId         String   @map("installment_id") @db.Uuid
+  installmentPeriod     String   @map("installment_period") @db.VarChar(7)
+  paidAt                DateTime @map("paid_at") @db.Date
+  rentApplied           Decimal  @map("rent_applied") @db.Decimal(14, 2)
+  lateFeeApplied        Decimal  @map("late_fee_applied") @db.Decimal(14, 2)
+  ownerChargesApplied   Decimal  @map("owner_charges_applied") @db.Decimal(14, 2)
+  serviceChargesApplied Decimal  @map("service_charges_applied") @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, paymentId])
+  @@index([tenantId, settlementId])
+  @@map("settlement_payments")
+}
+
+/// Un gasto adelantado descontado, con snapshot.
+model SettlementExpense {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  settlementId String     @map("settlement_id") @db.Uuid
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  expenseId   String   @map("expense_id") @db.Uuid
+  description String   @db.VarChar(300)
+  expenseDate DateTime @map("expense_date") @db.Date
+  amount      Decimal  @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, expenseId])
+  @@index([tenantId, settlementId])
+  @@map("settlement_expenses")
+}
+
+/// Retenciones, adelantos y otros rubros manuales (A-20), más la deducción
+/// automática por un pago anulado después de confirmar (A-19).
+model SettlementAdjustment {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  settlementId String     @map("settlement_id") @db.Uuid
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  concept         SettlementAdjustmentConcept
+  description     String                      @db.VarChar(300)
+  /// Siempre > 0; el signo lo da el concepto.
+  amount          Decimal                     @db.Decimal(14, 2)
+  /// El pago anulado que lo generó (idempotencia del listener).
+  originPaymentId String?                     @map("origin_payment_id") @db.Uuid
+
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(3)
+  voidedById String?   @map("voided_by_id") @db.Uuid
+  voidReason String?   @map("void_reason") @db.VarChar(500)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Null en los automáticos.
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, settlementId])
+  @@index([tenantId, originPaymentId])
+  @@map("settlement_adjustments")
+}
+
+/// Transferencia al propietario (4.5). Se anula (admin), no se edita (A-18).
+model SettlementTransfer {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  settlementId String     @map("settlement_id") @db.Uuid
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  transferredAt  DateTime      @map("transferred_at") @db.Date
+  amount         Decimal       @db.Decimal(14, 2)
+  method         PaymentMethod
+  receiptKey     String?       @map("receipt_key") @db.VarChar(500)
+  receiptUrl     String?       @map("receipt_url") @db.VarChar(1000)
+  notes          String?       @db.Text
+  registeredById String        @map("registered_by_id") @db.Uuid
+
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(3)
+  voidedById String?   @map("voided_by_id") @db.Uuid
+  voidReason String?   @map("void_reason") @db.VarChar(500)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, settlementId])
+  @@map("settlement_transfers")
+}
+
+/// Consolidado mensual por propietario, de cierre manual (3.2, Micaela #7).
+/// Uno por propietario y mes; se reabre (admin) si hace falta otro cierre.
+model OwnerStatement {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  ownerId          String            @map("owner_id") @db.Uuid
+  period           String            @db.VarChar(7)
+  status           StatementStatus   @default(OPEN)
+  sendMode         StatementSendMode @map("send_mode")
+  settlementsCount Int               @default(0) @map("settlements_count")
+
+  closedAt   DateTime? @map("closed_at") @db.Timestamptz(3)
+  closedById String?   @map("closed_by_id") @db.Uuid
+  notes      String?   @db.Text
+
+  totals OwnerStatementTotal[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, ownerId, period])
+  @@index([tenantId, status, period])
+  @@map("owner_statements")
+}
+
+/// Totales del consolidado por moneda, congelados al cerrar.
+model OwnerStatementTotal {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  statementId String         @map("statement_id") @db.Uuid
+  statement   OwnerStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  currency         Currency
+  rentTotal        Decimal  @map("rent_total") @db.Decimal(14, 2)
+  lateFeeTotal     Decimal  @map("late_fee_total") @db.Decimal(14, 2)
+  chargesTotal     Decimal  @map("charges_total") @db.Decimal(14, 2)
+  feeTotal         Decimal  @map("fee_total") @db.Decimal(14, 2)
+  expensesTotal    Decimal  @map("expenses_total") @db.Decimal(14, 2)
+  adjustmentsTotal Decimal  @map("adjustments_total") @db.Decimal(14, 2)
+  netTotal         Decimal  @map("net_total") @db.Decimal(14, 2)
+  transferredTotal Decimal  @map("transferred_total") @db.Decimal(14, 2)
+
+  @@unique([statementId, currency])
+  @@index([tenantId, statementId])
+  @@map("owner_statement_totals")
+}
+
+/// Honorario devengado a cobrar (3.3, Micaela #9B y #10): cuenta corriente
+/// de honorarios de la inmobiliaria con cada propietario.
+model FeeReceivable {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  ownerId       String   @map("owner_id") @db.Uuid
+  contractId    String   @map("contract_id") @db.Uuid
+  /// La cuota, cuando nace de un pago; null cuando nace de una liquidación.
+  installmentId String?  @map("installment_id") @db.Uuid
+  period        String   @db.VarChar(7)
+  currency      Currency
+
+  source FeeReceivableSource
+  payer  FeePayer
+
+  /// Idempotencia: un pago o una liquidación generan un solo receivable.
+  originPaymentId    String? @map("origin_payment_id") @db.Uuid
+  originSettlementId String? @map("origin_settlement_id") @db.Uuid
+
+  amount     Decimal             @db.Decimal(14, 2)
+  paidAmount Decimal             @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  status     FeeReceivableStatus @default(PENDING)
+
+  /// Cómo se calculó.
+  feePercentage  Decimal  @map("fee_percentage") @db.Decimal(5, 2)
+  feeAmountFixed Decimal? @map("fee_amount_fixed") @db.Decimal(14, 2)
+  baseAmount     Decimal  @map("base_amount") @db.Decimal(14, 2)
+
+  /// El pago de origen se anuló con cobros ya imputados: revisar a mano.
+  needsReview Boolean   @default(false) @map("needs_review")
+  voidedAt    DateTime? @map("voided_at") @db.Timestamptz(3)
+
+  allocations FeePaymentAllocation[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, originPaymentId])
+  @@unique([tenantId, originSettlementId])
+  @@index([tenantId, ownerId, status])
+  @@index([tenantId, contractId])
+  @@map("fee_receivables")
+}
+
+/// Pago de honorarios a la inmobiliaria (lo paga el propietario o el
+/// inquilino por su cuenta), imputado a los receivables más viejos.
+model FeePayment {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  ownerId    String  @map("owner_id") @db.Uuid
+  contractId String? @map("contract_id") @db.Uuid
+
+  paidAt            DateTime      @map("paid_at") @db.Date
+  amount            Decimal       @db.Decimal(14, 2)
+  currency          Currency
+  method            PaymentMethod
+  paidBy            FeePayer      @map("paid_by")
+  /// Lo que no alcanzó a imputarse: se aplica a receivables futuros.
+  unallocatedAmount Decimal       @map("unallocated_amount") @db.Decimal(14, 2)
+
+  receiptKey     String? @map("receipt_key") @db.VarChar(500)
+  receiptUrl     String? @map("receipt_url") @db.VarChar(1000)
+  notes          String? @db.Text
+  registeredById String  @map("registered_by_id") @db.Uuid
+
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(3)
+  voidedById String?   @map("voided_by_id") @db.Uuid
+  voidReason String?   @map("void_reason") @db.VarChar(500)
+
+  allocations FeePaymentAllocation[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, ownerId, paidAt])
+  @@index([tenantId, contractId])
+  @@map("fee_payments")
+}
+
+/// Cuánto de un pago de honorarios fue a cada receivable.
+model FeePaymentAllocation {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  feePaymentId    String        @map("fee_payment_id") @db.Uuid
+  feePayment      FeePayment    @relation(fields: [feePaymentId], references: [id], onDelete: Cascade)
+  feeReceivableId String        @map("fee_receivable_id") @db.Uuid
+  feeReceivable   FeeReceivable @relation(fields: [feeReceivableId], references: [id], onDelete: Restrict)
+
+  amount Decimal @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, feePaymentId])
+  @@index([tenantId, feeReceivableId])
+  @@map("fee_payment_allocations")
 }
