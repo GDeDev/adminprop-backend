@@ -9,8 +9,13 @@ export type {
   InstallmentCollection,
   InstallmentFeeTerms,
   OverdueInstallmentRef,
+  RentDueRef,
   SettleablePayment,
 } from './billing.facade'
+export type {
+  RebasedInstallment,
+  RebaseResult,
+} from '../application/installment-rebaser'
 export {
   INSTALLMENT_PAID_QUEUE,
   PAYMENT_CONFIRMED_QUEUE,

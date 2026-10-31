@@ -161,6 +161,31 @@ describe('InstallmentPolicy', () => {
     it('la base es el alquiler vigente, mes entero (A-7)', () => {
       expect(InstallmentPolicy.baseFor('150333.333')).toBe('150333.33')
     })
+
+    it('un aumento sólo corrige cuotas pendientes sin pagos vigentes (A-24)', () => {
+      expect(InstallmentPolicy.canRebase(installment())).toBe(true)
+      expect(
+        InstallmentPolicy.canRebase(
+          installment({
+            status: InstallmentStatus.PARTIAL,
+            payments: [payment({ rentApplied: '10.00' })],
+          }),
+        ),
+      ).toBe(false)
+      expect(
+        InstallmentPolicy.canRebase(
+          installment({ status: InstallmentStatus.PAID }),
+        ),
+      ).toBe(false)
+      // Un pago anulado no cuenta.
+      expect(
+        InstallmentPolicy.canRebase(
+          installment({
+            payments: [payment({ status: PaymentStatus.VOIDED })],
+          }),
+        ),
+      ).toBe(true)
+    })
   })
 
   describe('punitorio diario sobre el saldo impago (regla 3, A-3)', () => {

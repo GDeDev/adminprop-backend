@@ -6,14 +6,21 @@ import {
   InstallmentGenerator,
 } from '../application/installment-generator'
 import {
+  InstallmentRebaser,
+  RebaseResult,
+} from '../application/installment-rebaser'
+import {
   InstallmentViews,
   RenterArrearsView,
   sumMoney,
 } from '../application/installment.views'
 import {
+  activePayments,
   CollectionMode,
   Currency,
   FeeMode,
+  Installment,
+  InstallmentStatus,
   PaymentKind,
   PaymentReceiver,
   PaymentStatus,
@@ -39,6 +46,22 @@ export interface OverdueInstallmentRef {
   daysOverdue: number
   totalDue: string
   lateFeeBalance: string
+  /** Alquiler que sigue sin cobrarse (sin cargos ni punitorio). */
+  rentBalance: string
+}
+
+/** Una cuota del mes con alquiler por cobrar, para los avisos de la Fase 13. */
+export interface RentDueRef {
+  id: string
+  contractId: string
+  renterId: string
+  ownerId: string
+  propertyId: string
+  period: Period
+  currency: Currency
+  baseAmount: string
+  graceEndDate: IsoDate
+  rentBalance: string
 }
 
 /** Lo cobrado de una cuota, para la liquidación (Fase 12). */
@@ -101,6 +124,7 @@ export class BillingFacade {
     private readonly installments: InstallmentRepository,
     private readonly payments: PaymentRepository,
     private readonly views: InstallmentViews,
+    private readonly rebaser: InstallmentRebaser,
   ) {}
 
   /**
@@ -167,6 +191,52 @@ export class BillingFacade {
     return this.generator.generate(period ?? null)
   }
 
+  /**
+   * Corrige la base de las cuotas ya generadas de un contrato tras un
+   * aumento (Fase 13, 2.1): las pendientes sin pagos pasan al nuevo
+   * alquiler, las demás se devuelven en `outdated` para avisar.
+   */
+  rebaseInstallments(
+    contractId: string,
+    effectiveFrom: IsoDate,
+    newRent: string,
+  ): Promise<RebaseResult> {
+    return this.rebaser.rebase(contractId, effectiveFrom, newRent)
+  }
+
+  /**
+   * Las cuotas del mes que siguen `PENDING` y sin ningún pago vigente: a
+   * quienes se les manda el recordatorio de pago (A-26).
+   */
+  async listPendingForReminder(period: Period): Promise<RentDueRef[]> {
+    const installments = await this.installments.listAll({ period })
+    return installments
+      .filter(
+        (i) =>
+          i.status === InstallmentStatus.PENDING &&
+          activePayments(i).length === 0,
+      )
+      .map((i) => toRentDue(i, i.baseAmount))
+  }
+
+  /**
+   * Las cuotas del mes con saldo de alquiler a esa fecha (alerta a la
+   * aseguradora, A-27). Un pago sin confirmar ya cuenta como cobrado.
+   */
+  async listWithRentDue(
+    period: Period,
+    today: IsoDate = todayIso(),
+  ): Promise<RentDueRef[]> {
+    const installments = await this.installments.listAll({
+      period,
+      unpaid: true,
+    })
+    return installments.flatMap((i) => {
+      const { rentBalance } = InstallmentPolicy.balances(i, today)
+      return Number(rentBalance) > 0 ? [toRentDue(i, rentBalance)] : []
+    })
+  }
+
   /** Las cuotas con saldo y gracia vencida a esa fecha, las más atrasadas primero. */
   async listOverdue(
     today: IsoDate = todayIso(),
@@ -191,6 +261,7 @@ export class BillingFacade {
         daysOverdue: InstallmentPolicy.daysOverdue(installment, today),
         totalDue: balances.totalDue,
         lateFeeBalance: balances.lateFeeBalance,
+        rentBalance: balances.rentBalance,
       }))
       .sort((a, b) => b.daysOverdue - a.daysOverdue)
   }
@@ -256,6 +327,21 @@ export class BillingFacade {
       unpaid: true,
     })
     return this.views.arrears(ids, unpaid, today)
+  }
+}
+
+function toRentDue(installment: Installment, rentBalance: string): RentDueRef {
+  return {
+    id: installment.id,
+    contractId: installment.contractId,
+    renterId: installment.renterId,
+    ownerId: installment.ownerId,
+    propertyId: installment.propertyId,
+    period: installment.period,
+    currency: installment.currency,
+    baseAmount: installment.baseAmount,
+    graceEndDate: installment.graceEndDate,
+    rentBalance,
   }
 }
 

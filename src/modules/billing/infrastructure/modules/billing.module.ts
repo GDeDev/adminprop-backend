@@ -21,6 +21,8 @@ import {
   RelayPaymentVoidedHandler,
 } from '@/modules/billing/application/events/relay-payment-events.handler'
 import { InstallmentGenerator } from '@/modules/billing/application/installment-generator'
+import { InstallmentRebaser } from '@/modules/billing/application/installment-rebaser'
+import { ContractEventsConsumer } from '../consumers/contract-events.consumer'
 import { InstallmentRecalculator } from '@/modules/billing/application/installment-recalculator'
 import { InstallmentViews } from '@/modules/billing/application/installment.views'
 import {
@@ -68,6 +70,8 @@ import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.reposi
     InstallmentViews,
     InstallmentGenerator,
     InstallmentRecalculator,
+    InstallmentRebaser,
+    ContractEventsConsumer,
     BillingFacade,
     GenerateInstallmentsHandler,
     CreateChargeHandler,

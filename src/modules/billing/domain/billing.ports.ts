@@ -67,6 +67,8 @@ export interface InstallmentFilter {
 }
 
 export interface InstallmentChanges {
+  /** Sólo lo corrige el aumento de un contrato sobre cuotas sin movimientos. */
+  baseAmount?: string
   status?: StoredInstallmentStatus
   paidAt?: IsoDate | null
   lateFeeWaived?: boolean

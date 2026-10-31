@@ -128,6 +128,18 @@ export const InstallmentPolicy = {
     return toMoneyString(currentRent)
   },
 
+  /**
+   * Si un aumento posterior puede corregir la base de la cuota (Fase 13,
+   * 2.1, A-24): sólo si está `PENDING` y sin ningún pago vigente. Una cuota
+   * con pagos ya se empezó a cobrar con esa base; se avisa en vez de tocarla.
+   */
+  canRebase(installment: Installment): boolean {
+    return (
+      installment.status === InstallmentStatus.PENDING &&
+      activePayments(installment).length === 0
+    )
+  },
+
   /** Último día sin punitorio: primer día del mes + gracia − 1 (RN-02). */
   graceEndDate(period: Period, graceDays: number): IsoDate {
     return addDays(firstDayOfPeriod(period), graceDays - 1)
