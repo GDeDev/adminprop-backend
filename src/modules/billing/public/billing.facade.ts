@@ -193,15 +193,14 @@ export class BillingFacade {
 
   /**
    * Corrige la base de las cuotas ya generadas de un contrato tras un
-   * aumento (Fase 13, 2.1): las pendientes sin pagos pasan al nuevo
-   * alquiler, las demás se devuelven en `outdated` para avisar.
+   * aumento (Fase 13, 2.1): las pendientes sin pagos pasan al alquiler
+   * que les corresponde según el historial del contrato, las demás se devuelven en `outdated` para avisar.
    */
   rebaseInstallments(
     contractId: string,
     effectiveFrom: IsoDate,
-    newRent: string,
   ): Promise<RebaseResult> {
-    return this.rebaser.rebase(contractId, effectiveFrom, newRent)
+    return this.rebaser.rebase(contractId, effectiveFrom)
   }
 
   /**

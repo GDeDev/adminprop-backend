@@ -145,6 +145,23 @@ export class ContractsFacade {
     )
   }
 
+  /**
+   * El historial del alquiler, del más reciente al más viejo, o null si el
+   * contrato no existe. Cobros lo usa para saber qué base le corresponde a
+   * cada cuota sin depender del orden en que llegan los eventos de aumento.
+   */
+  async rentHistory(
+    contractId: string,
+  ): Promise<{ effectiveFrom: IsoDate; newRent: string }[] | null> {
+    const contract = await this.contracts.findById(contractId)
+    return contract
+      ? contract.rentUpdates.map(({ effectiveFrom, newRent }) => ({
+          effectiveFrom,
+          newRent,
+        }))
+      : null
+  }
+
   /** Alquiler vigente, o null si el contrato no existe. */
   async currentRent(contractId: string): Promise<string | null> {
     const contract = await this.contracts.findById(contractId)
