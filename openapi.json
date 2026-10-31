@@ -10510,6 +10510,481 @@
         ]
       }
     },
+    "/api/v1/automations/jobs": {
+      "get": {
+        "description": "Nombre, cron legible, última ejecución de la inmobiliaria (o la global, en índices) y próxima corrida prevista.",
+        "operationId": "AutomationsController_jobs_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Catálogo de jobs",
+        "tags": [
+          "Automations"
+        ]
+      }
+    },
+    "/api/v1/automations/executions": {
+      "get": {
+        "description": "Las de la inmobiliaria más las globales (índices). Más nuevas primero.",
+        "operationId": "AutomationsController_executions_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "job",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "billing.arrears-notice",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RUNNING",
+                "SUCCEEDED",
+                "PARTIAL",
+                "FAILED",
+                "SKIPPED"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ejecuciones de jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/JobExecutionDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Historial de ejecuciones",
+        "tags": [
+          "Automations"
+        ]
+      }
+    },
+    "/api/v1/automations/jobs/{job}/run": {
+      "post": {
+        "description": "Encola una corrida manual y responde 202 con el id de la ejecución. Se saltea la condición \"hoy es el día N\" pero no la idempotencia: no duplica nada. Con `period`, procesa ese mes (generar cuotas, consolidados). `indices.fetch` es global.",
+        "operationId": "AutomationsController_run_api/v1",
+        "parameters": [
+          {
+            "name": "job",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunJobDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunJobResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "El job no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya hay una corrida en curso de ese job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ejecutar un job ahora",
+        "tags": [
+          "Automations"
+        ]
+      }
+    },
+    "/api/v1/automations/alerts": {
+      "get": {
+        "description": "Avisos para el personal de los últimos 30 días (aumento pendiente, índice no disponible, cuota con base desactualizada, consolidado pendiente), más nuevos primero.",
+        "operationId": "AutomationsController_alerts_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "unreadOnly",
+            "required": false,
+            "in": "query",
+            "description": "Sólo los no leídos",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Avisos internos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/InternalAlertDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Avisos internos",
+        "tags": [
+          "Automations"
+        ]
+      }
+    },
+    "/api/v1/automations/alerts/read-all": {
+      "post": {
+        "operationId": "AutomationsController_readAll_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadAllAlertsResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Marcar todos los avisos como leídos",
+        "tags": [
+          "Automations"
+        ]
+      }
+    },
+    "/api/v1/automations/alerts/{id}/read": {
+      "patch": {
+        "operationId": "AutomationsController_read_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalAlertDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "El aviso no existe",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Marcar un aviso como leído",
+        "tags": [
+          "Automations"
+        ]
+      }
+    },
+    "/api/v1/indices/status": {
+      "get": {
+        "description": "Por tipo: último mes cargado, fuente, último intento de traerlo y su resultado.",
+        "operationId": "IndexStatusController_status_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IndexStatusDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Estado de los índices",
+        "tags": [
+          "Indices"
+        ]
+      }
+    },
     "/api/v1/examples": {
       "post": {
         "operationId": "ExampleItemsController_create_api/v1",
@@ -18312,6 +18787,299 @@
           "receivables",
           "payments",
           "movements"
+        ]
+      },
+      "JobExecutionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "job": {
+            "type": "string",
+            "example": "billing.arrears-notice"
+          },
+          "tenantId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Null en los globales"
+          },
+          "scheduledFor": {
+            "type": "string",
+            "format": "date",
+            "description": "Día (hora local) de la corrida"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "finishedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RUNNING",
+              "SUCCEEDED",
+              "PARTIAL",
+              "FAILED",
+              "SKIPPED"
+            ]
+          },
+          "affected": {
+            "type": "number",
+            "description": "Cuántas cosas tocó"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true,
+            "example": "3 cuotas creadas, 12 ya existían"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "triggeredBy": {
+            "type": "string",
+            "enum": [
+              "SCHEDULE",
+              "MANUAL"
+            ]
+          },
+          "triggeredByUser": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "job",
+          "tenantId",
+          "scheduledFor",
+          "startedAt",
+          "finishedAt",
+          "status",
+          "affected",
+          "summary",
+          "error",
+          "triggeredBy",
+          "triggeredByUser"
+        ]
+      },
+      "JobDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "installments.generate"
+          },
+          "title": {
+            "type": "string",
+            "example": "Generar cuotas del mes"
+          },
+          "description": {
+            "type": "string"
+          },
+          "cron": {
+            "type": "string",
+            "example": "10 0 * * *"
+          },
+          "cronLabel": {
+            "type": "string",
+            "example": "todos los días a las 00:10"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "TENANT",
+              "GLOBAL"
+            ]
+          },
+          "lastExecution": {
+            "nullable": true,
+            "description": "La del tenant, o la global en los jobs globales",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JobExecutionDto"
+              }
+            ]
+          },
+          "nextRunAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO. Null si el disparo automático está apagado"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "description",
+          "cron",
+          "cronLabel",
+          "scope",
+          "lastExecution",
+          "nextRunAt"
+        ]
+      },
+      "RunJobDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string",
+            "example": "2026-11",
+            "description": "Mes a procesar, si el job lo admite (generar cuotas, consolidados). Sin él, el de hoy."
+          }
+        }
+      },
+      "RunJobResultDto": {
+        "type": "object",
+        "properties": {
+          "executionId": {
+            "type": "string",
+            "description": "Se consulta en GET /automations/executions"
+          }
+        },
+        "required": [
+          "executionId"
+        ]
+      },
+      "InternalAlertDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "RENT_UPDATE_PENDING",
+              "INDEX_FETCH_FAILED",
+              "INSTALLMENT_BASE_OUTDATED",
+              "STATEMENT_PENDING",
+              "DOCUMENT_FAILED",
+              "JOB_FAILED"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string",
+            "nullable": true,
+            "example": "CONTRACT"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true
+          },
+          "link": {
+            "type": "string",
+            "nullable": true,
+            "description": "Ruta relativa del backoffice",
+            "example": "/contratos/00000000-0000-4000-8000-000000000000"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "readAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title",
+          "body",
+          "entityType",
+          "entityId",
+          "link",
+          "createdAt",
+          "readAt"
+        ]
+      },
+      "ReadAllAlertsResultDto": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "updated"
+        ]
+      },
+      "IndexStatusDto": {
+        "type": "object",
+        "properties": {
+          "indexType": {
+            "type": "string",
+            "enum": [
+              "ICL",
+              "IPC"
+            ]
+          },
+          "latestPeriod": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09"
+          },
+          "latestValue": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "example": "bcra"
+          },
+          "lastAttemptAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "lastAttemptStatus": {
+            "type": "string",
+            "enum": [
+              "SUCCEEDED",
+              "PARTIAL",
+              "FAILED",
+              "SKIPPED"
+            ],
+            "nullable": true
+          },
+          "lastAttemptError": {
+            "type": "string",
+            "nullable": true
+          },
+          "provider": {
+            "type": "string",
+            "example": "bcra-indec",
+            "description": "bcra-indec | manual"
+          }
+        },
+        "required": [
+          "indexType",
+          "latestPeriod",
+          "latestValue",
+          "source",
+          "lastAttemptAt",
+          "lastAttemptStatus",
+          "lastAttemptError",
+          "provider"
         ]
       },
       "CreateExampleItemDto": {
