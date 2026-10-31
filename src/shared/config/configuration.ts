@@ -2,6 +2,8 @@ import type { StringValue } from 'ms'
 
 import {
   EmailProvider,
+  IndexSourceProvider,
+  NotificationsProvider,
   Environment,
   FeatureFlagsProvider,
   QueueProvider,
@@ -88,6 +90,16 @@ export interface EmailConfig {
   provider: EmailProvider
 }
 
+export interface NotificationsConfig {
+  provider: NotificationsProvider
+}
+
+export interface AutomationsConfig {
+  /** Si el scheduler dispara los jobs solo. Los manuales no dependen de esto. */
+  enabled: boolean
+  indexSource: IndexSourceProvider
+}
+
 export interface Configuration {
   app: AppConfig
   database: DatabaseConfig
@@ -99,6 +111,8 @@ export interface Configuration {
   storage: StorageConfig
   featureFlags: FeatureFlagsConfig
   email: EmailConfig
+  notifications: NotificationsConfig
+  automations: AutomationsConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -282,6 +296,19 @@ export function configuration(): Configuration {
         process.env.EMAIL_PROVIDER,
         EmailProvider.Console,
       ) as EmailProvider,
+    },
+    notifications: {
+      provider: str(
+        process.env.NOTIFICATIONS_PROVIDER,
+        NotificationsProvider.Console,
+      ) as NotificationsProvider,
+    },
+    automations: {
+      enabled: bool(process.env.AUTOMATIONS_ENABLED, true),
+      indexSource: str(
+        process.env.INDEX_SOURCE_PROVIDER,
+        IndexSourceProvider.BcraIndec,
+      ) as IndexSourceProvider,
     },
   }
 }

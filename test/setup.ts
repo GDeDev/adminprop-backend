@@ -31,6 +31,11 @@ process.env.THROTTLE_ENABLED = 'false'
 process.env.FEATURE_FLAGS_PROVIDER = 'memory'
 delete process.env.FLAGSMITH_ENVIRONMENT_KEY
 process.env.EMAIL_PROVIDER = 'console'
+process.env.NOTIFICATIONS_PROVIDER = 'console'
+// Ni el scheduler ni la búsqueda de índices en internet corren solos en los
+// tests: se disparan a mano con una hora fija.
+process.env.AUTOMATIONS_ENABLED = 'false'
+process.env.INDEX_SOURCE_PROVIDER = 'manual'
 // Los e2e esperan a los consumidores de la cola: que busquen seguido.
 process.env.QUEUE_POLLING_INTERVAL_SECONDS = '0.5'
 process.env.STORAGE_PROVIDER = 'local'

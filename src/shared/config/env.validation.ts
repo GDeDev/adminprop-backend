@@ -45,6 +45,19 @@ export enum EmailProvider {
   Console = 'console',
 }
 
+export enum NotificationsProvider {
+  /** Loguea en vez de enviar. El único hasta la Fase 14 (Novu + Resend). */
+  Console = 'console',
+}
+
+/** De dónde salen los índices ICL/IPC (Fase 13, 2.2). */
+export enum IndexSourceProvider {
+  /** BCRA (ICL) + INDEC vía datos.gob.ar (IPC). Públicas, sin credenciales. */
+  BcraIndec = 'bcra-indec',
+  /** No busca nada: los índices se cargan a mano. */
+  Manual = 'manual',
+}
+
 export enum SecretsProvider {
   /** Lee todo de `process.env`, que llena Doppler. */
   Env = 'env',
@@ -319,6 +332,26 @@ export class EnvironmentVariables {
     message: `EMAIL_PROVIDER debe ser uno de: ${Object.values(EmailProvider).join(', ')}`,
   })
   EMAIL_PROVIDER?: EmailProvider
+
+  // ------------------------------------------------------------- Notificaciones
+  @IsOptional()
+  @IsEnum(NotificationsProvider, {
+    message: `NOTIFICATIONS_PROVIDER debe ser uno de: ${Object.values(NotificationsProvider).join(', ')}`,
+  })
+  NOTIFICATIONS_PROVIDER?: NotificationsProvider
+
+  // ---------------------------------------------------------- Automatizaciones
+  @IsOptional()
+  @IsEnum(IndexSourceProvider, {
+    message: `INDEX_SOURCE_PROVIDER debe ser uno de: ${Object.values(IndexSourceProvider).join(', ')}`,
+  })
+  INDEX_SOURCE_PROVIDER?: IndexSourceProvider
+
+  /** Apaga el disparo automático de los jobs (los manuales siguen andando). Default: true. */
+  @toBool()
+  @IsOptional()
+  @IsBoolean()
+  AUTOMATIONS_ENABLED?: boolean
 
   // -------------------------------------------------------------------------- CORS
   /** Lista separada por comas. `*` permite cualquier origen (sólo para desarrollo). */

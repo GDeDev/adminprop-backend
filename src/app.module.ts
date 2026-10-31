@@ -24,6 +24,8 @@ import { QueueModule } from '@/platform/queue/queue.module'
 import { StorageModule } from '@/platform/storage/storage.module'
 import { FeatureFlagsModule } from '@/platform/feature-flags/feature-flags.module'
 import { EmailModule } from '@/platform/email/email.module'
+import { NotificationsModule } from '@/platform/notifications/notifications.module'
+import { IndexSourceModule } from '@/platform/index-source/index-source.module'
 import { PrismaModule } from '@/shared/prisma/prisma.module'
 import { AppConfigModule } from './shared/config/config.module'
 import { RequestContextMiddleware } from './shared/context/request-context.middleware'
@@ -48,6 +50,8 @@ import { SharedModule } from './shared/shared.module'
     StorageModule,
     FeatureFlagsModule,
     EmailModule,
+    NotificationsModule,
+    IndexSourceModule,
     HealthModule,
     JobsModule,
     TenantsModule,
