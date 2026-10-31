@@ -24,6 +24,21 @@ export interface TenantBillingSettings {
   paymentReminderDay: number
 }
 
+/** Una inmobiliaria habilitada, para recorrerlas desde los jobs. */
+export interface ActiveTenantRef {
+  id: string
+  name: string
+  slug: string
+}
+
+/** Los días de corte que gobiernan los avisos automáticos (Fase 13). */
+export interface TenantAutomationSettings {
+  installmentGenerationDay: number
+  paymentReminderDay: number
+  monthlyReportDay: number
+  contractExpiryNoticeDays: number
+}
+
 /**
  * Punto de entrada sincrónico a `tenants` desde otros módulos. Expone lo
  * mínimo: el día que las inmobiliarias vivan en otro servicio, esta clase pasa
@@ -69,6 +84,27 @@ export class TenantsFacade {
       dailyLateFeePercentage: tenant.dailyLateFeePercentage,
       installmentGenerationDay: tenant.installmentGenerationDay,
       paymentReminderDay: tenant.paymentReminderDay,
+    }
+  }
+
+  /**
+   * Las inmobiliarias habilitadas. Es lo que recorre el scheduler de la Fase
+   * 13, fuera de cualquier request: `tenants` no tiene filtro de tenant.
+   */
+  async listActive(): Promise<ActiveTenantRef[]> {
+    const tenants = await this.tenants.listActive()
+    return tenants.map(({ id, name, slug }) => ({ id, name, slug }))
+  }
+
+  async getAutomationSettings(
+    tenantId: string,
+  ): Promise<TenantAutomationSettings> {
+    const tenant = await this.require(tenantId)
+    return {
+      installmentGenerationDay: tenant.installmentGenerationDay,
+      paymentReminderDay: tenant.paymentReminderDay,
+      monthlyReportDay: tenant.monthlyReportDay,
+      contractExpiryNoticeDays: tenant.contractExpiryNoticeDays,
     }
   }
 

@@ -3,4 +3,5 @@
  */
 export { IndicesModule } from '../infrastructure/modules/indices.module'
 export { IndicesFacade } from './indices.facade'
+export type { LatestIndexValue } from './indices.facade'
 export { IndexType } from '../domain/index-value'

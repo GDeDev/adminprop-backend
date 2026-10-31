@@ -10,6 +10,9 @@ import { Tenant } from './tenant.entity'
 export abstract class TenantRepository {
   abstract findById(id: string): Promise<Tenant | null>
 
+  /** Las inmobiliarias habilitadas, para los jobs de la Fase 13 (sin tenant en el contexto). */
+  abstract listActive(): Promise<Tenant[]>
+
   /** El slug se compara normalizado (minúsculas, sin espacios). */
   abstract findBySlug(slug: string): Promise<Tenant | null>
 }

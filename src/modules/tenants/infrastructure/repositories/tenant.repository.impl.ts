@@ -21,6 +21,7 @@ const TENANT_FIELDS = {
   dailyLateFeePercentage: true,
   installmentGenerationDay: true,
   paymentReminderDay: true,
+  monthlyReportDay: true,
 } as const
 
 type TenantRow = Prisma.TenantGetPayload<{ select: typeof TENANT_FIELDS }>
@@ -37,6 +38,15 @@ export class TenantRepositoryImpl extends TenantRepository {
       select: TENANT_FIELDS,
     })
     return row ? toDomain(row) : null
+  }
+
+  async listActive(): Promise<Tenant[]> {
+    const rows = await this.prisma.db.tenant.findMany({
+      where: { isActive: true },
+      select: TENANT_FIELDS,
+      orderBy: { createdAt: 'asc' },
+    })
+    return rows.map(toDomain)
   }
 
   async findBySlug(slug: string): Promise<Tenant | null> {
@@ -65,5 +75,6 @@ function toDomain(row: TenantRow): Tenant {
     dailyLateFeePercentage: row.dailyLateFeePercentage.toFixed(2),
     installmentGenerationDay: row.installmentGenerationDay,
     paymentReminderDay: row.paymentReminderDay,
+    monthlyReportDay: row.monthlyReportDay,
   }
 }

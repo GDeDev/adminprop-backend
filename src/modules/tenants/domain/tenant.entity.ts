@@ -26,4 +26,6 @@ export interface Tenant {
   installmentGenerationDay: number
   /** Día del mes en que sale el recordatorio de pago. */
   paymentReminderDay: number
+  /** Día del mes en que se revisa el cierre de los consolidados a propietarios. */
+  monthlyReportDay: number
 }
