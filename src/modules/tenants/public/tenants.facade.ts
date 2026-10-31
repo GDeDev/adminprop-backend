@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { Tenant } from '../domain/tenant.entity'
+import { Tenant, TenantSettingsPatch } from '../domain/tenant.entity'
 import { TenantRepository } from '../domain/tenant.repository'
 
 /** Parámetros de la inmobiliaria que gobiernan los contratos (PRD 5.0). */
@@ -37,6 +37,29 @@ export interface TenantAutomationSettings {
   paymentReminderDay: number
   monthlyReportDay: number
   contractExpiryNoticeDays: number
+}
+
+/**
+ * Marca y datos legales de la inmobiliaria, para armar el encabezado y el
+ * pie de los PDFs (Fase 15, 1).
+ */
+export interface TenantBrandingData {
+  id: string
+  name: string
+  slug: string
+  logoUrl: string | null
+  primaryColor: string | null
+  legalName: string | null
+  taxId: string | null
+  address: string | null
+  phone: string | null
+  email: string | null
+  whatsapp: string | null
+  bankAccountHolder: string | null
+  bankName: string | null
+  bankCbu: string | null
+  bankAlias: string | null
+  documentFooter: string | null
 }
 
 /**
@@ -106,6 +129,46 @@ export class TenantsFacade {
       monthlyReportDay: tenant.monthlyReportDay,
       contractExpiryNoticeDays: tenant.contractExpiryNoticeDays,
     }
+  }
+
+  /** Nombre, logo, color y datos fiscales y bancarios (Fase 15). */
+  async branding(tenantId: string): Promise<TenantBrandingData> {
+    const tenant = await this.require(tenantId)
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      logoUrl: tenant.logoUrl,
+      primaryColor: tenant.primaryColor,
+      legalName: tenant.legalName,
+      taxId: tenant.taxId,
+      address: tenant.address,
+      phone: tenant.phone,
+      email: tenant.email,
+      whatsapp: tenant.whatsapp,
+      bankAccountHolder: tenant.bankAccountHolder,
+      bankName: tenant.bankName,
+      bankCbu: tenant.bankCbu,
+      bankAlias: tenant.bankAlias,
+      documentFooter: tenant.documentFooter,
+    }
+  }
+
+  /** Edita los datos legales y de marca (el endpoint de configuración usa el mismo repositorio). */
+  async updateLegalData(
+    tenantId: string,
+    patch: TenantSettingsPatch,
+  ): Promise<TenantBrandingData> {
+    await this.tenants.updateSettings(tenantId, patch)
+    return this.branding(tenantId)
+  }
+
+  /**
+   * Reserva el próximo número de recibo de la inmobiliaria (A-33). Atómico y
+   * dentro de la transacción en curso: si se revierte, el número no se gasta.
+   */
+  nextReceiptNumber(tenantId: string): Promise<number> {
+    return this.tenants.nextReceiptNumber(tenantId)
   }
 
   private async require(tenantId: string): Promise<Tenant> {

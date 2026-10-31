@@ -20,4 +20,18 @@ export class TenantBrandingDto {
     example: '#1f4e79',
   })
   primaryColor: string | null
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Sólo dígitos con código de país',
+    example: '5491122334455',
+  })
+  whatsapp: string | null
+
+  @ApiProperty({ nullable: true, type: String }) phone: string | null
+
+  @ApiProperty({ nullable: true, type: String }) email: string | null
+
+  @ApiProperty({ nullable: true, type: String }) address: string | null
 }

@@ -13,3 +13,14 @@ export class TenantNotFoundException extends DomainException {
     )
   }
 }
+
+/** El logo tiene que ser PNG, JPG, WebP o SVG de hasta 2 MB. */
+export class InvalidTenantLogoException extends DomainException {
+  constructor(reason: string) {
+    super(
+      'TENANT_INVALID_LOGO',
+      `El logo no sirve: ${reason}`,
+      DomainErrorKind.InvalidInput,
+    )
+  }
+}

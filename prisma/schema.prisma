@@ -72,8 +72,32 @@ model Tenant {
   monthlyReportDay         Int      @default(10) @map("monthly_report_day")
   defaultCurrency          Currency @default(ARS) @map("default_currency")
 
+  // ---------------------------------------------------- Datos legales (Fase 15)
+  /// Razón social, CUIT y contacto: encabezado y pie de los PDFs y datos del
+  /// recordatorio de pago. Todos opcionales.
+  legalName         String? @map("legal_name") @db.VarChar(200)
+  taxId             String? @map("tax_id") @db.VarChar(20)
+  address           String? @db.VarChar(250)
+  phone             String? @db.VarChar(40)
+  email             String? @db.VarChar(255)
+  /// Sólo dígitos con código de país (5491122334455): arma el link de WhatsApp.
+  whatsapp          String? @db.VarChar(20)
+  bankAccountHolder String? @map("bank_account_holder") @db.VarChar(150)
+  bankName          String? @map("bank_name") @db.VarChar(100)
+  bankCbu           String? @map("bank_cbu") @db.VarChar(22)
+  bankAlias         String? @map("bank_alias") @db.VarChar(60)
+  /// Leyenda al pie de los PDFs (A-34). Sin valor: se usa la fija.
+  documentFooter    String? @map("document_footer") @db.VarChar(500)
+  /// Clave del logo en el storage, para borrar el anterior al reemplazarlo.
+  logoKey           String? @map("logo_key") @db.VarChar(500)
+  /// Último número de recibo emitido; el siguiente es este + 1 (A-33).
+  receiptSequence   Int     @default(0) @map("receipt_sequence")
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Quién editó la configuración (la auditoría los completa solos).
+  createdById String? @map("created_by_id") @db.Uuid
+  updatedById String? @map("updated_by_id") @db.Uuid
 
   users     User[]
   asyncJobs AsyncJob[]

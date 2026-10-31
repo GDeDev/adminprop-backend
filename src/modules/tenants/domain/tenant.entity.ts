@@ -28,4 +28,38 @@ export interface Tenant {
   paymentReminderDay: number
   /** Día del mes en que se revisa el cierre de los consolidados a propietarios. */
   monthlyReportDay: number
+  // ------------------------------------------------- Datos legales (Fase 15)
+  legalName: string | null
+  taxId: string | null
+  address: string | null
+  phone: string | null
+  email: string | null
+  /** Sólo dígitos con código de país. */
+  whatsapp: string | null
+  bankAccountHolder: string | null
+  bankName: string | null
+  bankCbu: string | null
+  bankAlias: string | null
+  /** Leyenda al pie de los PDFs; sin valor, se usa la fija (A-34). */
+  documentFooter: string | null
+  /** Clave del logo en el storage (para borrarlo al reemplazarlo). */
+  logoKey: string | null
+  /** Último número de recibo emitido. */
+  receiptSequence: number
+}
+
+/** Los campos de `Tenant` que edita el admin desde Configuración (Fase 15). */
+export interface TenantSettingsPatch {
+  primaryColor?: string | null
+  legalName?: string | null
+  taxId?: string | null
+  address?: string | null
+  phone?: string | null
+  email?: string | null
+  whatsapp?: string | null
+  bankAccountHolder?: string | null
+  bankName?: string | null
+  bankCbu?: string | null
+  bankAlias?: string | null
+  documentFooter?: string | null
 }

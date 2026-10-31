@@ -6,6 +6,8 @@ export { TenantsFacade } from './tenants.facade'
 export type {
   ActiveTenantRef,
   TenantAutomationSettings,
+  TenantBrandingData,
   TenantBillingSettings,
   TenantContractSettings,
 } from './tenants.facade'
+export type { TenantSettingsPatch } from '../domain/tenant.entity'

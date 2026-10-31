@@ -50,10 +50,10 @@ export interface ModelBehaviour {
 }
 
 export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
-  // La raíz del modelo multi-tenant: no tiene tenantId, es el tenant. Sin
-  // auditoría por ahora: se crea por seed y no hay ABM; cuando se puedan editar
-  // sus parámetros, sumarle las columnas createdById/updatedById y auditarlo.
-  Tenant: { audit: false, softDelete: false },
+  // La raíz del modelo multi-tenant: no tiene tenantId, es el tenant. Se crea
+  // por seed; desde la Fase 15 el admin edita sus datos legales y de marca, y
+  // esos cambios quedan en el historial (createdById/updatedById).
+  Tenant: { audit: true, softDelete: false },
 
   User: {
     tenantScoped: true,
