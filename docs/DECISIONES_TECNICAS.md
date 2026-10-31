@@ -666,3 +666,64 @@ Referencia: `adminprop-repo-files/docs/REDISENO_FASE_12.md` (a partir de `RESPUE
 - **A-19 · Al anular un pago ya liquidado, la liquidación confirmada no cambia; la diferencia se descuenta en la siguiente pendiente** con un ajuste automático. _Si prefiere reabrir_: un `reopen` (admin) de una liquidación sin transferencias que desmarque pagos y gastos y vuelva a `PENDING`.
 - **A-20 · "Retenciones" y "adelantos" son rubros manuales** con concepto, descripción y monto; no hay cálculo impositivo. _Si pide retenciones automáticas (IIBB, etc.)_: una tabla de reglas por tenant y una línea calculada en `SettlementPolicy.compute`.
 - **A-21 · El consolidado agrupa por mes de liquidación** (cuándo se liquidó, `settlements.period`), no por período de la cuota, y el usuario elige qué liquidaciones entran. _Si prefiere automático_: `close` toma todas las confirmadas sin consolidado del propietario (ya están en `GET /statements/:id/candidates`).
+
+## Fase 13 — Cron jobs y workers (sin supervisión, rediseño)
+
+Referencia: `adminprop-repo-files/docs/REDISENO_FASE_13.md` (sobre `specs/fase-13-cron-jobs.md`, el PRD §13 y los modelos de las Fases 11 y 12). Reemplaza la spec original donde difieran.
+
+### D-93 · Un solo `@Cron` cada 10 minutos que encola "lo que falta hoy", no "lo que toca a esta hora"
+
+- **Contexto**: el rediseño pedía "un `@Cron` por frecuencia (cada hora en punto y uno diario a las 00:05)", pero los jobs salen a las 00:10, 09:10, 09:20…, y un servidor apagado a la hora exacta perdería el día.
+- **Decisión**: `CronSchedulerTask` corre cada 10 minutos en `America/Argentina/Buenos_Aires` y llama a `JobScheduler.enqueueDue`, que por cada job y cada inmobiliaria activa (`TenantsFacade.listActive()`) calcula `JobSchedulePolicy.missingRuns`: las horas del job ya pasadas hoy menos las corridas `SCHEDULE` ya registradas ese día (`job_executions`). Lo que falta se encola. Al arrancar el servidor (a los 30 s) hace la misma pregunta una vez, así lo perdido estando apagado se recupera apenas vuelve. `AUTOMATIONS_ENABLED=false` apaga el disparo (en los tests, siempre apagado: se disparan a mano con una hora fija); las corridas manuales no dependen de esa variable.
+
+### D-94 · Una cola de pg-boss por job, con la fila de ejecución creada al encolar y reusada en los reintentos
+
+- **Decisión**: la cola `automation-<job con guiones>` lleva `{ job, executionId, scheduledFor, period, manual }`; el tenant viaja en el sobre de la cola (`RequestContext.runInTenant` al publicar), así el handler corre en la inmobiliaria del mensaje. La `singletonKey` es `<job>:<tenant|global>:<día>:<n° de corrida>` (`…:manual:<id>` en las manuales): si otra instancia ya encoló esa corrida (`DuplicateJobError`), la fila se descarta. Reintentos: 3 más, cada 60 s, sobre la misma fila (`RUNNING` otra vez). Agotados, `JOB_FAILED` al personal, una vez por job y día. Cada corrida deja una fila aunque no haga nada (`SKIPPED`): el historial del backoffice muestra qué corrió y qué no.
+
+### D-95 · `job_executions` sin filtro de tenant: las lecturas filtran a mano por el tenant o los globales
+
+- **Contexto**: `tenant_id` es opcional (los jobs globales, índices, no tienen inmobiliaria); la extensión de Prisma filtraría por tenant a todo modelo declarado `tenantScoped` y fallaría sin tenant.
+- **Decisión**: `JobExecution` no es `tenantScoped` ni auditable (la fila es la traza); el test de modelos con tenant lo lista en `NOT_SCOPED_ON_PURPOSE` con la razón. `JobExecutionRepository.list/lastByJob` filtran `tenant_id = <contexto> OR tenant_id IS NULL`. Un job global (índices) lo ven todas las inmobiliarias; uno por tenant, sólo la suya.
+
+### D-96 · `notification_log` es la memoria de los avisos: una fila por aviso, clave única por inmobiliaria, `read_at` para la campana
+
+- **Decisión**: `NotificationsService` es lo único que llaman los jobs. Con una `dedupe_key` existente y no fallida devuelve `SKIPPED` sin enviar; si falló, la fila se reintenta en la próxima corrida. Una fila por aviso (no por canal): `channel` es el primero de la lista y el payload lleva todos más los datos de la plantilla. `entity_type`/`entity_id` son **opcionales** (en el rediseño eran obligatorios: "índice no disponible" no cuelga de nada) y se suma **`read_at`** (el DTO de avisos lo pide). Un aviso `IN_APP` al personal queda `SENT` al escribirse; su título, texto y link van en el payload.
+
+### D-97 · `NotificationsPort` con adapter de consola; los destinatarios del personal no llevan email todavía
+
+- **Decisión**: la fase no envía nada real. `NOTIFICATIONS_PROVIDER=console` loguea (sin los datos de la plantilla, que tienen nombres y montos) y responde `SENT`. Los avisos al inquilino y al propietario llevan email y teléfono resueltos (`RentersFacade.contacts`, `OwnersFacade.contacts`); los dirigidos al personal (`TENANT_STAFF`) y a la aseguradora (`INSURER`) llevan lo que haya. Quién es "el personal" lo resuelve la Fase 14 (hoy `TENANT_STAFF` no tiene email). La campana del backoffice sólo muestra los avisos `IN_APP` de seis tipos (`RENT_UPDATE_PENDING`, `INDEX_FETCH_FAILED`, `INSTALLMENT_BASE_OUTDATED`, `STATEMENT_PENDING`, `JOB_FAILED`, `DOCUMENT_FAILED`); los demás avisos al personal salen por email y quedan en el historial.
+
+### D-98 · Índices: BCRA para el ICL, INDEC (datos.gob.ar) para el IPC, sólo meses terminados, y el resultado por tipo queda en `details`
+
+- **Decisión**: `IndexSourcePort` con `BcraIndecIndexSource` y `ManualIndexSource`. El ICL sale de la API de estadísticas del BCRA (variable 40; acepta el formato v3 `results[].detalle[]` y el v2 plano) y es el valor del último día del mes, aceptando un dato de hasta 4 días antes (A-25); el IPC, de la serie `148.3_INIVELNAL_DICI_M_26` de la API de series de tiempo de datos.gob.ar (nivel general nacional, publicada por el INDEC). Un mes sólo se informa cuando terminó. `IndicesFacade.missingPeriods` mira los últimos 3 meses **terminados**; `registerFromSource` no pisa (`INDEX_PERIOD_TAKEN`, D-54) y tolera la carrera con otra corrida. `job_executions.details` guarda `{ ICL: { status, fetched, stillMissing, error }, IPC: {…} }` y `GET /indices/status` lo lee de la última corrida terminada. El aviso `INDEX_FETCH_FAILED` va sólo a las inmobiliarias que tienen contratos activos con ese índice (`ContractsFacade.indexTypesInUse`), una vez por día y tipo, y sólo si la fuente falló o falta un mes que ya debería estar publicado (A-28).
+
+### D-99 · Los aumentos automáticos usan el mismo código que el manual, y las cuotas se corrigen por un evento (no desde el job)
+
+- **Contexto**: el rediseño decía que `contracts.apply-rent-updates` llamara a `BillingFacade.rebaseInstallments` "y el manual hace lo mismo", pero cobros importa contratos: contratos no puede llamar a cobros.
+- **Decisión**: `RentUpdateApplier` (contratos) escribe el aumento en el historial y emite `RentUpdateAppliedEvent`; lo comparten `ApplyRentUpdateHandler` y `ContractsFacade.applyDueRentUpdate` (que no tira si falta el índice o el aumento es manual: devuelve `MANUAL_REQUIRED` con el motivo). Un relay lo publica en la cola `contract-rent-updated` y cobros (`ContractEventsConsumer` → `InstallmentRebaser`) corrige la base de las cuotas, igual para el cron que para `POST /contracts/:id/rent-updates`. El rebase **no usa el monto del evento**: toma de `ContractsFacade.rentHistory` el alquiler vigente al 1° de cada mes, así dos aumentos seguidos que llegan en cualquier orden dejan lo mismo y repetirlo no cambia nada. Sólo se tocan cuotas `PENDING` sin pagos vigentes; las demás quedan y avisan `INSTALLMENT_BASE_OUTDATED` (A-24). `RentUpdatesJob` aplica en bucle los aumentos atrasados de un contrato (tope 24) y avisa `RENT_UPDATE_PENDING` una vez por contrato y fecha de aumento. El cron deja `appliedById` en `null`.
+
+### D-100 · Los jobs diarios preguntan "¿falta hacer?", no "¿es hoy?"
+
+- **Decisión**: cada job es idempotente por una regla de negocio y se recupera solo. Generar cuotas: siempre el mes en curso, y desde `installmentGenerationDay` el siguiente (índice único contrato-período). Recordatorio de pago: desde `paymentReminderDay` y hasta el fin de la gracia de la cuota (después toma el aviso de mora), `PAYMENT_REMINDER:<cuota>`. Mora: la primera vez que el job ve la cuota vencida (`ARREARS_NOTICE:<cuota>:renter|staff`). Aseguradora: desde el día siguiente a `paymentReminderDay` (`INSURER_ALERT:<cuota>`). Contratos por vencer: `CONTRACT_EXPIRING:<contrato>:owner|staff`. Pólizas: `POLICY_EXPIRING|EXPIRED:<contrato>:<vencimiento>` (una póliza renovada vuelve a avisar). Servicios: `SERVICE_OVERDUE:<servicio>:<vencimiento>:renter|staff`. Consolidados: desde `monthlyReportDay`, `STATEMENT_PENDING:<propietario>:<mes>`. Una corrida manual se saltea la condición del día pero no estas claves.
+
+### D-101 · Sin job de punitorios diario
+
+- **Decisión**: el punitorio se calcula al leer sobre el saldo de cada día (Fase 11) y se congela al saldar; un job diario no agregaría información. Es la decisión que el rediseño dejaba con "D-" sin número.
+
+### D-102 · API de automatizaciones: corrida manual asincrónica, avisos de 30 días y `GET /indices/status` en el módulo `automations`
+
+- **Decisión**: `POST /automations/jobs/:job/run` crea la ejecución `RUNNING` (con quién la pidió), la encola y responde 202; rechaza con 409 si ya hay una corrida `RUNNING` del mismo job de los últimos 15 minutos. `GET /automations/alerts` devuelve los avisos internos de los últimos 30 días, accesible también para empleados; `PATCH …/:id/read` y `POST …/read-all` los marcan. `GET /indices/status` se sirve desde `automations` (`IndexStatusController`, ruta `/indices/status`) porque el último intento sale de las ejecuciones de ese módulo, que depende de índices y no al revés. Los DTOs (`JobDto`, `JobExecutionDto`, `RunJobDto`, `RunJobResultDto`, `InternalAlertDto`, `IndexStatusDto`) son los de la sección 8 del rediseño, sin cambios.
+
+### Supuestos a confirmar con Micaela (Fase 13)
+
+Los A-22 a A-27 vienen del rediseño; A-28 a A-30 son de la implementación.
+
+- **A-22 · Zona horaria única `America/Argentina/Buenos_Aires` para todas las inmobiliarias.** _Si hace falta otra_: columna `tenants.timezone` y pasarla a `localMoment`.
+- **A-23 · El aviso de mora sale una sola vez por cuota, el primer día después de la gracia** (no se repite). _Si quiere recordatorios periódicos_: `ARREARS_NOTICE` con `dedupeKey` por semana.
+- **A-24 · Un aumento posterior a la generación corrige la base de las cuotas pendientes sin pagos; las demás se avisan.** Un aumento que rige a mitad de mes alcanza desde el mes siguiente (la cuota del mes entero se generó con el alquiler de entonces, D-72). _Alternativa_: sólo avisar (quitar la corrección de `InstallmentRebaser.rebase`).
+- **A-25 · ICL del contrato = valor publicado para el último día del mes del aumento; IPC = índice mensual del mes.** Consecuencia a confirmar: la regla de la Fase 9 usa el índice del **mes del aumento**, que recién existe al terminar el mes; un aumento ICL del 1° de noviembre se aplica a partir del 1° de diciembre (con vigencia retroactiva al 1° de noviembre) y las cuotas ya pagas se avisan. _Si usan el índice del mes anterior o otro día de referencia_: `RentUpdateApplier.applyIndex` y las constantes del adapter.
+- **A-26 · Recordatorio de pago sólo a cuotas sin ningún pago; mora sólo con saldo de alquiler** (no por cargos ni punitorio solos).
+- **A-27 · La alerta a la aseguradora se dispara por cuota del mes en curso con saldo de alquiler desde el día siguiente a `paymentReminderDay`** (default 1), como pide el PRD; con gracia de 10 días esto avisa antes de que haya mora. _Si prefieren después de la gracia_: usar `graceEndDate`.
+- **A-28 · Un índice sin publicar no alarma hasta 20 días después del fin de su mes** (el INDEC publica el IPC a mediados del mes siguiente). El job queda `PARTIAL` y lo vuelve a pedir en cada corrida; el aviso `INDEX_FETCH_FAILED` sale pasado ese plazo o si la fuente falla. _Si quieren otro plazo_: `PUBLICATION_GRACE_DAYS` en `indices-fetch.job.ts`.
+- **A-29 · Avisos de póliza a los 30 días, de servicios desde el 5° día de vencido (RN-13), de contratos con los días del tenant** (`contractExpiryNoticeDays`, default 60). Los dos primeros son constantes (`POLICY_NOTICE_DAYS`, `SERVICE_NOTICE_FROM_DAYS`).
+- **A-30 · Los avisos al personal que no son de la campana (mora, contrato por vencer, póliza, servicio) salen por email sin destinatario resuelto**: quedan en `notification_log` y se envían cuando la Fase 14 sepa a quién (¿todos los administradores?, ¿un email de la inmobiliaria?). _Si prefieren verlos en la campana_: sumar el tipo a `ALERT_TYPES` y al enum del DTO.

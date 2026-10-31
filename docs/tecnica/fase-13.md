@@ -89,7 +89,7 @@ Sin credenciales ni variables obligatorias. Opcionales (declaradas en `.env.exam
 | Avisos internos: leer uno o todos, aislados por inmobiliaria                                                                                         | `test/automations.e2e-spec.ts`                                                                                         |
 | Zona horaria: Buenos Aires, cruce de día                                                                                                             | `zoned-time.spec.ts`                                                                                                   |
 
-Totales: ver al final de este archivo (se completan con el cierre de la fase).
+Totales: **427 unitarios** (45 suites; nuevos: `job-schedule.policy.spec.ts`, `job-runner.spec.ts`, `indices-fetch.job.spec.ts`, `index-source.adapters.spec.ts`, `indices.facade.spec.ts`, `zoned-time.spec.ts`, y casos en `installment.policy.spec.ts` y `calendar-date.spec.ts`) y **305 e2e** en 20 suites (25 nuevos en `test/automations.e2e-spec.ts`). `tsc`, `lint:check` y `format:check` limpios. `resetDatabase` reintenta el `TRUNCATE` si un consumidor de la cola lo deadlockea (los workers de la fase hacen más probable esa carrera en `billing.e2e-spec.ts`).
 
 ## Pendiente
 
