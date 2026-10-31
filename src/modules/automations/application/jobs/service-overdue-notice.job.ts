@@ -43,16 +43,18 @@ export class ServiceOverdueNoticeJob implements AutomationJob {
     if (overdue.length === 0)
       return skipped('Ningún servicio vencido hace 5 días o más')
 
-    const contractIds = [
-      ...new Set(overdue.flatMap((s) => (s.contractId ? [s.contractId] : []))),
-    ]
-    const contracts = new Map(
-      (
-        await Promise.all(contractIds.map((id) => this.contracts.find(id)))
-      ).flatMap((c) => (c ? [[c.id, c] as const] : [])),
-    )
+    // El inquilino es el del contrato al que se vinculó el servicio; si no se
+    // vinculó, el de la propiedad si hoy tiene un contrato activo.
+    const renterByService = new Map<string, string>()
+    for (const service of overdue) {
+      const renterId = service.contractId
+        ? (await this.contracts.find(service.contractId))?.renterId
+        : (await this.contracts.getActiveByProperty(service.propertyId))
+            ?.renterId
+      if (renterId) renterByService.set(service.id, renterId)
+    }
     const [renters, properties, serviceTypes] = await Promise.all([
-      this.renters.contacts([...contracts.values()].map((c) => c.renterId)),
+      this.renters.contacts([...renterByService.values()]),
       this.properties.describe(overdue.map((s) => s.propertyId)),
       this.masterData.describeCatalog(
         Catalog.SERVICE_TYPES,
@@ -62,9 +64,7 @@ export class ServiceOverdueNoticeJob implements AutomationJob {
 
     const tally = new NoticeTally()
     for (const service of overdue) {
-      const renterId = service.contractId
-        ? contracts.get(service.contractId)?.renterId
-        : undefined
+      const renterId = renterByService.get(service.id)
       const renter = renterId ? renters.get(renterId) : undefined
       const data = {
         serviceName: serviceTypes.get(service.serviceTypeId)?.name ?? null,
