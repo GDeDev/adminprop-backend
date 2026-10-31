@@ -65,6 +65,29 @@ export class SettlementsFacade {
     return statement ? this.statementViews.detail(statement) : null
   }
 
+  /**
+   * Propietarios con liquidaciones confirmadas o transferidas de ese mes
+   * (`settlements.period`) que todavía no entraron en ningún consolidado: el
+   * cierre es manual (Micaela #7) y el cron sólo recuerda (Fase 13).
+   */
+  async ownersPendingStatement(
+    period: Period,
+  ): Promise<{ ownerId: string; settlements: number }[]> {
+    const settlements = await this.settlements.listAll({
+      period,
+      statuses: [SettlementStatus.CONFIRMED, SettlementStatus.TRANSFERRED],
+      statementId: null,
+    })
+    const counts = new Map<string, number>()
+    for (const settlement of settlements) {
+      counts.set(settlement.ownerId, (counts.get(settlement.ownerId) ?? 0) + 1)
+    }
+    return [...counts].map(([ownerId, count]) => ({
+      ownerId,
+      settlements: count,
+    }))
+  }
+
   /** Devengado, cobrado, pendiente y sin imputar por moneda. */
   async feeAccountSummary(ownerId: string): Promise<FeeAccountTotals[]> {
     const [receivables, payments] = await Promise.all([

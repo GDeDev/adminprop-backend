@@ -6,6 +6,13 @@ import { RenterRef, RenterRepository } from '../domain/renter.ports'
 
 export type { GuarantorRef, RenterRef }
 
+/** Nombre, DNI y datos de contacto, para los avisos. */
+export interface RenterContact extends RenterRef {
+  nationalId: string
+  email: string | null
+  phone: string | null
+}
+
 /** Lo que un contrato necesita saber del inquilino al armarse. */
 export interface RenterContractInfo extends RenterRef {
   /** Su garante actual, que el contrato toma por defecto. */
@@ -51,6 +58,26 @@ export class RentersFacade {
       renters.map((renter) => [
         renter.id,
         { id: renter.id, fullName: fullNameOf(renter) },
+      ]),
+    )
+  }
+
+  /**
+   * Cómo contactar a cada uno y cómo identificarlo (avisos de la Fase 13).
+   * Los borrados no aparecen.
+   */
+  async contacts(ids: string[]): Promise<Map<string, RenterContact>> {
+    const renters = await this.renters.findByIds([...new Set(ids)])
+    return new Map(
+      renters.map((renter) => [
+        renter.id,
+        {
+          id: renter.id,
+          fullName: fullNameOf(renter),
+          nationalId: renter.nationalId,
+          email: renter.email,
+          phone: renter.phone,
+        },
       ]),
     )
   }

@@ -5,6 +5,7 @@ export { RentersModule } from '../infrastructure/modules/renters.module'
 export { RentersFacade } from './renters.facade'
 export type {
   GuarantorRef,
+  RenterContact,
   RenterContractInfo,
   RenterRef,
 } from './renters.facade'

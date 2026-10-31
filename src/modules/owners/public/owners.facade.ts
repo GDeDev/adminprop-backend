@@ -6,6 +6,12 @@ import { OwnerRef, OwnerRepository } from '../domain/owner.ports'
 
 export type { OwnerRef }
 
+/** Nombre y datos de contacto, para los avisos. */
+export interface OwnerContact extends OwnerRef {
+  email: string | null
+  phone: string | null
+}
+
 /**
  * Lo que otros módulos pueden preguntarle a propietarios. Dentro del tenant
  * del contexto: un id de otra inmobiliaria es un id que no existe.
@@ -50,6 +56,22 @@ export class OwnersFacade {
 
   async exists(id: string): Promise<boolean> {
     return (await this.owners.findById(id)) !== null
+  }
+
+  /** Nombre y datos de contacto, para los avisos (Fase 13). Los borrados no aparecen. */
+  async contacts(ids: string[]): Promise<Map<string, OwnerContact>> {
+    const owners = await this.owners.findByIds([...new Set(ids)])
+    return new Map(
+      owners.map((owner) => [
+        owner.id,
+        {
+          id: owner.id,
+          fullName: fullNameOf(owner),
+          email: owner.email,
+          phone: owner.phone,
+        },
+      ]),
+    )
   }
 
   /** Nombre de cada uno, en una sola consulta. Los borrados no aparecen. */
