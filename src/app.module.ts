@@ -27,6 +27,7 @@ import { FeatureFlagsModule } from '@/platform/feature-flags/feature-flags.modul
 import { EmailModule } from '@/platform/email/email.module'
 import { NotificationsModule } from '@/platform/notifications/notifications.module'
 import { IndexSourceModule } from '@/platform/index-source/index-source.module'
+import { PdfModule } from '@/platform/pdf/pdf.module'
 import { PrismaModule } from '@/shared/prisma/prisma.module'
 import { AppConfigModule } from './shared/config/config.module'
 import { RequestContextMiddleware } from './shared/context/request-context.middleware'
@@ -53,6 +54,7 @@ import { SharedModule } from './shared/shared.module'
     EmailModule,
     NotificationsModule,
     IndexSourceModule,
+    PdfModule,
     HealthModule,
     JobsModule,
     TenantsModule,

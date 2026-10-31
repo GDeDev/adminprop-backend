@@ -4,6 +4,7 @@ import {
   EmailProvider,
   IndexSourceProvider,
   NotificationsProvider,
+  PdfProvider,
   Environment,
   FeatureFlagsProvider,
   QueueProvider,
@@ -94,6 +95,10 @@ export interface NotificationsConfig {
   provider: NotificationsProvider
 }
 
+export interface PdfConfig {
+  provider: PdfProvider
+}
+
 export interface AutomationsConfig {
   /** Si el scheduler dispara los jobs solo. Los manuales no dependen de esto. */
   enabled: boolean
@@ -113,6 +118,7 @@ export interface Configuration {
   email: EmailConfig
   notifications: NotificationsConfig
   automations: AutomationsConfig
+  pdf: PdfConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -302,6 +308,12 @@ export function configuration(): Configuration {
         process.env.NOTIFICATIONS_PROVIDER,
         NotificationsProvider.Console,
       ) as NotificationsProvider,
+    },
+    pdf: {
+      provider: str(
+        process.env.PDF_PROVIDER,
+        PdfProvider.Pdfmake,
+      ) as PdfProvider,
     },
     automations: {
       enabled: bool(process.env.AUTOMATIONS_ENABLED, true),

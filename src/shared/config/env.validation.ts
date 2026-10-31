@@ -58,6 +58,12 @@ export enum IndexSourceProvider {
   Manual = 'manual',
 }
 
+/** Con qué se renderizan los PDFs (Fase 15, A-31). */
+export enum PdfProvider {
+  /** pdfmake: JS puro, sin Chromium. El único hoy. */
+  Pdfmake = 'pdfmake',
+}
+
 export enum SecretsProvider {
   /** Lee todo de `process.env`, que llena Doppler. */
   Env = 'env',
@@ -339,6 +345,13 @@ export class EnvironmentVariables {
     message: `NOTIFICATIONS_PROVIDER debe ser uno de: ${Object.values(NotificationsProvider).join(', ')}`,
   })
   NOTIFICATIONS_PROVIDER?: NotificationsProvider
+
+  // ---------------------------------------------------------------------- PDFs
+  @IsOptional()
+  @IsEnum(PdfProvider, {
+    message: `PDF_PROVIDER debe ser uno de: ${Object.values(PdfProvider).join(', ')}`,
+  })
+  PDF_PROVIDER?: PdfProvider
 
   // ---------------------------------------------------------- Automatizaciones
   @IsOptional()
