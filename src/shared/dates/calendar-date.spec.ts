@@ -8,6 +8,7 @@ import {
   isValidPeriod,
   lastDayOfPeriod,
   nextPeriod,
+  previousPeriod,
   periodOf,
 } from './calendar-date'
 
@@ -65,5 +66,7 @@ describe('calendar-date', () => {
     expect(lastDayOfPeriod('2024-02')).toBe('2024-02-29')
     expect(nextPeriod('2026-12')).toBe('2027-01')
     expect(nextPeriod('2026-01')).toBe('2026-02')
+    expect(previousPeriod('2027-01')).toBe('2026-12')
+    expect(previousPeriod('2026-03')).toBe('2026-02')
   })
 })

@@ -125,3 +125,8 @@ export function fullMonthsBetween(from: IsoDate, to: IsoDate): number {
 export function minIsoDate(a: IsoDate, b: IsoDate): IsoDate {
   return a < b ? a : b
 }
+
+/** El mes anterior, cruzando el año: `2027-01` → `2026-12`. */
+export function previousPeriod(period: Period): Period {
+  return periodOf(addMonths(firstDayOfPeriod(period), -1))
+}
