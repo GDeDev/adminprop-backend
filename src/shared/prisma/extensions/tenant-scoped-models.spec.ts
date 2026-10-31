@@ -10,6 +10,8 @@ const NOT_SCOPED_ON_PURPOSE: Record<string, string> = {
   // La escribe la auditoría también desde procesos sin tenant; su lectura por
   // tenant llega con la pantalla de auditoría (Fase 20).
   AuditLog: 'escritura de sistema',
+  JobExecution:
+    'tenantId opcional: los jobs globales (índices) no tienen inmobiliaria; se filtra a mano',
 }
 
 describe('modelos con tenant', () => {

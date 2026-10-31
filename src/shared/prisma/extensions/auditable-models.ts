@@ -161,6 +161,13 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
     softDelete: false,
   },
 
+  // Automatizaciones (Fase 13): el registro de cada corrida y el historial de
+  // avisos son su propia traza; auditarlos duplicaría cada fila. `JobExecution`
+  // tiene `tenantId` opcional (los jobs globales no tienen inmobiliaria), así
+  // que no pasa por el filtro: quien lee filtra a mano.
+  JobExecution: { audit: false, softDelete: false },
+  NotificationLog: { tenantScoped: true, audit: false, softDelete: false },
+
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.
   // Auditarlos generaría una fila de historial por cada refresh.

@@ -87,6 +87,9 @@ model Tenant {
   operationTypes OperationType[]
   serviceTypes   ServiceType[]
 
+  notificationLogs NotificationLog[]
+  jobExecutions    JobExecution[]
+
   properties     Property[]
   owners         Owner[]
   renters        Renter[]
@@ -1762,4 +1765,108 @@ model FeePaymentAllocation {
   @@index([tenantId, feePaymentId])
   @@index([tenantId, feeReceivableId])
   @@map("fee_payment_allocations")
+}
+
+// ---------------------------------------------------------------------------
+// Automatizaciones (Fase 13)
+// ---------------------------------------------------------------------------
+
+enum JobExecutionStatus {
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+  SKIPPED
+}
+
+enum JobTrigger {
+  SCHEDULE
+  MANUAL
+}
+
+/// Una ejecución de un job de negocio (D-93). **`tenant_id` es opcional**: los
+/// jobs globales (índices) no pertenecen a una inmobiliaria. Por eso el modelo
+/// no pasa por el filtro de tenant y quien lee filtra a mano por el tenant del
+/// contexto o por `tenant_id IS NULL`. Se escribe fuera de un request (cron,
+/// worker de la cola).
+model JobExecution {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String? @map("tenant_id") @db.Uuid
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Nombre del job: `installments.generate`, `indices.fetch`...
+  job          String             @db.VarChar(60)
+  /// Día (hora local de la inmobiliaria) al que corresponde la corrida.
+  scheduledFor DateTime           @map("scheduled_for") @db.Date
+  startedAt    DateTime           @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt   DateTime?          @map("finished_at") @db.Timestamptz(3)
+  status       JobExecutionStatus @default(RUNNING)
+  /// Cuántas cosas tocó: cuotas creadas, avisos enviados, contratos cerrados.
+  affected     Int                @default(0)
+  /// Resumen legible: "3 cuotas creadas, 12 ya existían".
+  summary      String?            @db.Text
+  error        String?            @db.Text
+  /// Detalle estructurado (por tipo de índice, por contrato...).
+  details      Json?
+
+  triggeredBy       JobTrigger @default(SCHEDULE) @map("triggered_by")
+  triggeredByUserId String?    @map("triggered_by_user_id") @db.Uuid
+
+  @@index([tenantId, job, scheduledFor])
+  @@index([job, startedAt])
+  @@map("job_executions")
+}
+
+enum NotificationRecipientKind {
+  RENTER
+  OWNER
+  TENANT_STAFF
+  INSURER
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP_LINK
+  IN_APP
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/// Historial de avisos (D-95). La `dedupe_key` única por inmobiliaria es lo que
+/// hace idempotentes a los jobs: un aviso con la misma clave no se manda dos
+/// veces. Los avisos internos (`IN_APP` a `TENANT_STAFF`) son los que lee la
+/// campana del backoffice; `read_at` los marca leídos. La Fase 14 lo reutiliza
+/// como historial de envíos reales.
+model NotificationLog {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  type           String                    @db.VarChar(40)
+  recipientKind  NotificationRecipientKind @map("recipient_kind")
+  recipientId    String?                   @map("recipient_id") @db.Uuid
+  recipientEmail String?                   @map("recipient_email") @db.VarChar(255)
+  /// Null en los avisos que no cuelgan de una entidad (índice no disponible).
+  entityType     String?                   @map("entity_type") @db.VarChar(40)
+  entityId       String?                   @map("entity_id") @db.Uuid
+  dedupeKey      String                    @map("dedupe_key") @db.VarChar(200)
+  channel        NotificationChannel
+  status         NotificationStatus        @default(QUEUED)
+  /// Datos para la plantilla; en los internos, además `title`, `body` y `link`.
+  payload        Json
+  error          String?                   @db.Text
+  sentAt         DateTime?                 @map("sent_at") @db.Timestamptz(3)
+  readAt         DateTime?                 @map("read_at") @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, recipientKind, channel, createdAt])
+  @@index([tenantId, entityType, entityId])
+  @@map("notification_log")
 }
