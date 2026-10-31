@@ -15,7 +15,6 @@ import {
 import {
   ContractNotActiveException,
   ContractNotFoundException,
-  IndexMissingException,
   InvalidContractDocumentException,
   RentUpdateNotDueException,
 } from '@/modules/contracts/domain/contract.exceptions'
@@ -27,18 +26,18 @@ import {
   NewContract,
   SuretyData,
 } from '@/modules/contracts/domain/contract.ports'
-import { IndexType, IndicesFacade } from '@/modules/indices/public'
 import { PropertiesFacade } from '@/modules/properties/public'
 import { RentersFacade } from '@/modules/renters/public'
 import { StoragePort } from '@/platform/storage/storage.port'
 import { RequestContext } from '@/shared/context/request-context'
 import { errorMessage } from '@/shared/core/error-message'
-import { periodOf, todayIso } from '@/shared/dates/calendar-date'
+import { todayIso } from '@/shared/dates/calendar-date'
 import { createLogger } from '@/shared/logging/root-logger'
 import { toMoneyString } from '@/shared/money'
 import { PersonPolicy } from '@/shared/people/person-policy'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { ContractParties } from '../contract-parties'
+import { RentUpdateApplier } from '../rent-update-applier'
 import {
   ContractDetailView,
   ContractTerminationView,
@@ -399,7 +398,7 @@ export class ApplyRentUpdateHandler implements ICommandHandler<
 > {
   constructor(
     private readonly contracts: ContractRepository,
-    private readonly indices: IndicesFacade,
+    private readonly applier: RentUpdateApplier,
     private readonly views: ContractViews,
   ) {}
 
@@ -418,10 +417,7 @@ export class ApplyRentUpdateHandler implements ICommandHandler<
       throw new RentUpdateNotDueException(effectiveFrom)
     }
 
-    const currentRent = currentRentOf(contract)
-    const indexed =
-      contract.rentUpdateType === RentUpdateType.ICL ||
-      contract.rentUpdateType === RentUpdateType.IPC
+    const indexed = RentUpdateApplier.isIndexed(contract)
     const fixedPercentage =
       contract.rentUpdateType === RentUpdateType.FIXED
         ? contract.fixedIncreasePercentage
@@ -432,57 +428,29 @@ export class ApplyRentUpdateHandler implements ICommandHandler<
     // regla que ya pasó arriba (nunca se adelanta, D-60). Con % fijo y sin
     // monto, se calcula solo y queda registrado el % aplicado.
     const manual = command.newRent !== undefined
-    const updated =
-      indexed && !manual
-        ? await this.applyIndex(contract, latest.effectiveFrom, effectiveFrom)
-        : await this.contracts.addRentUpdate(contract.id, {
-            effectiveFrom,
-            previousRent: currentRent,
-            newRent:
-              !manual && fixedPercentage !== null
-                ? ContractPolicy.fixedIncreaseRent(currentRent, fixedPercentage)
-                : ContractPolicy.normalizeNewRent(command.newRent),
-            source: RentUpdateSource.MANUAL,
-            indexType: null,
-            indexFromPeriod: null,
-            indexToPeriod: null,
-            indexFromValue: null,
-            indexToValue: null,
-            fixedPercentage: !manual ? fixedPercentage : null,
-            appliedById: RequestContext.userId ?? null,
-          })
+    let updated: Contract
+    if (indexed && !manual) {
+      updated = await this.applier.applyIndex(contract, effectiveFrom)
+    } else if (!manual && fixedPercentage !== null) {
+      updated = await this.applier.applyFixedPercentage(
+        contract,
+        effectiveFrom,
+        fixedPercentage,
+      )
+    } else {
+      updated = await this.applier.record(contract, {
+        effectiveFrom,
+        newRent: ContractPolicy.normalizeNewRent(command.newRent),
+        source: RentUpdateSource.MANUAL,
+        indexType: null,
+        indexFromPeriod: null,
+        indexToPeriod: null,
+        indexFromValue: null,
+        indexToValue: null,
+        fixedPercentage: null,
+      })
+    }
     return this.views.detail(updated)
-  }
-
-  private async applyIndex(
-    contract: Contract,
-    previousEffectiveFrom: string,
-    effectiveFrom: string,
-  ): Promise<Contract> {
-    const indexType = IndexType[contract.rentUpdateType as 'ICL' | 'IPC']
-    const fromPeriod = periodOf(previousEffectiveFrom)
-    const toPeriod = periodOf(effectiveFrom)
-    const [fromValue, toValue] = await Promise.all([
-      this.indices.getValue(indexType, fromPeriod),
-      this.indices.getValue(indexType, toPeriod),
-    ])
-    if (!fromValue) throw new IndexMissingException(indexType, fromPeriod)
-    if (!toValue) throw new IndexMissingException(indexType, toPeriod)
-
-    const currentRent = currentRentOf(contract)
-    return this.contracts.addRentUpdate(contract.id, {
-      effectiveFrom,
-      previousRent: currentRent,
-      newRent: ContractPolicy.indexedRent(currentRent, fromValue, toValue),
-      source: RentUpdateSource.INDEX,
-      indexType,
-      indexFromPeriod: fromPeriod,
-      indexToPeriod: toPeriod,
-      indexFromValue: fromValue,
-      indexToValue: toValue,
-      fixedPercentage: null,
-      appliedById: RequestContext.userId ?? null,
-    })
   }
 }
 

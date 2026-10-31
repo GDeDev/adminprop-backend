@@ -11,6 +11,8 @@ import {
   UploadContractDocumentHandler,
 } from '@/modules/contracts/application/commands/contract.handlers'
 import { ContractLifecycle } from '@/modules/contracts/application/contract-lifecycle'
+import { RelayRentUpdateAppliedHandler } from '@/modules/contracts/application/events/relay-rent-update-applied.handler'
+import { RentUpdateApplier } from '@/modules/contracts/application/rent-update-applier'
 import { ContractParties } from '@/modules/contracts/application/contract-parties'
 import { ContractViews } from '@/modules/contracts/application/contract.views'
 import {
@@ -47,6 +49,8 @@ import { ContractRepositoryImpl } from '../repositories/contract.repository.impl
     ContractViews,
     ContractParties,
     ContractLifecycle,
+    RentUpdateApplier,
+    RelayRentUpdateAppliedHandler,
     BillingTermsResolver,
     ContractsFacade,
     CreateContractHandler,

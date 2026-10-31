@@ -4,7 +4,15 @@
  */
 export { ContractsModule } from '../infrastructure/modules/contracts.module'
 export { ContractsFacade } from './contracts.facade'
-export type { ActiveContractRef, ContractRef } from './contracts.facade'
+export type {
+  ActiveContractRef,
+  ContractRef,
+  ExpiringContract,
+  RentUpdateOutcome,
+  SuretyContract,
+} from './contracts.facade'
+export { CONTRACT_RENT_UPDATED_QUEUE } from './contract-events'
+export type { ContractRentUpdatedPayload } from './contract-events'
 export {
   CollectionMode,
   ContractStatus,

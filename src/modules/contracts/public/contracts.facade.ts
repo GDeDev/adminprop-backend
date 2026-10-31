@@ -8,7 +8,12 @@ import {
   todayIso,
 } from '@/shared/dates/calendar-date'
 import { BillingTermsResolver } from '../application/billing-terms-resolver'
-import { ContractLifecycle } from '../application/contract-lifecycle'
+import {
+  ContractLifecycle,
+  ExpiringContract,
+  RentUpdateOutcome,
+  SuretyContract,
+} from '../application/contract-lifecycle'
 import {
   Contract,
   ContractStatus,
@@ -154,6 +159,32 @@ export class ContractsFacade {
     return this.lifecycle.listDueForRentUpdate(today)
   }
 
+  /** Aplica el aumento que toca a un contrato, o dice por qué no pudo (Fase 13). */
+  applyDueRentUpdate(
+    contractId: string,
+    today: IsoDate = todayIso(),
+  ): Promise<RentUpdateOutcome> {
+    return this.lifecycle.applyDueRentUpdate(contractId, today)
+  }
+
+  /** Contratos activos que terminan dentro de `days` días, los más próximos primero. */
+  listExpiringWithin(
+    days: number,
+    today: IsoDate = todayIso(),
+  ): Promise<ExpiringContract[]> {
+    return this.lifecycle.listExpiringWithin(days, today)
+  }
+
+  /** Contratos activos con caución cargada (póliza y aseguradora). */
+  listWithSurety(): Promise<SuretyContract[]> {
+    return this.lifecycle.listWithSurety()
+  }
+
+  /** Índices (ICL/IPC) que usan hoy los contratos activos. */
+  indexTypesInUse(): Promise<('ICL' | 'IPC')[]> {
+    return this.lifecycle.indexTypesInUse()
+  }
+
   /**
    * Marca como finalizados los contratos activos cuyo fin ya pasó y libera
    * su propiedad y su inquilino. Devuelve cuántos cerró.
@@ -184,4 +215,9 @@ function toActiveRef(
   }
 }
 
-export type { LateFeeDefaults }
+export type {
+  ExpiringContract,
+  LateFeeDefaults,
+  RentUpdateOutcome,
+  SuretyContract,
+}
