@@ -11437,6 +11437,1180 @@
         ]
       }
     },
+    "/api/v1/portal/renter/me": {
+      "get": {
+        "description": "Nombre, email y teléfono del inquilino; la inmobiliaria con logo, color, contacto, WhatsApp y datos bancarios para pagar.",
+        "operationId": "PortalRenterController_me_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalRenterMeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario inquilino",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mis datos y los de la inmobiliaria",
+        "tags": [
+          "Portal del inquilino"
+        ]
+      }
+    },
+    "/api/v1/portal/renter/contract": {
+      "get": {
+        "description": "El contrato activo o, si no tiene, el último (A-35). `data: null` si nunca tuvo uno. Los honorarios sólo se muestran si los paga él por cuenta del propietario (A-38).",
+        "operationId": "PortalRenterController_contract_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalRenterContractDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario inquilino",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mi contrato",
+        "tags": [
+          "Portal del inquilino"
+        ]
+      }
+    },
+    "/api/v1/portal/renter/account": {
+      "get": {
+        "description": "La cuota del mes con el punitorio a hoy día por día, el saldo a favor disponible, la mora y cómo pagar (datos de la inmobiliaria o pago directo al propietario).",
+        "operationId": "PortalRenterController_account_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalRenterAccountDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario inquilino",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Estado de cuenta",
+        "tags": [
+          "Portal del inquilino"
+        ]
+      }
+    },
+    "/api/v1/portal/renter/installments": {
+      "get": {
+        "description": "Todas sus cuotas, de todos sus contratos, las más nuevas primero.",
+        "operationId": "PortalRenterController_installments_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cuotas del inquilino",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/InstallmentSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario inquilino",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Historial de cuotas",
+        "tags": [
+          "Portal del inquilino"
+        ]
+      }
+    },
+    "/api/v1/portal/renter/installments/{id}": {
+      "get": {
+        "description": "Con sus pagos y el punitorio día por día. Sin quién registró, notas internas ni la liquidación al propietario. Una cuota de otro inquilino es un 404.",
+        "operationId": "PortalRenterController_installment_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle de la cuota",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "$ref": "#/components/schemas/InstallmentDetailDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario inquilino",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Detalle de una cuota",
+        "tags": [
+          "Portal del inquilino"
+        ]
+      }
+    },
+    "/api/v1/portal/renter/payments/{id}/receipt": {
+      "get": {
+        "description": "Redirige (302) al PDF del recibo. 404 `DOCUMENT_NOT_READY` si todavía no se generó; 404 `PAYMENT_NOT_FOUND` si el pago no es suyo. Con `?format=json` responde `{ url }` en lugar de redirigir.",
+        "operationId": "PortalRenterController_receipt_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Con `json` devuelve `{ url }` en vez de redirigir (302): sirve para pedirlo con el token en el header y abrir la URL después",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "La URL del PDF (con ?format=json)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "$ref": "#/components/schemas/PortalPdfUrlDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "Redirige al PDF"
+          },
+          "403": {
+            "description": "No es un usuario inquilino",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Recibo PDF de un pago",
+        "tags": [
+          "Portal del inquilino"
+        ]
+      }
+    },
+    "/api/v1/portal/owner/me": {
+      "get": {
+        "description": "Nombre, email, su cuenta bancaria registrada (para que confirme que es correcta), el modo de envío de resúmenes y los datos de la inmobiliaria.",
+        "operationId": "PortalOwnerController_me_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalOwnerMeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mis datos y los de la inmobiliaria",
+        "tags": [
+          "Portal del propietario"
+        ]
+      }
+    },
+    "/api/v1/portal/owner/properties": {
+      "get": {
+        "description": "Con el contrato activo (inquilino, fechas, alquiler vigente) y el estado de pago de la cuota del mes.",
+        "operationId": "PortalOwnerController_properties_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PortalOwnerPropertyDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mis propiedades",
+        "tags": [
+          "Portal del propietario"
+        ]
+      }
+    },
+    "/api/v1/portal/owner/properties/{propertyId}/installments": {
+      "get": {
+        "description": "Las cuotas de la propiedad con estado, pagado y fecha. Sin el detalle de medios de pago ni quién registró. Una propiedad ajena es un 404.",
+        "operationId": "PortalOwnerController_propertyInstallments_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cuotas de la propiedad",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/InstallmentSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pagos del inquilino de una propiedad",
+        "tags": [
+          "Portal del propietario"
+        ]
+      }
+    },
+    "/api/v1/portal/owner/account": {
+      "get": {
+        "description": "Por propiedad: alquiler devengado, cobrado, pendiente, punitorio y las liquidaciones del mes. Más los totales por moneda y su cuenta de honorarios con la inmobiliaria. Sin honorarios de otros propietarios ni totales de la inmobiliaria.",
+        "operationId": "PortalOwnerController_account_api/v1",
+        "parameters": [
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "description": "Mes del estado de cuenta; sin él, el mes en curso",
+            "schema": {
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalOwnerAccountDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Estado de cuenta del mes",
+        "tags": [
+          "Portal del propietario"
+        ]
+      }
+    },
+    "/api/v1/portal/owner/settlements": {
+      "get": {
+        "description": "Sólo las confirmadas o transferidas (A-36), las más nuevas primero. Filtros por propiedad y mes.",
+        "operationId": "PortalOwnerController_settlements_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "propertyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liquidaciones del propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/SettlementSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Historial de liquidaciones",
+        "tags": [
+          "Portal del propietario"
+        ]
+      }
+    },
+    "/api/v1/portal/owner/settlements/{id}": {
+      "get": {
+        "description": "Con pagos, honorarios, gastos, ajustes y transferencias; `acknowledgedAt` si ya acusó recibo. Sin quién registró cada cosa ni notas internas.",
+        "operationId": "PortalOwnerController_settlement_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle de la liquidación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "$ref": "#/components/schemas/SettlementDetailDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Detalle de una liquidación",
+        "tags": [
+          "Portal del propietario"
+        ]
+      }
+    },
+    "/api/v1/portal/owner/settlements/{id}/pdf": {
+      "get": {
+        "description": "Redirige (302) al PDF vigente. 404 `DOCUMENT_NOT_READY` si todavía no se generó. Con `?format=json` responde `{ url }` en lugar de redirigir.",
+        "operationId": "PortalOwnerController_settlementPdf_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Con `json` devuelve `{ url }` en vez de redirigir (302): sirve para pedirlo con el token en el header y abrir la URL después",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirige al PDF"
+          },
+          "403": {
+            "description": "No es un usuario propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "PDF de una liquidación",
+        "tags": [
+          "Portal del propietario"
+        ]
+      }
+    },
+    "/api/v1/portal/owner/settlements/{id}/acknowledge": {
+      "post": {
+        "description": "La única escritura del portal (A-37): deja constancia de cuándo el propietario confirmó que recibió la transferencia. Idempotente. 422 `SETTLEMENT_NOTHING_TO_ACKNOWLEDGE` si todavía no se le transfirió nada.",
+        "operationId": "PortalOwnerController_acknowledge_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "La liquidación con `acknowledgedAt`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "$ref": "#/components/schemas/SettlementDetailDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Recibí la transferencia",
+        "tags": [
+          "Portal del propietario"
+        ]
+      }
+    },
+    "/api/v1/portal/owner/statements": {
+      "get": {
+        "description": "Los consolidados cerrados, los más nuevos primero.",
+        "operationId": "PortalOwnerController_statements_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resúmenes del propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/OwnerStatementSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resúmenes mensuales",
+        "tags": [
+          "Portal del propietario"
+        ]
+      }
+    },
+    "/api/v1/portal/owner/statements/{id}": {
+      "get": {
+        "operationId": "PortalOwnerController_statement_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle del resumen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "$ref": "#/components/schemas/OwnerStatementDetailDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es un usuario propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Detalle de un resumen mensual",
+        "tags": [
+          "Portal del propietario"
+        ]
+      }
+    },
+    "/api/v1/portal/owner/statements/{id}/pdf": {
+      "get": {
+        "description": "Redirige (302) al PDF vigente. 404 `DOCUMENT_NOT_READY` si todavía no se generó. Con `?format=json` responde `{ url }` en lugar de redirigir.",
+        "operationId": "PortalOwnerController_statementPdf_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Con `json` devuelve `{ url }` en vez de redirigir (302): sirve para pedirlo con el token en el header y abrir la URL después",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirige al PDF"
+          },
+          "403": {
+            "description": "No es un usuario propietario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "PDF de un resumen mensual",
+        "tags": [
+          "Portal del propietario"
+        ]
+      }
+    },
     "/api/v1/examples": {
       "post": {
         "operationId": "ExampleItemsController_create_api/v1",
@@ -18661,6 +19835,12 @@
             "type": "string",
             "nullable": true
           },
+          "acknowledgedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Cuándo el propietario acusó recibo de la transferencia desde el portal (A-37)"
+          },
           "updatedAt": {
             "format": "date-time",
             "type": "string"
@@ -18706,6 +19886,7 @@
           "cancelledAt",
           "cancelReason",
           "notes",
+          "acknowledgedAt",
           "updatedAt"
         ]
       },
@@ -19870,6 +21051,747 @@
           "generatedAt",
           "requestedBy",
           "createdAt"
+        ]
+      },
+      "PortalPdfUrlDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL del PDF vigente"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "PortalBankAccountDto": {
+        "type": "object",
+        "properties": {
+          "holder": {
+            "type": "string",
+            "nullable": true
+          },
+          "bank": {
+            "type": "string",
+            "nullable": true
+          },
+          "cbu": {
+            "type": "string",
+            "nullable": true
+          },
+          "alias": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "holder",
+          "bank",
+          "cbu",
+          "alias"
+        ]
+      },
+      "PortalAgencyDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "logoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "primaryColor": {
+            "type": "string",
+            "nullable": true,
+            "example": "#c2410c"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "whatsapp": {
+            "type": "string",
+            "nullable": true,
+            "description": "Sólo dígitos, con código de país",
+            "example": "5492215550000"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankAccount": {
+            "nullable": true,
+            "description": "Null hasta que la inmobiliaria cargue sus datos bancarios",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PortalBankAccountDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "slug",
+          "logoUrl",
+          "primaryColor",
+          "phone",
+          "email",
+          "whatsapp",
+          "address",
+          "bankAccount"
+        ]
+      },
+      "PortalRenterMeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "agency": {
+            "$ref": "#/components/schemas/PortalAgencyDto"
+          }
+        },
+        "required": [
+          "id",
+          "fullName",
+          "email",
+          "phone",
+          "agency"
+        ]
+      },
+      "PortalContractPropertyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "propertyType": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "address",
+          "propertyType"
+        ]
+      },
+      "PortalGuarantorDto": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fullName"
+        ]
+      },
+      "PortalSuretyDto": {
+        "type": "object",
+        "properties": {
+          "hasSurety": {
+            "type": "boolean"
+          },
+          "policyExpiresAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "hasSurety",
+          "policyExpiresAt"
+        ]
+      },
+      "PortalFeePaidByRenterDto": {
+        "type": "object",
+        "properties": {
+          "feePercentage": {
+            "type": "string",
+            "example": "5.00"
+          },
+          "feeAmount": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "feePercentage",
+          "feeAmount"
+        ]
+      },
+      "PortalRenterContractDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "example": "ACTIVE"
+          },
+          "property": {
+            "$ref": "#/components/schemas/PortalContractPropertyDto"
+          },
+          "startDate": {
+            "type": "string",
+            "example": "2026-01-01"
+          },
+          "endDate": {
+            "type": "string",
+            "example": "2027-12-31"
+          },
+          "currentRent": {
+            "type": "string",
+            "example": "350000.00"
+          },
+          "currency": {
+            "type": "string",
+            "example": "ARS"
+          },
+          "rentUpdateType": {
+            "type": "string",
+            "example": "ICL"
+          },
+          "rentUpdateFrequency": {
+            "type": "string",
+            "example": "QUARTERLY"
+          },
+          "nextRentUpdateOn": {
+            "type": "string",
+            "nullable": true
+          },
+          "deposit": {
+            "type": "string",
+            "example": "350000.00"
+          },
+          "depositCurrency": {
+            "type": "string",
+            "example": "ARS"
+          },
+          "depositReturnMode": {
+            "type": "string",
+            "example": "NOMINAL"
+          },
+          "guarantor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PortalGuarantorDto"
+              }
+            ]
+          },
+          "surety": {
+            "$ref": "#/components/schemas/PortalSuretyDto"
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContractServiceDto"
+            },
+            "description": "Sin las notas internas"
+          },
+          "collectionMode": {
+            "type": "string",
+            "example": "AGENCY"
+          },
+          "feePaidByRenter": {
+            "nullable": true,
+            "description": "Sólo con honorarios a cargo del inquilino por cuenta del propietario (A-38); en otro caso es null",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PortalFeePaidByRenterDto"
+              }
+            ]
+          },
+          "timeline": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContractTimelineDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "property",
+          "startDate",
+          "endDate",
+          "currentRent",
+          "currency",
+          "rentUpdateType",
+          "rentUpdateFrequency",
+          "nextRentUpdateOn",
+          "deposit",
+          "depositCurrency",
+          "depositReturnMode",
+          "guarantor",
+          "surety",
+          "services",
+          "collectionMode",
+          "feePaidByRenter",
+          "timeline"
+        ]
+      },
+      "PortalContractRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "example": "ACTIVE"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      },
+      "PortalPaymentInstructionsDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER_DIRECT"
+            ],
+            "description": "AGENCY: se paga a la inmobiliaria (con sus datos bancarios); OWNER_DIRECT: se paga directamente al propietario"
+          },
+          "bankAccount": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PortalBankAccountDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "bankAccount"
+        ]
+      },
+      "PortalRenterAccountDto": {
+        "type": "object",
+        "properties": {
+          "contract": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PortalContractRefDto"
+              }
+            ]
+          },
+          "currentInstallment": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstallmentDetailDto"
+              }
+            ],
+            "description": "La cuota del mes (o la última si el contrato terminó). Sin quién registró, confirmó o anuló, ni notas internas ni la liquidación al propietario"
+          },
+          "creditsAvailable": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyByCurrencyDto"
+            }
+          },
+          "arrears": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RenterArrearsDto"
+              }
+            ]
+          },
+          "paymentInstructions": {
+            "$ref": "#/components/schemas/PortalPaymentInstructionsDto"
+          }
+        },
+        "required": [
+          "contract",
+          "currentInstallment",
+          "creditsAvailable",
+          "arrears",
+          "paymentInstructions"
+        ]
+      },
+      "PortalOwnerBankAccountDto": {
+        "type": "object",
+        "properties": {
+          "cbu": {
+            "type": "string",
+            "nullable": true
+          },
+          "alias": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankName": {
+            "type": "string",
+            "nullable": true
+          },
+          "holder": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "cbu",
+          "alias",
+          "bankName",
+          "holder"
+        ]
+      },
+      "PortalOwnerMeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankAccount": {
+            "nullable": true,
+            "description": "Su cuenta registrada, para que confirme que es correcta",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PortalOwnerBankAccountDto"
+              }
+            ]
+          },
+          "statementSendMode": {
+            "type": "string",
+            "enum": [
+              "SUMMARY",
+              "RECEIPTS",
+              "BOTH"
+            ]
+          },
+          "agency": {
+            "$ref": "#/components/schemas/PortalAgencyDto"
+          }
+        },
+        "required": [
+          "id",
+          "fullName",
+          "email",
+          "bankAccount",
+          "statementSendMode",
+          "agency"
+        ]
+      },
+      "PortalOwnerPropertyContractDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "renter": {
+            "$ref": "#/components/schemas/PortalGuarantorDto"
+          },
+          "startDate": {
+            "type": "string",
+            "example": "2026-01-01"
+          },
+          "endDate": {
+            "type": "string",
+            "example": "2027-12-31"
+          },
+          "currentRent": {
+            "type": "string",
+            "example": "350000.00"
+          },
+          "currency": {
+            "type": "string",
+            "example": "ARS"
+          },
+          "collectionMode": {
+            "type": "string",
+            "example": "AGENCY"
+          }
+        },
+        "required": [
+          "id",
+          "renter",
+          "startDate",
+          "endDate",
+          "currentRent",
+          "currency",
+          "collectionMode"
+        ]
+      },
+      "PortalOwnerPropertyInstallmentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "status": {
+            "type": "string",
+            "example": "PENDING"
+          },
+          "totalDue": {
+            "type": "string",
+            "example": "350000.00"
+          },
+          "paidTotal": {
+            "type": "string",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "id",
+          "period",
+          "status",
+          "totalDue",
+          "paidTotal"
+        ]
+      },
+      "PortalOwnerPropertyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "example": "RENTED"
+          },
+          "contract": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PortalOwnerPropertyContractDto"
+              }
+            ]
+          },
+          "currentInstallment": {
+            "nullable": true,
+            "description": "La cuota del mes en curso",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PortalOwnerPropertyInstallmentDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "address",
+          "status",
+          "contract",
+          "currentInstallment"
+        ]
+      },
+      "PortalAccountPropertyRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "address"
+        ]
+      },
+      "PortalOwnerAccountPropertyDto": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "$ref": "#/components/schemas/PortalAccountPropertyRefDto"
+          },
+          "currency": {
+            "type": "string",
+            "example": "ARS"
+          },
+          "accrued": {
+            "type": "string",
+            "example": "350000.00",
+            "description": "Alquiler del mes"
+          },
+          "collected": {
+            "type": "string",
+            "example": "350000.00",
+            "description": "Alquiler cobrado"
+          },
+          "pending": {
+            "type": "string",
+            "example": "0.00",
+            "description": "Alquiler pendiente"
+          },
+          "lateFee": {
+            "type": "string",
+            "example": "0.00",
+            "description": "Punitorio vigente"
+          },
+          "settlements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SettlementSummaryDto"
+            },
+            "description": "Liquidaciones del mes (sólo confirmadas o transferidas)"
+          }
+        },
+        "required": [
+          "property",
+          "currency",
+          "accrued",
+          "collected",
+          "pending",
+          "lateFee",
+          "settlements"
+        ]
+      },
+      "PortalOwnerFeesDto": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "example": "ARS"
+          },
+          "accrued": {
+            "type": "string",
+            "example": "17500.00"
+          },
+          "collected": {
+            "type": "string",
+            "example": "17500.00"
+          },
+          "pending": {
+            "type": "string",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "currency",
+          "accrued",
+          "collected",
+          "pending"
+        ]
+      },
+      "PortalOwnerTotalsDto": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "example": "ARS"
+          },
+          "accrued": {
+            "type": "string",
+            "example": "350000.00"
+          },
+          "collected": {
+            "type": "string",
+            "example": "350000.00"
+          },
+          "pending": {
+            "type": "string",
+            "example": "0.00"
+          },
+          "netSettled": {
+            "type": "string",
+            "example": "332500.00",
+            "description": "Neto de las liquidaciones del mes"
+          },
+          "transferred": {
+            "type": "string",
+            "example": "332500.00",
+            "description": "Lo transferido de esas liquidaciones"
+          }
+        },
+        "required": [
+          "currency",
+          "accrued",
+          "collected",
+          "pending",
+          "netSettled",
+          "transferred"
+        ]
+      },
+      "PortalOwnerAccountDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalOwnerAccountPropertyDto"
+            }
+          },
+          "fees": {
+            "description": "Su cuenta de honorarios con la inmobiliaria, acumulada (no sólo el mes)",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalOwnerFeesDto"
+            }
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalOwnerTotalsDto"
+            }
+          }
+        },
+        "required": [
+          "period",
+          "properties",
+          "fees",
+          "totals"
         ]
       },
       "CreateExampleItemDto": {
