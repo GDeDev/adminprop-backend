@@ -73,6 +73,7 @@ export interface SettlementChanges extends Partial<SettlementTotals> {
   cancelledById?: string
   cancelReason?: string
   notes?: string | null
+  acknowledgedAt?: Date
   pdfKey?: string
   pdfUrl?: string
 }

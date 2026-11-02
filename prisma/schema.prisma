@@ -1520,6 +1520,9 @@ model Settlement {
   cancelReason  String?   @map("cancel_reason") @db.VarChar(500)
   notes         String?   @db.Text
 
+  /// El propietario acusó recibo de la transferencia desde el portal (A-37).
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz(3)
+
   /// PDF vigente de la liquidación (Fase 15); lo escribe `documents`.
   pdfKey String? @map("pdf_key") @db.VarChar(500)
   pdfUrl String? @map("pdf_url") @db.VarChar(1000)

@@ -206,6 +206,8 @@ export interface Settlement extends SettlementTotals {
   cancelledById: string | null
   cancelReason: string | null
   notes: string | null
+  /** El propietario acusó recibo de la transferencia (Fase 17, A-37). */
+  acknowledgedAt: Date | null
   /** PDF vigente (Fase 15). */
   pdfKey: string | null
   pdfUrl: string | null

@@ -335,3 +335,15 @@ export class FeePaymentInvalidContractException extends DomainException {
     )
   }
 }
+
+/** El propietario quiere acusar recibo de una liquidación sin transferencias (Fase 17). */
+export class SettlementNothingToAcknowledgeException extends DomainException {
+  constructor(id: string) {
+    super(
+      'SETTLEMENT_NOTHING_TO_ACKNOWLEDGE',
+      'Todavía no hay una transferencia registrada para esta liquidación',
+      DomainErrorKind.BusinessRule,
+      { id },
+    )
+  }
+}

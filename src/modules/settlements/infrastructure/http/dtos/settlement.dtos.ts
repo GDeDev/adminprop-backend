@@ -298,5 +298,12 @@ export class SettlementDetailDto extends SettlementSummaryDto {
   @ApiProperty({ type: Date, nullable: true }) cancelledAt: Date | null
   @ApiProperty({ type: String, nullable: true }) cancelReason: string | null
   @ApiProperty({ type: String, nullable: true }) notes: string | null
+  @ApiProperty({
+    type: Date,
+    nullable: true,
+    description:
+      'Cuándo el propietario acusó recibo de la transferencia desde el portal (A-37)',
+  })
+  acknowledgedAt: Date | null
   @ApiProperty() updatedAt: Date
 }

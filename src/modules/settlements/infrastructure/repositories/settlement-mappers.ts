@@ -92,6 +92,7 @@ export function settlementToDomain(row: SettlementRow): Settlement {
     cancelledById: row.cancelledById,
     cancelReason: row.cancelReason,
     notes: row.notes,
+    acknowledgedAt: row.acknowledgedAt,
     pdfKey: row.pdfKey,
     pdfUrl: row.pdfUrl,
     payments: row.payments.map((p) => ({

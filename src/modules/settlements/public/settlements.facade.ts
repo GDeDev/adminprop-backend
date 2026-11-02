@@ -2,7 +2,12 @@ import { Injectable } from '@nestjs/common'
 
 import { Period } from '@/shared/dates/calendar-date'
 import { FeeAccountTotals, FeePolicy } from '../domain/fee.policy'
-import { SettlementStatus } from '../domain/settlement'
+import { SettlementNothingToAcknowledgeException } from '../domain/settlement.exceptions'
+import {
+  Settlement,
+  SettlementStatus,
+  StatementStatus,
+} from '../domain/settlement'
 import {
   FeePaymentRepository,
   FeeReceivableRepository,
@@ -35,6 +40,81 @@ export class SettlementsFacade {
     private readonly settlementViews: SettlementViews,
     private readonly statementViews: StatementViews,
   ) {}
+
+  /**
+   * Las liquidaciones que el propietario ve en su portal (A-36): sólo las
+   * confirmadas o transferidas; los borradores y las canceladas son
+   * internos. Más nuevas primero.
+   */
+  async pageForOwner(
+    ownerId: string,
+    filter: { propertyId?: string; period?: Period },
+    page: { skip: number; take: number },
+  ): Promise<[SettlementSummaryView[], number]> {
+    const [rows, total] = await this.settlements.list(
+      { ownerId, ...filter, statuses: PORTAL_VISIBLE },
+      page,
+    )
+    return [await this.settlementViews.summaries(rows), total]
+  }
+
+  /** La ficha de una liquidación del propietario, o null si no es suya o no es visible. */
+  async findForOwner(
+    ownerId: string,
+    id: string,
+  ): Promise<SettlementDetailView | null> {
+    const settlement = await this.settlements.findById(id)
+    if (!isVisibleTo(settlement, ownerId)) return null
+    return this.settlementViews.detail(settlement)
+  }
+
+  /**
+   * "Recibí la transferencia" (Fase 17, A-37): deja constancia de cuándo el
+   * propietario lo confirmó. Idempotente: el segundo acuse no pisa al primero.
+   * Null si la liquidación no es suya; 422 si todavía no se le transfirió nada.
+   */
+  async acknowledgeForOwner(
+    ownerId: string,
+    id: string,
+  ): Promise<SettlementDetailView | null> {
+    const settlement = await this.settlements.findById(id)
+    if (!isVisibleTo(settlement, ownerId)) return null
+    if (settlement.acknowledgedAt === null) {
+      if (Number(settlement.transferredTotal) <= 0) {
+        throw new SettlementNothingToAcknowledgeException(id)
+      }
+      await this.settlements.update(id, { acknowledgedAt: new Date() })
+    }
+    return this.findForOwner(ownerId, id)
+  }
+
+  /** Los consolidados cerrados del propietario (el abierto es un borrador), más nuevos primero. */
+  async pageStatementsForOwner(
+    ownerId: string,
+    page: { skip: number; take: number },
+  ): Promise<[OwnerStatementSummaryView[], number]> {
+    const [rows, total] = await this.statements.list(
+      { ownerId, status: StatementStatus.CLOSED },
+      page,
+    )
+    return [await this.statementViews.summaries(rows), total]
+  }
+
+  /** El consolidado cerrado del propietario, o null si no es suyo o sigue abierto. */
+  async findStatementForOwner(
+    ownerId: string,
+    id: string,
+  ): Promise<OwnerStatementDetailView | null> {
+    const statement = await this.statements.findById(id)
+    if (
+      !statement ||
+      statement.ownerId !== ownerId ||
+      statement.status !== StatementStatus.CLOSED
+    ) {
+      return null
+    }
+    return this.statementViews.detail(statement)
+  }
 
   /** Historial de un propietario, más nuevas primero. */
   async listByOwner(
@@ -128,4 +208,20 @@ export class SettlementsFacade {
     ])
     return FeePolicy.accountTotals(receivables, payments)
   }
+}
+
+const PORTAL_VISIBLE = [
+  SettlementStatus.CONFIRMED,
+  SettlementStatus.TRANSFERRED,
+]
+
+function isVisibleTo(
+  settlement: Settlement | null,
+  ownerId: string,
+): settlement is Settlement {
+  return (
+    settlement !== null &&
+    settlement.ownerId === ownerId &&
+    PORTAL_VISIBLE.includes(settlement.status)
+  )
 }

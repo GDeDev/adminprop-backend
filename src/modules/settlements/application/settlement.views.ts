@@ -104,6 +104,8 @@ export interface SettlementDetailView extends SettlementSummaryView {
   cancelledAt: Date | null
   cancelReason: string | null
   notes: string | null
+  /** El propietario acusó recibo de la transferencia desde el portal (A-37). */
+  acknowledgedAt: Date | null
   updatedAt: Date
 }
 
@@ -252,6 +254,7 @@ export class SettlementViews {
       cancelledAt: settlement.cancelledAt,
       cancelReason: settlement.cancelReason,
       notes: settlement.notes,
+      acknowledgedAt: settlement.acknowledgedAt,
       updatedAt: settlement.updatedAt,
     }
   }
