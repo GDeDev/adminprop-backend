@@ -29,7 +29,9 @@ export {
   StatementStatus,
 } from '../domain/settlement'
 export {
+  SETTLEMENT_CONFIRMED_DOCUMENTS_QUEUE,
   SETTLEMENT_CONFIRMED_QUEUE,
+  STATEMENT_CLOSED_DOCUMENTS_QUEUE,
   STATEMENT_CLOSED_QUEUE,
 } from './settlement-events'
 export type {

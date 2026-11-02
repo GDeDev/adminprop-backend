@@ -33,3 +33,19 @@ export interface StatementClosedPayload {
   period: string
   sendMode: 'SUMMARY' | 'RECEIPTS' | 'BOTH'
 }
+
+/**
+ * pg-boss entrega cada mensaje a un solo consumidor: el que necesita una copia
+ * propia (los PDFs de la Fase 15) tiene su cola, y el relay publica en las dos.
+ */
+export const SETTLEMENT_CONFIRMED_DOCUMENTS_QUEUE: QueueDefinition = {
+  name: 'settlement-confirmed-documents',
+  retryLimit: 3,
+  retryDelaySeconds: 30,
+}
+
+export const STATEMENT_CLOSED_DOCUMENTS_QUEUE: QueueDefinition = {
+  name: 'statement-closed-documents',
+  retryLimit: 3,
+  retryDelaySeconds: 30,
+}

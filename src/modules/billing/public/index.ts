@@ -19,7 +19,9 @@ export type {
 } from '../application/installment-rebaser'
 export {
   INSTALLMENT_PAID_QUEUE,
+  PAYMENT_CONFIRMED_DOCUMENTS_QUEUE,
   PAYMENT_CONFIRMED_QUEUE,
+  PAYMENT_VOIDED_DOCUMENTS_QUEUE,
   PAYMENT_VOIDED_QUEUE,
 } from './billing-events'
 export type {

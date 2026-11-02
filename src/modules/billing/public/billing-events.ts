@@ -74,3 +74,19 @@ export interface PaymentVoidedPayload {
   currency: string
   voidReason: string
 }
+
+/**
+ * pg-boss entrega cada mensaje a un solo consumidor: el que necesita una copia
+ * propia (los PDFs de la Fase 15) tiene su cola, y el relay publica en las dos.
+ */
+export const PAYMENT_CONFIRMED_DOCUMENTS_QUEUE: QueueDefinition = {
+  name: 'payment-confirmed-documents',
+  retryLimit: 3,
+  retryDelaySeconds: 30,
+}
+
+export const PAYMENT_VOIDED_DOCUMENTS_QUEUE: QueueDefinition = {
+  name: 'payment-voided-documents',
+  retryLimit: 3,
+  retryDelaySeconds: 30,
+}

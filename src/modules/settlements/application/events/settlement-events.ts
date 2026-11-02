@@ -1,7 +1,9 @@
 import { EventsHandler, IEvent, IEventHandler } from '@nestjs/cqrs'
 
 import {
+  SETTLEMENT_CONFIRMED_DOCUMENTS_QUEUE,
   SETTLEMENT_CONFIRMED_QUEUE,
+  STATEMENT_CLOSED_DOCUMENTS_QUEUE,
   STATEMENT_CLOSED_QUEUE,
   SettlementConfirmedPayload,
   StatementClosedPayload,
@@ -42,6 +44,7 @@ export class RelaySettlementConfirmedHandler implements IEventHandler<Settlement
     }
     try {
       await this.queue.publish(SETTLEMENT_CONFIRMED_QUEUE, payload)
+      await this.queue.publish(SETTLEMENT_CONFIRMED_DOCUMENTS_QUEUE, payload)
     } catch (error) {
       this.logger.error(
         { err: error, settlementId: settlement.id },
@@ -67,6 +70,7 @@ export class RelayStatementClosedHandler implements IEventHandler<StatementClose
     }
     try {
       await this.queue.publish(STATEMENT_CLOSED_QUEUE, payload)
+      await this.queue.publish(STATEMENT_CLOSED_DOCUMENTS_QUEUE, payload)
     } catch (error) {
       this.logger.error(
         { err: error, statementId: statement.id },
