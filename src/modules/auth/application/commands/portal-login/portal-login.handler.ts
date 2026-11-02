@@ -33,9 +33,16 @@ export class PortalLoginHandler implements ICommandHandler<
     const tenantId = await this.tenants.findActiveIdBySlug(command.tenantSlug)
 
     if (!tenantId) {
-      return this.signIn.rejectUnknown(command.password, 'unknown_tenant', {
-        tenantSlug: command.tenantSlug,
-      })
+      return this.signIn.rejectUnknown(
+        command.password,
+        'unknown_tenant',
+        { tenantSlug: command.tenantSlug },
+        {
+          email: command.email,
+          context: command.context,
+          portalRole: command.role,
+        },
+      )
     }
 
     return RequestContext.runInTenant(tenantId, async () => {
@@ -45,9 +52,16 @@ export class PortalLoginHandler implements ICommandHandler<
       )
 
       if (!user) {
-        return this.signIn.rejectUnknown(command.password, 'unknown_email', {
-          portalRole: command.role,
-        })
+        return this.signIn.rejectUnknown(
+          command.password,
+          'unknown_email',
+          { portalRole: command.role },
+          {
+            email: command.email,
+            context: command.context,
+            portalRole: command.role,
+          },
+        )
       }
 
       return this.signIn.authenticate(user, command.password, command.context)

@@ -7,8 +7,11 @@ import {
   toPublicUser,
   User,
 } from '@/modules/auth/domain/entities/user.entity'
+import { PortalRole } from '@/modules/auth/domain/enums/role.enum'
+import { RequestContext } from '@/shared/context/request-context'
 import { AuthErrors } from '@/modules/auth/domain/exceptions/auth.exceptions'
 import { UserRepository } from '@/modules/auth/domain/repositories/user.repository'
+import { AuditFacade, actorKindOf } from '@/modules/audit/public'
 import { AuthTokenIssuer } from '@/modules/auth/infrastructure/services/auth-token-issuer.service'
 import { PasswordService } from '@/modules/auth/infrastructure/services/password.service'
 import { AccountLockConfig, Configuration } from '@/shared/config/configuration'
@@ -32,6 +35,7 @@ export class SignInService {
     private readonly userRepository: UserRepository,
     private readonly passwordService: PasswordService,
     private readonly tokenIssuer: AuthTokenIssuer,
+    private readonly audit: AuditFacade,
     configService: ConfigService<Configuration, true>,
   ) {
     this.lockConfig = configService.get('accountLock', { infer: true })
@@ -46,8 +50,29 @@ export class SignInService {
     password: string,
     reason: string,
     metadata: Record<string, unknown> = {},
+    attempt?: {
+      email: string
+      context: SessionContext
+      portalRole?: PortalRole
+    },
   ): Promise<never> {
     await this.passwordService.burnCompare(password)
+    if (attempt) {
+      await this.audit.record({
+        action: 'LOGIN_FAILED',
+        entity: 'User',
+        summary: 'Intento de acceso fallido: usuario inexistente',
+        changes: { reason: { after: reason } },
+        // Sin inmobiliaria conocida la fila es global: no la ve ninguna.
+        tenantId: RequestContext.tenantId ?? null,
+        userId: null,
+        userEmail: attempt.email,
+        ip: attempt.context.ip ?? null,
+        actorKind: attempt.portalRole
+          ? actorKindOf(attempt.portalRole, true)
+          : 'SYSTEM',
+      })
+    }
     this.logger.warn(
       { operation: 'auth_login_failed', reason, ...metadata },
       'Login fallido: usuario inexistente',
@@ -69,6 +94,7 @@ export class SignInService {
   ): Promise<AuthResult> {
     const lockedUntil = activeLockUntil(user)
     if (lockedUntil) {
+      await this.recordFailure(user, context, 'account_locked')
       this.logger.warn(
         {
           operation: 'auth_login_failed',
@@ -86,6 +112,7 @@ export class SignInService {
     )
 
     if (!passwordMatches) {
+      await this.recordFailure(user, context, 'bad_password')
       await this.userRepository.registerFailedLogin(
         user.id,
         this.lockConfig.maxFailedAttempts,
@@ -108,6 +135,7 @@ export class SignInService {
     // de validar la contraseña para gastar el mismo tiempo de bcrypt.
     if (!canSignIn(user)) {
       const reason = user.isActive ? 'tenant_inactive' : 'inactive'
+      await this.recordFailure(user, context, reason)
       this.logger.warn(
         { operation: 'auth_login_failed', reason, userId: user.id },
         'Login rechazado: cuenta inactiva',
@@ -130,11 +158,45 @@ export class SignInService {
 
     const tokens = await this.tokenIssuer.issueNewSession(user, context)
 
+    await this.audit.record({
+      action: 'LOGIN',
+      entity: 'User',
+      entityId: user.id,
+      summary: 'Inició sesión',
+      ...this.actorOf(user, context),
+    })
+
     this.logger.info(
       { operation: 'auth_login', userId: user.id, role: user.role },
       'Login exitoso',
     )
 
     return { user: toPublicUser(user), tokens }
+  }
+
+  private async recordFailure(
+    user: User,
+    context: SessionContext,
+    reason: string,
+  ): Promise<void> {
+    await this.audit.record({
+      action: 'LOGIN_FAILED',
+      entity: 'User',
+      entityId: user.id,
+      summary: 'Intento de acceso fallido',
+      changes: { reason: { after: reason } },
+      ...this.actorOf(user, context),
+    })
+  }
+
+  /** Quién es y desde dónde: el login todavía no tiene `RequestContext` de usuario. */
+  private actorOf(user: User, context: SessionContext) {
+    return {
+      tenantId: user.tenantId,
+      userId: user.id,
+      userEmail: user.email,
+      ip: context.ip ?? null,
+      actorKind: actorKindOf(user.role, true),
+    }
   }
 }

@@ -6,6 +6,7 @@ import {
   AuthCommandHandlers,
   AuthQueryHandlers,
 } from '@/modules/auth/application'
+import { AuditRecorderModule } from '@/modules/audit/public'
 import { TenantsModule } from '@/modules/tenants/public'
 import { PortalAccountsFacade } from '@/modules/auth/public/portal-accounts.facade'
 import { UsersFacade } from '@/modules/auth/public/users.facade'
@@ -45,6 +46,8 @@ import { RefreshTokenCleanupTask } from '../tasks/refresh-token-cleanup.task'
     JwtModule.register({}),
     // El login de portal resuelve la inmobiliaria por slug con su facade.
     TenantsModule,
+    // Accesos y cierres de sesión quedan en la auditoría (Fase 20).
+    AuditRecorderModule,
   ],
   controllers: [AuthController, UsersController],
   providers: [

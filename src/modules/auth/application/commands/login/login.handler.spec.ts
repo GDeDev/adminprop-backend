@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config'
 import { Test, TestingModule } from '@nestjs/testing'
 
+import { AuditFacade } from '@/modules/audit/public'
 import { User } from '@/modules/auth/domain/entities/user.entity'
 import { Role } from '@/modules/auth/domain/enums/role.enum'
 import { UserRepository } from '@/modules/auth/domain/repositories/user.repository'
@@ -74,6 +75,7 @@ describe('LoginHandler', () => {
           provide: AuthTokenIssuer,
           useValue: { issueNewSession: jest.fn().mockResolvedValue(TOKENS) },
         },
+        { provide: AuditFacade, useValue: { record: jest.fn() } },
         {
           provide: ConfigService,
           useValue: {

@@ -1,5 +1,7 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 
+import { AuditFacade, actorKindOf } from '@/modules/audit/public'
+import { UserRepository } from '@/modules/auth/domain/repositories/user.repository'
 import { RefreshTokenRepository } from '@/modules/auth/domain/repositories/refresh-token.repository'
 import { TokenService } from '@/modules/auth/infrastructure/services/token.service'
 import { createLogger } from '@/shared/logging/root-logger'
@@ -24,6 +26,8 @@ export class LogoutHandler implements ICommandHandler<LogoutCommand, void> {
   constructor(
     private readonly tokenService: TokenService,
     private readonly refreshTokenRepository: RefreshTokenRepository,
+    private readonly userRepository: UserRepository,
+    private readonly audit: AuditFacade,
   ) {}
 
   async execute(command: LogoutCommand): Promise<void> {
@@ -33,6 +37,21 @@ export class LogoutHandler implements ICommandHandler<LogoutCommand, void> {
     if (!stored) return
 
     await this.refreshTokenRepository.revokeById(stored.id)
+
+    // El endpoint es público: el tenant sale del usuario dueño del token.
+    const user = await this.userRepository.findByIdForSession(stored.userId)
+    if (user) {
+      await this.audit.record({
+        action: 'LOGOUT',
+        entity: 'User',
+        entityId: user.id,
+        summary: 'Cerró sesión',
+        tenantId: user.tenantId,
+        userId: user.id,
+        userEmail: user.email,
+        actorKind: actorKindOf(user.role, true),
+      })
+    }
 
     this.logger.info(
       {

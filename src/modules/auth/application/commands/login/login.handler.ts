@@ -23,7 +23,12 @@ export class LoginHandler implements ICommandHandler<LoginCommand, AuthResult> {
     const user = await this.userRepository.findInternalByEmail(command.email)
 
     if (!user) {
-      return this.signIn.rejectUnknown(command.password, 'unknown_email')
+      return this.signIn.rejectUnknown(
+        command.password,
+        'unknown_email',
+        {},
+        { email: command.email, context: command.context },
+      )
     }
 
     // Desde acá todo corre dentro del tenant del usuario.
