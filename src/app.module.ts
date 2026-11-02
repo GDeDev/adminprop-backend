@@ -30,6 +30,7 @@ import { EmailModule } from '@/platform/email/email.module'
 import { NotificationsModule } from '@/platform/notifications/notifications.module'
 import { IndexSourceModule } from '@/platform/index-source/index-source.module'
 import { PdfModule } from '@/platform/pdf/pdf.module'
+import { ExportsModule } from '@/platform/exports/exports.module'
 import { PrismaModule } from '@/shared/prisma/prisma.module'
 import { AppConfigModule } from './shared/config/config.module'
 import { RequestContextMiddleware } from './shared/context/request-context.middleware'
@@ -57,6 +58,7 @@ import { SharedModule } from './shared/shared.module'
     NotificationsModule,
     IndexSourceModule,
     PdfModule,
+    ExportsModule,
     HealthModule,
     JobsModule,
     TenantsModule,
