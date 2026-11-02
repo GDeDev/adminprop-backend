@@ -211,6 +211,15 @@ export abstract class PaymentRepository {
 
   /** Libera los pagos de una liquidación (cancelación o recálculo). */
   abstract unmarkSettled(settlementId: string): Promise<number>
+
+  /** Asigna el número de recibo (Fase 15). Devuelve el número guardado. */
+  abstract assignReceiptNumber(id: string, number: string): Promise<string>
+
+  /** Guarda el PDF vigente del recibo (Fase 15). */
+  abstract attachReceiptPdf(
+    id: string,
+    file: { key: string; url: string },
+  ): Promise<void>
 }
 
 // --------------------------------------------------------------- Depósito

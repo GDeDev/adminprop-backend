@@ -92,6 +92,8 @@ export function settlementToDomain(row: SettlementRow): Settlement {
     cancelledById: row.cancelledById,
     cancelReason: row.cancelReason,
     notes: row.notes,
+    pdfKey: row.pdfKey,
+    pdfUrl: row.pdfUrl,
     payments: row.payments.map((p) => ({
       id: p.id,
       paymentId: p.paymentId,
@@ -179,6 +181,8 @@ export function statementToDomain(row: StatementRow): OwnerStatement {
     closedAt: row.closedAt,
     closedById: row.closedById,
     notes: row.notes,
+    pdfKey: row.pdfKey,
+    pdfUrl: row.pdfUrl,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }

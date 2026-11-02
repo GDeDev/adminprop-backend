@@ -73,6 +73,8 @@ export interface SettlementChanges extends Partial<SettlementTotals> {
   cancelledById?: string
   cancelReason?: string
   notes?: string | null
+  pdfKey?: string
+  pdfUrl?: string
 }
 
 export interface NewAdjustment {
@@ -172,6 +174,8 @@ export interface OwnerStatementChanges {
   closedAt?: Date | null
   closedById?: string | null
   notes?: string | null
+  pdfKey?: string
+  pdfUrl?: string
 }
 
 export abstract class OwnerStatementRepository {

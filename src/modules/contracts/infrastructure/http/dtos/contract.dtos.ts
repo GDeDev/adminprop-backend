@@ -658,6 +658,12 @@ export class ContractDetailDto extends ContractSummaryDto {
   surety: ContractSuretyDto | null
   @ApiProperty({ type: ContractTerminationDto, nullable: true })
   termination: ContractTerminationDto | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'PDF del cálculo de la rescisión (Fase 15)',
+  })
+  terminationPdfUrl: string | null
   @ApiProperty({ type: String, nullable: true }) renewedFromId: string | null
   @ApiProperty({
     type: [ContractRentUpdateDto],

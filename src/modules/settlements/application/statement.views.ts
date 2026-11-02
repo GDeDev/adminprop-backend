@@ -25,6 +25,8 @@ export interface OwnerStatementSummaryView {
   /** Congelados si está cerrado; en vivo si está abierto. */
   totals: OwnerStatementTotals[]
   closedAt: Date | null
+  /** PDF vigente; null mientras no se generó (Fase 15). */
+  pdfUrl: string | null
   createdAt: Date
 }
 
@@ -99,6 +101,7 @@ export class StatementViews {
           ? statement.totals
           : SettlementPolicy.statementTotals(members),
       closedAt: statement.closedAt,
+      pdfUrl: statement.pdfUrl,
       createdAt: statement.createdAt,
     }
   }

@@ -114,6 +114,8 @@ model Tenant {
   notificationLogs NotificationLog[]
   jobExecutions    JobExecution[]
 
+  generatedDocuments GeneratedDocument[]
+
   properties     Property[]
   owners         Owner[]
   renters        Renter[]
@@ -857,6 +859,9 @@ model Contract {
   terminationNotifiedAt DateTime? @map("termination_notified_at") @db.Date
   terminationPenalty    Decimal?  @map("termination_penalty") @db.Decimal(14, 2)
   terminationFutureRent Decimal?  @map("termination_future_rent") @db.Decimal(14, 2)
+  /// PDF del cálculo de la rescisión (Fase 15); lo escribe `documents`.
+  terminationPdfKey     String?   @map("termination_pdf_key") @db.VarChar(500)
+  terminationPdfUrl     String?   @map("termination_pdf_url") @db.VarChar(1000)
 
   /// Contrato al que renueva (sin FK: autorreferencia que no hace falta navegar).
   renewedFromId String? @map("renewed_from_id") @db.Uuid
@@ -1241,6 +1246,12 @@ model Payment {
   receiptKey String? @map("receipt_key") @db.VarChar(500)
   receiptUrl String? @map("receipt_url") @db.VarChar(1000)
 
+  /// Recibo que emite la inmobiliaria (Fase 15): número correlativo del
+  /// tenant (`R-00000042`) y PDF vigente. Los escribe `documents` por la facade.
+  receiptNumber     String? @map("receipt_number") @db.VarChar(20)
+  receiptPdfKey     String? @map("receipt_pdf_key") @db.VarChar(500)
+  receiptPdfUrl     String? @map("receipt_pdf_url") @db.VarChar(1000)
+
   registeredById String  @map("registered_by_id") @db.Uuid
   notes          String? @db.Text
 
@@ -1266,6 +1277,7 @@ model Payment {
   @@index([tenantId, status, receivedBy])
   @@index([tenantId, creditId])
   @@index([tenantId, settlementId])
+  @@unique([tenantId, receiptNumber])
   @@map("payments")
 }
 
@@ -1508,6 +1520,10 @@ model Settlement {
   cancelReason  String?   @map("cancel_reason") @db.VarChar(500)
   notes         String?   @db.Text
 
+  /// PDF vigente de la liquidación (Fase 15); lo escribe `documents`.
+  pdfKey String? @map("pdf_key") @db.VarChar(500)
+  pdfUrl String? @map("pdf_url") @db.VarChar(1000)
+
   payments    SettlementPayment[]
   expenses    SettlementExpense[]
   adjustments SettlementAdjustment[]
@@ -1649,6 +1665,10 @@ model OwnerStatement {
   closedAt   DateTime? @map("closed_at") @db.Timestamptz(3)
   closedById String?   @map("closed_by_id") @db.Uuid
   notes      String?   @db.Text
+
+  /// PDF vigente del consolidado (Fase 15); lo escribe `documents`.
+  pdfKey String? @map("pdf_key") @db.VarChar(500)
+  pdfUrl String? @map("pdf_url") @db.VarChar(1000)
 
   totals OwnerStatementTotal[]
 
@@ -1893,4 +1913,54 @@ model NotificationLog {
   @@index([tenantId, recipientKind, channel, createdAt])
   @@index([tenantId, entityType, entityId])
   @@map("notification_log")
+}
+
+// ------------------------------------------------------------ PDFs (Fase 15)
+
+enum DocumentKind {
+  SETTLEMENT
+  OWNER_STATEMENT
+  PAYMENT_RECEIPT
+  TERMINATION_NOTICE
+}
+
+enum DocumentStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+/// Un PDF generado, en una versión. La vigente de una entidad es la última
+/// `READY`; regenerar crea una versión nueva y no pisa el archivo anterior.
+/// `entity_id` apunta a la liquidación, el consolidado, el pago o el contrato
+/// según `kind` (sin FK: son cuatro tablas de tres módulos).
+model GeneratedDocument {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  kind        DocumentKind
+  entityId    String         @map("entity_id") @db.Uuid
+  version     Int
+  status      DocumentStatus @default(PENDING)
+  storageKey  String?        @map("storage_key") @db.VarChar(500)
+  url         String?        @db.VarChar(1000)
+  sizeBytes   Int?           @map("size_bytes")
+  error       String?        @db.Text
+  generatedAt DateTime?      @map("generated_at") @db.Timestamptz(3)
+  /// Quién pidió la regeneración; null si salió de un evento.
+  requestedById String?      @map("requested_by_id") @db.Uuid
+  /// Los datos con los que se armó: permite re-renderizar igual y detectar
+  /// si un evento repetido trae algo distinto.
+  dataSnapshot  Json?        @map("data_snapshot")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, kind, entityId, version])
+  @@index([tenantId, kind, entityId, status])
+  @@index([tenantId, status, createdAt])
+  @@map("generated_documents")
 }

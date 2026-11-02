@@ -145,5 +145,11 @@ export abstract class ContractRepository {
 
   abstract terminate(id: string, data: TerminationData): Promise<Contract>
 
+  /** Guarda el PDF del cálculo de la rescisión (Fase 15). */
+  abstract attachTerminationPdf(
+    id: string,
+    file: { key: string; url: string },
+  ): Promise<void>
+
   abstract setStatus(id: string, status: ContractStatus): Promise<Contract>
 }

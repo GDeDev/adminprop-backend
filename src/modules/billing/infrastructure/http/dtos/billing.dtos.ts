@@ -505,6 +505,14 @@ export class PaymentDto {
   @ApiProperty({ type: String }) creditGenerated: string
   @ApiProperty({ type: String, nullable: true }) creditId: string | null
   @ApiProperty({ type: String, nullable: true }) receiptUrl: string | null
+  @ApiProperty({ type: String, nullable: true, example: 'R-00000042' })
+  receiptNumber: string | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'PDF del recibo emitido por la inmobiliaria (Fase 15)',
+  })
+  receiptPdfUrl: string | null
   @ApiProperty({ type: String, nullable: true }) notes: string | null
   @ApiProperty({ type: UserRefDto, nullable: true })
   registeredBy: UserRefDto | null

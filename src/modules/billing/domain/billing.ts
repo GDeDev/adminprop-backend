@@ -134,6 +134,10 @@ export interface Payment {
   creditId: string | null
   receiptKey: string | null
   receiptUrl: string | null
+  /** Recibo de la inmobiliaria (Fase 15): número correlativo y PDF vigente. */
+  receiptNumber: string | null
+  receiptPdfKey: string | null
+  receiptPdfUrl: string | null
   registeredById: string
   notes: string | null
   confirmedById: string | null

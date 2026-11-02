@@ -184,6 +184,9 @@ export interface Contract {
   notes: string | null
   surety: Surety
   termination: Termination | null
+  /** PDF del cálculo de la rescisión (Fase 15). */
+  terminationPdfKey: string | null
+  terminationPdfUrl: string | null
   renewedFromId: string | null
   /** Del más reciente al más viejo. Nunca vacío: siempre está el inicial. */
   rentUpdates: RentUpdate[]

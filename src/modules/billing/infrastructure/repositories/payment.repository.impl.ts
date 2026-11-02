@@ -113,6 +113,24 @@ export class PaymentRepositoryImpl extends PaymentRepository {
     })
     return result.count
   }
+
+  async assignReceiptNumber(id: string, number: string): Promise<string> {
+    const row = await this.prisma.db.payment.update({
+      where: { id },
+      data: { receiptNumber: number },
+    })
+    return row.receiptNumber ?? number
+  }
+
+  async attachReceiptPdf(
+    id: string,
+    file: { key: string; url: string },
+  ): Promise<void> {
+    await this.prisma.db.payment.update({
+      where: { id },
+      data: { receiptPdfKey: file.key, receiptPdfUrl: file.url },
+    })
+  }
 }
 
 function toWhere(filter: PaymentFilter): Prisma.PaymentWhereInput {

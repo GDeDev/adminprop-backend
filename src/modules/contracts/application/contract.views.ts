@@ -127,6 +127,8 @@ export interface ContractDetailView extends ContractSummaryView {
   /** Null si el contrato no tiene caución. */
   surety: ContractSuretyView | null
   termination: ContractTerminationView | null
+  /** PDF del cálculo de la rescisión; null mientras no se generó (Fase 15). */
+  terminationPdfUrl: string | null
   renewedFromId: string | null
   /** Del más reciente al más viejo. */
   rentUpdates: ContractRentUpdateView[]
@@ -228,6 +230,7 @@ export class ContractViews {
           }
         : null,
       termination: contract.termination,
+      terminationPdfUrl: contract.terminationPdfUrl,
       renewedFromId: contract.renewedFromId,
       rentUpdates: contract.rentUpdates.map((update) => ({ ...update })),
       nextRentUpdateOn:

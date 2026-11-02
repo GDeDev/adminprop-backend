@@ -196,6 +196,12 @@ export class SettlementSummaryDto {
   @ApiProperty({ type: String, nullable: true }) statementId: string | null
   @ApiProperty() hasVoidedPayments: boolean
   @ApiProperty({ type: Date, nullable: true }) confirmedAt: Date | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'PDF vigente (Fase 15)',
+  })
+  pdfUrl: string | null
   @ApiProperty() createdAt: Date
 }
 

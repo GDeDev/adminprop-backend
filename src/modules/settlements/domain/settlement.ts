@@ -206,6 +206,9 @@ export interface Settlement extends SettlementTotals {
   cancelledById: string | null
   cancelReason: string | null
   notes: string | null
+  /** PDF vigente (Fase 15). */
+  pdfKey: string | null
+  pdfUrl: string | null
   payments: SettlementPaymentLine[]
   expenses: SettlementExpenseLine[]
   /** Todos, anulados incluidos; por alta. */
@@ -241,6 +244,9 @@ export interface OwnerStatement {
   closedAt: Date | null
   closedById: string | null
   notes: string | null
+  /** PDF vigente (Fase 15). */
+  pdfKey: string | null
+  pdfUrl: string | null
   createdAt: Date
   updatedAt: Date
 }

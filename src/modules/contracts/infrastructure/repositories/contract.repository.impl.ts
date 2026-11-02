@@ -232,6 +232,16 @@ export class ContractRepositoryImpl extends ContractRepository {
     return this.findOrThrow(contractId)
   }
 
+  async attachTerminationPdf(
+    id: string,
+    file: { key: string; url: string },
+  ): Promise<void> {
+    await this.prisma.db.contract.update({
+      where: { id },
+      data: { terminationPdfKey: file.key, terminationPdfUrl: file.url },
+    })
+  }
+
   async terminate(id: string, data: TerminationData): Promise<Contract> {
     const row = await this.prisma.db.contract.update({
       where: { id },
@@ -331,6 +341,8 @@ function toDomain(row: ContractRow): Contract {
             futureRent: money(row.terminationFutureRent),
           }
         : null,
+    terminationPdfKey: row.terminationPdfKey,
+    terminationPdfUrl: row.terminationPdfUrl,
     renewedFromId: row.renewedFromId,
     rentUpdates: row.rentUpdates.map(rentUpdateToDomain),
     billingTerms: row.billingTerms.map(billingTermsToDomain),

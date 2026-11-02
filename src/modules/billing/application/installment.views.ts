@@ -97,6 +97,9 @@ export interface PaymentView {
   creditGenerated: string
   creditId: string | null
   receiptUrl: string | null
+  /** Recibo de la inmobiliaria (Fase 15). */
+  receiptNumber: string | null
+  receiptPdfUrl: string | null
   notes: string | null
   registeredBy: UserRef | null
   confirmedAt: Date | null
@@ -329,6 +332,8 @@ export function toPaymentView(
     creditGenerated: payment.creditGenerated,
     creditId: payment.creditId,
     receiptUrl: payment.receiptUrl,
+    receiptNumber: payment.receiptNumber,
+    receiptPdfUrl: payment.receiptPdfUrl,
     notes: payment.notes,
     registeredBy: user(payment.registeredById),
     confirmedAt: payment.confirmedAt,

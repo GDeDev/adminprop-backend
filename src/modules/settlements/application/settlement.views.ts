@@ -39,6 +39,8 @@ export interface SettlementSummaryView {
   statementId: string | null
   hasVoidedPayments: boolean
   confirmedAt: Date | null
+  /** PDF vigente; null mientras no se generó (Fase 15). */
+  pdfUrl: string | null
   createdAt: Date
 }
 
@@ -138,6 +140,7 @@ export function toSettlementSummary(
     statementId: settlement.statementId,
     hasVoidedPayments: settlement.hasVoidedPayments,
     confirmedAt: settlement.confirmedAt,
+    pdfUrl: settlement.pdfUrl,
     createdAt: settlement.createdAt,
   }
 }

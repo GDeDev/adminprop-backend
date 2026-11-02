@@ -177,6 +177,12 @@ export class OwnerStatementSummaryDto {
   })
   totals: OwnerStatementTotalsDto[]
   @ApiProperty({ type: Date, nullable: true }) closedAt: Date | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'PDF vigente (Fase 15)',
+  })
+  pdfUrl: string | null
   @ApiProperty() createdAt: Date
 }
 

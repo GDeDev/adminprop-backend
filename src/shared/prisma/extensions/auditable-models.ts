@@ -168,6 +168,16 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   JobExecution: { audit: false, softDelete: false },
   NotificationLog: { tenantScoped: true, audit: false, softDelete: false },
 
+  // PDFs (Fase 15): cada versión es una fila; el historial dice quién pidió
+  // la regeneración. El snapshot de datos es grande y ya vive en la fila, así
+  // que no va al diff.
+  GeneratedDocument: {
+    tenantScoped: true,
+    audit: true,
+    softDelete: false,
+    excludeFromDiff: ['dataSnapshot'],
+  },
+
   // Los refresh tokens no se auditan ni se borran lógicamente: son efímeros,
   // se rotan constantemente y el cron los borra de verdad a los 30 días.
   // Auditarlos generaría una fila de historial por cada refresh.
