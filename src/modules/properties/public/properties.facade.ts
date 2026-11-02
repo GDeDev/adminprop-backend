@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
+import { PropertyTypeNames } from '../application/property-type-names'
 import { PropertyStatus } from '../domain/property'
 import { PropertyRepository } from '../domain/property.ports'
 
@@ -46,7 +47,17 @@ export interface PropertyContractInfo extends PropertyRef {
  */
 @Injectable()
 export class PropertiesFacade {
-  constructor(private readonly properties: PropertyRepository) {}
+  constructor(
+    private readonly properties: PropertyRepository,
+    private readonly typeNamesOf: PropertyTypeNames,
+  ) {}
+
+  /** Nombre del tipo de cada propiedad (casa, departamento…), para el portal (Fase 18). */
+  async typeNames(ids: string[]): Promise<Map<string, string>> {
+    return this.typeNamesOf.of(
+      await this.properties.findByIds([...new Set(ids)]),
+    )
+  }
 
   async find(id: string): Promise<PropertyContractInfo | null> {
     const property = await this.properties.findById(id)

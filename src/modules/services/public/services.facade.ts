@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { IsoDate, todayIso } from '@/shared/dates/calendar-date'
 import { sumOf } from '../application/advance-expense.views'
+import { ContractServiceView, ServiceViews } from '../application/service.views'
 import { ServicePolicy } from '../domain/service.policy'
 import {
   AdvanceExpenseRepository,
@@ -41,7 +42,19 @@ export class ServicesFacade {
   constructor(
     private readonly services: PropertyServiceRepository,
     private readonly expenses: AdvanceExpenseRepository,
+    private readonly views: ServiceViews,
   ) {}
+
+  /** Los servicios que aplican a un contrato, propios y heredados (Fase 18, portal). */
+  async listForContract(
+    propertyId: string,
+    contractId: string,
+  ): Promise<ContractServiceView[]> {
+    return this.views.forContract(
+      await this.services.listForContract(propertyId, contractId),
+      contractId,
+    )
+  }
 
   /** Todos los vencidos a esa fecha, los más atrasados primero. */
   async listOverdue(today: IsoDate = todayIso()): Promise<OverdueServiceRef[]> {

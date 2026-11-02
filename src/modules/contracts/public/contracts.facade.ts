@@ -25,6 +25,11 @@ import {
 } from '../domain/contract'
 import { ContractRepository } from '../domain/contract.ports'
 import {
+  ContractDetailView,
+  ContractSummaryView,
+  ContractViews,
+} from '../application/contract.views'
+import {
   TerminationDocumentData,
   TerminationDocuments,
 } from '../application/termination-document'
@@ -78,7 +83,35 @@ export class ContractsFacade {
     private readonly lifecycle: ContractLifecycle,
     private readonly billingTerms: BillingTermsResolver,
     private readonly terminationDocuments: TerminationDocuments,
+    private readonly views: ContractViews,
   ) {}
+
+  /**
+   * El contrato que ve el inquilino en su portal (Fase 18, A-35): el activo o,
+   * si no tiene, el último. Null si nunca tuvo uno.
+   */
+  async portalContractOfRenter(
+    renterId: string,
+  ): Promise<ContractDetailView | null> {
+    const page = { skip: 0, take: 1 }
+    const [active] = await this.contracts.list(
+      { renterId, status: ContractStatus.ACTIVE },
+      page,
+    )
+    const [latest] = active.length
+      ? [active]
+      : await this.contracts.list({ renterId }, page)
+    return latest.length ? this.views.detail(latest[0]) : null
+  }
+
+  /** Los contratos activos de un propietario, para su portal (Fase 17). */
+  async listActiveByOwner(ownerId: string): Promise<ContractSummaryView[]> {
+    const [contracts] = await this.contracts.list(
+      { ownerId, status: ContractStatus.ACTIVE },
+      { skip: 0, take: 500 },
+    )
+    return this.views.summaries(contracts)
+  }
 
   /** Todo lo que lleva el PDF de la rescisión; null si no está rescindido (Fase 15). */
   terminationForPdf(

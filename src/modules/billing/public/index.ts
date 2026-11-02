@@ -46,6 +46,7 @@ export type {
   InstallmentBreakdownView,
   InstallmentDetailView,
   InstallmentSummaryView,
+  MoneyByCurrency,
   PaymentListItemView,
   PaymentView,
   RenterArrearsView,

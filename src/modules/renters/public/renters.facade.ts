@@ -13,6 +13,12 @@ export interface RenterContact extends RenterRef {
   phone: string | null
 }
 
+/** Lo que el inquilino ve de sí mismo en su portal (Fase 18). */
+export interface RenterPortalProfile extends RenterRef {
+  email: string | null
+  phone: string | null
+}
+
 /** Lo que un contrato necesita saber del inquilino al armarse. */
 export interface RenterContractInfo extends RenterRef {
   /** Su garante actual, que el contrato toma por defecto. */
@@ -38,6 +44,19 @@ export class RentersFacade {
   /** El inquilino del usuario de portal, o null (Fase 15: autorizar descargas). */
   async idForPortalUser(userId: string): Promise<string | null> {
     return (await this.renters.findByPortalUser(userId))?.id ?? null
+  }
+
+  /** Datos del inquilino para su portal (Fase 18). Null si no existe. */
+  async portalProfile(renterId: string): Promise<RenterPortalProfile | null> {
+    const renter = await this.renters.findById(renterId)
+    return renter
+      ? {
+          id: renter.id,
+          fullName: fullNameOf(renter),
+          email: renter.email,
+          phone: renter.phone,
+        }
+      : null
   }
 
   async exists(id: string): Promise<boolean> {

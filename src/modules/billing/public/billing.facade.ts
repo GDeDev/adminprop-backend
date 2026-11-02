@@ -14,13 +14,18 @@ import {
   PaymentReceiptData,
 } from '../application/payment-receipts'
 import {
+  InstallmentDetailView,
+  InstallmentSummaryView,
   InstallmentViews,
+  MoneyByCurrency,
   RenterArrearsView,
+  sumByCurrency,
   sumMoney,
 } from '../application/installment.views'
 import {
   activePayments,
   CollectionMode,
+  CreditStatus,
   Currency,
   FeeMode,
   Installment,
@@ -32,6 +37,7 @@ import {
 import {
   InstallmentRepository,
   PaymentRepository,
+  RenterCreditRepository,
 } from '../domain/billing.ports'
 import {
   ChargesByConcept,
@@ -130,7 +136,93 @@ export class BillingFacade {
     private readonly views: InstallmentViews,
     private readonly rebaser: InstallmentRebaser,
     private readonly receipts: PaymentReceipts,
+    private readonly credits: RenterCreditRepository,
   ) {}
+
+  // ------------------------------------------------------------- Portales
+  // Fases 17 y 18. Cada método recibe el id de la persona del portal y
+  // responde null (o vacío) si lo pedido no es suyo: el portal lo traduce a 404.
+
+  /** Historial de cuotas de un inquilino, las más nuevas primero. */
+  async pageInstallmentsOfRenter(
+    renterId: string,
+    page: { skip: number; take: number },
+  ): Promise<[InstallmentSummaryView[], number]> {
+    const [rows, total] = await this.installments.list({ renterId }, page)
+    return [await this.views.summaries(rows), total]
+  }
+
+  /** La ficha de una cuota del inquilino, o null si no es suya. */
+  async installmentOfRenter(
+    renterId: string,
+    id: string,
+  ): Promise<InstallmentDetailView | null> {
+    const installment = await this.installments.findById(id)
+    return installment && installment.renterId === renterId
+      ? this.views.detail(installment)
+      : null
+  }
+
+  /**
+   * La cuota del mes de un contrato del inquilino; si ese mes no tiene (un
+   * contrato finalizado, A-35), la más reciente.
+   */
+  async currentInstallmentOfRenter(
+    renterId: string,
+    contractId: string,
+    period: Period,
+  ): Promise<InstallmentDetailView | null> {
+    const own = await this.installments.listAll({ renterId, contractId })
+    const installment = own.find((i) => i.period === period) ?? own[0]
+    return installment ? this.views.detail(installment) : null
+  }
+
+  /** Saldo a favor disponible del inquilino, por moneda. */
+  async creditsAvailableOfRenter(renterId: string): Promise<MoneyByCurrency[]> {
+    const credits = await this.credits.listByRenter(renterId)
+    return sumByCurrency(
+      credits
+        .filter((c) => c.status === CreditStatus.AVAILABLE)
+        .map((c) => ({ currency: c.currency, amount: c.remaining })),
+    )
+  }
+
+  /**
+   * El recibo PDF de un pago del inquilino: `null` si el pago no es suyo,
+   * `{ url: null }` si todavía no se generó.
+   */
+  async receiptOfRenter(
+    renterId: string,
+    paymentId: string,
+  ): Promise<{ url: string | null } | null> {
+    const payment = await this.payments.findById(paymentId)
+    return payment && payment.renterId === renterId
+      ? { url: payment.receiptPdfUrl }
+      : null
+  }
+
+  /** Cuotas de una propiedad del propietario, las más nuevas primero. */
+  async pageInstallmentsOfProperty(
+    ownerId: string,
+    propertyId: string,
+    page: { skip: number; take: number },
+  ): Promise<[InstallmentSummaryView[], number]> {
+    const [rows, total] = await this.installments.list(
+      { ownerId, propertyId },
+      page,
+    )
+    return [await this.views.summaries(rows), total]
+  }
+
+  /** Todas las cuotas de un mes de las propiedades del propietario. */
+  async installmentsOfOwnerForPeriod(
+    ownerId: string,
+    period: Period,
+  ): Promise<InstallmentSummaryView[]> {
+    return this.views.summaries(
+      await this.installments.listAll({ ownerId, period }),
+    )
+  }
 
   /**
    * Todo lo que lleva el recibo de un pago (Fase 15). Si el pago es un cobro

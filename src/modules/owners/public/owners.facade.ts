@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common'
 
 import { OwnerFeeResolver } from '../application/owner-fee-resolver'
-import { fullNameOf, OwnerFeeSettings } from '../domain/owner'
+import {
+  BankAccount,
+  fullNameOf,
+  OwnerFeeSettings,
+  StatementSendMode,
+} from '../domain/owner'
 import { OwnerRef, OwnerRepository } from '../domain/owner.ports'
 
 export type { OwnerRef }
@@ -12,6 +17,13 @@ export interface OwnerContact extends OwnerRef {
   nationalId: string
   email: string | null
   phone: string | null
+}
+
+/** Lo que el propietario ve de sí mismo en su portal (Fase 17). */
+export interface OwnerPortalProfile extends OwnerRef {
+  email: string | null
+  bankAccount: BankAccount
+  statementSendMode: StatementSendMode
 }
 
 /**
@@ -59,6 +71,20 @@ export class OwnersFacade {
   /** El propietario del usuario de portal, o null (Fase 15: autorizar descargas). */
   async idForPortalUser(userId: string): Promise<string | null> {
     return (await this.owners.findByPortalUser(userId))?.id ?? null
+  }
+
+  /** Datos del propietario para su portal (Fase 17). Null si no existe. */
+  async portalProfile(ownerId: string): Promise<OwnerPortalProfile | null> {
+    const owner = await this.owners.findById(ownerId)
+    return owner
+      ? {
+          id: owner.id,
+          fullName: fullNameOf(owner),
+          email: owner.email,
+          bankAccount: owner.bankAccount,
+          statementSendMode: owner.feeSettings.statementSendMode,
+        }
+      : null
   }
 
   async exists(id: string): Promise<boolean> {

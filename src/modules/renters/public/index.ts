@@ -7,6 +7,7 @@ export type {
   GuarantorRef,
   RenterContact,
   RenterContractInfo,
+  RenterPortalProfile,
   RenterRef,
 } from './renters.facade'
 export { GuaranteeType } from '../domain/guarantor'

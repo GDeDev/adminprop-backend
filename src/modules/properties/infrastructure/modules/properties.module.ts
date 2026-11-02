@@ -9,6 +9,7 @@ import {
   UpdatePropertyHandler,
 } from '@/modules/properties/application/commands/property.handlers'
 import { MasterDataReferences } from '@/modules/properties/application/master-data-references'
+import { PropertyTypeNames } from '../../application/property-type-names'
 import { PropertyViews } from '@/modules/properties/application/property.views'
 import {
   GetPropertyHandler,
@@ -36,6 +37,7 @@ import { PropertyRepositoryImpl } from '../repositories/property.repository.impl
     { provide: PropertyRepository, useClass: PropertyRepositoryImpl },
     { provide: PropertyContracts, useClass: PropertyContractsImpl },
     PropertyViews,
+    PropertyTypeNames,
     MasterDataReferences,
     CreatePropertyHandler,
     UpdatePropertyHandler,
