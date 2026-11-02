@@ -12611,6 +12611,1203 @@
         ]
       }
     },
+    "/api/v1/audit": {
+      "get": {
+        "description": "Más nuevos primero. Filtra por entidad, acción, usuario, tipo de actor, fechas y texto.",
+        "operationId": "AuditController_list_api/v1",
+        "parameters": [
+          {
+            "name": "entity",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "example": "Contract",
+              "type": "string"
+            }
+          },
+          {
+            "name": "entityId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CREATE",
+                "UPDATE",
+                "DELETE",
+                "RESTORE",
+                "LOGIN",
+                "LOGIN_FAILED",
+                "LOGOUT",
+                "NOTIFICATION_SENT",
+                "JOB_RUN",
+                "EXPORT"
+              ]
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorKind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "SYSTEM",
+                "PORTAL_OWNER",
+                "PORTAL_RENTER"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Desde el inicio de ese día (hora de Buenos Aires)",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Hasta el fin de ese día (hora de Buenos Aires)",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Texto a buscar en el detalle, la entidad, su id y el email",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Movimientos de la página",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/AuditEntryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar los movimientos de auditoría",
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/audit/entities": {
+      "get": {
+        "description": "Para armar los filtros de la pantalla.",
+        "operationId": "AuditController_catalog_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditCatalogDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Catálogo de entidades y acciones",
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/audit/export": {
+      "get": {
+        "description": "Devuelve el archivo (Content-Disposition). Hasta 5.000 movimientos; con más, acotar por fecha. La exportación queda auditada.",
+        "operationId": "AuditController_export_api/v1",
+        "parameters": [
+          {
+            "name": "entity",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "example": "Contract",
+              "type": "string"
+            }
+          },
+          {
+            "name": "entityId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CREATE",
+                "UPDATE",
+                "DELETE",
+                "RESTORE",
+                "LOGIN",
+                "LOGIN_FAILED",
+                "LOGOUT",
+                "NOTIFICATION_SENT",
+                "JOB_RUN",
+                "EXPORT"
+              ]
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorKind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "SYSTEM",
+                "PORTAL_OWNER",
+                "PORTAL_RENTER"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Desde el inicio de ese día (hora de Buenos Aires)",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Hasta el fin de ese día (hora de Buenos Aires)",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Texto a buscar en el detalle, la entidad, su id y el email",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "xlsx",
+                "csv"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archivo XLSX o CSV"
+          },
+          "403": {
+            "description": "Sólo el admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Exportar la auditoría filtrada",
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/audit/entity/{entity}/{entityId}": {
+      "get": {
+        "description": "Los últimos cambios de una entidad (pestaña \"Historial\"), más nuevos primero.",
+        "operationId": "AuditController_history_api/v1",
+        "parameters": [
+          {
+            "name": "entity",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEntryDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Historial de una ficha",
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/audit/{id}": {
+      "get": {
+        "description": "Con el diff campo por campo; si el valor es un id (propiedad, inquilino…), también su nombre.",
+        "operationId": "AuditController_detail_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEntryDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Detalle de un movimiento",
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/reports/dashboard": {
+      "get": {
+        "description": "Cuotas por estado, punitorios y honorarios del mes (por moneda), pendientes del día, contratos por vencer y los últimos 6 meses.",
+        "operationId": "ReportsController_dashboard_api/v1",
+        "parameters": [
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "description": "Default: el mes en curso",
+            "schema": {
+              "example": "2026-11",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardReportDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Dashboard del mes",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/financial/income": {
+      "get": {
+        "description": "Una fila por mes y moneda. Lo cobrado se cuenta por fecha de pago; honorarios y neto, por el mes de la liquidación.",
+        "operationId": "ReportsController_income_api/v1",
+        "parameters": [
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Con formato, la respuesta es el archivo (Content-Disposition) en vez de JSON. Sin paginar.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "xlsx",
+                "csv",
+                "pdf"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Mes (AAAA-MM, desde su primer día) o día (AAAA-MM-DD). Default: 6 meses atrás.",
+            "schema": {
+              "example": "2026-05",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Mes (AAAA-MM, hasta su último día) o día (AAAA-MM-DD). Default: el mes en curso.",
+            "schema": {
+              "example": "2026-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Con `?format=`, el archivo (Content-Disposition) en vez de JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomeReportDto"
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomeReportDto"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomeReportDto"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomeReportDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ingresos, honorarios y punitorios por mes",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/financial/payments": {
+      "get": {
+        "description": "Pagos confirmados del período, más nuevos primero, con cuota, inquilino, propiedad, propietario, medio y quién recibió. Paginado; con `format`, todos.",
+        "operationId": "ReportsController_payments_api/v1",
+        "parameters": [
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Con formato, la respuesta es el archivo (Content-Disposition) en vez de JSON. Sin paginar.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "xlsx",
+                "csv",
+                "pdf"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Mes (AAAA-MM, desde su primer día) o día (AAAA-MM-DD). Default: 6 meses atrás.",
+            "schema": {
+              "example": "2026-05",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Mes (AAAA-MM, hasta su último día) o día (AAAA-MM-DD). Default: el mes en curso.",
+            "schema": {
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
+            "name": "ownerId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "propertyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "renterId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Con `?format=`, el archivo (Content-Disposition) en vez de JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/PaymentReportRowDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/PaymentReportRowDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/PaymentReportRowDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/PaymentReportRowDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pagos recibidos",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/financial/arrears": {
+      "get": {
+        "description": "Inquilinos con deuda a la fecha: cuotas vencidas, días de atraso, saldo y punitorio por moneda, y teléfono.",
+        "operationId": "ReportsController_arrears_api/v1",
+        "parameters": [
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Con formato, la respuesta es el archivo (Content-Disposition) en vez de JSON. Sin paginar.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "xlsx",
+                "csv",
+                "pdf"
+              ]
+            }
+          },
+          {
+            "name": "asOf",
+            "required": false,
+            "in": "query",
+            "description": "Default: hoy",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "minDays",
+            "required": false,
+            "in": "query",
+            "description": "Sólo las cuotas con al menos esos días de atraso",
+            "schema": {
+              "minimum": 0,
+              "default": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Con `?format=`, el archivo (Content-Disposition) en vez de JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrearsReportDto"
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrearsReportDto"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrearsReportDto"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrearsReportDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Alquileres vencidos",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/operations/properties": {
+      "get": {
+        "description": "Las alquiladas con inquilino, alquiler y fin del contrato; las disponibles con los días sin alquilar.",
+        "operationId": "ReportsController_properties_api/v1",
+        "parameters": [
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Con formato, la respuesta es el archivo (Content-Disposition) en vez de JSON. Sin paginar.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "xlsx",
+                "csv",
+                "pdf"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RENTED",
+                "AVAILABLE"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Con `?format=`, el archivo (Content-Disposition) en vez de JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertiesReportDto"
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertiesReportDto"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertiesReportDto"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertiesReportDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Propiedades alquiladas o disponibles",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/operations/expiring-contracts": {
+      "get": {
+        "description": "Los activos que terminan dentro de `withinDays` (default: los días de aviso de la inmobiliaria), con si hay renovación en curso.",
+        "operationId": "ReportsController_expiring_api/v1",
+        "parameters": [
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Con formato, la respuesta es el archivo (Content-Disposition) en vez de JSON. Sin paginar.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "xlsx",
+                "csv",
+                "pdf"
+              ]
+            }
+          },
+          {
+            "name": "withinDays",
+            "required": false,
+            "in": "query",
+            "description": "Default: los días de aviso de la inmobiliaria",
+            "schema": {
+              "minimum": 1,
+              "maximum": 730,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Con `?format=`, el archivo (Content-Disposition) en vez de JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpiringContractsReportDto"
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpiringContractsReportDto"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpiringContractsReportDto"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpiringContractsReportDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Contratos por vencer",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/operations/services": {
+      "get": {
+        "description": "Servicios de propiedades con vencimiento pasado y sus días de atraso.",
+        "operationId": "ReportsController_services_api/v1",
+        "parameters": [
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Con formato, la respuesta es el archivo (Content-Disposition) en vez de JSON. Sin paginar.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "xlsx",
+                "csv",
+                "pdf"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "overdue",
+              "type": "string",
+              "enum": [
+                "overdue",
+                "all"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Con `?format=`, el archivo (Content-Disposition) en vez de JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicesReportDto"
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicesReportDto"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicesReportDto"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServicesReportDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Servicios vencidos",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
     "/api/v1/examples": {
       "post": {
         "operationId": "ExampleItemsController_create_api/v1",
@@ -21792,6 +22989,847 @@
           "properties",
           "fees",
           "totals"
+        ]
+      },
+      "AuditEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entity": {
+            "type": "string",
+            "example": "Contract"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "CREATE",
+              "UPDATE",
+              "DELETE",
+              "RESTORE",
+              "LOGIN",
+              "LOGIN_FAILED",
+              "LOGOUT",
+              "NOTIFICATION_SENT",
+              "JOB_RUN",
+              "EXPORT"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "example": "Registró un pago de $ 100.000,00",
+            "description": "Frase legible; la arma el servidor al leer"
+          },
+          "actorKind": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "SYSTEM",
+              "PORTAL_OWNER",
+              "PORTAL_RENTER"
+            ]
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "userEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "userName": {
+            "type": "string",
+            "nullable": true
+          },
+          "ip": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "entity",
+          "entityId",
+          "action",
+          "summary",
+          "actorKind",
+          "userId",
+          "userEmail",
+          "userName",
+          "ip",
+          "createdAt"
+        ]
+      },
+      "AuditCatalogDto": {
+        "type": "object",
+        "properties": {
+          "entities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "CREATE",
+                "UPDATE",
+                "DELETE",
+                "RESTORE",
+                "LOGIN",
+                "LOGIN_FAILED",
+                "LOGOUT",
+                "NOTIFICATION_SENT",
+                "JOB_RUN",
+                "EXPORT"
+              ]
+            }
+          }
+        },
+        "required": [
+          "entities",
+          "actions"
+        ]
+      },
+      "AuditChangeDto": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "example": "status"
+          },
+          "before": {
+            "type": "object",
+            "nullable": true,
+            "description": "Valor anterior (cualquier tipo JSON)"
+          },
+          "after": {
+            "type": "object",
+            "nullable": true,
+            "description": "Valor nuevo (cualquier tipo JSON)"
+          },
+          "beforeLabel": {
+            "type": "string",
+            "nullable": true,
+            "description": "Nombre legible cuando el valor es un id"
+          },
+          "afterLabel": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "field",
+          "before",
+          "after"
+        ]
+      },
+      "AuditEntryDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entity": {
+            "type": "string",
+            "example": "Contract"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "CREATE",
+              "UPDATE",
+              "DELETE",
+              "RESTORE",
+              "LOGIN",
+              "LOGIN_FAILED",
+              "LOGOUT",
+              "NOTIFICATION_SENT",
+              "JOB_RUN",
+              "EXPORT"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "example": "Registró un pago de $ 100.000,00",
+            "description": "Frase legible; la arma el servidor al leer"
+          },
+          "actorKind": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "SYSTEM",
+              "PORTAL_OWNER",
+              "PORTAL_RENTER"
+            ]
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "userEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "userName": {
+            "type": "string",
+            "nullable": true
+          },
+          "ip": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditChangeDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "entity",
+          "entityId",
+          "action",
+          "summary",
+          "actorKind",
+          "userId",
+          "userEmail",
+          "userName",
+          "ip",
+          "createdAt",
+          "changes"
+        ]
+      },
+      "CurrencyAmountDto": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "example": "100000.00",
+            "description": "Decimal como string"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ]
+      },
+      "InstallmentBucketDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number"
+          },
+          "amounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyAmountDto"
+            }
+          }
+        },
+        "required": [
+          "count",
+          "amounts"
+        ]
+      },
+      "DashboardInstallmentsDto": {
+        "type": "object",
+        "properties": {
+          "paid": {
+            "$ref": "#/components/schemas/InstallmentBucketDto"
+          },
+          "partial": {
+            "$ref": "#/components/schemas/InstallmentBucketDto"
+          },
+          "pending": {
+            "$ref": "#/components/schemas/InstallmentBucketDto"
+          },
+          "overdue": {
+            "$ref": "#/components/schemas/InstallmentBucketDto"
+          }
+        },
+        "required": [
+          "paid",
+          "partial",
+          "pending",
+          "overdue"
+        ]
+      },
+      "DashboardTodoDto": {
+        "type": "object",
+        "properties": {
+          "paymentsToConfirm": {
+            "type": "number"
+          },
+          "settlementsToConfirm": {
+            "type": "number"
+          },
+          "settlementsToTransfer": {
+            "type": "number"
+          },
+          "openStatements": {
+            "type": "number"
+          },
+          "pendingIncreases": {
+            "type": "number"
+          },
+          "unreadAlerts": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "paymentsToConfirm",
+          "settlementsToConfirm",
+          "settlementsToTransfer",
+          "openStatements",
+          "pendingIncreases",
+          "unreadAlerts"
+        ]
+      },
+      "ExpiringContractRowDto": {
+        "type": "object",
+        "properties": {
+          "contractId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "propertyAddress": {
+            "type": "string"
+          },
+          "renterName": {
+            "type": "string"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "daysLeft": {
+            "type": "number"
+          },
+          "renewalInProgress": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "contractId",
+          "propertyAddress",
+          "renterName",
+          "endDate",
+          "daysLeft",
+          "renewalInProgress"
+        ]
+      },
+      "DashboardHistoryDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "accrued": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyAmountDto"
+            }
+          },
+          "collected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyAmountDto"
+            }
+          }
+        },
+        "required": [
+          "period",
+          "accrued",
+          "collected"
+        ]
+      },
+      "DashboardReportDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Eco de los filtros pedidos"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-11"
+          },
+          "installments": {
+            "$ref": "#/components/schemas/DashboardInstallmentsDto"
+          },
+          "lateFeesAccrued": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyAmountDto"
+            }
+          },
+          "lateFeesCollected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyAmountDto"
+            }
+          },
+          "feesAccrued": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyAmountDto"
+            }
+          },
+          "todo": {
+            "$ref": "#/components/schemas/DashboardTodoDto"
+          },
+          "expiringContracts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpiringContractRowDto"
+            }
+          },
+          "history": {
+            "description": "Últimos 6 meses, el más viejo primero",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardHistoryDto"
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "filters",
+          "period",
+          "installments",
+          "lateFeesAccrued",
+          "lateFeesCollected",
+          "feesAccrued",
+          "todo",
+          "expiringContracts",
+          "history"
+        ]
+      },
+      "IncomeReportRowDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "rentCollected": {
+            "type": "string"
+          },
+          "lateFeesCollected": {
+            "type": "string"
+          },
+          "chargesCollected": {
+            "type": "string"
+          },
+          "feesAccrued": {
+            "type": "string"
+          },
+          "feesCollected": {
+            "type": "string"
+          },
+          "netSettled": {
+            "type": "string"
+          },
+          "netTransferred": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "currency",
+          "rentCollected",
+          "lateFeesCollected",
+          "chargesCollected",
+          "feesAccrued",
+          "feesCollected",
+          "netSettled",
+          "netTransferred"
+        ]
+      },
+      "IncomeReportDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Eco de los filtros pedidos"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncomeReportRowDto"
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "filters",
+          "rows"
+        ]
+      },
+      "PaymentReportRowDto": {
+        "type": "object",
+        "properties": {
+          "paymentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "renterName": {
+            "type": "string"
+          },
+          "propertyAddress": {
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Lo entregado, en la moneda del pago"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "example": "TRANSFER"
+          },
+          "receivedBy": {
+            "type": "string",
+            "enum": [
+              "AGENCY",
+              "OWNER"
+            ]
+          }
+        },
+        "required": [
+          "paymentId",
+          "paidAt",
+          "period",
+          "renterName",
+          "propertyAddress",
+          "ownerName",
+          "amount",
+          "currency",
+          "method",
+          "receivedBy"
+        ]
+      },
+      "ArrearsReportRowDto": {
+        "type": "object",
+        "properties": {
+          "renterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "renterName": {
+            "type": "string"
+          },
+          "renterPhone": {
+            "type": "string",
+            "nullable": true
+          },
+          "propertyAddress": {
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "overdueInstallments": {
+            "type": "number"
+          },
+          "maxDaysOverdue": {
+            "type": "number"
+          },
+          "balance": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyAmountDto"
+            }
+          },
+          "lateFee": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyAmountDto"
+            }
+          }
+        },
+        "required": [
+          "renterId",
+          "renterName",
+          "renterPhone",
+          "propertyAddress",
+          "ownerName",
+          "overdueInstallments",
+          "maxDaysOverdue",
+          "balance",
+          "lateFee"
+        ]
+      },
+      "ArrearsReportDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Eco de los filtros pedidos"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArrearsReportRowDto"
+            }
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyAmountDto"
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "filters",
+          "rows",
+          "totals"
+        ]
+      },
+      "PropertyReportRowDto": {
+        "type": "object",
+        "properties": {
+          "propertyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "address": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RENTED",
+              "AVAILABLE",
+              "OTHER"
+            ]
+          },
+          "renterName": {
+            "type": "string",
+            "nullable": true
+          },
+          "rent": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CurrencyAmountDto"
+              }
+            ]
+          },
+          "contractEndDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "daysVacant": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "propertyId",
+          "address",
+          "status",
+          "renterName",
+          "rent",
+          "contractEndDate",
+          "daysVacant"
+        ]
+      },
+      "PropertiesReportDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Eco de los filtros pedidos"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PropertyReportRowDto"
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "filters",
+          "rows"
+        ]
+      },
+      "ExpiringContractsReportDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Eco de los filtros pedidos"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpiringContractRowDto"
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "filters",
+          "rows"
+        ]
+      },
+      "ServiceReportRowDto": {
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "propertyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "propertyAddress": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "daysOverdue": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "serviceId",
+          "propertyId",
+          "propertyAddress",
+          "serviceName",
+          "daysOverdue"
+        ]
+      },
+      "ServicesReportDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
+            },
+            "description": "Eco de los filtros pedidos"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceReportRowDto"
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "filters",
+          "rows"
         ]
       },
       "CreateExampleItemDto": {
