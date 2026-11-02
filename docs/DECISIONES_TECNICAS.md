@@ -727,3 +727,53 @@ Los A-22 a A-27 vienen del rediseño; A-28 a A-30 son de la implementación.
 - **A-28 · Un índice sin publicar no alarma hasta 20 días después del fin de su mes** (el INDEC publica el IPC a mediados del mes siguiente). El job queda `PARTIAL` y lo vuelve a pedir en cada corrida; el aviso `INDEX_FETCH_FAILED` sale pasado ese plazo o si la fuente falla. _Si quieren otro plazo_: `PUBLICATION_GRACE_DAYS` en `indices-fetch.job.ts`.
 - **A-29 · Avisos de póliza a los 30 días, de servicios desde el 5° día de vencido (RN-13), de contratos con los días del tenant** (`contractExpiryNoticeDays`, default 60). Los dos primeros son constantes (`POLICY_NOTICE_DAYS`, `SERVICE_NOTICE_FROM_DAYS`).
 - **A-30 · Los avisos al personal que no son de la campana (mora, contrato por vencer, póliza, servicio) salen por email sin destinatario resuelto**: quedan en `notification_log` y se envían cuando la Fase 14 sepa a quién (¿todos los administradores?, ¿un email de la inmobiliaria?). _Si prefieren verlos en la campana_: sumar el tipo a `ALERT_TYPES` y al enum del DTO.
+
+## Fase 15 — Generación de PDFs (sin supervisión, rediseño)
+
+Referencia: `adminprop-repo-files/docs/REDISENO_FASE_15.md` (PRD §23, PDF-01 a PDF-05). El rediseño numeraba sus supuestos A-28 a A-31, pero la Fase 13 ya ocupó A-28 a A-30: acá son **A-31 a A-34** (más A-35).
+
+### D-103 · `documents` es el único que arma y guarda PDFs; los módulos dueños sólo exponen datos y un `attach`
+
+- **Decisión**: el módulo `documents` recibe eventos, arma el JSON con las facades (`settlementForPdf`, `statementForPdf`, `paymentForReceipt`, `terminationForPdf`), renderiza y sube, y le avisa al dueño con `attachDocument`, `attachStatementDocument`, `attachReceipt` o `attachTerminationDocument` (que sólo guardan `key` y `url` en una columna). Nadie importa a `documents`; el dueño nunca conoce `pdfmake`.
+- **Por qué**: el rediseño lo pedía y mantiene la regla de módulos (nunca leer tablas ajenas). Efecto: `OwnerContact` suma `nationalId` y las facades de propietarios e inquilinos suman `idForPortalUser`.
+
+### D-104 · Cada consumidor extra de un evento tiene su propia cola (`*-documents`)
+
+- **Contexto**: pg-boss entrega cada mensaje a **un solo** worker de la cola. `payment-confirmed` y `payment-voided` ya las consume liquidaciones; si `documents` se suscribía a las mismas, los dos se hubieran robado mensajes.
+- **Decisión**: los relays de cobros y liquidaciones publican en la cola de siempre **y** en `payment-confirmed-documents`, `payment-voided-documents`, `settlement-confirmed-documents`, `statement-closed-documents` (reintentos 3 × 30 s). `contract-terminated` es nueva y sólo la consume `documents`, con su nombre llano. La Fase 14 (email) conserva las colas originales de liquidaciones.
+- **Costo**: un `publish` más por evento. Alternativa descartada: exponer en `QueuePort` un pub/sub de pg-boss (acopla el puerto al proveedor).
+
+### D-105 · Versiones nunca pisadas e idempotencia por `data_snapshot`
+
+- **Decisión**: el archivo de cada versión vive en `documents/<carpeta>/<entityId>-<versión>.pdf`. Un evento repetido cuyos datos armados son iguales (comparación profunda con el JSON del último `READY`) no hace nada; datos distintos (p. ej. pago anulado) o `force` crean la versión siguiente. Una versión `PENDING` o `FAILED` se **reusa** al reintentar. La regeneración manual vuelve a armar los datos (no re-renderiza el snapshot viejo): refleja el estado actual de la entidad y la marca actual; el snapshot guarda con qué se armó cada versión.
+- **Por qué**: ahorra renders ante redeliveries y deja historial sin código extra.
+
+### D-106 · Fallo definitivo: `FAILED`, aviso `DOCUMENT_FAILED` y el mensaje se da por consumido
+
+- **Decisión**: el consumidor deja que la excepción vuelva a la cola mientras queden reintentos (`retryCount < retryLimit`). En el último intento escribe `FAILED` con el error (crea la fila si todavía no existía) y avisa al personal por `NotificationsService.notifyStaff` (`DOCUMENT_FAILED`, clave por versión) y **no** relanza, así la dead-letter no duplica lo ya registrado. Los usuarios de portal nunca ven el campo `error`.
+
+### D-107 · Numeración de recibos: contador del tenant, atómico y dentro de la transacción de asignación
+
+- **Decisión**: `BillingFacade.paymentForReceipt` asigna el número la primera vez que se arma el recibo de un `CASH_IN` confirmado: `UPDATE tenants SET receipt_sequence = receipt_sequence + 1 … RETURNING` (SQL directo para no auditar cada incremento) y `payments.receipt_number = 'R-' + 8 dígitos`, en una sola transacción; si falla, no se gasta el número. `(tenant_id, receipt_number)` es único. El número es estable: reintentos, regeneraciones y la versión anulada usan el mismo.
+- **Consecuencia**: un pago anulado antes de que se emitiera su recibo no genera ninguno (no tiene número).
+
+### D-108 · Autorización de descarga por dueño de la entidad, con 404 uniforme
+
+- **Decisión**: `GET /documents/:kind/:entityId` lo pueden pedir personal y portales. El personal ve todo; un propietario, sus liquidaciones/consolidados y la rescisión de sus contratos; un inquilino, los recibos de sus pagos y la rescisión de su contrato (se resuelve con `idForPortalUser` y `settlementOwnerId`, `statementOwnerId`, `receiptOwner`, `parties`). Lo ajeno responde igual que lo inexistente (404 `DOCUMENT_NOT_FOUND`). Regenerar y listar son sólo admin.
+- **Por qué**: los portales (Fases 17 y 18) sólo descargan; la regla vive en un lugar.
+
+### D-109 · Plantillas en `application/templates`, no en `domain`
+
+- **Decisión**: el rediseño las ubicaba en `documents/domain/templates`, pero producen una `PdfDocumentDefinition` del puerto de plataforma y el linter de módulos prohíbe que `domain` importe `platform`. Quedan como funciones puras en `application/templates` (siguen sin I/O y se testean sin renderizar). El logo se baja por HTTP con tope de 5 s y 2 MB y se embebe sólo si es PNG, JPEG o SVG por sus bytes; WebP o una falla se omiten sin frenar el documento.
+
+### D-110 · El estado del documento vive en `generated_documents`; las fichas sólo guardan la URL vigente
+
+- **Decisión**: `settlements.pdf_url`, `owner_statements.pdf_url`, `payments.receipt_pdf_url`/`receipt_number` y `contracts.termination_pdf_url` se escriben dentro de la misma transacción que deja la versión en `READY`, así la ficha nunca apunta a un archivo inexistente. Quién está `PENDING` o `FAILED` se consulta en `GET /documents/...`. El archivo anterior queda en el storage (nunca se borra).
+
+### Supuestos a confirmar con Micaela (Fase 15)
+
+- **A-31 · Renderizado con `pdfmake`** (JS puro, sin Chromium: corre en cualquier free tier; Roboto embebida). _Si el Anexo A exige un diseño HTML/CSS_: adapter Playwright/Chromium detrás del mismo `PdfRendererPort`; las plantillas pasan a HTML.
+- **A-32 · El "informe mensual al propietario" (PDF-04) es el consolidado cerrado (PDF-02)**; no hay un tercer documento.
+- **A-33 · El recibo se emite por cada pago confirmado en efectivo o transferencia (`CASH_IN`), no por aplicaciones de saldo a favor, y lleva número correlativo por inmobiliaria.** _Si quieren un recibo por cuota saldada_: disparar en `installment-paid` con todos los pagos de la cuota; `receipt_number` pasaría a la cuota.
+- **A-34 · Las leyendas legales (pie, recibo, rescisión) son fijas en español**; sólo el pie es configurable por inmobiliaria (`tenants.document_footer`, hoy en Configuración → Inmobiliaria). _Si hace falta editar más textos_: una tabla de textos por tenant leída por el `DocumentBrandingResolver`.
+- **A-35 · También se emite recibo cuando el pago lo recibió el propietario directo (`receivedBy = OWNER`)**, y dice quién lo recibió. _Si no corresponde_: excluir `OWNER` en `DocumentEventsConsumer` (un `if` sobre `receivedBy`).
