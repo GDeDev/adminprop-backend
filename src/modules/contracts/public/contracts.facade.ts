@@ -272,6 +272,27 @@ export class ContractsFacade {
     return this.lifecycle.listExpiringWithin(days, today)
   }
 
+  /**
+   * Todos los contratos (activos, finalizados y rescindidos) con lo mínimo
+   * para armar los reportes: propiedades vacías, vencimientos y renovaciones.
+   */
+  async listForReport(): Promise<ContractReportRef[]> {
+    const contracts = await this.contracts.listAll({})
+    return contracts.map((contract) => ({
+      id: contract.id,
+      propertyId: contract.propertyId,
+      ownerId: contract.ownerId,
+      renterId: contract.renterId,
+      status: contract.status,
+      currency: contract.currency,
+      currentRent: currentRentOf(contract),
+      startDate: contract.startDate,
+      endDate: contract.endDate,
+      terminatedAt: contract.termination?.terminatedAt ?? null,
+      renewedFromId: contract.renewedFromId,
+    }))
+  }
+
   /** Contratos activos con caución cargada (póliza y aseguradora). */
   listWithSurety(): Promise<SuretyContract[]> {
     return this.lifecycle.listWithSurety()

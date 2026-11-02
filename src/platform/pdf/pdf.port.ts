@@ -18,6 +18,8 @@ export interface PdfDocumentDefinition {
   /** Título del archivo (metadata del PDF). */
   title: string
   header: PdfHeader
+  /** Hoja apaisada: para las tablas anchas de los reportes (Fase 19). */
+  landscape?: boolean
   /** Texto en diagonal sobre todas las páginas ("ANULADO"). */
   watermark?: string
   blocks: PdfBlock[]

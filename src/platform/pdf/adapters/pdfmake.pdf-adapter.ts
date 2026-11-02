@@ -60,6 +60,7 @@ export function toPdfmake(
   return {
     info: { title: definition.title },
     pageSize: 'A4',
+    pageOrientation: definition.landscape ? 'landscape' : 'portrait',
     pageMargins: [40, 40, 40, 70],
     defaultStyle: { font: 'Roboto', fontSize: 9, color: '#111827' },
     ...(definition.watermark
