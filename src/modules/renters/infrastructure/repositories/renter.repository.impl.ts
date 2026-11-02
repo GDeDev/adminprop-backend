@@ -124,6 +124,13 @@ export class RenterRepositoryImpl extends RenterRepository {
     return toDomain(row)
   }
 
+  async findByPortalUser(portalUserId: string): Promise<Renter | null> {
+    const row = await this.prisma.db.renter.findFirst({
+      where: { portalUserId },
+    })
+    return row ? toDomain(row) : null
+  }
+
   async setPortalUser(id: string, portalUserId: string): Promise<void> {
     await this.prisma.db.renter.update({
       where: { id },

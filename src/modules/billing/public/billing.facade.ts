@@ -10,6 +10,10 @@ import {
   RebaseResult,
 } from '../application/installment-rebaser'
 import {
+  PaymentReceipts,
+  PaymentReceiptData,
+} from '../application/payment-receipts'
+import {
   InstallmentViews,
   RenterArrearsView,
   sumMoney,
@@ -125,7 +129,44 @@ export class BillingFacade {
     private readonly payments: PaymentRepository,
     private readonly views: InstallmentViews,
     private readonly rebaser: InstallmentRebaser,
+    private readonly receipts: PaymentReceipts,
   ) {}
+
+  /**
+   * Todo lo que lleva el recibo de un pago (Fase 15). Si el pago es un cobro
+   * en efectivo o transferencia y todavía no tiene número, le reserva el
+   * próximo del tenant (A-33); si ya tiene, devuelve el mismo. Null si el
+   * pago no existe.
+   */
+  async paymentForReceipt(
+    paymentId: string,
+  ): Promise<PaymentReceiptData | null> {
+    const data = await this.receipts.dataFor(paymentId)
+    if (!data) return null
+    if (data.receiptNumber === null && this.receipts.isReceiptable(data)) {
+      data.receiptNumber = await this.receipts.ensureNumber(paymentId)
+    }
+    return data
+  }
+
+  /** Guarda el PDF vigente del recibo en el pago (Fase 15). */
+  attachReceipt(
+    paymentId: string,
+    file: { key: string; url: string },
+  ): Promise<void> {
+    return this.payments.attachReceiptPdf(paymentId, file)
+  }
+
+  /** El dueño del pago, para autorizar la descarga del recibo (Fase 15). */
+  async receiptOwner(
+    paymentId: string,
+  ): Promise<{ renterId: string; ownerId: string } | null> {
+    const payment = await this.payments.findById(paymentId)
+    if (!payment) return null
+    const installment = await this.installments.findById(payment.installmentId)
+    if (!installment) return null
+    return { renterId: payment.renterId, ownerId: installment.ownerId }
+  }
 
   /**
    * Los pagos liquidables de un contrato (Fase 12, 4.1), más viejos primero,

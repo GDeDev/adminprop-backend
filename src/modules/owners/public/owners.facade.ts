@@ -8,6 +8,8 @@ export type { OwnerRef }
 
 /** Nombre y datos de contacto, para los avisos. */
 export interface OwnerContact extends OwnerRef {
+  /** DNI o CUIT, sólo dígitos. */
+  nationalId: string
   email: string | null
   phone: string | null
 }
@@ -54,6 +56,11 @@ export class OwnersFacade {
     )
   }
 
+  /** El propietario del usuario de portal, o null (Fase 15: autorizar descargas). */
+  async idForPortalUser(userId: string): Promise<string | null> {
+    return (await this.owners.findByPortalUser(userId))?.id ?? null
+  }
+
   async exists(id: string): Promise<boolean> {
     return (await this.owners.findById(id)) !== null
   }
@@ -67,6 +74,7 @@ export class OwnersFacade {
         {
           id: owner.id,
           fullName: fullNameOf(owner),
+          nationalId: owner.nationalId,
           email: owner.email,
           phone: owner.phone,
         },

@@ -65,6 +65,38 @@ export class SettlementsFacade {
     return statement ? this.statementViews.detail(statement) : null
   }
 
+  /** Guarda el PDF vigente de la liquidación (Fase 15). */
+  async attachDocument(
+    settlementId: string,
+    file: { key: string; url: string },
+  ): Promise<void> {
+    await this.settlements.update(settlementId, {
+      pdfKey: file.key,
+      pdfUrl: file.url,
+    })
+  }
+
+  /** Guarda el PDF vigente del consolidado (Fase 15). */
+  async attachStatementDocument(
+    statementId: string,
+    file: { key: string; url: string },
+  ): Promise<void> {
+    await this.statements.update(statementId, {
+      pdfKey: file.key,
+      pdfUrl: file.url,
+    })
+  }
+
+  /** De quién es la liquidación, para autorizar la descarga (Fase 15). */
+  async settlementOwnerId(id: string): Promise<string | null> {
+    return (await this.settlements.findById(id))?.ownerId ?? null
+  }
+
+  /** De quién es el consolidado, para autorizar la descarga (Fase 15). */
+  async statementOwnerId(id: string): Promise<string | null> {
+    return (await this.statements.findById(id))?.ownerId ?? null
+  }
+
   /**
    * Propietarios con liquidaciones confirmadas o transferidas de ese mes
    * (`settlements.period`) que todavía no entraron en ningún consolidado: el

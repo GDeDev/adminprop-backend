@@ -24,6 +24,10 @@ import {
   ResolvedBillingTerms,
 } from '../domain/contract'
 import { ContractRepository } from '../domain/contract.ports'
+import {
+  TerminationDocumentData,
+  TerminationDocuments,
+} from '../application/termination-document'
 
 /** Lo que otro módulo necesita de un contrato activo (cobros, servicios). */
 export interface ActiveContractRef {
@@ -73,7 +77,33 @@ export class ContractsFacade {
     private readonly contracts: ContractRepository,
     private readonly lifecycle: ContractLifecycle,
     private readonly billingTerms: BillingTermsResolver,
+    private readonly terminationDocuments: TerminationDocuments,
   ) {}
+
+  /** Todo lo que lleva el PDF de la rescisión; null si no está rescindido (Fase 15). */
+  terminationForPdf(
+    contractId: string,
+  ): Promise<TerminationDocumentData | null> {
+    return this.terminationDocuments.dataFor(contractId)
+  }
+
+  /** Guarda el PDF del cálculo de la rescisión en el contrato (Fase 15). */
+  attachTerminationDocument(
+    contractId: string,
+    file: { key: string; url: string },
+  ): Promise<void> {
+    return this.contracts.attachTerminationPdf(contractId, file)
+  }
+
+  /** Inquilino y propietario del contrato, para autorizar descargas (Fase 15). */
+  async parties(
+    contractId: string,
+  ): Promise<{ renterId: string; ownerId: string } | null> {
+    const contract = await this.contracts.findById(contractId)
+    return contract
+      ? { renterId: contract.renterId, ownerId: contract.ownerId }
+      : null
+  }
 
   async exists(id: string): Promise<boolean> {
     return (await this.contracts.findById(id)) !== null

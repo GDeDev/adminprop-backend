@@ -35,6 +35,11 @@ export class RentersFacade {
     private readonly guarantors: GuarantorRepository,
   ) {}
 
+  /** El inquilino del usuario de portal, o null (Fase 15: autorizar descargas). */
+  async idForPortalUser(userId: string): Promise<string | null> {
+    return (await this.renters.findByPortalUser(userId))?.id ?? null
+  }
+
   async exists(id: string): Promise<boolean> {
     return (await this.renters.findById(id)) !== null
   }

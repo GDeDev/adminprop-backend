@@ -125,6 +125,13 @@ export class OwnerRepositoryImpl extends OwnerRepository {
     return toDomain(row)
   }
 
+  async findByPortalUser(portalUserId: string): Promise<Owner | null> {
+    const row = await this.prisma.db.owner.findFirst({
+      where: { portalUserId },
+    })
+    return row ? toDomain(row) : null
+  }
+
   async setPortalUser(id: string, portalUserId: string): Promise<void> {
     await this.prisma.db.owner.update({
       where: { id },

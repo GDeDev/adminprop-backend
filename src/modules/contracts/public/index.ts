@@ -11,8 +11,15 @@ export type {
   RentUpdateOutcome,
   SuretyContract,
 } from './contracts.facade'
-export { CONTRACT_RENT_UPDATED_QUEUE } from './contract-events'
-export type { ContractRentUpdatedPayload } from './contract-events'
+export {
+  CONTRACT_RENT_UPDATED_QUEUE,
+  CONTRACT_TERMINATED_QUEUE,
+} from './contract-events'
+export type {
+  ContractRentUpdatedPayload,
+  ContractTerminatedPayload,
+} from './contract-events'
+export type { TerminationDocumentData } from '../application/termination-document'
 export {
   CollectionMode,
   ContractStatus,

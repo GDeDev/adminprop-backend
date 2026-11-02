@@ -20,3 +20,21 @@ export interface ContractRentUpdatedPayload {
   previousRent: string
   newRent: string
 }
+
+/**
+ * Se rescindió un contrato (Fase 15). Contratos emite el evento adentro y un
+ * relay lo publica acá; los PDFs generan el cálculo de la rescisión.
+ */
+export const CONTRACT_TERMINATED_QUEUE: QueueDefinition = {
+  name: 'contract-terminated',
+  retryLimit: 3,
+  retryDelaySeconds: 5,
+}
+
+export interface ContractTerminatedPayload {
+  contractId: string
+  /** Fecha de la notificación, `AAAA-MM-DD`. */
+  notifiedAt: string
+  penalty: string
+  futureRent: string
+}

@@ -61,6 +61,9 @@ export abstract class RenterRepository {
 
   abstract setPortalUser(id: string, portalUserId: string): Promise<void>
 
+  /** El renter cuya cuenta de portal es ese usuario (Fase 15: autorizar descargas). */
+  abstract findByPortalUser(portalUserId: string): Promise<Renter | null>
+
   /** Vincula (o desvincula, con null) el contrato activo. Sólo la facade. */
   abstract setActiveContract(
     id: string,

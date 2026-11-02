@@ -56,5 +56,8 @@ export abstract class OwnerRepository {
 
   abstract setPortalUser(id: string, portalUserId: string): Promise<void>
 
+  /** El owner cuya cuenta de portal es ese usuario (Fase 15: autorizar descargas). */
+  abstract findByPortalUser(portalUserId: string): Promise<Owner | null>
+
   abstract softDelete(id: string): Promise<void>
 }

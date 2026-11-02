@@ -1,4 +1,5 @@
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs'
+import { ContractTerminatedEvent } from '../events/contract-terminated.event'
 import { randomUUID } from 'node:crypto'
 
 import {
@@ -476,6 +477,7 @@ export class TerminateContractHandler implements ICommandHandler<
     private readonly renters: RentersFacade,
     private readonly prisma: PrismaService,
     private readonly views: ContractViews,
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: TerminateContractCommand): Promise<TerminationResult> {
@@ -507,6 +509,15 @@ export class TerminateContractHandler implements ICommandHandler<
       await this.renters.detachContract(contract.renterId)
       return result
     })
+
+    this.eventBus.publish(
+      new ContractTerminatedEvent(
+        contract.id,
+        notifiedAt,
+        breakdown.penalty,
+        breakdown.futureRent,
+      ),
+    )
 
     return {
       terminatedAt: notifiedAt,

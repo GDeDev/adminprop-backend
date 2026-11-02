@@ -21,6 +21,7 @@ import {
   RelayPaymentVoidedHandler,
 } from '@/modules/billing/application/events/relay-payment-events.handler'
 import { InstallmentGenerator } from '@/modules/billing/application/installment-generator'
+import { PaymentReceipts } from '@/modules/billing/application/payment-receipts'
 import { InstallmentRebaser } from '@/modules/billing/application/installment-rebaser'
 import { ContractEventsConsumer } from '../consumers/contract-events.consumer'
 import { InstallmentRecalculator } from '@/modules/billing/application/installment-recalculator'
@@ -46,6 +47,7 @@ import { ContractsModule } from '@/modules/contracts/public'
 import { OwnersModule } from '@/modules/owners/public'
 import { PropertiesModule } from '@/modules/properties/public'
 import { RentersModule } from '@/modules/renters/public'
+import { TenantsModule } from '@/modules/tenants/public'
 import { InstallmentsController } from '../http/controllers/billing.controller'
 import { PaymentsController } from '../http/controllers/payments.controller'
 import { DepositReturnRepositoryImpl } from '../repositories/deposit-return.repository.impl'
@@ -59,7 +61,13 @@ import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.reposi
  * para nombrar usuarios; ninguno de ellos importa a cobros.
  */
 @Module({
-  imports: [ContractsModule, RentersModule, OwnersModule, PropertiesModule],
+  imports: [
+    ContractsModule,
+    RentersModule,
+    OwnersModule,
+    PropertiesModule,
+    TenantsModule,
+  ],
   controllers: [InstallmentsController, PaymentsController],
   providers: [
     { provide: InstallmentRepository, useClass: InstallmentRepositoryImpl },
@@ -71,6 +79,7 @@ import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.reposi
     InstallmentGenerator,
     InstallmentRecalculator,
     InstallmentRebaser,
+    PaymentReceipts,
     ContractEventsConsumer,
     BillingFacade,
     GenerateInstallmentsHandler,
