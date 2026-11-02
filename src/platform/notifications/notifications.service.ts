@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 
+import { eventChanges, writeAuditEvent } from '@/shared/audit/audit-event'
 import { RequestContext } from '@/shared/context/request-context'
 import { errorMessage } from '@/shared/core/error-message'
 import { PrismaService } from '@/shared/prisma/prisma.service'
@@ -113,7 +114,40 @@ export class NotificationsService {
         sentAt: status === 'SENT' ? new Date() : null,
       },
     })
+
+    // Los avisos internos (IN_APP) no salen a nadie: sólo los envíos reales.
+    if (status === 'SENT' && outbound.length > 0) {
+      await this.auditSent(id, request, outbound)
+    }
     return status
+  }
+
+  /** Deja constancia del envío (Fase 20): quién lo recibió, qué tipo y por qué canal. */
+  private auditSent(
+    id: string,
+    request: NotificationRequest,
+    channels: NotificationChannel[],
+  ): Promise<void> {
+    return writeAuditEvent(this.prisma, {
+      action: 'NOTIFICATION_SENT',
+      entity: 'Notification',
+      entityId: id,
+      summary: `Se envió el aviso ${request.type} (${request.recipient.kind})`,
+      changes: eventChanges({
+        type: request.type,
+        recipientKind: request.recipient.kind,
+        recipientId: request.recipient.id,
+        recipientEmail: request.recipient.email,
+        channels,
+        entityType: request.entity?.type,
+        entityId: request.entity?.id,
+      }),
+      tenantId: request.tenantId,
+      // Lo manda el sistema aunque lo haya disparado un usuario con una corrida manual.
+      userId: null,
+      userEmail: null,
+      actorKind: 'SYSTEM',
+    })
   }
 
   /** Crea la fila `QUEUED`; `null` si la clave ya existe (carrera entre dos procesos). */

@@ -28,6 +28,8 @@ import {
   AlertRepository,
   JobExecutionRepository,
 } from '@/modules/automations/domain/automations.ports'
+import { AuditRecorderModule } from '@/modules/audit/public'
+import { AutomationsFacade } from '@/modules/automations/public/automations.facade'
 import { BillingModule } from '@/modules/billing/public'
 import { ContractsModule } from '@/modules/contracts/public'
 import { IndicesModule } from '@/modules/indices/public'
@@ -66,6 +68,7 @@ import { CronSchedulerTask } from '../tasks/cron-scheduler.task'
     RentersModule,
     PropertiesModule,
     MasterDataModule,
+    AuditRecorderModule,
   ],
   controllers: [AutomationsController, IndexStatusController],
   providers: [
@@ -95,6 +98,8 @@ import { CronSchedulerTask } from '../tasks/cron-scheduler.task'
     MarkAlertReadHandler,
     MarkAllAlertsReadHandler,
     GetIndexStatusHandler,
+    AutomationsFacade,
   ],
+  exports: [AutomationsFacade],
 })
 export class AutomationsModule {}

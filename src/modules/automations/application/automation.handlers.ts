@@ -1,3 +1,4 @@
+import { AuditFacade } from '@/modules/audit/public'
 import { ConfigService } from '@nestjs/config'
 import {
   CommandHandler,
@@ -59,7 +60,7 @@ export const ALERT_TYPES = [
 ]
 
 /** Cuánto atrás llega la lista de avisos (Fase 13, 5). */
-const ALERT_WINDOW_DAYS = 30
+export const ALERT_WINDOW_DAYS = 30
 /** Una corrida `RUNNING` más vieja que esto se da por perdida y no bloquea otra. */
 const RUNNING_STALE_MINUTES = 15
 
@@ -133,6 +134,7 @@ export class RunJobHandler implements ICommandHandler<
   constructor(
     private readonly scheduler: JobScheduler,
     private readonly executions: JobExecutionRepository,
+    private readonly audit: AuditFacade,
   ) {}
 
   async execute(command: RunJobCommand): Promise<{ executionId: string }> {
@@ -159,6 +161,16 @@ export class RunJobHandler implements ICommandHandler<
       slot: 'manual',
     })
     // `null` sólo pasa con una clave repetida, que en manual es imposible.
+    await this.audit.record({
+      action: 'JOB_RUN',
+      entity: 'Job',
+      entityId: execution!.id,
+      summary: `Ejecutó manualmente la tarea ${definition.name}`,
+      changes: {
+        job: { after: definition.name },
+        period: { after: command.period?.trim() ?? null },
+      },
+    })
     return { executionId: execution!.id }
   }
 }
