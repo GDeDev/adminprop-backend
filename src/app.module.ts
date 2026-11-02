@@ -21,6 +21,7 @@ import { SettlementsModule } from '@/modules/settlements/public'
 import { AutomationsModule } from '@/modules/automations/public'
 import { DocumentsModule } from '@/modules/documents/public'
 import { PortalModule } from '@/modules/portal/public'
+import { AuditModule } from '@/modules/audit/public'
 import { ExampleModule } from '@/modules/_example/public'
 import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
 import { QueueModule } from '@/platform/queue/queue.module'
@@ -74,6 +75,7 @@ import { SharedModule } from './shared/shared.module'
     AutomationsModule,
     DocumentsModule,
     PortalModule,
+    AuditModule,
     // Módulos de referencia (Fase 1). No se borran.
     ExampleModule,
     ExampleListenerModule,

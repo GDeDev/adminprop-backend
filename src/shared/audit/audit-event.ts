@@ -3,6 +3,8 @@ import { AuditAction, AuditActorKind, Prisma } from '@prisma/client'
 import { RequestContext } from '@/shared/context/request-context'
 import { createLogger } from '@/shared/logging/root-logger'
 
+export type { AuditAction, AuditActorKind }
+
 const logger = createLogger('AuditEvent')
 
 /** Lo que hace falta para escribir una fila: el cliente base de Prisma. */
