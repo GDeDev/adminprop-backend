@@ -120,6 +120,13 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   PropertyService: { tenantScoped: true, audit: true, softDelete: true },
   AdvanceExpense: { tenantScoped: true, audit: true, softDelete: true },
 
+  // Inventario (Fase 25): el acta tiene historial; sus ítems y fotos se
+  // reemplazan en bloque mientras es borrador, así que no se auditan ni se
+  // borran lógicamente. Confirmado es inmutable (sin borrado lógico).
+  PropertyInventory: { tenantScoped: true, audit: true, softDelete: false },
+  InventoryItem: { tenantScoped: true, audit: false, softDelete: false },
+  InventoryPhoto: { tenantScoped: true, audit: false, softDelete: false },
+
   // Cobros (Fase 11): todo es plata, con historial y sin borrado lógico (se
   // anula con registro, nunca se borra). El detalle diario del punitorio se
   // escribe de una vez al saldar la cuota: la fila misma es la traza.

@@ -93,11 +93,11 @@ model Tenant {
   /// Último número de recibo emitido; el siguiente es este + 1 (A-33).
   receiptSequence   Int     @default(0) @map("receipt_sequence")
 
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   /// Quién editó la configuración (la auditoría los completa solos).
-  createdById String? @map("created_by_id") @db.Uuid
-  updatedById String? @map("updated_by_id") @db.Uuid
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
 
   users     User[]
   asyncJobs AsyncJob[]
@@ -114,7 +114,10 @@ model Tenant {
   notificationLogs NotificationLog[]
   jobExecutions    JobExecution[]
 
-  generatedDocuments GeneratedDocument[]
+  generatedDocuments  GeneratedDocument[]
+  propertyInventories PropertyInventory[]
+  inventoryItems      InventoryItem[]
+  inventoryPhotos     InventoryPhoto[]
 
   properties     Property[]
   owners         Owner[]
@@ -1267,9 +1270,9 @@ model Payment {
 
   /// Recibo que emite la inmobiliaria (Fase 15): número correlativo del
   /// tenant (`R-00000042`) y PDF vigente. Los escribe `documents` por la facade.
-  receiptNumber     String? @map("receipt_number") @db.VarChar(20)
-  receiptPdfKey     String? @map("receipt_pdf_key") @db.VarChar(500)
-  receiptPdfUrl     String? @map("receipt_pdf_url") @db.VarChar(1000)
+  receiptNumber String? @map("receipt_number") @db.VarChar(20)
+  receiptPdfKey String? @map("receipt_pdf_key") @db.VarChar(500)
+  receiptPdfUrl String? @map("receipt_pdf_url") @db.VarChar(1000)
 
   registeredById String  @map("registered_by_id") @db.Uuid
   notes          String? @db.Text
@@ -1290,13 +1293,13 @@ model Payment {
   createdById String?  @map("created_by_id") @db.Uuid
   updatedById String?  @map("updated_by_id") @db.Uuid
 
+  @@unique([tenantId, receiptNumber])
   @@index([tenantId, installmentId])
   @@index([tenantId, contractId, paidAt])
   @@index([tenantId, renterId])
   @@index([tenantId, status, receivedBy])
   @@index([tenantId, creditId])
   @@index([tenantId, settlementId])
-  @@unique([tenantId, receiptNumber])
   @@map("payments")
 }
 
@@ -1961,20 +1964,20 @@ model GeneratedDocument {
   tenantId String @map("tenant_id") @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  kind        DocumentKind
-  entityId    String         @map("entity_id") @db.Uuid
-  version     Int
-  status      DocumentStatus @default(PENDING)
-  storageKey  String?        @map("storage_key") @db.VarChar(500)
-  url         String?        @db.VarChar(1000)
-  sizeBytes   Int?           @map("size_bytes")
-  error       String?        @db.Text
-  generatedAt DateTime?      @map("generated_at") @db.Timestamptz(3)
+  kind          DocumentKind
+  entityId      String         @map("entity_id") @db.Uuid
+  version       Int
+  status        DocumentStatus @default(PENDING)
+  storageKey    String?        @map("storage_key") @db.VarChar(500)
+  url           String?        @db.VarChar(1000)
+  sizeBytes     Int?           @map("size_bytes")
+  error         String?        @db.Text
+  generatedAt   DateTime?      @map("generated_at") @db.Timestamptz(3)
   /// Quién pidió la regeneración; null si salió de un evento.
-  requestedById String?      @map("requested_by_id") @db.Uuid
+  requestedById String?        @map("requested_by_id") @db.Uuid
   /// Los datos con los que se armó: permite re-renderizar igual y detectar
   /// si un evento repetido trae algo distinto.
-  dataSnapshot  Json?        @map("data_snapshot")
+  dataSnapshot  Json?          @map("data_snapshot")
 
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -1985,4 +1988,101 @@ model GeneratedDocument {
   @@index([tenantId, kind, entityId, status])
   @@index([tenantId, status, createdAt])
   @@map("generated_documents")
+}
+
+// =============================================================================
+// Inventario del inmueble (Fase 25, rediseño sección 1)
+// =============================================================================
+
+enum InventoryType {
+  DELIVERY
+  RETURN
+}
+
+enum InventoryStatus {
+  DRAFT
+  CONFIRMED
+}
+
+enum ItemCondition {
+  GOOD
+  FAIR
+  POOR
+  NOT_APPLICABLE
+}
+
+/// Acta de entrega o de devolución de un contrato. Confirmada es inmutable:
+/// una corrección es otro inventario (`correctsInventoryId`) que, al
+/// confirmarse, deja al original marcado como reemplazado (`supersededById`).
+/// El contrato, el usuario y las demás referencias son ids planos (sin FK).
+model PropertyInventory {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  contractId String          @map("contract_id") @db.Uuid
+  type       InventoryType
+  date       DateTime        @db.Date
+  status     InventoryStatus @default(DRAFT)
+
+  performedById      String    @map("performed_by_id") @db.Uuid
+  /// El inquilino estuvo presente y de acuerdo.
+  tenantAcknowledged Boolean   @default(false) @map("tenant_acknowledged")
+  generalNotes       String?   @map("general_notes") @db.VarChar(2000)
+  confirmedAt        DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  confirmedById      String?   @map("confirmed_by_id") @db.Uuid
+
+  /// Inventario que esta corrección reemplaza (null salvo corrección).
+  correctsInventoryId String? @map("corrects_inventory_id") @db.Uuid
+  correctionReason    String? @map("correction_reason") @db.VarChar(1000)
+  /// Corrección confirmada que lo reemplazó; null = vigente.
+  supersededById      String? @map("superseded_by_id") @db.Uuid
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  items InventoryItem[]
+
+  @@index([tenantId, contractId, type])
+  @@map("property_inventories")
+}
+
+model InventoryItem {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String            @map("tenant_id") @db.Uuid
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  inventoryId String            @map("inventory_id") @db.Uuid
+  inventory   PropertyInventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  category    String        @db.VarChar(100)
+  description String        @db.VarChar(300)
+  condition   ItemCondition
+  notes       String?       @db.VarChar(1000)
+  position    Int
+
+  photos InventoryPhoto[]
+
+  @@index([tenantId, inventoryId, position])
+  @@map("inventory_items")
+}
+
+/// Foto de un ítem. En una corrección las filas se copian apuntando al mismo
+/// archivo: el archivo del storage se borra recién cuando no lo usa ninguna.
+model InventoryPhoto {
+  id       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String        @map("tenant_id") @db.Uuid
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  itemId   String        @map("item_id") @db.Uuid
+  item     InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  storageKey String   @map("storage_key") @db.VarChar(500)
+  url        String   @db.VarChar(1000)
+  position   Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, itemId, position])
+  @@index([tenantId, storageKey])
+  @@map("inventory_photos")
 }
