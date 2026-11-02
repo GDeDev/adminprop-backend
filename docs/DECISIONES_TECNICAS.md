@@ -814,3 +814,59 @@ Referencia: `adminprop-repo-files/docs/REDISENO_FASE_17_18.md`. El rediseño num
 - **A-38 · El inquilino no ve el porcentaje de honorarios de la inmobiliaria salvo que los pague él por cuenta del propietario** (`feeMode = RENTER_PAYS_ON_BEHALF`). _Si Micaela quiere mostrarlo siempre_: quitar el filtro en `feesVisibleToRenter`.
 - **A-39 · Si cobra el propietario directo (`OWNER_DIRECT`), el inquilino no ve los datos bancarios de la inmobiliaria**, sólo la leyenda de pago directo. _Si los quiere ver igual_: devolver siempre `agency.bankAccount`.
 - **A-40 · Sin contrato activo el portal del inquilino muestra el último** (marcado por `status`), y la cuota "del mes" es la del período en curso o, si no hay, la más reciente de ese contrato.
+
+## Fases 19 y 20 — Estadísticas, reportes y auditoría (sin supervisión, rediseño)
+
+Referencia: `adminprop-repo-files/docs/REDISENO_FASE_19_20.md` (contrato HTTP en su sección 8). El rediseño numeraba sus supuestos A-36 a A-41, pero la Fase 18 ya ocupó hasta A-40: acá son **A-90 a A-96**, y lo que era un supuesto del rediseño y pasó a decisión se numera D. Mapa: A-36 (se calcula al leer) pasa a D-116; A-37 (gráficos SVG) es del frontend y no cambia; A-38 (ingresos por fecha de pago) a D-121; A-39 (inmutabilidad por trigger) a D-123; A-40 (sin retención) a A-90; A-41 (accesos del portal) a A-91.
+
+### D-116 · Los reportes se calculan al leer, y el resumen de auditoría también
+
+- **Decisión**: no hay tablas de agregados ni vistas materializadas: cada reporte compone las facades de los módulos dueños (`reportInstallments`, `reportPayments`, `reportSettlements`, `reportFeePayments`, `workload`, `listForReport`, `listExpiringWithin`…) y suma con `shared/money` por moneda. El módulo `reports` no tiene repositorios. Lo mismo con la frase de la auditoría: el rediseño proponía "cachearla escribiendo `summary` la primera vez que se muestra", pero la tabla es inmutable (D-123) y un `UPDATE` sería rechazado; se calcula siempre al leer (`AuditSummarizer`) y `summary` sólo lo llenan los eventos que lo traen al escribirse (accesos, avisos, exportaciones).
+- **Por qué**: lo más simple y sin riesgo de que un agregado quede desfasado de los pagos. _Si los volúmenes pesan_: una vista materializada por mes refrescada por un job de la Fase 13; para la auditoría, particionar por mes.
+
+### D-117 · Rangos de reportes: meses o días, máximo 36 meses
+
+- **Decisión**: `from` y `to` aceptan `AAAA-MM` o `AAAA-MM-DD`. Un mes en `from` es su primer día; en `to`, el último. Sin rango: los últimos 6 meses hasta el mes de hoy. Más de 36 meses, `from` posterior a `to` o un formato inválido responden 400 `INVALID_REPORT_RANGE`. Es lo que manda el frontend con sus `<input type="month">`.
+
+### D-118 · Qué significa cada número del dashboard
+
+- **Decisión**: todo por moneda. Las cuotas se agrupan por el estado que ve el usuario (una cuota con saldo y la gracia vencida es `overdue`); el importe de `paid` es lo cobrado (pagos vigentes, un pago sin confirmar ya cuenta, D-76) y el de `partial`, `pending` y `overdue` es lo que falta cobrar a hoy (alquiler, cargos y punitorio). `lateFeesAccrued` es el punitorio devengado menos lo reducido (0 si se condonó) y `lateFeesCollected` lo cobrado, de las cuotas del mes; `feesAccrued` son los honorarios devengados sobre lo cobrado de esas cuotas (regla 9). `history` son los 6 meses que terminan en `period`, el más viejo primero, con alquiler base devengado y alquiler imputado cobrado; un mes sin cuotas igual figura, vacío. `todo` suma pagos por confirmar, liquidaciones pendientes y confirmadas sin transferir, consolidados abiertos, aumentos pendientes (`listDueForRentUpdate`) y avisos internos sin leer (ventana de 30 días de la campana). `expiringContracts` usa `contractExpiryNoticeDays` de la inmobiliaria.
+
+### D-119 · Exportación: el archivo sale de la respuesta, no se guarda
+
+- **Decisión**: `?format=xlsx|csv|pdf` responde el archivo (`Content-Disposition: attachment`, `Cache-Control: no-store`) con los mismos filtros y sin paginar; no pasa por el storage. XLSX por `ReportExporterPort` (`exceljs`, en `platform/exports`) y PDF por `PdfRendererPort` con una plantilla genérica de tabla en hoja apaisada. Los montos viajan como string por todo el sistema y se convierten a celda numérica sólo al escribir el XLSX, para que Excel pueda sumarlos. El CSV lleva BOM y `;` (abre bien en el Excel en español) y neutraliza los valores que empiezan con `=`, `+`, `@` o `-` seguido de no-dígito para que no se evalúen como fórmula. El dashboard no se exporta. Cada descarga escribe un `EXPORT` en la auditoría con el reporte, el formato, los filtros y la cantidad de filas.
+- **Por qué**: son archivos de consulta, no documentos con valor legal (esos son los PDFs de la Fase 15 y sí se guardan).
+
+### D-120 · El PDF de un reporte no lleva logo
+
+- **Decisión**: la marca del PDF es el nombre (razón social o nombre), el color primario, CUIT, dirección, contacto y el pie configurado; no se baja el logo. Evita una descarga de red por cada reporte. _Si lo quieren_: reutilizar la resolución de marca de la Fase 15 desde una facade de documentos.
+
+### D-121 · Ingresos: cada columna por su fecha
+
+- **Decisión**: una fila por mes y moneda. `rentCollected`, `lateFeesCollected` y `chargesCollected` salen de los pagos confirmados (`rentApplied`, `lateFeeApplied`, `chargesApplied`) por **fecha de pago** y en la moneda de la cuota (incluye las aplicaciones de saldo a favor). `feesAccrued`, `netSettled` y `netTransferred` salen de las liquidaciones confirmadas o transferidas por el **mes de la liquidación** (`settlements.period`, A-21: el mes en que se liquida), igual que el estado de cuenta del propietario (D-115); las transferencias vigentes se imputan al mes de su liquidación. `feesCollected` es el honorario descontado en liquidaciones (`feeDeducted`) más los pagos de honorarios vigentes por su fecha. Por eso el mes del cobro y el mes de la liquidación pueden ser filas distintas.
+
+### D-122 · La auditoría se escribe desde `shared`, y se parte en dos módulos Nest
+
+- **Decisión**: `writeAuditEvent` vive en `shared/audit` porque `platform` (el `NotificationsService`) no puede importar módulos y necesita escribir `NOTIFICATION_SENT`. Los módulos usan `AuditFacade.record`, que se exporta desde `AuditRecorderModule` (sólo depende de Prisma). `AuditModule` (controller, lectura, resolución de nombres) importa las facades de propiedades, propietarios, inquilinos y contratos, y usa la de usuarios (auth es global): si auth importara ese módulo completo, `auth → audit → owners → auth` cerraría un ciclo. Auditar nunca hace fallar la operación (se loguea el error), igual que el diff automático.
+
+### D-123 · `audit_logs` es inmutable por trigger
+
+- **Decisión**: la migración `extend_audit_logs` crea `audit_logs_immutable`, un trigger `BEFORE UPDATE OR DELETE … FOR EACH ROW` que lanza una excepción (`restrict_violation`). Ni un admin de la API ni un `deleteMany` pueden tocar una fila. El `TRUNCATE` de los e2e no dispara triggers de fila, así que `resetDatabase` no cambió. `entity_id` pasa a admitir `NULL` (un login de un email desconocido no tiene entidad); `actor_kind` (`USER`, `SYSTEM`, `PORTAL_OWNER`, `PORTAL_RENTER`) lo completa la extensión de Prisma y `writeAuditEvent` según el rol del contexto; el backfill pasa a `SYSTEM` las filas viejas sin usuario (antes de crear el trigger, que prohíbe todo `UPDATE`). _Si molesta en desarrollo_: se deshabilita con una migración, nunca por código.
+
+### D-124 · El filtro de tenant de la auditoría es manual
+
+- **Decisión**: `AuditLog` sigue sin pasar por la extensión de tenant (admite filas globales y se escribe sin contexto), así que `AuditLogRepositoryImpl` pone el `tenantId` del contexto en **todos** los `where`; sin tenant en el contexto, un id imposible: no lee nada. Una fila sin tenant no la ve ninguna inmobiliaria. La búsqueda de texto mira `summary`, entidad, id de entidad y email del usuario: como el resumen del diff automático se arma al leer (D-116), una búsqueda por el texto de esa frase no lo encuentra; sí por entidad, id o email.
+
+### D-125 · Qué eventos se registran y con qué actor
+
+- **Decisión**: `LOGIN` (con ip y rol), `LOGIN_FAILED` (clave incorrecta, cuenta bloqueada, deshabilitada o inmobiliaria inactiva, con el motivo en `changes`) y `LOGOUT` (también el cierre en todos los dispositivos). `NOTIFICATION_SENT` por cada envío que salió de verdad (canal distinto de `IN_APP`), con tipo, destinatario y canales en `changes`, actor `SYSTEM` aunque lo haya disparado un usuario con una corrida manual. `JOB_RUN` sólo en la corrida manual (el usuario es el actor; las programadas ya están en `job_executions`), con el id de la ejecución como entidad. `EXPORT` en reportes y en la auditoría. Los `changes` de los eventos tienen la forma del diff (`{ campo: { after } }`) para que la pantalla los muestre igual.
+
+### Supuestos a confirmar con Micaela (Fases 19 y 20)
+
+- **A-90 · Sin política de retención**: se guarda todo, para siempre. _Si crece_: particionar `audit_logs` por mes.
+- **A-91 · Los accesos al portal se auditan por ingreso exitoso y fallido**, no por cada página vista.
+- **A-92 · `services?status=all` devuelve lo mismo que `overdue`**: el modelo no tiene un estado "sin gestión" ni vencimientos próximos para listar. _Si lo quieren_: agregar al repositorio de servicios una consulta de los que vencen en los próximos N días.
+- **A-93 · Los reportes por propietario y por inquilino (`/reports/owners/:id`, `/reports/renters/:id`) no se hicieron**: el frontend no tiene pantalla. Los datos ya están en las facades (liquidaciones, cuenta de honorarios, mora).
+- **A-94 · En el reporte de pagos, `amount` y `currency` son lo que entregó el inquilino** (`paidCurrency`), que puede ser distinta de la moneda de la cuota (un contrato en USD pagado en pesos); el total del reporte suma por esa moneda. Incluye las aplicaciones de saldo a favor. _Si quieren ver siempre la moneda del contrato_: usar `amountInContractCurrency`.
+- **A-95 · Una renovación en curso es otro contrato, no rescindido, cuyo `renewedFromId` es el que vence.**
+- **A-96 · Un intento de ingreso con un email que no existe deja una fila global (sin inmobiliaria) que no se ve en ninguna pantalla**: en el login del backoffice no se sabe de qué inmobiliaria es; en el del portal sí, y esa fila sí aparece. Sirve para investigar un ataque desde la base. No hay límite propio de filas: lo frena el limitador de pedidos del login.
