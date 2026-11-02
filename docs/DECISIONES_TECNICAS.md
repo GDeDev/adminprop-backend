@@ -777,3 +777,40 @@ Referencia: `adminprop-repo-files/docs/REDISENO_FASE_15.md` (PRD §23, PDF-01 a 
 - **A-33 · El recibo se emite por cada pago confirmado en efectivo o transferencia (`CASH_IN`), no por aplicaciones de saldo a favor, y lleva número correlativo por inmobiliaria.** _Si quieren un recibo por cuota saldada_: disparar en `installment-paid` con todos los pagos de la cuota; `receipt_number` pasaría a la cuota.
 - **A-34 · Las leyendas legales (pie, recibo, rescisión) son fijas en español**; sólo el pie es configurable por inmobiliaria (`tenants.document_footer`, hoy en Configuración → Inmobiliaria). _Si hace falta editar más textos_: una tabla de textos por tenant leída por el `DocumentBrandingResolver`.
 - **A-35 · También se emite recibo cuando el pago lo recibió el propietario directo (`receivedBy = OWNER`)**, y dice quién lo recibió. _Si no corresponde_: excluir `OWNER` en `DocumentEventsConsumer` (un `if` sobre `receivedBy`).
+
+## Fases 18 y 17 — Portales de inquilinos y propietarios (sin supervisión, rediseño)
+
+Referencia: `adminprop-repo-files/docs/REDISENO_FASE_17_18.md`. El rediseño numeraba sus supuestos A-32 a A-35, pero la Fase 15 ya ocupó hasta A-35: acá son **A-36 a A-40**. Mapa: A-32 del rediseño (honorarios) pasa a A-38; A-33 (acuse) a A-37; A-35 (contrato finalizado) a A-40; A-34 (paquete de formato) es del frontend y no cambia.
+
+### D-111 · El módulo `portal` no tiene tablas ni repositorios: sólo consulta facades, y cada facade filtra por la persona
+
+- **Decisión**: `portal` es un módulo de controllers + queries CQRS (más un único command, el acuse) que consume `BillingFacade`, `SettlementsFacade`, `ContractsFacade`, `PropertiesFacade`, `OwnersFacade`, `RentersFacade`, `ServicesFacade` y `TenantsFacade`. Los métodos nuevos de esas facades (`pageInstallmentsOfRenter`, `installmentOfRenter`, `receiptOfRenter`, `pageForOwner`, `findForOwner`, `portalContractOfRenter`, `listActiveByOwner`, `portalProfile`…) reciben el id de la persona y devuelven `null` o vacío si lo pedido no es suyo; el portal lo traduce a 404. El id de la persona sale de `idForPortalUser(userId)` en `PortalIdentity`, **nunca** de la URL.
+- **Por qué**: la regla de aislamiento vive en un lugar por dato (la facade del módulo dueño), igual que D-108 con los documentos. Un `:id` ajeno es 404 y no 403 para no revelar que existe.
+- **Consecuencia**: una facade no puede importar el `public/` de otro módulo (linter): `PropertiesFacade.typeNames` usa una clase propia de `application` (`PropertyTypeNames`) y no `PropertyViews`, que depende de propietarios y habría cerrado un ciclo de providers.
+
+### D-112 · Lo interno se enmascara en el portal, con el mismo tipo que el backoffice
+
+- **Decisión**: el portal reutiliza los DTOs de cobros, liquidaciones, consolidados y contratos (se referencian por nombre en el OpenAPI, no se duplican las clases) pero manda en `null` (o vacío) lo interno: quién registró, confirmó o anuló, notas, motivos de anulación y cancelación, `settlementId` de los pagos, el propietario (en lo que ve el inquilino), los gastos pendientes en otra moneda y el motivo de cada ajuste del punitorio. Las funciones son puras (`portal.mappers.ts`, con tests).
+- **Por qué**: el frontend ya tipea esas respuestas con los mismos tipos del backoffice; sacar los campos rompería el tipo, ponerlos en `null` no. Entre inquilino y propietario no hay datos cruzados (el inquilino no ve a su propietario; el propietario no ve el medio de pago ni quién cargó cada pago).
+
+### D-113 · El acuse es una columna de la liquidación, idempotente y sólo con una transferencia registrada
+
+- **Decisión**: `settlements.acknowledged_at` (migración `add_settlement_acknowledgement`) lo escribe `SettlementsFacade.acknowledgeForOwner`; el segundo acuse no pisa al primero. Se rechaza con 422 `SETTLEMENT_NOTHING_TO_ACKNOWLEDGE` si `transferredTotal` es cero. `SettlementDetailDto` suma `acknowledgedAt` (el personal también lo ve). No cambia el estado ni los importes.
+- **Por qué**: "Recibí la transferencia" no tiene sentido antes de que exista una (A-37). Si después se anula la transferencia, el acuse queda como constancia histórica.
+
+### D-114 · Los PDF del portal redirigen (302), y con `?format=json` devuelven `{ url }`
+
+- **Decisión**: `GET /portal/renter/payments/:id/receipt`, `/portal/owner/settlements/:id/pdf` y `/portal/owner/statements/:id/pdf` responden 302 a la URL vigente que ya guarda la ficha (`payments.receipt_pdf_url`, `settlements.pdf_url`, `owner_statements.pdf_url`), o 404 `DOCUMENT_NOT_READY` si todavía es nula. Con `?format=json` responden 200 `{ url }`.
+- **Por qué**: el rediseño pedía el 302, pero el frontend los enlaza con un `href` simple y la API autentica con `Authorization: Bearer`: una navegación del navegador no manda ese header y daría 401. Con `?format=json` el cliente lo pide con axios y abre la URL (la del storage, que no lleva token). _Desvío a coordinar con el frontend._
+
+### D-115 · Estado de cuenta del propietario: lo que significa cada número
+
+- **Decisión**: por propiedad y moneda del mes (`period`, default el en curso): `accrued` = base de las cuotas; `pending` = saldo de alquiler; `collected` = `accrued − pending` (un pago informado sin confirmar ya cuenta, D-76); `lateFee` = punitorio devengado menos lo reducido, o 0 si se condonó. Los `totals` suman lo mismo por moneda y agregan `netSettled` (Σ neto de sus liquidaciones **confirmadas o transferidas** del mes, `settlements.period`) y `transferred`. `fees` es la cuenta de honorarios acumulada (`SettlementsFacade.feeAccountSummary`: devengado, cobrado, pendiente), no del mes. Una propiedad borrada no tiene fila, pero sí suma en los totales.
+
+### Supuestos a confirmar con Micaela (Fases 17 y 18)
+
+- **A-36 · El propietario sólo ve liquidaciones confirmadas o transferidas y consolidados cerrados.** Los borradores (`PENDING`), las canceladas y los consolidados abiertos son internos y responden 404. _Si quiere ver el borrador_: sumar `PENDING` a la lista de estados visibles (`PORTAL_VISIBLE`).
+- **A-37 · "Recibí la transferencia" es un acuse informativo**: solo con una transferencia registrada, una vez, y no cambia ningún estado. _Si debe cerrar la liquidación_: pasar a un estado `ACKNOWLEDGED` en la máquina de estados de la Fase 12.
+- **A-38 · El inquilino no ve el porcentaje de honorarios de la inmobiliaria salvo que los pague él por cuenta del propietario** (`feeMode = RENTER_PAYS_ON_BEHALF`). _Si Micaela quiere mostrarlo siempre_: quitar el filtro en `feesVisibleToRenter`.
+- **A-39 · Si cobra el propietario directo (`OWNER_DIRECT`), el inquilino no ve los datos bancarios de la inmobiliaria**, sólo la leyenda de pago directo. _Si los quiere ver igual_: devolver siempre `agency.bankAccount`.
+- **A-40 · Sin contrato activo el portal del inquilino muestra el último** (marcado por `status`), y la cuota "del mes" es la del período en curso o, si no hay, la más reciente de ese contrato.
