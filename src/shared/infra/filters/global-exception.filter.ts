@@ -187,7 +187,30 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   private fromBodyParserError(exception: unknown): NormalizedError | null {
     if (typeof exception !== 'object' || exception === null) return null
 
-    const error = exception as { type?: string; status?: number }
+    const error = exception as {
+      type?: string
+      status?: number
+      name?: string
+      code?: string
+    }
+
+    // Multer (subida de archivos) tira su propio error, que no es HttpException.
+    if (error.name === 'MulterError') {
+      return error.code === 'LIMIT_FILE_SIZE'
+        ? {
+            status: HttpStatus.PAYLOAD_TOO_LARGE,
+            code: ErrorCode.PAYLOAD_TOO_LARGE,
+            message: 'El archivo supera el tamaño máximo permitido',
+            details: [],
+          }
+        : {
+            status: HttpStatus.BAD_REQUEST,
+            code: ErrorCode.BAD_REQUEST,
+            message:
+              'Subiste más archivos de los permitidos, o en un campo que no corresponde',
+            details: [],
+          }
+    }
 
     if (error.type === 'entity.too.large') {
       return {

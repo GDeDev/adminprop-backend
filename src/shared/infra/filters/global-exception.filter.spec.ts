@@ -136,6 +136,34 @@ describe('GlobalExceptionFilter', () => {
     )
   })
 
+  it('los errores de Multer son del cliente: 400 por cantidad, 413 por tamaño', () => {
+    const { filter, host, json } = setup()
+
+    filter.catch(
+      Object.assign(new Error('Unexpected file field'), {
+        name: 'MulterError',
+        code: 'LIMIT_UNEXPECTED_FILE',
+      }),
+      host,
+    )
+    filter.catch(
+      Object.assign(new Error('File too large'), {
+        name: 'MulterError',
+        code: 'LIMIT_FILE_SIZE',
+      }),
+      host,
+    )
+
+    expect(json.mock.calls[0][0]).toMatchObject({
+      statusCode: 400,
+      code: ErrorCode.BAD_REQUEST,
+    })
+    expect(json.mock.calls[1][0]).toMatchObject({
+      statusCode: 413,
+      code: ErrorCode.PAYLOAD_TOO_LARGE,
+    })
+  })
+
   it('en producción un error inesperado no filtra su mensaje', () => {
     const { filter, host, json } = setup(true)
 
