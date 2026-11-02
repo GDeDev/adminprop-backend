@@ -13808,6 +13808,701 @@
         ]
       }
     },
+    "/api/v1/contracts/{contractId}/inventories": {
+      "get": {
+        "description": "Los no reemplazados, con si se puede crear el de entrega y el de devolución.",
+        "operationId": "InventoryController_list_api/v1",
+        "parameters": [
+          {
+            "name": "contractId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractInventoriesDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Inventarios vigentes de un contrato",
+        "tags": [
+          "Inventories"
+        ]
+      },
+      "post": {
+        "description": "Sin `items` se precarga la plantilla estándar con todo en \"No aplica\". Un solo vigente por tipo (409 `INVENTORY_ALREADY_EXISTS`); la devolución sólo con el contrato no activo o a 30 días o menos de su fin (422 `INVENTORY_RETURN_NOT_ALLOWED`).",
+        "operationId": "InventoryController_create_api/v1",
+        "parameters": [
+          {
+            "name": "contractId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInventoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Crear un inventario en borrador",
+        "tags": [
+          "Inventories"
+        ]
+      }
+    },
+    "/api/v1/contracts/{contractId}/inventories/compare": {
+      "get": {
+        "description": "Usa los inventarios vigentes y confirmados. Si falta uno, `hasDelivery`/`hasReturn` lo avisa.",
+        "operationId": "InventoryController_compare_api/v1",
+        "parameters": [
+          {
+            "name": "contractId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryComparisonDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Comparar la entrega con la devolución",
+        "tags": [
+          "Inventories"
+        ]
+      }
+    },
+    "/api/v1/inventories/{id}": {
+      "get": {
+        "operationId": "InventoryController_get_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Detalle de un inventario, con ítems y fotos",
+        "tags": [
+          "Inventories"
+        ]
+      },
+      "patch": {
+        "description": "Fecha, notas, conformidad del inquilino y la lista de ítems (la reemplaza). Confirmado no se edita (409 `INVENTORY_CONFIRMED`).",
+        "operationId": "InventoryController_update_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInventoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar un borrador",
+        "tags": [
+          "Inventories"
+        ]
+      }
+    },
+    "/api/v1/inventories/{id}/items/{itemId}/photos": {
+      "post": {
+        "description": "Multipart: `files`. JPG, PNG, WebP o HEIC reconocidos por su contenido, hasta 10 MB cada una. Sólo en borrador.",
+        "operationId": "InventoryController_addPhotos_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "files"
+                ],
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Subir fotos a un ítem (hasta 5 por pedido y 15 por ítem)",
+        "tags": [
+          "Inventories"
+        ]
+      }
+    },
+    "/api/v1/inventories/{id}/photos/{photoId}": {
+      "delete": {
+        "operationId": "InventoryController_deletePhoto_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "photoId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Borrar una foto de un borrador",
+        "tags": [
+          "Inventories"
+        ]
+      }
+    },
+    "/api/v1/inventories/{id}/confirm": {
+      "post": {
+        "description": "Lo cierra para siempre. Exige al menos un ítem evaluado (422 `INVENTORY_EMPTY`). `warnings` lista los ítems en mal estado sin fotos.",
+        "operationId": "InventoryController_confirm_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirmar el inventario",
+        "tags": [
+          "Inventories"
+        ]
+      }
+    },
+    "/api/v1/inventories/{id}/correct": {
+      "post": {
+        "description": "Copia el inventario en un borrador nuevo con el motivo. Al confirmarla reemplaza al original.",
+        "operationId": "InventoryController_correct_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectInventoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Crear una corrección de un inventario confirmado",
+        "tags": [
+          "Inventories"
+        ]
+      }
+    },
     "/api/v1/examples": {
       "post": {
         "operationId": "ExampleItemsController_create_api/v1",
@@ -23830,6 +24525,491 @@
           "generatedAt",
           "filters",
           "rows"
+        ]
+      },
+      "InventoryPerformedByDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName"
+        ]
+      },
+      "InventorySummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "DELIVERY",
+              "RETURN"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "CONFIRMED"
+            ]
+          },
+          "tenantAcknowledged": {
+            "type": "boolean"
+          },
+          "itemCount": {
+            "type": "number"
+          },
+          "poorCount": {
+            "type": "number",
+            "description": "Ítems en mal estado"
+          },
+          "photoCount": {
+            "type": "number"
+          },
+          "performedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InventoryPerformedByDto"
+              }
+            ]
+          },
+          "confirmedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "correctsInventoryId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "contractId",
+          "type",
+          "date",
+          "status",
+          "tenantAcknowledged",
+          "itemCount",
+          "poorCount",
+          "photoCount",
+          "performedBy",
+          "confirmedAt",
+          "correctsInventoryId"
+        ]
+      },
+      "ContractInventoriesDto": {
+        "type": "object",
+        "properties": {
+          "inventories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventorySummaryDto"
+            }
+          },
+          "canCreateDelivery": {
+            "type": "boolean"
+          },
+          "canCreateReturn": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "inventories",
+          "canCreateDelivery",
+          "canCreateReturn"
+        ]
+      },
+      "InventoryPhotoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url"
+        ]
+      },
+      "InventoryComparisonRowDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "deliveryCondition": {
+            "type": "string",
+            "enum": [
+              "GOOD",
+              "FAIR",
+              "POOR",
+              "NOT_APPLICABLE"
+            ],
+            "nullable": true
+          },
+          "returnCondition": {
+            "type": "string",
+            "enum": [
+              "GOOD",
+              "FAIR",
+              "POOR",
+              "NOT_APPLICABLE"
+            ],
+            "nullable": true
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "WORSE",
+              "BETTER",
+              "SAME",
+              "ONLY_DELIVERY",
+              "ONLY_RETURN"
+            ]
+          },
+          "deliveryNotes": {
+            "type": "string",
+            "nullable": true
+          },
+          "returnNotes": {
+            "type": "string",
+            "nullable": true
+          },
+          "deliveryPhotos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryPhotoDto"
+            }
+          },
+          "returnPhotos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryPhotoDto"
+            }
+          }
+        },
+        "required": [
+          "category",
+          "description",
+          "deliveryCondition",
+          "returnCondition",
+          "change",
+          "deliveryNotes",
+          "returnNotes",
+          "deliveryPhotos",
+          "returnPhotos"
+        ]
+      },
+      "InventoryComparisonDto": {
+        "type": "object",
+        "properties": {
+          "hasDelivery": {
+            "type": "boolean"
+          },
+          "hasReturn": {
+            "type": "boolean"
+          },
+          "deliveryDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "returnDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryComparisonRowDto"
+            }
+          },
+          "worsenedCount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "hasDelivery",
+          "hasReturn",
+          "deliveryDate",
+          "returnDate",
+          "rows",
+          "worsenedCount"
+        ]
+      },
+      "InventoryItemInputDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Ausente en un ítem nuevo. Los ítems que falten se borran."
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Cocina"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 300,
+            "example": "Mesada y bacha"
+          },
+          "condition": {
+            "type": "string",
+            "enum": [
+              "GOOD",
+              "FAIR",
+              "POOR",
+              "NOT_APPLICABLE"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "category",
+          "description",
+          "condition",
+          "notes"
+        ]
+      },
+      "CreateInventoryDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "DELIVERY",
+              "RETURN"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Por defecto, hoy."
+          },
+          "generalNotes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2000
+          },
+          "items": {
+            "description": "Sin ítems se precarga la plantilla estándar.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryItemInputDto"
+            }
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "InventoryItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "condition": {
+            "type": "string",
+            "enum": [
+              "GOOD",
+              "FAIR",
+              "POOR",
+              "NOT_APPLICABLE"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryPhotoDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "description",
+          "condition",
+          "notes",
+          "photos"
+        ]
+      },
+      "InventoryDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "contractId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "DELIVERY",
+              "RETURN"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "CONFIRMED"
+            ]
+          },
+          "tenantAcknowledged": {
+            "type": "boolean"
+          },
+          "itemCount": {
+            "type": "number"
+          },
+          "poorCount": {
+            "type": "number",
+            "description": "Ítems en mal estado"
+          },
+          "photoCount": {
+            "type": "number"
+          },
+          "performedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InventoryPerformedByDto"
+              }
+            ]
+          },
+          "confirmedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "correctsInventoryId": {
+            "type": "string",
+            "nullable": true
+          },
+          "generalNotes": {
+            "type": "string",
+            "nullable": true
+          },
+          "correctionReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryItemDto"
+            }
+          },
+          "warnings": {
+            "description": "Ítems en mal estado sin fotos",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "contractId",
+          "type",
+          "date",
+          "status",
+          "tenantAcknowledged",
+          "itemCount",
+          "poorCount",
+          "photoCount",
+          "performedBy",
+          "confirmedAt",
+          "correctsInventoryId",
+          "generalNotes",
+          "correctionReason",
+          "items",
+          "warnings"
+        ]
+      },
+      "UpdateInventoryDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "generalNotes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2000
+          },
+          "tenantAcknowledged": {
+            "type": "boolean",
+            "description": "El inquilino estuvo presente y de acuerdo."
+          },
+          "items": {
+            "description": "Reemplaza la lista: sin `id` es nuevo, con `id` se actualiza, los que faltan se borran junto a sus fotos.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryItemInputDto"
+            }
+          }
+        }
+      },
+      "CorrectInventoryDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "example": "El estado del piso estaba mal cargado"
+          }
+        },
+        "required": [
+          "reason"
         ]
       },
       "CreateExampleItemDto": {
