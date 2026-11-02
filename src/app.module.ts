@@ -22,6 +22,7 @@ import { AutomationsModule } from '@/modules/automations/public'
 import { DocumentsModule } from '@/modules/documents/public'
 import { PortalModule } from '@/modules/portal/public'
 import { AuditModule } from '@/modules/audit/public'
+import { InventoryModule } from '@/modules/inventory/public'
 import { ReportsModule } from '@/modules/reports/public'
 import { ExampleModule } from '@/modules/_example/public'
 import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
@@ -78,6 +79,7 @@ import { SharedModule } from './shared/shared.module'
     PortalModule,
     AuditModule,
     ReportsModule,
+    InventoryModule,
     // Módulos de referencia (Fase 1). No se borran.
     ExampleModule,
     ExampleListenerModule,
