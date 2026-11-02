@@ -215,7 +215,8 @@ model AuditLog {
 
   /// Nombre del modelo de Prisma: "User", "Property", ...
   entity   String      @db.VarChar(64)
-  entityId String      @map("entity_id") @db.VarChar(64)
+  /// Null en los eventos que no cuelgan de una entidad (login de un email desconocido).
+  entityId String?     @map("entity_id") @db.VarChar(64)
   action   AuditAction
 
   /// `{ "price": { "before": "120000.00", "after": "135000.00" } }`
@@ -226,6 +227,10 @@ model AuditLog {
   userId    String? @map("user_id") @db.Uuid
   userEmail String? @map("user_email") @db.VarChar(255)
 
+  /// Frase legible (Fase 20). Opcional: si falta, el módulo audit la arma al leer.
+  summary   String?        @db.VarChar(300)
+  actorKind AuditActorKind @default(USER) @map("actor_kind")
+
   /// Permite cruzar el cambio con los logs de la request que lo provocó.
   correlationId String? @map("correlation_id") @db.VarChar(128)
   ip            String? @db.VarChar(45)
@@ -233,6 +238,7 @@ model AuditLog {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([tenantId, entity, entityId])
+  @@index([tenantId, createdAt])
   @@index([userId])
   @@index([createdAt])
   @@index([correlationId])
@@ -244,6 +250,19 @@ enum AuditAction {
   UPDATE
   DELETE
   RESTORE
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  NOTIFICATION_SENT
+  JOB_RUN
+  EXPORT
+}
+
+enum AuditActorKind {
+  USER
+  SYSTEM
+  PORTAL_OWNER
+  PORTAL_RENTER
 }
 
 /// Refresh tokens con rotación.

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { actorKindOf } from '@/shared/audit/audit-event'
 import { RequestContext } from '@/shared/context/request-context'
 import { createLogger } from '@/shared/logging/root-logger'
 import { behaviourFor, delegateKey } from './auditable-models'
@@ -234,6 +235,7 @@ async function record(
         entityId: String(entityId),
         action,
         changes: changes as Prisma.InputJsonValue,
+        actorKind: actorKindOf(context?.userRole, Boolean(context?.userId)),
         userId: context?.userId ?? null,
         userEmail: context?.userEmail ?? null,
         correlationId: context?.correlationId ?? null,
