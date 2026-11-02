@@ -55,6 +55,9 @@ export interface SettlementFilter {
   propertyId?: string
   contractId?: string
   period?: Period
+  /** Rango de períodos, inclusive (reportes de la Fase 19). */
+  periodFrom?: Period
+  periodTo?: Period
   status?: SettlementStatus
   statuses?: SettlementStatus[]
   /** `null` = sin consolidado. */
@@ -288,6 +291,11 @@ export interface FeePaymentFilter {
   currency?: Currency
   /** Sólo con saldo sin imputar y vigentes. */
   withUnallocated?: boolean
+  /** Sólo los vigentes (no anulados). */
+  activeOnly?: boolean
+  /** Rango de `paidAt`, inclusive. */
+  paidFrom?: IsoDate
+  paidTo?: IsoDate
 }
 
 export interface FeePaymentChanges {

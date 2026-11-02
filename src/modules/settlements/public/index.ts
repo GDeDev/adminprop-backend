@@ -6,6 +6,11 @@
 export { SettlementsModule } from '../infrastructure/modules/settlements.module'
 export { SettlementsFacade } from './settlements.facade'
 export type {
+  ReportFeePaymentRef,
+  ReportSettlementRef,
+  SettlementWorkload,
+} from './settlements.facade'
+export type {
   SettlementDetailView,
   SettlementSummaryView,
 } from '../application/settlement.views'

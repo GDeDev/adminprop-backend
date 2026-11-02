@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common'
 
+import {
+  compareMoney,
+  Money,
+  subtractMoney,
+  toMoneyString,
+} from '@/shared/money'
 import { IsoDate, Period, todayIso } from '@/shared/dates/calendar-date'
 import {
   GenerationResult,
@@ -31,6 +37,7 @@ import {
   Installment,
   InstallmentStatus,
   PaymentKind,
+  PaymentMethod,
   PaymentReceiver,
   PaymentStatus,
 } from '../domain/billing'
@@ -43,6 +50,8 @@ import {
   ChargesByConcept,
   InstallmentPolicy,
 } from '../domain/installment.policy'
+
+const ZERO = toMoneyString('0')
 
 /** Una cuota vencida, para los recordatorios de la Fase 13. */
 export interface OverdueInstallmentRef {
@@ -104,6 +113,56 @@ export interface InstallmentFeeTerms {
   feeMode: FeeMode
   feePercentage: string
   feeAmount: string | null
+}
+
+/** Una cuota con sus importes del período, para los reportes de la Fase 19. */
+export interface ReportInstallmentRef {
+  id: string
+  contractId: string
+  renterId: string
+  ownerId: string
+  propertyId: string
+  period: Period
+  currency: Currency
+  baseAmount: string
+  graceEndDate: IsoDate
+  /** Estado que ve el usuario (vencida si pasó la gracia con saldo). */
+  status: InstallmentStatus
+  daysOverdue: number
+  /** Lo imputado por los pagos vigentes (un pago sin confirmar ya cuenta, D-76). */
+  paidTotal: string
+  rentPaid: string
+  rentBalance: string
+  /** Saldo total a esa fecha: alquiler + cargos + punitorio. */
+  totalDue: string
+  /** Punitorio devengado, ya sin lo reducido ni lo condonado. */
+  lateFeeAccrued: string
+  lateFeePaid: string
+  lateFeeBalance: string
+  /** Honorarios devengados sobre lo cobrado (regla 9). */
+  feeOnCollected: string
+}
+
+/** Un pago confirmado con los datos de su cuota, para los reportes. */
+export interface ReportPaymentRef {
+  paymentId: string
+  installmentId: string
+  paidAt: IsoDate
+  period: Period
+  renterId: string
+  ownerId: string
+  propertyId: string
+  /** Moneda de la cuota (en la que se imputa). */
+  currency: Currency
+  paidCurrency: Currency
+  /** Lo entregado, en `paidCurrency`. */
+  amount: string
+  rentApplied: string
+  lateFeeApplied: string
+  chargesApplied: string
+  kind: PaymentKind
+  method: PaymentMethod
+  receivedBy: PaymentReceiver
 }
 
 /**
@@ -460,6 +519,127 @@ export class BillingFacade {
     })
     return this.views.arrears(ids, unpaid, today)
   }
+
+  /**
+   * Las cuotas de un rango de períodos con sus importes a esa fecha (reportes
+   * de la Fase 19). Filtra además por propietario, propiedad o inquilino.
+   */
+  async reportInstallments(
+    filter: {
+      period?: Period
+      periodFrom?: Period
+      periodTo?: Period
+      ownerId?: string
+      propertyId?: string
+      renterId?: string
+      /** Sólo las no saldadas. */
+      unpaid?: boolean
+    },
+    today: IsoDate = todayIso(),
+  ): Promise<ReportInstallmentRef[]> {
+    const installments = await this.installments.listAll(filter)
+    return installments.map((installment) => {
+      const balances = InstallmentPolicy.balances(installment, today)
+      const lateFeeNet = installment.lateFeeWaived
+        ? ZERO
+        : nonNegativeMoney(
+            subtractMoney(balances.lateFeeAccrued, balances.lateFeeAdjusted),
+          )
+      return {
+        id: installment.id,
+        contractId: installment.contractId,
+        renterId: installment.renterId,
+        ownerId: installment.ownerId,
+        propertyId: installment.propertyId,
+        period: installment.period,
+        currency: installment.currency,
+        baseAmount: installment.baseAmount,
+        graceEndDate: installment.graceEndDate,
+        status: InstallmentPolicy.displayStatus(installment, balances, today),
+        daysOverdue: InstallmentPolicy.daysOverdue(installment, today),
+        paidTotal: balances.paidTotal,
+        rentPaid: balances.rentPaid,
+        rentBalance: balances.rentBalance,
+        totalDue: balances.totalDue,
+        lateFeeAccrued: lateFeeNet,
+        lateFeePaid: balances.lateFeePaid,
+        lateFeeBalance: balances.lateFeeBalance,
+        feeOnCollected:
+          InstallmentPolicy.feeAccrual(installment).feeOnCollected,
+      }
+    })
+  }
+
+  /**
+   * Los pagos confirmados con `paidAt` en el rango (inclusive), con los datos
+   * de su cuota. Filtra por propietario, propiedad o inquilino. Los anulados
+   * y los que esperan confirmación no figuran.
+   */
+  async reportPayments(filter: {
+    from?: IsoDate
+    to?: IsoDate
+    ownerId?: string
+    propertyId?: string
+    renterId?: string
+  }): Promise<ReportPaymentRef[]> {
+    const payments = await this.payments.listAll({
+      status: PaymentStatus.CONFIRMED,
+      from: filter.from,
+      to: filter.to,
+      renterId: filter.renterId,
+    })
+    if (payments.length === 0) return []
+    const installments = new Map(
+      (
+        await this.installments.listAll({
+          ids: [...new Set(payments.map((p) => p.installmentId))],
+        })
+      ).map((installment) => [installment.id, installment]),
+    )
+    return payments.flatMap((payment) => {
+      const installment = installments.get(payment.installmentId)
+      if (
+        !installment ||
+        (filter.ownerId && installment.ownerId !== filter.ownerId) ||
+        (filter.propertyId && installment.propertyId !== filter.propertyId)
+      ) {
+        return []
+      }
+      return [
+        {
+          paymentId: payment.id,
+          installmentId: installment.id,
+          paidAt: payment.paidAt,
+          period: installment.period,
+          renterId: installment.renterId,
+          ownerId: installment.ownerId,
+          propertyId: installment.propertyId,
+          currency: installment.currency,
+          paidCurrency: payment.paidCurrency,
+          amount: payment.amount,
+          rentApplied: payment.rentApplied,
+          lateFeeApplied: payment.lateFeeApplied,
+          chargesApplied: payment.chargesApplied,
+          kind: payment.kind,
+          method: payment.method,
+          receivedBy: payment.receivedBy,
+        },
+      ]
+    })
+  }
+
+  /** Pagos informados que esperan confirmación (dashboard de la Fase 19). */
+  async countPaymentsToConfirm(): Promise<number> {
+    return (
+      await this.payments.listAll({
+        status: PaymentStatus.PENDING_CONFIRMATION,
+      })
+    ).length
+  }
+}
+
+function nonNegativeMoney(value: Money): string {
+  return compareMoney(value, ZERO) < 0 ? ZERO : toMoneyString(value)
 }
 
 function toRentDue(installment: Installment, rentBalance: string): RentDueRef {

@@ -140,6 +140,20 @@ export class ContractRepositoryImpl extends ContractRepository {
     return [rows.map(toDomain), total]
   }
 
+  async listAll(filter: ContractFilter): Promise<Contract[]> {
+    const rows = await this.prisma.db.contract.findMany({
+      where: {
+        ...(filter.status ? { status: filter.status } : {}),
+        ...(filter.propertyId ? { propertyId: filter.propertyId } : {}),
+        ...(filter.renterId ? { renterId: filter.renterId } : {}),
+        ...(filter.ownerId ? { ownerId: filter.ownerId } : {}),
+      },
+      include: WITH_RENT_UPDATES,
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    })
+    return rows.map(toDomain)
+  }
+
   async listActive(
     options: { endingBefore?: IsoDate } = {},
   ): Promise<Contract[]> {

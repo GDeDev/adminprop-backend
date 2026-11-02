@@ -9,5 +9,6 @@ export type {
   OwnerPortfolio,
   OwnerPropertySummary,
   PropertyContractInfo,
+  PropertyReportRef,
   PropertyRef,
 } from './properties.facade'

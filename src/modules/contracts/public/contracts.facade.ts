@@ -71,6 +71,23 @@ export interface ContractRef {
   billingTerms: ResolvedBillingTerms
 }
 
+/** Un contrato en cualquier estado, para los reportes de la Fase 19. */
+export interface ContractReportRef {
+  id: string
+  propertyId: string
+  ownerId: string
+  renterId: string
+  status: ContractStatus
+  currency: Currency
+  currentRent: string
+  startDate: IsoDate
+  endDate: IsoDate
+  /** Día de la rescisión, si la hubo. */
+  terminatedAt: IsoDate | null
+  /** Contrato del que este es la renovación. */
+  renewedFromId: string | null
+}
+
 /**
  * Lo que otros módulos pueden pedirle a contratos. Dentro del tenant del
  * contexto. `listDueForRentUpdate` y `finishExpired` son para el cron de la

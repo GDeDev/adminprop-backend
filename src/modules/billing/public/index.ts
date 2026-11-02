@@ -10,6 +10,8 @@ export type {
   InstallmentFeeTerms,
   OverdueInstallmentRef,
   RentDueRef,
+  ReportInstallmentRef,
+  ReportPaymentRef,
   SettleablePayment,
 } from './billing.facade'
 export type { PaymentReceiptData } from '../application/payment-receipts'

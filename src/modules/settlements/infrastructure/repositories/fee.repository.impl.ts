@@ -150,6 +150,17 @@ export class FeePaymentRepositoryImpl extends FeePaymentRepository {
         ...(filter.withUnallocated
           ? { voidedAt: null, unallocatedAmount: { gt: 0 } }
           : {}),
+        ...(filter.activeOnly ? { voidedAt: null } : {}),
+        ...(filter.paidFrom || filter.paidTo
+          ? {
+              paidAt: {
+                ...(filter.paidFrom
+                  ? { gte: toDateColumn(filter.paidFrom) }
+                  : {}),
+                ...(filter.paidTo ? { lte: toDateColumn(filter.paidTo) } : {}),
+              },
+            }
+          : {}),
       },
       include: FEE_PAYMENT_INCLUDE,
       orderBy: [{ paidAt: direction }, { createdAt: direction }, { id: 'asc' }],

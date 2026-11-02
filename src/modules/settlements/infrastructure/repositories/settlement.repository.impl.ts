@@ -229,6 +229,14 @@ function toWhere(filter: SettlementFilter): Prisma.SettlementWhereInput {
     ...(filter.propertyId ? { propertyId: filter.propertyId } : {}),
     ...(filter.contractId ? { contractId: filter.contractId } : {}),
     ...(filter.period ? { period: filter.period } : {}),
+    ...(filter.periodFrom || filter.periodTo
+      ? {
+          period: {
+            ...(filter.periodFrom ? { gte: filter.periodFrom } : {}),
+            ...(filter.periodTo ? { lte: filter.periodTo } : {}),
+          },
+        }
+      : {}),
     ...(filter.status ? { status: filter.status } : {}),
     ...(filter.statuses ? { status: { in: filter.statuses } } : {}),
     ...(filter.statementId !== undefined

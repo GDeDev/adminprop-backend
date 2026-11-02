@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
+import { IsoDate, toIsoDate } from '@/shared/dates/calendar-date'
 import { PropertyTypeNames } from '../application/property-type-names'
 import { PropertyStatus } from '../domain/property'
 import { PropertyRepository } from '../domain/property.ports'
@@ -35,6 +36,16 @@ export interface PropertyContractInfo extends PropertyRef {
   status: PropertyStatus
   ownerId: string | null
   activeContractId: string | null
+}
+
+/** Una propiedad para los reportes de la Fase 19. */
+export interface PropertyReportRef {
+  id: string
+  address: string
+  status: PropertyStatus
+  ownerId: string | null
+  /** Alta en el sistema (día en UTC), desde cuando cuenta si nunca se alquiló. */
+  createdAt: IsoDate
 }
 
 /**
@@ -81,6 +92,18 @@ export class PropertiesFacade {
         { id: property.id, address: property.address },
       ]),
     )
+  }
+
+  /** Todas las propiedades no borradas, por dirección (reportes, Fase 19). */
+  async listForReport(): Promise<PropertyReportRef[]> {
+    const properties = await this.properties.listAll({})
+    return properties.map((property) => ({
+      id: property.id,
+      address: property.address,
+      status: property.status,
+      ownerId: property.ownerId,
+      createdAt: toIsoDate(property.createdAt),
+    }))
   }
 
   async portfolios(ownerIds: string[]): Promise<Map<string, OwnerPortfolio>> {

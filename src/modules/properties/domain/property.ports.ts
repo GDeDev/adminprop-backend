@@ -32,6 +32,9 @@ export abstract class PropertyRepository {
     page: { skip: number; take: number },
   ): Promise<[Property[], number]>
 
+  /** Todas las que cumplen el filtro, sin paginar (reportes de la Fase 19). */
+  abstract listAll(filter: PropertyFilter): Promise<Property[]>
+
   abstract update(id: string, data: Partial<PropertyData>): Promise<Property>
 
   abstract setStatus(id: string, status: PropertyStatus): Promise<Property>

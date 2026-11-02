@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common'
 
-import { Period } from '@/shared/dates/calendar-date'
+import { IsoDate, Period } from '@/shared/dates/calendar-date'
 import { FeeAccountTotals, FeePolicy } from '../domain/fee.policy'
 import { SettlementNothingToAcknowledgeException } from '../domain/settlement.exceptions'
 import {
+  Currency,
   Settlement,
   SettlementStatus,
   StatementStatus,
@@ -208,6 +209,97 @@ export class SettlementsFacade {
     ])
     return FeePolicy.accountTotals(receivables, payments)
   }
+
+  /**
+   * Las liquidaciones confirmadas o transferidas de un rango de períodos
+   * (`settlements.period`, inclusive), con sus transferencias vigentes. Los
+   * borradores y las canceladas no figuran en ningún reporte.
+   */
+  async reportSettlements(
+    periodFrom: Period,
+    periodTo: Period,
+  ): Promise<ReportSettlementRef[]> {
+    const settlements = await this.settlements.listAll({
+      periodFrom,
+      periodTo,
+      statuses: [SettlementStatus.CONFIRMED, SettlementStatus.TRANSFERRED],
+    })
+    return settlements.map((settlement) => ({
+      id: settlement.id,
+      ownerId: settlement.ownerId,
+      propertyId: settlement.propertyId,
+      period: settlement.period,
+      currency: settlement.currency,
+      status: settlement.status,
+      netAmount: settlement.netAmount,
+      feeTotal: settlement.feeTotal,
+      feeDeducted: settlement.feeDeducted,
+      transfers: settlement.transfers
+        .filter((transfer) => transfer.voidedAt === null)
+        .map(({ transferredAt, amount }) => ({ transferredAt, amount })),
+    }))
+  }
+
+  /** Pagos de honorarios vigentes con `paidAt` en el rango (inclusive). */
+  async reportFeePayments(
+    paidFrom: IsoDate,
+    paidTo: IsoDate,
+  ): Promise<ReportFeePaymentRef[]> {
+    const payments = await this.payments.listAll({
+      activeOnly: true,
+      paidFrom,
+      paidTo,
+    })
+    return payments.map(({ paidAt, amount, currency }) => ({
+      paidAt,
+      amount,
+      currency,
+    }))
+  }
+
+  /** Pendientes de acción: borradores, confirmadas sin transferir y consolidados abiertos. */
+  async workload(): Promise<SettlementWorkload> {
+    const [toConfirm, toTransfer, openStatements] = await Promise.all([
+      this.settlements.listAll({ status: SettlementStatus.PENDING }),
+      this.settlements.listAll({ status: SettlementStatus.CONFIRMED }),
+      this.statements.listAll({ status: StatementStatus.OPEN }),
+    ])
+    return {
+      toConfirm: toConfirm.length,
+      toTransfer: toTransfer.length,
+      openStatements: openStatements.length,
+    }
+  }
+}
+
+/** Una liquidación con lo que los reportes necesitan (Fase 19). */
+export interface ReportSettlementRef {
+  id: string
+  ownerId: string
+  propertyId: string
+  period: Period
+  currency: Currency
+  status: SettlementStatus
+  netAmount: string
+  feeTotal: string
+  /** Si el honorario se descontó del neto (si no, queda por cobrar). */
+  feeDeducted: boolean
+  /** Transferencias vigentes (las anuladas no cuentan). */
+  transfers: { transferredAt: IsoDate; amount: string }[]
+}
+
+/** Un pago de honorarios vigente, para los reportes (Fase 19). */
+export interface ReportFeePaymentRef {
+  paidAt: IsoDate
+  amount: string
+  currency: Currency
+}
+
+/** Cuántas liquidaciones y consolidados esperan una acción (dashboard, Fase 19). */
+export interface SettlementWorkload {
+  toConfirm: number
+  toTransfer: number
+  openStatements: number
 }
 
 const PORTAL_VISIBLE = [

@@ -115,6 +115,9 @@ export abstract class ContractRepository {
     page: { skip: number; take: number },
   ): Promise<[Contract[], number]>
 
+  /** Todos los que cumplen el filtro, sin paginar (reportes de la Fase 19). */
+  abstract listAll(filter: ContractFilter): Promise<Contract[]>
+
   /** Activos; con `endingBefore`, sólo los que terminaron antes de esa fecha. */
   abstract listActive(options?: { endingBefore?: IsoDate }): Promise<Contract[]>
 

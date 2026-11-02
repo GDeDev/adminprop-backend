@@ -50,6 +50,9 @@ export interface NewInstallment {
 export interface InstallmentFilter {
   ids?: string[]
   period?: Period
+  /** Rango de períodos, inclusive (reportes de la Fase 19). */
+  periodFrom?: Period
+  periodTo?: Period
   /** `OVERDUE` se traduce a "con saldo y gracia vencida" en la consulta. */
   status?: InstallmentStatus
   contractId?: string

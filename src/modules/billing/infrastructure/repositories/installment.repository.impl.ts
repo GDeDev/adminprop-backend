@@ -180,6 +180,14 @@ function toWhere(filter: InstallmentFilter): Prisma.InstallmentWhereInput {
   const where: Prisma.InstallmentWhereInput = {
     ...(filter.ids ? { id: { in: filter.ids } } : {}),
     ...(filter.period ? { period: filter.period } : {}),
+    ...(filter.periodFrom || filter.periodTo
+      ? {
+          period: {
+            ...(filter.periodFrom ? { gte: filter.periodFrom } : {}),
+            ...(filter.periodTo ? { lte: filter.periodTo } : {}),
+          },
+        }
+      : {}),
     ...(filter.contractId ? { contractId: filter.contractId } : {}),
     ...(filter.renterId ? { renterId: filter.renterId } : {}),
     ...(filter.renterIds ? { renterId: { in: filter.renterIds } } : {}),

@@ -7,6 +7,7 @@ export { ContractsFacade } from './contracts.facade'
 export type {
   ActiveContractRef,
   ContractRef,
+  ContractReportRef,
   ExpiringContract,
   RentUpdateOutcome,
   SuretyContract,

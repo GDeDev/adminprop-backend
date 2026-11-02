@@ -76,6 +76,18 @@ export class PropertyRepositoryImpl extends PropertyRepository {
     return [rows.map(toDomain), total]
   }
 
+  async listAll(filter: PropertyFilter): Promise<Property[]> {
+    const rows = await this.prisma.db.property.findMany({
+      where: {
+        ...(filter.status ? { status: filter.status } : {}),
+        ...(filter.ownerId ? { ownerId: filter.ownerId } : {}),
+      },
+      include: MAIN_PHOTO,
+      orderBy: [{ address: 'asc' }, { id: 'asc' }],
+    })
+    return rows.map(toDomain)
+  }
+
   async update(id: string, data: Partial<PropertyData>): Promise<Property> {
     const row = await this.prisma.db.property.update({
       where: { id },
