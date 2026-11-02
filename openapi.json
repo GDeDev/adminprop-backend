@@ -807,7 +807,7 @@
     },
     "/api/v1/tenants/current": {
       "get": {
-        "description": "Nombre y marca, para el layout del backoffice y del portal.",
+        "description": "Nombre, marca y datos de contacto, para el layout del backoffice y de los portales.",
         "operationId": "TenantsController_current_api/v1",
         "parameters": [],
         "responses": {
@@ -833,9 +833,206 @@
         ]
       }
     },
+    "/api/v1/tenants/current/settings": {
+      "get": {
+        "description": "Datos legales, bancarios y de marca, y el último número de recibo emitido.",
+        "operationId": "TenantsController_settings_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSettingsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Configuración de la inmobiliaria (admin)",
+        "tags": [
+          "Tenants"
+        ]
+      },
+      "patch": {
+        "description": "Todos los campos son opcionales: lo que no viene no se toca; null o vacío borra el dato.",
+        "operationId": "TenantsController_updateSettings_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSettingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar la configuración de la inmobiliaria (admin)",
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
+    "/api/v1/tenants/current/logo": {
+      "post": {
+        "description": "Reemplaza al anterior. Los PDFs nuevos lo usan en el encabezado.",
+        "operationId": "TenantsController_uploadLogo_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "PNG, JPG, WebP o SVG de hasta 2 MB"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSettingsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No es PNG, JPG, WebP o SVG, o pesa más de 2 MB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Subir el logo (admin)",
+        "tags": [
+          "Tenants"
+        ]
+      },
+      "delete": {
+        "operationId": "TenantsController_deleteLogo_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSettingsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Quitar el logo (admin)",
+        "tags": [
+          "Tenants"
+        ]
+      }
+    },
     "/api/v1/tenants/by-slug/{slug}": {
       "get": {
-        "description": "La usa el portal para mostrar el login con el logo y el color de la inmobiliaria.",
+        "description": "La usa el portal para mostrar el login con el logo, el color y el contacto de la inmobiliaria.",
         "operationId": "TenantsController_bySlug_api/v1",
         "parameters": [
           {
@@ -10985,6 +11182,261 @@
         ]
       }
     },
+    "/api/v1/documents": {
+      "get": {
+        "description": "Todas las versiones, más nuevas primero.",
+        "operationId": "DocumentsController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DocumentKind"
+            }
+          },
+          {
+            "name": "entityId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DocumentStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Documentos generados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/GeneratedDocumentDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar documentos generados",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/documents/{kind}/{entityId}": {
+      "get": {
+        "description": "El PDF vigente (`READY`) de la liquidación, el consolidado, el pago o el contrato. 200 si está listo; 202 con `status: PENDING` si todavía se está generando (volver a consultar); 200 con `FAILED` si el último intento falló. 404 `DOCUMENT_NOT_FOUND` si nunca se pidió o no es del usuario (portales).",
+        "operationId": "DocumentsController_get_api/v1",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/DocumentKind"
+            }
+          },
+          {
+            "name": "entityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedDocumentDto"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedDocumentDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Documento vigente de una entidad",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/v1/documents/{kind}/{entityId}/regenerate": {
+      "post": {
+        "description": "Encola una versión nueva (por ejemplo después de cambiar el logo) y responde 202 con la versión en `PENDING`. La anterior no se pisa.",
+        "operationId": "DocumentsController_regenerate_api/v1",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "$ref": "#/components/schemas/DocumentKind"
+            }
+          },
+          {
+            "name": "entityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedDocumentDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Regenerar el PDF",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
     "/api/v1/examples": {
       "post": {
         "operationId": "ExampleItemsController_create_api/v1",
@@ -11712,6 +12164,24 @@
             "nullable": true,
             "description": "Color de marca en hex. El front lo aplica sobre --primary.",
             "example": "#1f4e79"
+          },
+          "whatsapp": {
+            "type": "string",
+            "nullable": true,
+            "description": "Sólo dígitos con código de país",
+            "example": "5491122334455"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -11719,8 +12189,183 @@
           "name",
           "slug",
           "logoUrl",
-          "primaryColor"
+          "primaryColor",
+          "whatsapp",
+          "phone",
+          "email",
+          "address"
         ]
+      },
+      "TenantSettingsDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "example": "Inmobiliaria Demo"
+          },
+          "slug": {
+            "type": "string",
+            "example": "demo"
+          },
+          "logoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "primaryColor": {
+            "type": "string",
+            "nullable": true,
+            "example": "#1f4e79"
+          },
+          "legalName": {
+            "type": "string",
+            "nullable": true
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "whatsapp": {
+            "type": "string",
+            "nullable": true,
+            "description": "Sólo dígitos con código de país"
+          },
+          "bankAccountHolder": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankCbu": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankAlias": {
+            "type": "string",
+            "nullable": true
+          },
+          "documentFooter": {
+            "type": "string",
+            "nullable": true
+          },
+          "receiptSequence": {
+            "type": "number",
+            "description": "Último número de recibo emitido"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "logoUrl",
+          "primaryColor",
+          "legalName",
+          "taxId",
+          "address",
+          "phone",
+          "email",
+          "whatsapp",
+          "bankAccountHolder",
+          "bankName",
+          "bankCbu",
+          "bankAlias",
+          "documentFooter",
+          "receiptSequence"
+        ]
+      },
+      "UpdateTenantSettingsDto": {
+        "type": "object",
+        "properties": {
+          "primaryColor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Color de marca en hex (#rrggbb)",
+            "example": "#1f4e79"
+          },
+          "legalName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Razón social",
+            "maxLength": 200
+          },
+          "taxId": {
+            "type": "string",
+            "nullable": true,
+            "description": "CUIT",
+            "example": "30-12345678-9",
+            "maxLength": 20
+          },
+          "address": {
+            "type": "string",
+            "nullable": true,
+            "description": "Domicilio comercial",
+            "maxLength": 250
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Teléfono",
+            "maxLength": 40
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Email de contacto",
+            "maxLength": 255
+          },
+          "whatsapp": {
+            "type": "string",
+            "nullable": true,
+            "description": "WhatsApp: sólo dígitos con código de país",
+            "example": "5491122334455"
+          },
+          "bankAccountHolder": {
+            "type": "string",
+            "nullable": true,
+            "description": "Titular de la cuenta bancaria",
+            "maxLength": 150
+          },
+          "bankName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Banco",
+            "maxLength": 100
+          },
+          "bankCbu": {
+            "type": "string",
+            "nullable": true,
+            "description": "CBU (22 dígitos)",
+            "example": "0110599552000000123456"
+          },
+          "bankAlias": {
+            "type": "string",
+            "nullable": true,
+            "description": "Alias",
+            "maxLength": 60
+          },
+          "documentFooter": {
+            "type": "string",
+            "nullable": true,
+            "description": "Leyenda al pie de los PDFs",
+            "maxLength": 500
+          }
+        }
       },
       "AsyncJobStatusDto": {
         "type": "object",
@@ -14321,6 +14966,11 @@
               }
             ]
           },
+          "terminationPdfUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "PDF del cálculo de la rescisión (Fase 15)"
+          },
           "renewedFromId": {
             "type": "string",
             "nullable": true
@@ -14384,6 +15034,7 @@
           "contractPdfUrl",
           "surety",
           "termination",
+          "terminationPdfUrl",
           "renewedFromId",
           "rentUpdates",
           "nextRentUpdateOn",
@@ -16054,6 +16705,16 @@
             "type": "string",
             "nullable": true
           },
+          "receiptNumber": {
+            "type": "string",
+            "nullable": true,
+            "example": "R-00000042"
+          },
+          "receiptPdfUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "PDF del recibo emitido por la inmobiliaria (Fase 15)"
+          },
           "notes": {
             "type": "string",
             "nullable": true
@@ -16132,6 +16793,8 @@
           "creditGenerated",
           "creditId",
           "receiptUrl",
+          "receiptNumber",
+          "receiptPdfUrl",
           "notes",
           "registeredBy",
           "confirmedAt",
@@ -17244,6 +17907,16 @@
             "type": "string",
             "nullable": true
           },
+          "receiptNumber": {
+            "type": "string",
+            "nullable": true,
+            "example": "R-00000042"
+          },
+          "receiptPdfUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "PDF del recibo emitido por la inmobiliaria (Fase 15)"
+          },
           "notes": {
             "type": "string",
             "nullable": true
@@ -17348,6 +18021,8 @@
           "creditGenerated",
           "creditId",
           "receiptUrl",
+          "receiptNumber",
+          "receiptPdfUrl",
           "notes",
           "registeredBy",
           "confirmedAt",
@@ -17895,6 +18570,11 @@
             "type": "string",
             "nullable": true
           },
+          "pdfUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "PDF vigente (Fase 15)"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -18009,6 +18689,7 @@
           "statementId",
           "hasVoidedPayments",
           "confirmedAt",
+          "pdfUrl",
           "createdAt",
           "feeMode",
           "feePercentage",
@@ -18136,6 +18817,11 @@
             "type": "string",
             "nullable": true
           },
+          "pdfUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "PDF vigente (Fase 15)"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -18164,6 +18850,7 @@
           "statementId",
           "hasVoidedPayments",
           "confirmedAt",
+          "pdfUrl",
           "createdAt"
         ]
       },
@@ -18310,6 +18997,11 @@
             "type": "string",
             "nullable": true
           },
+          "pdfUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "PDF vigente (Fase 15)"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -18343,6 +19035,7 @@
           "settlementsCount",
           "totals",
           "closedAt",
+          "pdfUrl",
           "createdAt",
           "settlements",
           "closedBy",
@@ -18398,6 +19091,11 @@
             "type": "string",
             "nullable": true
           },
+          "pdfUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "PDF vigente (Fase 15)"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -18412,6 +19110,7 @@
           "settlementsCount",
           "totals",
           "closedAt",
+          "pdfUrl",
           "createdAt"
         ]
       },
@@ -19080,6 +19779,97 @@
           "lastAttemptStatus",
           "lastAttemptError",
           "provider"
+        ]
+      },
+      "DocumentKind": {
+        "type": "string",
+        "enum": [
+          "SETTLEMENT",
+          "OWNER_STATEMENT",
+          "PAYMENT_RECEIPT",
+          "TERMINATION_NOTICE"
+        ]
+      },
+      "DocumentStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "READY",
+          "FAILED"
+        ]
+      },
+      "GeneratedDocumentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DocumentKind"
+              }
+            ]
+          },
+          "entityId": {
+            "type": "string",
+            "description": "La liquidación, el consolidado, el pago o el contrato"
+          },
+          "version": {
+            "type": "number",
+            "description": "Incremental: regenerar suma una versión"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DocumentStatus"
+              }
+            ]
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "sizeBytes": {
+            "type": "number",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Sólo para el personal"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "requestedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "entityId",
+          "version",
+          "status",
+          "url",
+          "sizeBytes",
+          "error",
+          "generatedAt",
+          "requestedBy",
+          "createdAt"
         ]
       },
       "CreateExampleItemDto": {
