@@ -402,6 +402,24 @@ export class EnvironmentVariables {
   @IsString()
   SITES_ALLOWED_IMAGE_HOSTS?: string
 
+  /**
+   * Exige un registro TXT para activar un dominio propio. `false` (solo
+   * desarrollo) lo da por verificado al cargarlo. Default: true.
+   */
+  @IsOptional()
+  @IsBoolean()
+  SITES_DOMAIN_VERIFICATION?: boolean
+
+  /** URL base de `apps/sites` para avisarle que un sitio cambió (`/api/revalidate`). */
+  @IsOptional()
+  @IsString()
+  SITES_REVALIDATE_URL?: string
+
+  /** Secreto compartido con `apps/sites` para ese aviso. */
+  @IsOptional()
+  @IsString()
+  SITES_REVALIDATE_SECRET?: string
+
   /** Secreto de la vista previa del sitio. Sin valor, se deriva de JWT_ACCESS_SECRET. */
   @IsOptional()
   @IsString()

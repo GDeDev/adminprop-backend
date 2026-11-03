@@ -21,6 +21,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger'
 
+import { Throttle } from '@nestjs/throttler'
+
 import { Role, Roles } from '@/modules/auth/public'
 import { ApiErrorDto, ApiSuccessDto } from '@/shared/dtos/api-response.dto'
 import {
@@ -29,10 +31,12 @@ import {
   UnpublishSiteCommand,
   UpdateSiteSettingsCommand,
   UploadSiteAssetCommand,
+  VerifySiteDomainCommand,
 } from '../../../application/site.commands'
 import { MAX_SITE_ASSET_BYTES } from '../../../application/site.handlers'
 import {
   CheckSubdomainQuery,
+  GetSiteDomainQuery,
   GetSitePreviewTokenQuery,
   GetSiteSettingsQuery,
   ListSiteTemplatesQuery,
@@ -42,6 +46,7 @@ import { SiteTemplateInfo } from '../../../domain/site.types'
 import {
   ResetSiteTemplateDto,
   SiteAssetDto,
+  SiteDomainDto,
   SitePreviewTokenDto,
   SiteSettingsDto,
   SiteTemplateInfoDto,
@@ -159,6 +164,7 @@ export class SiteController {
   }
 
   @Post('assets')
+  @Throttle({ medium: { limit: 30, ttl: 60_000 } })
   @UseInterceptors(
     FileInterceptor('file', { limits: { fileSize: MAX_SITE_ASSET_BYTES } }),
   )
@@ -197,6 +203,40 @@ export class SiteController {
   @ApiResponse({ status: 200, type: SitePreviewTokenDto })
   previewToken() {
     return this.query(new GetSitePreviewTokenQuery())
+  }
+
+  @Get('domain')
+  @ApiOperation({
+    summary: 'Estado del dominio propio',
+    description:
+      'Si está verificado y, si no, el registro TXT que hay que cargar en el DNS para demostrar que es tuyo.',
+  })
+  @ApiResponse({ status: 200, type: SiteDomainDto })
+  domain() {
+    return this.query(new GetSiteDomainQuery())
+  }
+
+  @Post('domain/verify')
+  @HttpCode(200)
+  @Throttle({ medium: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Verificar el dominio propio',
+    description:
+      'Busca el registro TXT en el DNS. Hasta que se verifica, el dominio está reservado pero no resuelve el sitio.',
+  })
+  @ApiResponse({ status: 200, type: SiteSettingsDto })
+  @ApiResponse({
+    status: 409,
+    description: 'DOMAIN_TAKEN: otra inmobiliaria lo verificó primero',
+    type: ApiErrorDto,
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'DOMAIN_NOT_VERIFIED o NO_CUSTOM_DOMAIN',
+    type: ApiErrorDto,
+  })
+  verifyDomain() {
+    return this.command(new VerifySiteDomainCommand(), 'Dominio verificado')
   }
 
   @Get('subdomain-availability')

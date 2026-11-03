@@ -8,11 +8,16 @@ import { SiteNotFoundException } from '../domain/site.exceptions'
 import { SiteSettingsRepository } from '../domain/site.ports'
 import { SiteSettingsDraft, SiteTemplateInfo } from '../domain/site.types'
 import { SiteDraftService } from './site-draft.service'
+import {
+  DomainRecord,
+  SiteDomainVerification,
+} from './site-domain-verification'
 import { SiteHostResolver } from './site-host-resolver'
 import { SitePreviewTokenService } from './site-preview-token.service'
 import {
   CheckSubdomainQuery,
   GetPublicSiteQuery,
+  GetSiteDomainQuery,
   GetSitePreviewTokenQuery,
   GetSiteSettingsQuery,
   ListSiteTemplatesQuery,
@@ -164,5 +169,40 @@ export class ResolveSiteHostHandler implements IQueryHandler<
     const slug = await this.resolver.resolve(host)
     if (!slug) throw new SiteNotFoundException()
     return { slug }
+  }
+}
+
+/** Estado del dominio propio y el registro DNS que hay que cargar. */
+export interface SiteDomainView {
+  customDomain: string | null
+  verified: boolean
+  verifiedAt: string | null
+  /** false en desarrollo: el dominio se activa al cargarlo. */
+  verificationRequired: boolean
+  record: DomainRecord | null
+}
+
+@QueryHandler(GetSiteDomainQuery)
+export class GetSiteDomainHandler implements IQueryHandler<
+  GetSiteDomainQuery,
+  SiteDomainView
+> {
+  constructor(
+    private readonly drafts: SiteDraftService,
+    private readonly verification: SiteDomainVerification,
+  ) {}
+
+  async execute(): Promise<SiteDomainView> {
+    const current = await this.drafts.ensure()
+    const domain = current.customDomain
+    return {
+      customDomain: domain,
+      verified: current.customDomainVerifiedAt !== null,
+      verifiedAt: current.customDomainVerifiedAt?.toISOString() ?? null,
+      verificationRequired: this.verification.required,
+      record: domain
+        ? this.verification.record(current.tenantId, domain)
+        : null,
+    }
   }
 }

@@ -100,6 +100,19 @@ describe('validateSiteDraft', () => {
     }
   })
 
+  it('rechaza caracteres invisibles y de dirección de lectura', () => {
+    for (const hidden of [
+      'a\u200Bb',
+      'a\u202Eb',
+      'a\u2066b',
+      'hola\uFEFFchau',
+    ]) {
+      const d = draft()
+      d.content.hero.title = hidden
+      expect(errorsOf(d).map((e) => e.field)).toContain('content.hero.title')
+    }
+  })
+
   it('un "menor que" suelto en un texto sigue siendo texto válido', () => {
     const d = draft()
     d.content.hero.subtitle = 'Departamentos < 50 m² desde 3 > 2 ambientes'

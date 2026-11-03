@@ -16,10 +16,14 @@ export class SiteUrls {
   publicUrl(site: {
     slug: string
     subdomain: string | null
+    /** Solo un dominio verificado cuenta: uno pendiente todavía no resuelve. */
     customDomain: string | null
+    customDomainVerified: boolean
   }): string | null {
     const sites = this.config.get('sites', { infer: true })
-    if (site.customDomain) return `https://${site.customDomain}`
+    if (site.customDomain && site.customDomainVerified) {
+      return `https://${site.customDomain}`
+    }
     if (site.subdomain && sites.baseDomain) {
       return `${sites.protocol}://${site.subdomain}.${sites.baseDomain}`
     }

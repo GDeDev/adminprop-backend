@@ -2305,12 +2305,18 @@ model SiteSettings {
   tenantId String @unique @map("tenant_id") @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  enabled      Boolean         @default(false)
+  enabled                Boolean         @default(false)
   /// Espejo de `draft.template`; lo mantiene la aplicación.
-  templateKey  SiteTemplateKey @default(CLASSIC) @map("template_key")
+  templateKey            SiteTemplateKey @default(CLASSIC) @map("template_key")
   /// Único global: minúsculas, [a-z0-9-], sin reservados.
-  subdomain    String?         @unique @db.VarChar(63)
-  customDomain String?         @unique @map("custom_domain") @db.VarChar(253)
+  subdomain              String?         @unique @db.VarChar(63)
+  /// Único entre los dominios VERIFICADOS (índice parcial de la migración
+  /// `add_site_domain_verification`): reservar un dominio sin demostrar que es
+  /// tuyo no bloquea a nadie.
+  customDomain           String?         @map("custom_domain") @db.VarChar(253)
+  /// Cuándo se comprobó el registro TXT del dominio; solo un dominio verificado
+  /// resuelve el sitio.
+  customDomainVerifiedAt DateTime?       @map("custom_domain_verified_at") @db.Timestamptz(3)
 
   draft         Json
   published     Json?
@@ -2322,6 +2328,7 @@ model SiteSettings {
   createdById String?  @map("created_by_id") @db.Uuid
   updatedById String?  @map("updated_by_id") @db.Uuid
 
+  @@index([customDomain])
   @@map("site_settings")
 }
 

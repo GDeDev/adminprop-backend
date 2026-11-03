@@ -8,6 +8,8 @@ export interface SiteSettingsRecord {
   templateKey: SiteTemplateKey
   subdomain: string | null
   customDomain: string | null
+  /** Cuándo se verificó el dominio propio; null = reservado pero sin verificar. */
+  customDomainVerifiedAt: Date | null
   draft: SiteSettingsDraft
   published: SiteSettingsDraft | null
   publishedAt: Date | null
@@ -19,6 +21,7 @@ export interface SiteSettingsChanges {
   templateKey?: SiteTemplateKey
   subdomain?: string | null
   customDomain?: string | null
+  customDomainVerifiedAt?: Date | null
   draft?: SiteSettingsDraft
   published?: SiteSettingsDraft | null
   publishedAt?: Date | null
@@ -42,7 +45,7 @@ export abstract class SiteSettingsRepository {
   /** Entre todas las inmobiliarias: ¿otra ya tiene ese subdominio? */
   abstract subdomainTakenByOther(subdomain: string): Promise<boolean>
 
-  /** Entre todas las inmobiliarias: ¿otra ya tiene ese dominio? */
+  /** Entre todas las inmobiliarias: ¿otra ya tiene ese dominio VERIFICADO? */
   abstract domainTakenByOther(domain: string): Promise<boolean>
 
   /**
@@ -74,4 +77,19 @@ export abstract class SiteAssetRepository {
 
   /** De esas URLs, las que son imágenes subidas por esta inmobiliaria. */
   abstract existingUrls(urls: string[]): Promise<Set<string>>
+}
+
+/**
+ * Consulta de registros TXT del DNS, para verificar que un dominio propio es de
+ * quien lo reclama. Puerto para poder reemplazarlo en los tests.
+ */
+export abstract class DnsTxtPort {
+  /** Los valores TXT del host; vacío si no existe o el DNS no responde. */
+  abstract resolveTxt(host: string): Promise<string[]>
+}
+
+/** Avisa a `apps/sites` que un sitio cambió, para que lo vuelva a armar ya. */
+export abstract class SiteRevalidationPort {
+  /** No lanza: si el aviso falla, el sitio se actualiza solo al vencer el caché. */
+  abstract revalidate(slug: string): Promise<void>
 }

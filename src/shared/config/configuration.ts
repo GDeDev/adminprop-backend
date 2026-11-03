@@ -122,6 +122,10 @@ export interface SitesConfig {
   allowedImageHosts: string[]
   /** Secreto del token de vista previa. */
   previewSecret: string
+  /** Exige verificar con un TXT el dominio propio (default true). */
+  domainVerification: boolean
+  /** Aviso a `apps/sites` al publicar; sin URL o secreto no se avisa. */
+  revalidate: { url: string; secret: string } | null
 }
 
 export interface Configuration {
@@ -353,6 +357,14 @@ export function configuration(): Configuration {
         .split(',')
         .map((h) => h.trim().toLowerCase())
         .filter(Boolean),
+      domainVerification: bool(process.env.SITES_DOMAIN_VERIFICATION, true),
+      revalidate:
+        process.env.SITES_REVALIDATE_URL && process.env.SITES_REVALIDATE_SECRET
+          ? {
+              url: process.env.SITES_REVALIDATE_URL.replace(/\/+$/, ''),
+              secret: process.env.SITES_REVALIDATE_SECRET,
+            }
+          : null,
       previewSecret: str(
         process.env.SITES_PREVIEW_SECRET,
         `site-preview:${required(process.env.JWT_ACCESS_SECRET, 'JWT_ACCESS_SECRET')}`,

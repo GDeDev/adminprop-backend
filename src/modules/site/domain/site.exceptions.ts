@@ -50,3 +50,23 @@ export class SiteAssetLimitException extends DomainException {
     )
   }
 }
+
+export class DomainNotVerifiedException extends DomainException {
+  constructor(host: string) {
+    super(
+      'DOMAIN_NOT_VERIFIED',
+      `Todavía no encontramos el registro TXT en ${host}. Los cambios de DNS pueden tardar un rato en propagarse: probá de nuevo en unos minutos.`,
+      DomainErrorKind.BusinessRule,
+    )
+  }
+}
+
+export class NoCustomDomainException extends DomainException {
+  constructor() {
+    super(
+      'NO_CUSTOM_DOMAIN',
+      'Primero cargá el dominio propio.',
+      DomainErrorKind.BusinessRule,
+    )
+  }
+}

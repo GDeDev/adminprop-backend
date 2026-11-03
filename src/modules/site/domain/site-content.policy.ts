@@ -37,6 +37,12 @@ export type SiteValidation =
 const TAG = /<\s*[a-zA-Z/!?]/
 // eslint-disable-next-line no-control-regex
 const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/
+/**
+ * Caracteres invisibles o que cambian el sentido de lectura: espacios de ancho
+ * cero, marcas de dirección y controles bidi. Sirven para disfrazar un texto (un
+ * link que "dice" otra cosa) y nadie los escribe a propósito en un sitio.
+ */
+const INVISIBLE = /[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/
 const EMAIL = /^[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>()]{2,}$/
 const PHONE = /^[0-9+()\-.\s]{6,30}$/
 const WHATSAPP = /^\d{8,15}$/
@@ -137,6 +143,13 @@ export function validateSiteDraft(
     }
     if (TAG.test(text) || CONTROL.test(text)) {
       err(path, 'Solo se admite texto plano, sin código ni etiquetas.')
+      return null
+    }
+    if (INVISIBLE.test(text)) {
+      err(
+        path,
+        'El texto tiene caracteres invisibles o de dirección: borralos.',
+      )
       return null
     }
     if (!opts.multiline && text.includes('\n')) {

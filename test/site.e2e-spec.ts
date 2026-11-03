@@ -4,6 +4,10 @@ import { Role } from '@prisma/client'
 import request from 'supertest'
 
 import { seedBaseMasterData } from '../prisma/lib/master-data-seed'
+import {
+  DnsTxtPort,
+  SiteRevalidationPort,
+} from '../src/modules/site/domain/site.ports'
 import { PrismaService } from '../src/shared/prisma/prisma.service'
 import { createTestApp, loginAs } from './utils/app'
 import { createTenant, createUser, resetDatabase } from './utils/database'
@@ -17,7 +21,25 @@ const PNG = Buffer.concat([
 ])
 
 /** Sitio web de la inmobiliaria: configuración, publicación, host, vista previa e imágenes. */
+/** DNS de mentira: lo que cada host "tiene" como TXT. */
+class FakeDns extends DnsTxtPort {
+  records = new Map<string, string[]>()
+  resolveTxt(host: string): Promise<string[]> {
+    return Promise.resolve(this.records.get(host) ?? [])
+  }
+}
+
+class FakeRevalidation extends SiteRevalidationPort {
+  slugs: string[] = []
+  revalidate(slug: string): Promise<void> {
+    this.slugs.push(slug)
+    return Promise.resolve()
+  }
+}
+
 describe('Sitio web (e2e, Postgres)', () => {
+  const dns = new FakeDns()
+  const revalidation = new FakeRevalidation()
   const prisma = new PrismaService()
   let app: INestApplication
   let tenantA: { id: string }
@@ -58,7 +80,13 @@ describe('Sitio web (e2e, Postgres)', () => {
 
   beforeAll(async () => {
     await prisma.$connect()
-    app = await createTestApp()
+    app = await createTestApp((builder) =>
+      builder
+        .overrideProvider(DnsTxtPort)
+        .useValue(dns)
+        .overrideProvider(SiteRevalidationPort)
+        .useValue(revalidation),
+    )
   })
 
   afterAll(async () => {
@@ -67,6 +95,8 @@ describe('Sitio web (e2e, Postgres)', () => {
   })
 
   beforeEach(async () => {
+    dns.records.clear()
+    revalidation.slugs = []
     await resetDatabase(prisma)
     tenantA = await createTenant(prisma, 'tenant-a')
     tenantB = await createTenant(prisma, 'tenant-b')
@@ -394,11 +424,9 @@ describe('Sitio web (e2e, Postgres)', () => {
       const domain = await save(adminA, {
         customDomain: 'www.mi-inmo.com.ar',
       }).expect(200)
-      expect(domain.body.data.publicUrl).toBe('https://www.mi-inmo.com.ar')
-      expect(
-        (await save(adminB, { customDomain: 'WWW.mi-inmo.com.ar' }).expect(409))
-          .body.code,
-      ).toBe('DOMAIN_TAKEN')
+      // Sin verificar el dominio no cuenta: la URL pública sigue siendo el subdominio.
+      expect(domain.body.data.customDomain).toBe('www.mi-inmo.com.ar')
+      expect(domain.body.data.publicUrl).toBe('https://mi-inmo.sites.test')
       await save(adminA, { customDomain: 'https://x.com' }).expect(422)
       await save(adminA, { customDomain: 'x.sites.test' }).expect(422)
 
@@ -610,11 +638,15 @@ describe('Sitio web (e2e, Postgres)', () => {
     const byHost = (host: string) =>
       pub(`/public/site-by-host?host=${encodeURIComponent(host)}`)
 
-    it('resuelve subdominio y dominio propio de sitios publicados', async () => {
+    it('resuelve subdominio y dominio propio (verificado) de sitios publicados', async () => {
       await publish(adminA, {
         subdomain: 'mi-inmo',
         customDomain: 'www.mi-inmo.com.ar',
       })
+      const record = (await as(adminA).get('/site/domain').expect(200)).body
+        .data.record
+      dns.records.set(record.host, [record.value])
+      await as(adminA).post('/site/domain/verify').expect(200)
 
       expect(
         (await byHost('mi-inmo.sites.test').expect(200)).body.data,
@@ -659,6 +691,170 @@ describe('Sitio web (e2e, Postgres)', () => {
       resolver.invalidate()
       await byHost('baja.sites.test').expect(404)
       await pub('/public/tenant-a/site').expect(404)
+    })
+  })
+
+  describe('dominio propio: verificación', () => {
+    const byHost = (host: string) =>
+      pub(`/public/site-by-host?host=${encodeURIComponent(host)}`)
+    const domainOf = async (token: string) =>
+      (await as(token).get('/site/domain').expect(200)).body.data
+
+    it('arranca sin verificar, da el registro TXT y no resuelve el sitio', async () => {
+      await settingsOf(adminA)
+      await save(adminA, { customDomain: 'www.mi-inmo.com.ar' }).expect(200)
+      await as(adminA).post('/site/publish').expect(200)
+
+      const state = await domainOf(adminA)
+      expect(state).toMatchObject({
+        customDomain: 'www.mi-inmo.com.ar',
+        verified: false,
+        verificationRequired: true,
+        record: { type: 'TXT', host: '_adminprop-verify.www.mi-inmo.com.ar' },
+      })
+      expect(state.record.value).toMatch(/^adminprop-verify=[0-9a-f]{32}$/)
+      await byHost('www.mi-inmo.com.ar').expect(404)
+    })
+
+    it('el valor del registro es propio de cada inmobiliaria y de cada dominio', async () => {
+      await settingsOf(adminA)
+      await settingsOf(adminB)
+      await save(adminA, { customDomain: 'mi-inmo.com.ar' }).expect(200)
+      await save(adminB, { customDomain: 'mi-inmo.com.ar' }).expect(200)
+      const a = (await domainOf(adminA)).record.value
+      const b = (await domainOf(adminB)).record.value
+      expect(a).not.toBe(b)
+
+      await save(adminA, { customDomain: 'otro.com.ar' }).expect(200)
+      expect((await domainOf(adminA)).record.value).not.toBe(a)
+    })
+
+    it('verifica con el TXT correcto, y recién ahí resuelve y avisa a la app de sitios', async () => {
+      await settingsOf(adminA)
+      await save(adminA, { customDomain: 'www.mi-inmo.com.ar' }).expect(200)
+      await as(adminA).post('/site/publish').expect(200)
+      const { record } = await domainOf(adminA)
+
+      // Sin registro, o con uno ajeno: 422 con el host donde buscamos.
+      const missing = await as(adminA).post('/site/domain/verify').expect(422)
+      expect(missing.body.code).toBe('DOMAIN_NOT_VERIFIED')
+      expect(missing.body.message).toContain(record.host)
+      dns.records.set(record.host, [
+        'adminprop-verify=ffffffffffffffffffffffffffffffff',
+      ])
+      await as(adminA).post('/site/domain/verify').expect(422)
+
+      dns.records.set(record.host, ['v=spf1 -all', record.value])
+      revalidation.slugs = []
+      const ok = await as(adminA).post('/site/domain/verify').expect(200)
+      expect(ok.body.data.publicUrl).toBe('https://www.mi-inmo.com.ar')
+      expect(await domainOf(adminA)).toMatchObject({ verified: true })
+      expect(revalidation.slugs).toEqual(['tenant-a'])
+      await byHost('www.mi-inmo.com.ar').expect(200)
+      // Idempotente.
+      await as(adminA).post('/site/domain/verify').expect(200)
+    })
+
+    it('reservar un dominio sin verificar no bloquea a otra inmobiliaria; el que verifica primero se lo queda', async () => {
+      await settingsOf(adminA)
+      await settingsOf(adminB)
+      await save(adminA, { customDomain: 'www.mi-inmo.com.ar' }).expect(200)
+      // B lo reserva también (no hay conflicto: nadie lo verificó).
+      await save(adminB, { customDomain: 'WWW.mi-inmo.com.ar' }).expect(200)
+
+      const b = (await domainOf(adminB)).record
+      dns.records.set(b.host, [b.value])
+      await as(adminB).post('/site/domain/verify').expect(200)
+
+      // A ya no puede verificarlo ni volver a reservarlo: es de B.
+      const a = (await domainOf(adminA)).record
+      dns.records.set(a.host, [a.value])
+      expect(
+        (await as(adminA).post('/site/domain/verify').expect(409)).body.code,
+      ).toBe('DOMAIN_TAKEN')
+      const again = await save(adminA, {
+        customDomain: 'otro.mi-inmo.com.ar',
+      }).expect(200)
+      expect(again.body.data.customDomain).toBe('otro.mi-inmo.com.ar')
+      expect(
+        (await save(adminA, { customDomain: 'www.mi-inmo.com.ar' }).expect(409))
+          .body.code,
+      ).toBe('DOMAIN_TAKEN')
+    })
+
+    it('cambiar o quitar el dominio lo deja sin verificar; sin dominio no hay nada que verificar', async () => {
+      await settingsOf(adminA)
+      await as(adminA).post('/site/domain/verify').expect(422)
+      await save(adminA, { customDomain: 'www.mi-inmo.com.ar' }).expect(200)
+      const { record } = await domainOf(adminA)
+      dns.records.set(record.host, [record.value])
+      await as(adminA).post('/site/domain/verify').expect(200)
+
+      await save(adminA, { customDomain: 'www.nuevo.com.ar' }).expect(200)
+      expect(await domainOf(adminA)).toMatchObject({ verified: false })
+      await save(adminA, { customDomain: null }).expect(200)
+      expect(await domainOf(adminA)).toMatchObject({
+        customDomain: null,
+        verified: false,
+        record: null,
+      })
+    })
+
+    it('un empleado no puede verlo ni verificarlo (403)', async () => {
+      await as(employeeA).get('/site/domain').expect(403)
+      await as(employeeA).post('/site/domain/verify').expect(403)
+    })
+  })
+
+  describe('avisos a la app de sitios y primer acceso', () => {
+    it('publicar y despublicar avisan con el slug; si ya estaba apagado no avisa', async () => {
+      await settingsOf(adminA)
+      await as(adminA).post('/site/publish').expect(200)
+      expect(revalidation.slugs).toEqual(['tenant-a'])
+      await as(adminA).post('/site/unpublish').expect(200)
+      await as(adminA).post('/site/unpublish').expect(200)
+      expect(revalidation.slugs).toEqual(['tenant-a', 'tenant-a'])
+    })
+
+    it('dos pedidos simultáneos del primer acceso crean una sola configuración (sin 500)', async () => {
+      const responses = await Promise.all(
+        Array.from({ length: 4 }, () => as(adminA).get('/site/settings')),
+      )
+      expect(responses.map((r) => r.status)).toEqual([200, 200, 200, 200])
+      expect(await prisma.siteSettings.count()).toBe(1)
+    })
+
+    it('guardar el borrador deja en el historial qué bloques se tocaron, sin el contenido', async () => {
+      await settingsOf(adminA)
+      await save(adminA, {
+        theme: { primary: '#112233' },
+        content: { hero: hero('Texto que no debe ir al historial') },
+      }).expect(200)
+
+      const log = await prisma.auditLog.findFirstOrThrow({
+        where: {
+          tenantId: tenantA.id,
+          entity: 'SiteSettings',
+          summary: 'Sitio web: borrador guardado',
+        },
+      })
+      const changes = JSON.stringify(log.changes)
+      expect(changes).toContain('hero')
+      expect(changes).toContain('primary')
+      expect(changes).not.toContain('Texto que no debe ir')
+      expect(log.userId).not.toBeNull()
+    })
+
+    it('la subida de imágenes tiene tope por minuto', async () => {
+      // THROTTLE_ENABLED=false en los e2e: acá solo se verifica que el decorador exista.
+      const reflect = Reflect.getMetadataKeys(
+        (
+          await import('../src/modules/site/infrastructure/http/controllers/site.controller')
+        ).SiteController.prototype.upload,
+      )
+      expect(reflect.some((k: string) => String(k).includes('THROTTLER'))).toBe(
+        true,
+      )
     })
   })
 

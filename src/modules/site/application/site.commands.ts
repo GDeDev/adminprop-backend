@@ -22,3 +22,5 @@ export class UnpublishSiteCommand {}
 export class UploadSiteAssetCommand {
   constructor(public readonly file: Buffer) {}
 }
+
+export class VerifySiteDomainCommand {}

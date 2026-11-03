@@ -70,7 +70,15 @@ export class SiteDraftService {
     const current = await this.settings.findCurrent()
     if (current) return current
     const draft = defaultDraft('CLASSIC', await this.tenantData())
-    return this.settings.create({ templateKey: 'CLASSIC', draft })
+    try {
+      return await this.settings.create({ templateKey: 'CLASSIC', draft })
+    } catch (error) {
+      // Dos pestañas pidiendo el sitio por primera vez a la vez: la segunda
+      // choca con el índice único de `tenant_id`. Ya existe, se lee.
+      const existing = await this.settings.findCurrent()
+      if (existing) return existing
+      throw error
+    }
   }
 
   /**

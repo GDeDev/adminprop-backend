@@ -13,3 +13,5 @@ export class GetPublicSiteQuery {
 export class ResolveSiteHostQuery {
   constructor(public readonly host: string) {}
 }
+
+export class GetSiteDomainQuery {}

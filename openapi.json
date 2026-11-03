@@ -15445,6 +15445,102 @@
         ]
       }
     },
+    "/api/v1/site/domain": {
+      "get": {
+        "description": "Si está verificado y, si no, el registro TXT que hay que cargar en el DNS para demostrar que es tuyo.",
+        "operationId": "SiteController_domain_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteDomainDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Estado del dominio propio",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
+    "/api/v1/site/domain/verify": {
+      "post": {
+        "description": "Busca el registro TXT en el DNS. Hasta que se verifica, el dominio está reservado pero no resuelve el sitio.",
+        "operationId": "SiteController_verifyDomain_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteSettingsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "DOMAIN_TAKEN: otra inmobiliaria lo verificó primero",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "DOMAIN_NOT_VERIFIED o NO_CUSTOM_DOMAIN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verificar el dominio propio",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
     "/api/v1/site/subdomain-availability": {
       "get": {
         "operationId": "SiteController_subdomainAvailability_api/v1",
@@ -28401,6 +28497,67 @@
         "required": [
           "token",
           "expiresAt"
+        ]
+      },
+      "DomainRecordDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "TXT"
+            ]
+          },
+          "host": {
+            "type": "string",
+            "example": "_adminprop-verify.www.mi-inmobiliaria.com.ar"
+          },
+          "value": {
+            "type": "string",
+            "example": "adminprop-verify=0123456789abcdef0123456789abcdef"
+          }
+        },
+        "required": [
+          "type",
+          "host",
+          "value"
+        ]
+      },
+      "SiteDomainDto": {
+        "type": "object",
+        "properties": {
+          "customDomain": {
+            "type": "string",
+            "nullable": true
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "Solo un dominio verificado resuelve el sitio"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "verificationRequired": {
+            "type": "boolean",
+            "description": "false en desarrollo: el dominio se activa al cargarlo"
+          },
+          "record": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DomainRecordDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "customDomain",
+          "verified",
+          "verifiedAt",
+          "verificationRequired",
+          "record"
         ]
       },
       "SubdomainAvailabilityDto": {

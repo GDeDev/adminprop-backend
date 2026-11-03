@@ -1,6 +1,7 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 import { randomUUID } from 'node:crypto'
 
+import { AuditFacade } from '@/modules/audit/public'
 import { StoragePort } from '@/platform/storage/storage.port'
 import { RequestContext } from '@/shared/context/request-context'
 import { AppException, ErrorCode, ErrorDetail } from '@/shared/errors'
@@ -15,13 +16,17 @@ import {
 } from '../domain/site-templates'
 import { MAX_IMAGE_SIDE, readImageInfo } from '../domain/image-info'
 import {
+  DomainNotVerifiedException,
   DomainTakenException,
   InvalidSiteImageException,
+  NoCustomDomainException,
   SiteAssetLimitException,
   SubdomainTakenException,
 } from '../domain/site.exceptions'
 import {
+  DnsTxtPort,
   SiteAssetRepository,
+  SiteRevalidationPort,
   SiteSettingsChanges,
   SiteSettingsRepository,
 } from '../domain/site.ports'
@@ -33,12 +38,14 @@ import {
 import { SiteDraftService } from './site-draft.service'
 import { SiteHostResolver } from './site-host-resolver'
 import { SiteUrls } from './site-urls'
+import { SiteDomainVerification } from './site-domain-verification'
 import {
   PublishSiteCommand,
   ResetSiteTemplateCommand,
   UnpublishSiteCommand,
   UpdateSiteSettingsCommand,
   UploadSiteAssetCommand,
+  VerifySiteDomainCommand,
 } from './site.commands'
 import { SiteSettingsView, SiteViews } from './site.views'
 
@@ -67,6 +74,8 @@ export class UpdateSiteSettingsHandler implements ICommandHandler<
     private readonly urls: SiteUrls,
     private readonly resolver: SiteHostResolver,
     private readonly views: SiteViews,
+    private readonly verification: SiteDomainVerification,
+    private readonly audit: AuditFacade,
   ) {}
 
   async execute({
@@ -97,6 +106,7 @@ export class UpdateSiteSettingsHandler implements ICommandHandler<
     ) {
       if (patch.customDomain === null || patch.customDomain === '') {
         changes.customDomain = null
+        changes.customDomainVerifiedAt = null
       } else {
         const check = SiteHostPolicy.checkCustomDomain(
           patch.customDomain,
@@ -104,8 +114,14 @@ export class UpdateSiteSettingsHandler implements ICommandHandler<
         )
         if (!check.ok)
           hostErrors.push({ field: 'customDomain', message: check.reason })
-        else if (check.value !== current.customDomain)
+        else if (check.value !== current.customDomain) {
           changes.customDomain = check.value
+          // Un dominio nuevo arranca sin verificar (salvo con la verificación
+          // apagada, en desarrollo): hay que demostrar que es propio.
+          changes.customDomainVerifiedAt = this.verification.required
+            ? null
+            : new Date()
+        }
       }
     }
     if (hostErrors.length > 0) {
@@ -159,6 +175,7 @@ export class UpdateSiteSettingsHandler implements ICommandHandler<
 
     try {
       const updated = await this.settings.update(current.id, changes)
+      if (touchesDraft) await this.recordBlocks(current.id, patch)
       if (
         changes.subdomain !== undefined ||
         changes.customDomain !== undefined
@@ -173,6 +190,31 @@ export class UpdateSiteSettingsHandler implements ICommandHandler<
       if (target?.includes('custom_domain')) throw new DomainTakenException()
       throw error
     }
+  }
+
+  /**
+   * El contenido no entra al historial automático (es un JSON enorme), así que
+   * se deja un evento con QUÉ se tocó, sin los textos: bloques de contenido y
+   * campos del tema.
+   */
+  private recordBlocks(
+    entityId: string,
+    patch: UpdateSiteSettingsCommand['patch'],
+  ): Promise<void> {
+    const keys = (value: unknown): string[] =>
+      typeof value === 'object' && value !== null ? Object.keys(value) : []
+    return this.audit.record({
+      action: 'UPDATE',
+      entity: 'SiteSettings',
+      entityId,
+      summary: 'Sitio web: borrador guardado',
+      changes: {
+        template:
+          patch.template === undefined ? undefined : { after: patch.template },
+        themeFields: { after: keys(patch.theme) },
+        contentBlocks: { after: keys(patch.content) },
+      },
+    })
   }
 }
 
@@ -219,6 +261,7 @@ export class PublishSiteHandler implements ICommandHandler<
     private readonly drafts: SiteDraftService,
     private readonly resolver: SiteHostResolver,
     private readonly views: SiteViews,
+    private readonly revalidation: SiteRevalidationPort,
   ) {}
 
   async execute(): Promise<SiteSettingsView> {
@@ -252,6 +295,7 @@ export class PublishSiteHandler implements ICommandHandler<
       publishedById: RequestContext.get()?.userId ?? null,
     })
     this.resolver.invalidate()
+    await this.revalidation.revalidate((await this.drafts.tenantData()).slug)
     return this.views.settings(updated)
   }
 }
@@ -267,6 +311,7 @@ export class UnpublishSiteHandler implements ICommandHandler<
     private readonly drafts: SiteDraftService,
     private readonly resolver: SiteHostResolver,
     private readonly views: SiteViews,
+    private readonly revalidation: SiteRevalidationPort,
   ) {}
 
   async execute(): Promise<SiteSettingsView> {
@@ -274,7 +319,57 @@ export class UnpublishSiteHandler implements ICommandHandler<
     if (!current.enabled) return this.views.settings(current)
     const updated = await this.settings.update(current.id, { enabled: false })
     this.resolver.invalidate()
+    await this.revalidation.revalidate((await this.drafts.tenantData()).slug)
     return this.views.settings(updated)
+  }
+}
+
+/**
+ * Comprueba el registro TXT del dominio propio y, si está, lo activa. Un dominio
+ * verificado es único en todo el sistema: si otra inmobiliaria lo verificó
+ * primero, es un 409.
+ */
+@CommandHandler(VerifySiteDomainCommand)
+export class VerifySiteDomainHandler implements ICommandHandler<
+  VerifySiteDomainCommand,
+  SiteSettingsView
+> {
+  constructor(
+    private readonly settings: SiteSettingsRepository,
+    private readonly drafts: SiteDraftService,
+    private readonly verification: SiteDomainVerification,
+    private readonly dns: DnsTxtPort,
+    private readonly resolver: SiteHostResolver,
+    private readonly views: SiteViews,
+    private readonly revalidation: SiteRevalidationPort,
+  ) {}
+
+  async execute(): Promise<SiteSettingsView> {
+    const current = await this.drafts.ensure()
+    const domain = current.customDomain
+    if (!domain) throw new NoCustomDomainException()
+    if (current.customDomainVerifiedAt) return this.views.settings(current)
+
+    const expected = this.verification.record(current.tenantId, domain)
+    const found = await this.dns.resolveTxt(expected.host)
+    if (!found.some((value) => value.trim() === expected.value)) {
+      throw new DomainNotVerifiedException(expected.host)
+    }
+    if (await this.settings.domainTakenByOther(domain)) {
+      throw new DomainTakenException()
+    }
+
+    try {
+      const updated = await this.settings.update(current.id, {
+        customDomainVerifiedAt: new Date(),
+      })
+      this.resolver.invalidate()
+      await this.revalidation.revalidate((await this.drafts.tenantData()).slug)
+      return this.views.settings(updated)
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new DomainTakenException()
+      throw error
+    }
   }
 }
 

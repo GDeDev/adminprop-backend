@@ -266,3 +266,24 @@ export class SubdomainAvailabilityDto {
 export class SiteHostDto {
   @ApiProperty() slug: string
 }
+
+class DomainRecordDto {
+  @ApiProperty({ enum: ['TXT'] }) type: string
+  @ApiProperty({ example: '_adminprop-verify.www.mi-inmobiliaria.com.ar' })
+  host: string
+  @ApiProperty({ example: 'adminprop-verify=0123456789abcdef0123456789abcdef' })
+  value: string
+}
+
+export class SiteDomainDto {
+  @ApiProperty({ type: String, nullable: true }) customDomain: string | null
+  @ApiProperty({ description: 'Solo un dominio verificado resuelve el sitio' })
+  verified: boolean
+  @ApiProperty({ type: String, nullable: true }) verifiedAt: string | null
+  @ApiProperty({
+    description: 'false en desarrollo: el dominio se activa al cargarlo',
+  })
+  verificationRequired: boolean
+  @ApiProperty({ type: DomainRecordDto, nullable: true })
+  record: DomainRecordDto | null
+}

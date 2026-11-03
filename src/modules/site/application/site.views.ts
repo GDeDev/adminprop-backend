@@ -39,6 +39,7 @@ export class SiteViews {
         slug,
         subdomain: record.subdomain,
         customDomain: record.customDomain,
+        customDomainVerified: record.customDomainVerifiedAt !== null,
       }),
     }
   }

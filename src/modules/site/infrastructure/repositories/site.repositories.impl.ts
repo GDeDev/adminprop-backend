@@ -26,6 +26,7 @@ function toRecord(row: Row): SiteSettingsRecord {
     templateKey: row.templateKey as SiteTemplateKey,
     subdomain: row.subdomain,
     customDomain: row.customDomain,
+    customDomainVerifiedAt: row.customDomainVerifiedAt,
     draft: row.draft as unknown as SiteSettingsDraft,
     published: row.published as unknown as SiteSettingsDraft | null,
     publishedAt: row.publishedAt,
@@ -83,7 +84,11 @@ export class SiteSettingsRepositoryImpl extends SiteSettingsRepository {
   }
 
   async domainTakenByOther(domain: string): Promise<boolean> {
-    return this.takenByOther({ customDomain: domain })
+    // Solo cuentan los verificados: reservar sin demostrar no bloquea a nadie.
+    return this.takenByOther({
+      customDomain: domain,
+      customDomainVerifiedAt: { not: null },
+    })
   }
 
   private async takenByOther(
@@ -100,7 +105,15 @@ export class SiteSettingsRepositoryImpl extends SiteSettingsRepository {
     by: { subdomain: string } | { customDomain: string },
   ): Promise<{ tenantId: string } | null> {
     const row = await this.prisma.unscoped.siteSettings.findFirst({
-      where: { ...by, enabled: true, published: { not: Prisma.DbNull } },
+      where: {
+        ...by,
+        // Un dominio propio resuelve solo si está verificado.
+        ...('customDomain' in by
+          ? { customDomainVerifiedAt: { not: null } }
+          : {}),
+        enabled: true,
+        published: { not: Prisma.DbNull },
+      },
       select: { tenantId: true },
     })
     return row
