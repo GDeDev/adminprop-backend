@@ -38,11 +38,15 @@ export interface LocationNodeData {
 /** Nombre del comodín para propiedades migradas sin ubicación (Fase 21, A-77). */
 export const UNKNOWN_LOCATION_NAME = 'Sin ubicación (revisar)'
 
-const LEVELS_BELOW_COUNTRY = [
-  LocationLevel.PROVINCE,
-  LocationLevel.CITY,
-  LocationLevel.NEIGHBORHOOD,
-]
+/**
+ * Niveles de una ruta nueva según su largo: la hoja siempre es una localidad o
+ * un barrio (una propiedad no se ubica en una provincia).
+ */
+const LEVELS_BY_PATH_LENGTH: Record<number, LocationLevel[]> = {
+  1: [LocationLevel.CITY],
+  2: [LocationLevel.PROVINCE, LocationLevel.CITY],
+  3: [LocationLevel.PROVINCE, LocationLevel.CITY, LocationLevel.NEIGHBORHOOD],
+}
 
 const normalizeName = (name: string): string =>
   name
@@ -114,6 +118,8 @@ export class MasterDataFacade {
   async ensureLocationPath(
     path: string[],
   ): Promise<{ id: string; created: number }> {
+    const levels =
+      LEVELS_BY_PATH_LENGTH[path.length] ?? LEVELS_BY_PATH_LENGTH[3]
     const parent = await this.countryRoot()
     let created = parent.created ? 1 : 0
     let current = parent.id
@@ -130,7 +136,7 @@ export class MasterDataFacade {
         continue
       }
       const node = await this.commands.execute(
-        new CreateLocationCommand(LEVELS_BELOW_COUNTRY[index], name, current),
+        new CreateLocationCommand(levels[index], name, current),
       )
       current = node.id
       created += 1
