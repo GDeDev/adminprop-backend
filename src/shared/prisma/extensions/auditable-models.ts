@@ -222,6 +222,19 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   ImportLink: { tenantScoped: true, audit: false, softDelete: false },
   ImportAssetResult: { tenantScoped: true, audit: false, softDelete: false },
 
+  // Tasación (Fase 24). Los comparables, las zonas y el estado de las fuentes
+  // son del mercado, iguales para todas las inmobiliarias: sin tenant (D-173) y
+  // sin auditoría (los escribe el job, y cada fila dice cuándo se vio). La
+  // tasación sí es de la inmobiliaria, con historial y sin borrado.
+  MarketComparable: { tenantScoped: false, audit: false, softDelete: false },
+  ValuationZone: { tenantScoped: false, audit: false, softDelete: false },
+  ValuationSourceState: {
+    tenantScoped: false,
+    audit: false,
+    softDelete: false,
+  },
+  ValuationRequest: { tenantScoped: true, audit: true, softDelete: false },
+
   // La propia tabla de auditoría no se audita: sería recursión infinita.
   // Guarda el tenantId de cada cambio, pero no se filtra todavía: la escribe la
   // extensión de auditoría también desde procesos sin tenant. Su lectura por

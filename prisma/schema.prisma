@@ -125,6 +125,7 @@ model Tenant {
   emailEvents                 EmailEvent[]
   whatsappTemplates           WhatsAppTemplate[]
   importBatches               ImportBatch[]
+  valuationRequests           ValuationRequest[]
   importRows                  ImportRow[]
   importLinks                 ImportLink[]
   importAssetResults          ImportAssetResult[]
@@ -2443,4 +2444,150 @@ model ImportAssetResult {
   @@index([batchId, status])
   @@index([batchId, propertyId])
   @@map("import_asset_results")
+}
+
+// ------------------------------------------------------------------ Tasación (Fase 24)
+
+enum MarketSource {
+  ZONAPROP
+  ARGENPROP
+  MERCADOLIBRE
+  FAKE
+}
+
+/// Categoría global de propiedad para comparar: el tipo de cada inmobiliaria se
+/// mapea por nombre (A-61).
+enum MarketCategory {
+  APARTMENT
+  HOUSE
+  PH
+  COMMERCIAL
+  LAND
+  GARAGE
+  OFFICE
+  OTHER
+}
+
+enum MarketOperation {
+  RENT
+}
+
+enum ValuationConfidence {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ValuationEngine {
+  STATISTICAL
+  STATISTICAL_LLM
+}
+
+/// Cómo terminó el último refresco de una zona o una fuente.
+enum ZoneRefreshResult {
+  OK
+  EMPTY
+  BLOCKED
+  PARSE_ERROR
+}
+
+/// Un aviso de alquiler visto en un portal. GLOBAL: sin `tenant_id` a
+/// propósito (el mercado es el mismo para todas las inmobiliarias, D-173). Sólo
+/// atributos numéricos y la URL: ni título, ni descripción, ni fotos, ni
+/// contacto (A-62).
+model MarketComparable {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  source      MarketSource
+  /// Id del aviso en la fuente.
+  externalId  String          @map("external_id") @db.VarChar(120)
+  zoneKey     String          @map("zone_key") @db.VarChar(200)
+  category    MarketCategory
+  operation   MarketOperation @default(RENT)
+  price       Decimal         @db.Decimal(14, 2)
+  currency    Currency
+  areaM2      Decimal?        @map("area_m2") @db.Decimal(10, 2)
+  bedrooms    Int?
+  /// Texto normalizado: `balcon`, `cochera`...
+  amenities   String[]        @default([])
+  url         String          @db.VarChar(1000)
+  publishedAt DateTime?       @map("published_at") @db.Timestamptz(3)
+  firstSeenAt DateTime        @default(now()) @map("first_seen_at") @db.Timestamptz(3)
+  lastSeenAt  DateTime        @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  active      Boolean         @default(true)
+
+  @@unique([source, externalId])
+  @@index([zoneKey, category, currency, active, lastSeenAt])
+  @@index([active, lastSeenAt])
+  @@map("market_comparables")
+}
+
+/// Qué zonas se refrescan (A-63). GLOBAL.
+model ValuationZone {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  zoneKey             String             @map("zone_key") @db.VarChar(200)
+  category            MarketCategory
+  lastRefreshedAt     DateTime?          @map("last_refreshed_at") @db.Timestamptz(3)
+  lastResult          ZoneRefreshResult? @map("last_result")
+  consecutiveFailures Int                @default(0) @map("consecutive_failures")
+  /// Cuántas veces algún usuario pidió una tasación o una corrida de esta zona.
+  requestedCount      Int                @default(0) @map("requested_count")
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([zoneKey, category])
+  @@index([lastRefreshedAt])
+  @@map("valuation_zones")
+}
+
+/// Salud de cada fuente entre corridas (monitoreo de rotura silenciosa). GLOBAL.
+model ValuationSourceState {
+  source              MarketSource       @id
+  lastRunAt           DateTime?          @map("last_run_at") @db.Timestamptz(3)
+  /// Último momento en que la fuente aportó avisos.
+  lastIngestAt        DateTime?          @map("last_ingest_at") @db.Timestamptz(3)
+  lastResult          ZoneRefreshResult? @map("last_result")
+  consecutiveFailures Int                @default(0) @map("consecutive_failures")
+  /// Cortada hasta este momento por bloqueo (403/429/captcha sostenido).
+  blockedUntil        DateTime?          @map("blocked_until") @db.Timestamptz(3)
+
+  @@map("valuation_source_states")
+}
+
+/// Una tasación pedida. Por inmobiliaria, auditada y sin borrado. Es una
+/// sugerencia: nunca toca el precio de la propiedad (A-46).
+model ValuationRequest {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  propertyId           String              @map("property_id") @db.Uuid
+  /// Lo que se usó para calcular: superficie, ambientes, amenities, moneda.
+  input                Json
+  /// Hash del `input` y la zona, para reconocer una tasación idéntica (A-67).
+  inputHash            String              @map("input_hash") @db.VarChar(64)
+  currency             Currency
+  minPrice             Decimal             @map("min_price") @db.Decimal(14, 2)
+  maxPrice             Decimal             @map("max_price") @db.Decimal(14, 2)
+  suggestedPrice       Decimal             @map("suggested_price") @db.Decimal(14, 2)
+  confidence           ValuationConfidence
+  comparablesUsed      Int                 @map("comparables_used")
+  comparablesDiscarded Int                 @map("comparables_discarded")
+  zoneKeyUsed          String              @map("zone_key_used") @db.VarChar(200)
+  zoneLabel            String              @map("zone_label") @db.VarChar(200)
+  zoneWidened          Boolean             @map("zone_widened")
+  oldestComparableAt   DateTime?           @map("oldest_comparable_at") @db.Timestamptz(3)
+  engine               ValuationEngine
+  justification        String              @db.Text
+  requestedById        String              @map("requested_by_id") @db.Uuid
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, propertyId, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, propertyId, inputHash, createdAt])
+  @@map("valuation_requests")
 }
