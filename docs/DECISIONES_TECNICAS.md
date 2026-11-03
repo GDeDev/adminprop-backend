@@ -913,3 +913,58 @@ Sale de `adminprop-repo-files/docs/REDISENO_FASE_25.md`; el contrato HTTP lo fij
 - **A-101** · Una corrección en borrador no se puede descartar (no hay baja en el contrato): se edita y se confirma. _Si molesta_: agregar `DELETE /inventories/:id` sólo para borradores.
 - **A-102** · Las fotos HEIC se guardan sin convertir: algunos navegadores no las muestran. _Si pasa_: convertirlas a JPG al subir.
 - **A-103** · El portal de propietarios e inquilinos no ve inventarios (403): sólo admin y empleado.
+
+## Fase 22 — Portal público (sin supervisión, rediseño)
+
+Sale de `adminprop-repo-files/docs/REDISENO_FASE_22.md`; el contrato HTTP lo fija `shared-types/public-listing.ts` del frontend. Los supuestos del rediseño se llamaban A-46 a A-49 (ocupados por otras fases): acá son A-104 a A-107 (mapa en `docs/tecnica/fase-22.md`).
+
+### D-133 · Precio, moneda y descripción pública en la propiedad; sin flag de publicación
+
+- **Decisión**: `properties` suma `listing_price` (`Decimal(14,2)` null), `listing_currency` (`Currency`, default `ARS`) y `public_description` (`VarChar(2000)` null). Al dar de alta sin moneda se usa la de la inmobiliaria (`TenantsFacade.defaultCurrency`, que lee `tenants.default_currency`). Un precio vacío o `0` se guarda como null ("Consultar"); "150000" se normaliza a `"150000.00"`; la API lo recibe y devuelve siempre como string. Los campos están en `CreatePropertyDto`/`UpdatePropertyDto` y en `PropertySummaryDto`/`PropertyDetailDto` (y por lo tanto en `openapi.json`). **No hay flag "publicada"**: `AVAILABLE` ya implica visible (rediseño A-49 / A-107). Una propiedad que el personal no quiere mostrar se pasa a `MAINTENANCE`.
+- **Por qué**: el contrato `public-listing.ts` no tiene ningún campo de publicación y el rediseño lo descarta de forma explícita; un flag aparte duplicaría el estado. Si hace falta ocultar una disponible, se agrega `listing_published` (default `true`) sin romper nada.
+- **Consecuencia**: el índice nuevo `(tenant_id, status, created_at)` sirve al listado público.
+
+### D-134 · La facade de propiedades arma las vistas públicas con una lista blanca
+
+- **Decisión**: `PropertiesFacade.listPublic(filter, page)`, `getPublic(id)`, `publicFilters()` y `publicRef(id)` corren en el tenant del contexto (como el resto de la facade; el rediseño les pasaba `tenantId`, acá lo fija `RequestContext` desde el módulo `public`). Las vistas (`PublicPropertyViews`) construyen cada campo a mano: propietario, contrato, notas, estado y `storageKey` no existen en el tipo de salida, y un test recorre el JSON buscando esos valores. El listado trae sólo la foto principal; la ficha, todas.
+- **Por qué**: una lista blanca no filtra datos nuevos por descuido cuando se agrega una columna a la propiedad.
+
+### D-135 · El slug fija el tenant: `PublicTenantScope`
+
+- **Decisión**: los endpoints `/public/:slug/*` son `@IsPublic()`. `PublicTenantScope` resuelve el slug con `TenantsFacade.findActiveBySlug` (inexistente o deshabilitada: 404 `TENANT_NOT_FOUND`, mismo mensaje) y ejecuta el caso de uso dentro de `RequestContext.runInTenant`. Las queries y el comando llevan el slug y abren el scope en su handler (el controller sólo despacha). Un id de propiedad de otra inmobiliaria da el mismo 404 `PROPERTY_NOT_AVAILABLE` que uno inexistente.
+- **Por qué**: sin JWT no hay tenant en el contexto; fijarlo con `runInTenant` hace que la extensión de Prisma filtre todo, así que el aislamiento no depende de recordar un `where`.
+
+### D-136 · Anti-spam: honeypot + límite contado en la base + throttler
+
+- **Decisión**: (1) Honeypot: `website` con texto responde `201 { id }` (un UUID inventado), no guarda, no avisa y deja un `warn` en el log. (2) Límite de 5 consultas por hora **por IP y por email** (en minúsculas), contado contra `public_inquiries` por inmobiliaria; la 6.ª da 429 `RATE_LIMIT_EXCEEDED` con mensaje en español. (3) Además, `@Throttle` del módulo de rate limiting: lecturas 60/min (pisa el perfil `medium`) y contacto 20/hora (perfil `long`) por IP, que frena a los bots del honeypot (no dejan fila). La IP sale de `RequestContext` (respeta `TRUST_PROXY`).
+- **Por qué no sólo el throttler**: es en memoria por proceso (no cuenta por email ni se comparte entre instancias) y los e2e lo apagan; contar contra la tabla es exacto, funciona con varias instancias y se prueba. Costo: una consulta de conteo (índices `(tenant, ip, created_at)` y `(tenant, email, created_at)`).
+- **Consecuencia**: una oficina detrás de un NAT comparte IP y cupo (A-109). Con el honeypot lleno el cliente no se entera.
+
+### D-137 · `PublicInquiry`: entidad, aviso interno y email
+
+- **Decisión**: tabla `public_inquiries` (tenant-scoped, auditada, sin borrado lógico) con `status` (`NEW | CONTACTED | CLOSED`), `source` (`PORTAL`), `property_id` plano (sin FK: la propiedad puede borrarse) e `ip` (excluida del historial de auditoría y de toda respuesta). El email se guarda en minúsculas; nombre y teléfono en una línea (van al asunto del email), el mensaje conserva los saltos. Al crear se publica `PublicInquiryCreatedEvent` en el `EventBus`; `NotifyStaffOnInquiryHandler` crea la alerta interna (`NotificationsService.notifyStaff`, tipo `PUBLIC_INQUIRY`, clave `PUBLIC_INQUIRY:<id>`, link `/crm`) y, si la inmobiliaria tiene email de contacto, manda un correo por `EmailPort` con `replyTo` al consultante. Ambos son best-effort (se loguea el error y la consulta ya está guardada). `PUBLIC_INQUIRY` se agregó a `ALERT_TYPES` para que aparezca en la campana. Endpoints del personal: `GET /inquiries?status=&propertyId=&page&limit` y `PATCH /inquiries/:id/status` (admin y empleado).
+- **Por qué evento en proceso y no cola**: el efecto es un aviso, no dinero; si el proceso cae justo después de guardar se pierde el aviso, pero la consulta queda en `/inquiries`.
+
+### D-138 · Filtros del listado
+
+- **Decisión**: `locationId` y `propertyTypeId` son coincidencia exacta (filtrar por una ciudad no incluye sus barrios). `GET /filters` devuelve las ubicaciones tal como están cargadas en propiedades disponibles, nombradas "barrio, ciudad". Con `priceFrom`/`priceTo` sin `currency` se usa la moneda de la inmobiliaria (no se mezclan monedas) y las propiedades sin precio quedan afuera. `currency` sola filtra por moneda.
+- **Por qué**: el contrato no pide jerarquía; el select del portal ofrece exactamente lo que hay publicado.
+
+### D-139 · Campos del contrato que el modelo todavía no tiene
+
+- **Decisión**: `PublicPropertySummary.bedrooms`, `bathrooms` y `areaM2` salen `null` siempre: la propiedad no carga ambientes ni superficie. `features` se arma con "Tipo" y "Ubicación". `title` es la dirección hasta la primera coma ("Av. Corrientes 1234, 5° B" pasa a "Av. Corrientes 1234"). `neighborhood` es el nombre de la ubicación sólo si es un barrio. `currency` es null cuando no hay precio. Ningún desvío de forma respecto de `public-listing.ts`.
+- **Si lo quieren**: sumar `bedrooms`, `bathrooms`, `area_m2` a la propiedad (y al wizard) y pasarlos por la vista.
+
+### D-140 · `PROPERTY_NOT_AVAILABLE` es 404 en la ficha y 409 en el contacto; teléfono opcional
+
+- **Decisión**: mismo código, dos status, como pide el rediseño (el front de la ficha muestra un aviso amable; el del formulario, "esta propiedad ya no está disponible"). Consultar por una propiedad de otra inmobiliaria o inexistente también da 409. El teléfono es opcional en `POST /contact` (el formulario del portal sólo exige nombre, email y mensaje).
+
+### Supuestos a confirmar con Micaela (Fase 22)
+
+- **A-104** (rediseño A-46) · Precio y descripción pública son campos nuevos y opcionales de la propiedad; "sin precio" = "Consultar".
+- **A-105** (rediseño A-47) · La dirección completa es pública. _Si molesta_: un flag por inmobiliaria que la reduzca a barrio.
+- **A-106** (rediseño A-48) · El anti-spam es honeypot + límite de 5 por hora por IP y por email; sin CAPTCHA todavía.
+- **A-107** (rediseño A-49) · No hay "publicar" manual: `AVAILABLE` ya implica visible.
+- **A-108** · Filtrar por ubicación no incluye las ubicaciones hijas (D-138).
+- **A-109** · Quienes comparten IP (una oficina) comparten el cupo de 5 consultas por hora; detrás de un proxy hace falta `TRUST_PROXY=true`.
+- **A-110** · Hasta que haya ambientes y superficie en la propiedad, esos datos no se muestran en el portal (D-139).
