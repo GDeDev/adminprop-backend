@@ -430,8 +430,8 @@ describe('Automatizaciones (e2e, Postgres)', () => {
         {},
         { skip: 0, take: 100 },
       )
-      expect(rowsA.filter((r) => r.tenantId === tenantA.id)).toHaveLength(10)
-      expect(rowsB.filter((r) => r.tenantId === tenantB.id)).toHaveLength(10)
+      expect(rowsA.filter((r) => r.tenantId === tenantA.id)).toHaveLength(11)
+      expect(rowsB.filter((r) => r.tenantId === tenantB.id)).toHaveLength(11)
       expect([...rowsA, ...rowsB].filter((r) => r.status === 'FAILED')).toEqual(
         [],
       )
