@@ -4,7 +4,11 @@
  * alquilada o disponible.
  */
 export { PropertiesModule } from '../infrastructure/modules/properties.module'
-export { PropertiesFacade, PropertyStatus } from './properties.facade'
+export {
+  ListingCurrency,
+  PropertiesFacade,
+  PropertyStatus,
+} from './properties.facade'
 export type {
   OwnerPortfolio,
   OwnerPropertySummary,

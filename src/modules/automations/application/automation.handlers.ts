@@ -57,6 +57,7 @@ export const ALERT_TYPES = [
   'STATEMENT_PENDING',
   'DOCUMENT_FAILED',
   'JOB_FAILED',
+  'PUBLIC_INQUIRY',
 ]
 
 /** Cuánto atrás llega la lista de avisos (Fase 13, 5). */

@@ -45,6 +45,7 @@ export type NotificationType =
   | 'STATEMENT_PENDING'
   | 'JOB_FAILED'
   | 'DOCUMENT_FAILED'
+  | 'PUBLIC_INQUIRY'
 
 export interface NotificationRecipient {
   kind: NotificationRecipientKind

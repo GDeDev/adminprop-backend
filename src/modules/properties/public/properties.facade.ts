@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { IsoDate, toIsoDate } from '@/shared/dates/calendar-date'
 import { PropertyTypeNames } from '../application/property-type-names'
-import { PropertyStatus } from '../domain/property'
+import { ListingCurrency, PropertyStatus } from '../domain/property'
 import { PaginatedResult, PaginationQueryDto } from '@/shared/pagination'
 import { paginateWith } from '@/shared/pagination/pagination'
 import {
@@ -16,7 +16,7 @@ import {
   PublicPropertyFilter,
 } from '../domain/property.ports'
 
-export { PropertyStatus }
+export { ListingCurrency, PropertyStatus }
 export type {
   PublicFiltersView,
   PublicPropertyDetailView,
@@ -102,9 +102,10 @@ export class PropertiesFacade {
     return property ? this.publicViews.detail(property) : null
   }
 
-  /** Si la propiedad está disponible para el público (valida las consultas). */
-  async isPublic(id: string): Promise<boolean> {
-    return (await this.properties.findPublicById(id)) !== null
+  /** Id y dirección si la propiedad está disponible para el público; null si no. */
+  async publicRef(id: string): Promise<PropertyRef | null> {
+    const property = await this.properties.findPublicById(id)
+    return property ? { id: property.id, address: property.address } : null
   }
 
   /** Tipos y ubicaciones de las propiedades disponibles, para los selects. */
