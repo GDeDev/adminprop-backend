@@ -295,7 +295,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
   })
 
   describe('catálogo, permisos y corrida manual', () => {
-    it('lista los 11 jobs con su cron legible; sólo el admin; el empleado lee los avisos', async () => {
+    it('lista los 12 jobs con su cron legible; sólo el admin; el empleado lee los avisos', async () => {
       const response = await api(adminToken)
         .get('/automations/jobs')
         .expect(200)
@@ -306,7 +306,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
         lastExecution: unknown
         nextRunAt: string | null
       }[]
-      expect(jobs).toHaveLength(11)
+      expect(jobs).toHaveLength(12)
       expect(
         jobs.find((j) => j.name === 'billing.arrears-notice'),
       ).toMatchObject({

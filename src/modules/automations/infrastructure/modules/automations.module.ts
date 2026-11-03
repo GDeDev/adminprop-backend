@@ -23,6 +23,7 @@ import { PaymentReminderJob } from '@/modules/automations/application/jobs/payme
 import { PolicyExpiryNoticeJob } from '@/modules/automations/application/jobs/policy-expiry-notice.job'
 import { RentUpdatesJob } from '@/modules/automations/application/jobs/rent-updates.job'
 import { ServiceOverdueNoticeJob } from '@/modules/automations/application/jobs/service-overdue-notice.job'
+import { DiscardStaleImportBatchesJob } from '@/modules/automations/application/jobs/discard-stale-import-batches.job'
 import { StatementReminderJob } from '@/modules/automations/application/jobs/statement-reminder.job'
 import {
   AlertRepository,
@@ -33,6 +34,7 @@ import { AutomationsFacade } from '@/modules/automations/public/automations.faca
 import { BillingModule } from '@/modules/billing/public'
 import { ContractsModule } from '@/modules/contracts/public'
 import { IndicesModule } from '@/modules/indices/public'
+import { MigrationModule } from '@/modules/migration/public'
 import { MasterDataModule } from '@/modules/master-data/public'
 import { OwnersModule } from '@/modules/owners/public'
 import { PropertiesModule } from '@/modules/properties/public'
@@ -68,6 +70,7 @@ import { CronSchedulerTask } from '../tasks/cron-scheduler.task'
     RentersModule,
     PropertiesModule,
     MasterDataModule,
+    MigrationModule,
     AuditRecorderModule,
   ],
   controllers: [AutomationsController, IndexStatusController],
@@ -89,6 +92,7 @@ import { CronSchedulerTask } from '../tasks/cron-scheduler.task'
     PolicyExpiryNoticeJob,
     ServiceOverdueNoticeJob,
     StatementReminderJob,
+    DiscardStaleImportBatchesJob,
     JobsConsumer,
     CronSchedulerTask,
     ListJobsHandler,

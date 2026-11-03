@@ -4,6 +4,7 @@ import { JobName } from '../domain/job-catalog'
 import { AutomationJob } from './job.types'
 import { ArrearsNoticeJob } from './jobs/arrears-notice.job'
 import { ContractExpiryNoticeJob } from './jobs/contract-expiry-notice.job'
+import { DiscardStaleImportBatchesJob } from './jobs/discard-stale-import-batches.job'
 import { FinishExpiredContractsJob } from './jobs/finish-expired-contracts.job'
 import { GenerateInstallmentsJob } from './jobs/generate-installments.job'
 import { InsurerAlertJob } from './jobs/insurer-alert.job'
@@ -31,6 +32,7 @@ export class JobRegistry {
     policyExpiry: PolicyExpiryNoticeJob,
     serviceOverdue: ServiceOverdueNoticeJob,
     statementReminder: StatementReminderJob,
+    discardStaleBatches: DiscardStaleImportBatchesJob,
   ) {
     this.jobs = new Map(
       [
@@ -45,6 +47,7 @@ export class JobRegistry {
         policyExpiry,
         serviceOverdue,
         statementReminder,
+        discardStaleBatches,
       ].map((job) => [job.name, job]),
     )
   }

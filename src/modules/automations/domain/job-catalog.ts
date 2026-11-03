@@ -11,6 +11,7 @@ export enum JobName {
   POLICY_EXPIRY_NOTICE = 'contracts.policy-expiry-notice',
   SERVICE_OVERDUE_NOTICE = 'services.overdue-notice',
   STATEMENT_REMINDER = 'settlements.statement-reminder',
+  MIGRATION_DISCARD_STALE = 'migration.discard-stale-batches',
 }
 
 /** Coinciden con los enums de Prisma. */
@@ -139,6 +140,14 @@ export const JOB_CATALOG: JobDefinition[] = [
       'Desde el día de informe mensual, avisa los propietarios con liquidaciones del mes anterior que todavía no se consolidaron.',
     scope: JobScope.TENANT,
     times: ['10:00'],
+  },
+  {
+    name: JobName.MIGRATION_DISCARD_STALE,
+    title: 'Descartar lotes de migración vencidos',
+    description:
+      'Descarta los lotes de migración que llevan más de 7 días esperando su revisión y borra el archivo que se había subido.',
+    scope: JobScope.TENANT,
+    times: ['03:30'],
   },
 ]
 
