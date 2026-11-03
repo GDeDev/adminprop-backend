@@ -1100,7 +1100,7 @@ Sale de `adminprop-repo-files/specs/web-inmobiliaria.md` (el contrato es la secc
 
 ### D-182 · Resolución por host: caché corta y solo sitios publicados
 
-- `GET /public/site-by-host?host=`: `<sub>.<SITES_BASE_DOMAIN>` (un solo nivel) o dominio propio; `www.` y el dominio pelado son equivalentes. Solo resuelve sitios **habilitados y publicados** de inmobiliarias activas; todo lo demás es el mismo 404 `SITE_NOT_FOUND`.
+- `GET /public/site-by-host?host=`: `<sub>.<SITES_BASE_DOMAIN>` (un solo nivel) o dominio propio, con **coincidencia exacta** (`www.foo.com` y `foo.com` son nombres distintos: el TXT solo prueba control de uno; si se quieren los dos, se cargan y verifican los dos). Solo resuelve sitios **habilitados y publicados** de inmobiliarias activas; todo lo demás es el mismo 404 `SITE_NOT_FOUND`.
 - Caché en memoria: 30 s los aciertos, 10 s los fallos, tope de 5.000 entradas; se vacía al publicar, despublicar o cambiar un dominio. Con varias instancias, un cambio tarda como mucho el TTL.
 - La consulta es la única de `site` sin tenant en el contexto (`prisma.unscoped`), igual que la de unicidad de subdominio/dominio, que cruza inmobiliarias a propósito.
 
@@ -1141,7 +1141,7 @@ Sale de `adminprop-repo-files/specs/web-inmobiliaria.md` (el contrato es la secc
 ### Supuestos (sitio web)
 
 - **A-137** · Publicar **no exige** subdominio ni dominio propio. Sin ellos, `publicUrl` es la URL por slug (`<SITES_DEV_URL>/_s/<slug>`) en desarrollo y `null` en producción.
-- **A-138** · `www.<dominio>` y `<dominio>` abren el mismo sitio (D-182).
+- **A-138** · ~~`www.<dominio>` y `<dominio>` abren el mismo sitio~~ **Revisado**: la coincidencia del host es exacta (D-182); `www.foo.com` y `foo.com` son dominios distintos y cada uno se verifica por separado.
 - **A-139** · El dominio propio solo se **guarda** y se resuelve: el alta en el hosting y el DNS los hace una persona; no se verifica el DNS.
 - **A-140** · Una propiedad destacada a mano que se borra después de publicar queda en el JSON publicado; el sitio la omite (la API pública no devuelve las no disponibles).
 - **A-141** · Variables de entorno nuevas, todas opcionales: `SITES_BASE_DOMAIN`, `SITES_PROTOCOL` (`https` por defecto), `SITES_DEV_URL` (default `http://localhost:3003` fuera de producción), `SITES_ALLOWED_IMAGE_HOSTS`, `SITES_PREVIEW_SECRET`. **Pendiente de Giuliano**: crearlas en Doppler (vacías) donde corresponda; sin `SITES_BASE_DOMAIN` solo funcionan dominios propios y el acceso por slug.

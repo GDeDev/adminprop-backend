@@ -37,13 +37,33 @@ describe('SiteHostResolver', () => {
     expect(await resolver.resolve('inmo.com.ar')).toBe('slug-t2')
   })
 
-  it('www.<dominio> abre el sitio de <dominio> y al revés', async () => {
-    const { resolver, published } = build()
+  it('la coincidencia es exacta: www.<dominio> y <dominio> son nombres distintos', async () => {
+    const { resolver, published, settings } = build()
     published['inmo.com.ar'] = 't2'
     published['www.otra.com'] = 't3'
 
-    expect(await resolver.resolve('www.inmo.com.ar')).toBe('slug-t2')
-    expect(await resolver.resolve('otra.com')).toBe('slug-t3')
+    expect(await resolver.resolve('inmo.com.ar')).toBe('slug-t2')
+    expect(await resolver.resolve('www.otra.com')).toBe('slug-t3')
+    // Quien verificó uno NO se queda con el otro.
+    expect(await resolver.resolve('www.inmo.com.ar')).toBeNull()
+    expect(await resolver.resolve('otra.com')).toBeNull()
+    // Y la búsqueda nunca prueba la variante con/sin www.
+    const asked = settings.findPublishedByHost.mock.calls.map(([by]) => by)
+    expect(asked).toEqual([
+      { customDomain: 'inmo.com.ar' },
+      { customDomain: 'www.otra.com' },
+      { customDomain: 'www.inmo.com.ar' },
+      { customDomain: 'otra.com' },
+    ])
+  })
+
+  it('dos inmobiliarias que verificaron www.<dominio> y <dominio> resuelven cada una lo suyo', async () => {
+    const { resolver, published } = build()
+    published['www.foo.com'] = 'a'
+    published['foo.com'] = 'b'
+
+    expect(await resolver.resolve('www.foo.com')).toBe('slug-a')
+    expect(await resolver.resolve('foo.com')).toBe('slug-b')
   })
 
   it('un host desconocido, vacío o de una inmobiliaria inactiva es null', async () => {

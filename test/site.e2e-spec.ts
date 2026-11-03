@@ -657,9 +657,8 @@ describe('Sitio web (e2e, Postgres)', () => {
       expect(
         (await byHost('www.mi-inmo.com.ar').expect(200)).body.data.slug,
       ).toBe('tenant-a')
-      expect((await byHost('mi-inmo.com.ar').expect(200)).body.data.slug).toBe(
-        'tenant-a',
-      )
+      // El TXT prueba control de un nombre exacto: el dominio pelado NO resuelve.
+      await byHost('mi-inmo.com.ar').expect(404)
       await byHost('otro.sites.test').expect(404)
       await byHost('otro.com').expect(404)
       await byHost('').expect(404)

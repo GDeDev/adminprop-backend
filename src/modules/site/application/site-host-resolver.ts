@@ -51,21 +51,15 @@ export class SiteHostResolver {
 
   private async lookup(host: string): Promise<string | null> {
     const subdomain = SiteHostPolicy.subdomainOf(host, this.urls.baseDomain)
-    // `www.dominio.com` también abre el sitio de `dominio.com`, y al revés.
-    const candidates = subdomain
-      ? [{ subdomain }]
-      : [
-          { customDomain: host },
-          host.startsWith('www.')
-            ? { customDomain: host.slice(4) }
-            : { customDomain: `www.${host}` },
-        ]
-    for (const candidate of candidates) {
-      const found = await this.settings.findPublishedByHost(candidate)
-      if (!found) continue
-      const tenant = await this.tenants.findActiveById(found.tenantId)
-      if (tenant) return tenant.slug
-    }
-    return null
+    // Coincidencia EXACTA. El TXT de verificación prueba el control de un nombre
+    // concreto: quien verificó `www.foo.com` no demostró controlar `foo.com`
+    // (pueden ser de personas distintas), así que uno no resuelve al otro. Si
+    // la inmobiliaria quiere los dos, carga y verifica los dos.
+    const found = await this.settings.findPublishedByHost(
+      subdomain ? { subdomain } : { customDomain: host },
+    )
+    if (!found) return null
+    const tenant = await this.tenants.findActiveById(found.tenantId)
+    return tenant ? tenant.slug : null
   }
 }
