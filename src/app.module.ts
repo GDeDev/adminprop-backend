@@ -26,6 +26,7 @@ import { InventoryModule } from '@/modules/inventory/public'
 import { NotificationsModule as NotificationsDeliveryModule } from '@/modules/notifications/public'
 import { PublicModule } from '@/modules/public/public'
 import { ReportsModule } from '@/modules/reports/public'
+import { MigrationModule } from '@/modules/migration/public'
 import { ExampleModule } from '@/modules/_example/public'
 import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
 import { QueueModule } from '@/platform/queue/queue.module'
@@ -36,6 +37,7 @@ import { NotificationsModule } from '@/platform/notifications/notifications.modu
 import { IndexSourceModule } from '@/platform/index-source/index-source.module'
 import { PdfModule } from '@/platform/pdf/pdf.module'
 import { ExportsModule } from '@/platform/exports/exports.module'
+import { TokkoModule } from '@/platform/tokko/tokko.module'
 import { PrismaModule } from '@/shared/prisma/prisma.module'
 import { AppConfigModule } from './shared/config/config.module'
 import { RequestContextMiddleware } from './shared/context/request-context.middleware'
@@ -64,6 +66,7 @@ import { SharedModule } from './shared/shared.module'
     IndexSourceModule,
     PdfModule,
     ExportsModule,
+    TokkoModule,
     HealthModule,
     JobsModule,
     TenantsModule,
@@ -84,6 +87,7 @@ import { SharedModule } from './shared/shared.module'
     InventoryModule,
     PublicModule,
     NotificationsDeliveryModule,
+    MigrationModule,
     // Módulos de referencia (Fase 1). No se borran.
     ExampleModule,
     ExampleListenerModule,
