@@ -89,6 +89,11 @@ export interface FeatureFlagsConfig {
 
 export interface EmailConfig {
   provider: EmailProvider
+  /** Remitente (`notificaciones@dominio`); sin valor sale desde un default de desarrollo. */
+  from: string
+  resendApiKey: string | null
+  /** Secreto Svix del webhook; sin él, el webhook responde 503. */
+  resendWebhookSecret: string | null
 }
 
 export interface NotificationsConfig {
@@ -302,6 +307,9 @@ export function configuration(): Configuration {
         process.env.EMAIL_PROVIDER,
         EmailProvider.Console,
       ) as EmailProvider,
+      from: str(process.env.EMAIL_FROM, 'notificaciones@adminprop.local'),
+      resendApiKey: process.env.RESEND_API_KEY || null,
+      resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET || null,
     },
     notifications: {
       provider: str(

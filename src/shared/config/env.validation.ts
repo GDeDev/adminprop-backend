@@ -41,8 +41,10 @@ export enum FeatureFlagsProvider {
 }
 
 export enum EmailProvider {
-  /** Loguea en vez de enviar. El único hasta la Fase 14 (Resend vía Novu). */
+  /** Loguea en vez de enviar. Es el default y el de los tests. */
   Console = 'console',
+  /** Resend (Fase 14): necesita RESEND_API_KEY y un dominio verificado. */
+  Resend = 'resend',
 }
 
 export enum NotificationsProvider {
@@ -339,6 +341,21 @@ export class EnvironmentVariables {
   })
   EMAIL_PROVIDER?: EmailProvider
 
+  /** Remitente de los mails (`notificaciones@dominio`). El nombre visible es el de cada inmobiliaria. */
+  @IsOptional()
+  @IsString()
+  EMAIL_FROM?: string
+
+  /** API key de Resend. Sólo con `EMAIL_PROVIDER=resend`. */
+  @IsOptional()
+  @IsString()
+  RESEND_API_KEY?: string
+
+  /** Secreto Svix (`whsec_...`) con el que se firma el webhook de Resend. */
+  @IsOptional()
+  @IsString()
+  RESEND_WEBHOOK_SECRET?: string
+
   // ------------------------------------------------------------- Notificaciones
   @IsOptional()
   @IsEnum(NotificationsProvider, {
@@ -396,6 +413,11 @@ const PROVIDER_CREDENTIALS: {
       'CLOUDINARY_API_KEY',
       'CLOUDINARY_API_SECRET',
     ],
+  },
+  {
+    applies: (env) => env.EMAIL_PROVIDER === EmailProvider.Resend,
+    provider: 'EMAIL_PROVIDER=resend',
+    variables: ['RESEND_API_KEY', 'EMAIL_FROM'],
   },
   {
     applies: (env) =>
