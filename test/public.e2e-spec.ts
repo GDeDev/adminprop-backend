@@ -270,6 +270,11 @@ describe('Portal público (e2e, Postgres)', () => {
         currency: 'ARS',
         coverPhotoUrl: null,
         amenities: [],
+        // Campos aditivos del sitio web: una propiedad sin datos sale en alquiler.
+        operation: 'RENT',
+        rooms: null,
+        coveredAreaM2: null,
+        ageYears: null,
       })
       // Nada de propietario, contrato ni notas internas.
       const text = JSON.stringify(response.body)
