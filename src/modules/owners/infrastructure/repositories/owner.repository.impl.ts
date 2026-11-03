@@ -55,6 +55,14 @@ export class OwnerRepositoryImpl extends OwnerRepository {
     return rows.map(toDomain)
   }
 
+  async findByNationalIds(nationalIds: string[]): Promise<Owner[]> {
+    if (nationalIds.length === 0) return []
+    const rows = await this.prisma.db.owner.findMany({
+      where: { nationalId: { in: nationalIds } },
+    })
+    return rows.map(toDomain)
+  }
+
   async findByNationalId(nationalId: string): Promise<Owner | null> {
     const row = await this.prisma.db.owner.findFirst({ where: { nationalId } })
     return row ? toDomain(row) : null

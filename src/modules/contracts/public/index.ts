@@ -6,6 +6,8 @@ export { ContractsModule } from '../infrastructure/modules/contracts.module'
 export { ContractsFacade } from './contracts.facade'
 export type {
   ActiveContractRef,
+  ContractImportData,
+  ContractImportSnapshot,
   ContractRef,
   ContractReportRef,
   ExpiringContract,

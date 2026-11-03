@@ -15,6 +15,7 @@ import { RelayContractTerminatedHandler } from '@/modules/contracts/application/
 import { RelayRentUpdateAppliedHandler } from '@/modules/contracts/application/events/relay-rent-update-applied.handler'
 import { RentUpdateApplier } from '@/modules/contracts/application/rent-update-applier'
 import { TerminationDocuments } from '@/modules/contracts/application/termination-document'
+import { ContractImporter } from '@/modules/contracts/application/contract-importer'
 import { ContractParties } from '@/modules/contracts/application/contract-parties'
 import { ContractViews } from '@/modules/contracts/application/contract.views'
 import {
@@ -50,6 +51,7 @@ import { ContractRepositoryImpl } from '../repositories/contract.repository.impl
     { provide: ContractRepository, useClass: ContractRepositoryImpl },
     ContractViews,
     ContractParties,
+    ContractImporter,
     ContractLifecycle,
     RentUpdateApplier,
     RelayRentUpdateAppliedHandler,

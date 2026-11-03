@@ -46,6 +46,14 @@ export class RenterRepositoryImpl extends RenterRepository {
     return rows.map(toDomain)
   }
 
+  async findByNationalIds(nationalIds: string[]): Promise<Renter[]> {
+    if (nationalIds.length === 0) return []
+    const rows = await this.prisma.db.renter.findMany({
+      where: { nationalId: { in: nationalIds } },
+    })
+    return rows.map(toDomain)
+  }
+
   async findByNationalId(nationalId: string): Promise<Renter | null> {
     const row = await this.prisma.db.renter.findFirst({
       where: { nationalId },

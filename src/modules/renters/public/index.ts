@@ -12,3 +12,10 @@ export type {
 } from './renters.facade'
 export { GuaranteeType } from '../domain/guarantor'
 export { PaymentStatus } from '../domain/renter'
+export type {
+  GuarantorImportData,
+  GuarantorImportSnapshot,
+  PersonImportData,
+  RenterImportData,
+  RenterImportSnapshot,
+} from './renters.facade'

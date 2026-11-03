@@ -3,8 +3,10 @@
  */
 export { MasterDataModule } from '../infrastructure/modules/master-data.module'
 export { MasterDataFacade } from './master-data.facade'
+export { UNKNOWN_LOCATION_NAME } from './master-data.facade'
 export type {
   AmenityRef,
+  LocationNodeData,
   LocationRef,
   MasterDataRef,
 } from './master-data.facade'

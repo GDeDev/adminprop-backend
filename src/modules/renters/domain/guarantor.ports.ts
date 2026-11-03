@@ -35,6 +35,9 @@ export abstract class GuarantorRepository {
 
   abstract findByNationalId(nationalId: string): Promise<Guarantor | null>
 
+  /** Los de esos DNI/CUIT, en una sola consulta (migración, Fase 21). */
+  abstract findByNationalIds(nationalIds: string[]): Promise<Guarantor[]>
+
   /** Por apellido y nombre. */
   abstract list(
     filter: GuarantorFilter,

@@ -33,6 +33,8 @@ export interface NewContract {
   notes: string | null
   surety: SuretyData
   renewedFromId: string | null
+  /** Sólo una migración crea contratos ya terminados; el resto nace `ACTIVE`. */
+  status?: ContractStatus
   /** La primera fila de términos, vigente desde `startDate` (D-70). */
   billingTerms: NewBillingTerms
 }

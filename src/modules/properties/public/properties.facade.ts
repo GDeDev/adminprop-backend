@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common'
+import { CommandBus } from '@nestjs/cqrs'
 
+import { fillEmptyFields } from '@/shared/core/fill-empty-fields'
 import { IsoDate, toIsoDate } from '@/shared/dates/calendar-date'
+import {
+  AddPropertyPhotosCommand,
+  CreatePropertyCommand,
+  UpdatePropertyCommand,
+} from '../application/commands/property.commands'
 import { PropertyTypeNames } from '../application/property-type-names'
 import { ListingCurrency, PropertyStatus } from '../domain/property'
 import { PaginatedResult, PaginationQueryDto } from '@/shared/pagination'
@@ -65,6 +72,34 @@ export interface PropertyReportRef {
   createdAt: IsoDate
 }
 
+/** Una propiedad tal como la trae una migración (Fase 21). */
+export interface PropertyImportData {
+  address: string
+  locationId: string
+  propertyTypeId: string
+  ownerId: string | null
+  amenityIds: string[]
+  listingPrice: string | null
+  /** Null: la moneda de la inmobiliaria. */
+  listingCurrency: ListingCurrency | null
+  publicDescription: string | null
+  notes: string | null
+  needsReview: boolean
+}
+
+/** Lo que una migración necesita ver de una propiedad existente. */
+export interface PropertyImportSnapshot {
+  id: string
+  address: string
+  locationId: string
+  ownerId: string | null
+  listingPrice: string | null
+  publicDescription: string | null
+  notes: string | null
+  amenityCount: number
+  activeContractId: string | null
+}
+
 /**
  * Lo que otros módulos pueden preguntarle a propiedades. Dentro del tenant
  * del contexto: un id de otra inmobiliaria es un id que no existe.
@@ -79,6 +114,7 @@ export class PropertiesFacade {
     private readonly properties: PropertyRepository,
     private readonly typeNamesOf: PropertyTypeNames,
     private readonly publicViews: PublicPropertyViews,
+    private readonly commands: CommandBus,
   ) {}
 
   // ---------------------------------------------------- Portal público (Fase 22)
@@ -119,6 +155,72 @@ export class PropertiesFacade {
   async typeNames(ids: string[]): Promise<Map<string, string>> {
     return this.typeNamesOf.of(
       await this.properties.findByIds([...new Set(ids)]),
+    )
+  }
+
+  // ---------------------------------------------------------- Migración (Fase 21)
+
+  /** Las propiedades de esas ubicaciones, para detectar duplicados por dirección. */
+  async listForImport(
+    locationIds: string[],
+  ): Promise<PropertyImportSnapshot[]> {
+    if (locationIds.length === 0) return []
+    const wanted = new Set(locationIds)
+    const properties = await this.properties.listAll({})
+    return properties
+      .filter((property) => wanted.has(property.locationId))
+      .map((property) => ({
+        id: property.id,
+        address: property.address,
+        locationId: property.locationId,
+        ownerId: property.ownerId,
+        listingPrice: property.listingPrice,
+        publicDescription: property.publicDescription,
+        notes: property.notes,
+        amenityCount: property.amenityIds.length,
+        activeContractId: property.activeContractId,
+      }))
+  }
+
+  /** Alta con las mismas validaciones y auditoría que la manual. */
+  async createFromImport(data: PropertyImportData): Promise<string> {
+    const created = await this.commands.execute(
+      new CreatePropertyCommand({
+        ...data,
+        listingCurrency: data.listingCurrency ?? undefined,
+      }),
+    )
+    return created.id
+  }
+
+  /** Completa sólo lo vacío (A-72); devuelve los campos que completó. */
+  async fillEmptyFields(
+    id: string,
+    data: PropertyImportData,
+  ): Promise<string[]> {
+    const property = await this.properties.findById(id)
+    if (!property) return []
+    const patch: Record<string, unknown> = fillEmptyFields(
+      property,
+      data as unknown as Record<string, unknown>,
+      ['ownerId', 'listingPrice', 'publicDescription', 'notes'],
+    )
+    if (property.amenityIds.length === 0 && data.amenityIds.length > 0) {
+      patch.amenityIds = data.amenityIds
+    }
+    if (Object.keys(patch).length > 0) {
+      await this.commands.execute(new UpdatePropertyCommand(id, patch))
+    }
+    return Object.keys(patch)
+  }
+
+  /** Suma una foto traída de otro sistema, al final de las que ya tiene. */
+  async addPhotoFromImport(
+    propertyId: string,
+    photo: { buffer: Buffer; mimeType: string },
+  ): Promise<void> {
+    await this.commands.execute(
+      new AddPropertyPhotosCommand(propertyId, [photo]),
     )
   }
 

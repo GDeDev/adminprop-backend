@@ -42,6 +42,14 @@ export class GuarantorRepositoryImpl extends GuarantorRepository {
     return rows.map(toDomain)
   }
 
+  async findByNationalIds(nationalIds: string[]): Promise<Guarantor[]> {
+    if (nationalIds.length === 0) return []
+    const rows = await this.prisma.db.guarantor.findMany({
+      where: { nationalId: { in: nationalIds } },
+    })
+    return rows.map(toDomain)
+  }
+
   async findByNationalId(nationalId: string): Promise<Guarantor | null> {
     const row = await this.prisma.db.guarantor.findFirst({
       where: { nationalId },

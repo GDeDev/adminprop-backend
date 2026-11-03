@@ -20,3 +20,7 @@ export type {
   PublicPropertyFilter,
   PublicPropertySummaryView,
 } from './properties.facade'
+export type {
+  PropertyImportData,
+  PropertyImportSnapshot,
+} from './properties.facade'

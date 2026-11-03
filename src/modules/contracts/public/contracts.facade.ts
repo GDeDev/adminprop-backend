@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { CommandBus } from '@nestjs/cqrs'
 
 import {
   firstDayOfPeriod,
@@ -7,6 +8,11 @@ import {
   Period,
   todayIso,
 } from '@/shared/dates/calendar-date'
+import { UpdateContractCommand } from '../application/commands/contract.commands'
+import {
+  ContractImporter,
+  ContractImportData,
+} from '../application/contract-importer'
 import { BillingTermsResolver } from '../application/billing-terms-resolver'
 import {
   ContractLifecycle,
@@ -88,6 +94,17 @@ export interface ContractReportRef {
   renewedFromId: string | null
 }
 
+export type { ContractImportData }
+
+/** Un contrato existente, para detectar duplicados al migrar (Fase 21). */
+export interface ContractImportSnapshot {
+  id: string
+  propertyId: string
+  renterId: string
+  startDate: IsoDate
+  notes: string | null
+}
+
 /**
  * Lo que otros módulos pueden pedirle a contratos. Dentro del tenant del
  * contexto. `listDueForRentUpdate` y `finishExpired` son para el cron de la
@@ -101,7 +118,49 @@ export class ContractsFacade {
     private readonly billingTerms: BillingTermsResolver,
     private readonly terminationDocuments: TerminationDocuments,
     private readonly views: ContractViews,
+    private readonly importer: ContractImporter,
+    private readonly commands: CommandBus,
   ) {}
+
+  // ---------------------------------------------------------- Migración (Fase 21)
+
+  /** Los contratos de esas propiedades, en cualquier estado. */
+  async listForImport(
+    propertyIds: string[],
+  ): Promise<ContractImportSnapshot[]> {
+    const found: ContractImportSnapshot[] = []
+    for (const propertyId of [...new Set(propertyIds)]) {
+      const contracts = await this.contracts.listAll({ propertyId })
+      found.push(
+        ...contracts.map((contract) => ({
+          id: contract.id,
+          propertyId: contract.propertyId,
+          renterId: contract.renterId,
+          startDate: contract.startDate,
+          notes: contract.notes,
+        })),
+      )
+    }
+    return found
+  }
+
+  /** Alta con las validaciones de la carga manual (ver `ContractImporter`). */
+  createFromImport(data: ContractImportData): Promise<string> {
+    return this.importer.create(data)
+  }
+
+  /** Completa las notas si el contrato no las tiene (A-72). */
+  async fillEmptyFields(
+    id: string,
+    data: Pick<ContractImportData, 'notes'>,
+  ): Promise<string[]> {
+    const contract = await this.contracts.findById(id)
+    if (!contract || contract.notes || !data.notes) return []
+    await this.commands.execute(
+      new UpdateContractCommand(id, { notes: data.notes }),
+    )
+    return ['notes']
+  }
 
   /**
    * El contrato que ve el inquilino en su portal (Fase 18, A-35): el activo o,

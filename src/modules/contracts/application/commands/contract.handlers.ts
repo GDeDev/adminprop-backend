@@ -87,7 +87,7 @@ function normalizeSurety(surety: SuretyData): SuretyData {
 }
 
 /** Las condiciones económicas y las fechas, validadas y normalizadas. */
-function normalizeTerms(terms: ContractTerms) {
+export function normalizeTerms(terms: ContractTerms) {
   const startDate = ContractPolicy.normalizeDate(terms.startDate, 'startDate')
   const endDate = ContractPolicy.normalizeDate(terms.endDate, 'endDate')
   ContractPolicy.assertDates(startDate, endDate)
@@ -119,7 +119,7 @@ function normalizeTerms(terms: ContractTerms) {
  * sus honorarios al liquidar, salvo que se indique otra cosa; el % es el
  * fijado por D-57; el punitorio se hereda del tenant si no se fija.
  */
-function normalizeBillingTerms(
+export function normalizeBillingTerms(
   input: BillingTermsInput,
   feePercentage: string,
 ): NewBillingTerms {

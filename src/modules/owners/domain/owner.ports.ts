@@ -36,6 +36,9 @@ export abstract class OwnerRepository {
 
   abstract findByNationalId(nationalId: string): Promise<Owner | null>
 
+  /** Los de esos DNI/CUIT, en una sola consulta (migración, Fase 21). */
+  abstract findByNationalIds(nationalIds: string[]): Promise<Owner[]>
+
   /** Los que ya tienen ese CBU (puede haber más de uno: no se bloquea). */
   abstract findByCbu(cbu: string): Promise<Owner[]>
 
