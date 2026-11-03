@@ -26,7 +26,6 @@ import {
 import {
   DnsTxtPort,
   SiteAssetRepository,
-  SiteRevalidationPort,
   SiteSettingsChanges,
   SiteSettingsRepository,
 } from '../domain/site.ports'
@@ -38,6 +37,7 @@ import {
 import { SiteDraftService } from './site-draft.service'
 import { SiteHostResolver } from './site-host-resolver'
 import { SiteUrls } from './site-urls'
+import { SiteChangeNotifier } from './site-change-notifier'
 import { SiteDomainVerification } from './site-domain-verification'
 import {
   PublishSiteCommand,
@@ -261,7 +261,7 @@ export class PublishSiteHandler implements ICommandHandler<
     private readonly drafts: SiteDraftService,
     private readonly resolver: SiteHostResolver,
     private readonly views: SiteViews,
-    private readonly revalidation: SiteRevalidationPort,
+    private readonly notifier: SiteChangeNotifier,
   ) {}
 
   async execute(): Promise<SiteSettingsView> {
@@ -295,7 +295,7 @@ export class PublishSiteHandler implements ICommandHandler<
       publishedById: RequestContext.get()?.userId ?? null,
     })
     this.resolver.invalidate()
-    await this.revalidation.revalidate((await this.drafts.tenantData()).slug)
+    await this.notifier.notify()
     return this.views.settings(updated)
   }
 }
@@ -311,7 +311,7 @@ export class UnpublishSiteHandler implements ICommandHandler<
     private readonly drafts: SiteDraftService,
     private readonly resolver: SiteHostResolver,
     private readonly views: SiteViews,
-    private readonly revalidation: SiteRevalidationPort,
+    private readonly notifier: SiteChangeNotifier,
   ) {}
 
   async execute(): Promise<SiteSettingsView> {
@@ -319,7 +319,7 @@ export class UnpublishSiteHandler implements ICommandHandler<
     if (!current.enabled) return this.views.settings(current)
     const updated = await this.settings.update(current.id, { enabled: false })
     this.resolver.invalidate()
-    await this.revalidation.revalidate((await this.drafts.tenantData()).slug)
+    await this.notifier.notify()
     return this.views.settings(updated)
   }
 }
@@ -341,7 +341,7 @@ export class VerifySiteDomainHandler implements ICommandHandler<
     private readonly dns: DnsTxtPort,
     private readonly resolver: SiteHostResolver,
     private readonly views: SiteViews,
-    private readonly revalidation: SiteRevalidationPort,
+    private readonly notifier: SiteChangeNotifier,
   ) {}
 
   async execute(): Promise<SiteSettingsView> {
@@ -364,7 +364,7 @@ export class VerifySiteDomainHandler implements ICommandHandler<
         customDomainVerifiedAt: new Date(),
       })
       this.resolver.invalidate()
-      await this.revalidation.revalidate((await this.drafts.tenantData()).slug)
+      await this.notifier.notify()
       return this.views.settings(updated)
     } catch (error) {
       if (isUniqueViolation(error)) throw new DomainTakenException()

@@ -5,6 +5,7 @@ import { AuditRecorderModule } from '@/modules/audit/public'
 import { PropertiesModule } from '@/modules/properties/public'
 import { TenantsModule } from '@/modules/tenants/public'
 import { SiteDraftService } from '../../application/site-draft.service'
+import { SiteChangeNotifier } from '../../application/site-change-notifier'
 import { SiteDomainVerification } from '../../application/site-domain-verification'
 import { SiteHostResolver } from '../../application/site-host-resolver'
 import { SitePreviewTokenService } from '../../application/site-preview-token.service'
@@ -61,6 +62,7 @@ import {
     { provide: SiteAssetRepository, useClass: SiteAssetRepositoryImpl },
     { provide: DnsTxtPort, useClass: NodeDnsTxt },
     { provide: SiteRevalidationPort, useClass: HttpSiteRevalidation },
+    SiteChangeNotifier,
     SiteDomainVerification,
     SiteUrls,
     SiteViews,

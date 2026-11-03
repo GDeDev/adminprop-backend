@@ -31,9 +31,11 @@ class FakeDns extends DnsTxtPort {
 
 class FakeRevalidation extends SiteRevalidationPort {
   slugs: string[] = []
+  /** Demora simulada de la otra app (el aviso real tarda hasta 3 s). */
+  delayMs = 0
   revalidate(slug: string): Promise<void> {
     this.slugs.push(slug)
-    return Promise.resolve()
+    return new Promise((resolve) => setTimeout(resolve, this.delayMs))
   }
 }
 
@@ -97,6 +99,7 @@ describe('Sitio web (e2e, Postgres)', () => {
   beforeEach(async () => {
     dns.records.clear()
     revalidation.slugs = []
+    revalidation.delayMs = 0
     await resetDatabase(prisma)
     tenantA = await createTenant(prisma, 'tenant-a')
     tenantB = await createTenant(prisma, 'tenant-b')
@@ -813,6 +816,19 @@ describe('Sitio web (e2e, Postgres)', () => {
       await as(adminA).post('/site/unpublish').expect(200)
       await as(adminA).post('/site/unpublish').expect(200)
       expect(revalidation.slugs).toEqual(['tenant-a', 'tenant-a'])
+    })
+
+    it('publicar no espera al aviso a la app de sitios (aunque tarde 3 s)', async () => {
+      await settingsOf(adminA)
+      revalidation.delayMs = 3_000
+
+      const started = Date.now()
+      await as(adminA).post('/site/publish').expect(200)
+      const elapsed = Date.now() - started
+
+      // Se avisó, pero el administrador no esperó los 3 s.
+      expect(revalidation.slugs).toEqual(['tenant-a'])
+      expect(elapsed).toBeLessThan(2_000)
     })
 
     it('dos pedidos simultáneos del primer acceso crean una sola configuración (sin 500)', async () => {

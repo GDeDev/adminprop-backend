@@ -1162,7 +1162,9 @@ Sale de `adminprop-repo-files/specs/web-inmobiliaria.md` (el contrato es la secc
 
 ### D-191 · Aviso a `apps/sites` al publicar (`SiteRevalidationPort`)
 
-Publicar, despublicar y verificar un dominio llaman a `POST <SITES_REVALIDATE_URL>/api/revalidate` con `Authorization: Bearer <SITES_REVALIDATE_SECRET>` y `{ slug }` (3 s de timeout). **Nunca falla**: si la otra app no responde, se loguea y el sitio se actualiza solo al vencer su caché (60 s). Sin URL y secreto configurados no hace nada. Antes un cambio podía tardar hasta ~2 minutos en verse.
+Publicar, despublicar y verificar un dominio llaman a `POST <SITES_REVALIDATE_URL>/api/revalidate` con `Authorization: Bearer <SITES_REVALIDATE_SECRET>` y `{ slug }` (3 s de timeout). **No se espera ni falla el request** (`SiteChangeNotifier`: se dispara sin `await`, con el error logueado; antes el administrador esperaba hasta 3 s). Aplica a publicar, despublicar, verificar dominio y cambiar subdominio o dominio.
+
+El puerto además **nunca lanza**: si la otra app no responde, se loguea y el sitio se actualiza solo al vencer su caché (60 s). Sin URL y secreto configurados no hace nada. Antes un cambio podía tardar hasta ~2 minutos en verse.
 
 ### D-192 · Auditoría del borrador: qué se tocó, sin el contenido
 
