@@ -11,4 +11,8 @@ export type {
   PropertyContractInfo,
   PropertyReportRef,
   PropertyRef,
+  PublicFiltersView,
+  PublicPropertyDetailView,
+  PublicPropertyFilter,
+  PublicPropertySummaryView,
 } from './properties.facade'

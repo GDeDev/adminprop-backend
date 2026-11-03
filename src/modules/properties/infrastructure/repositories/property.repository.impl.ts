@@ -107,7 +107,7 @@ export class PropertyRepositoryImpl extends PropertyRepository {
     const [rows, total] = await this.prisma.db.$transaction([
       this.prisma.db.property.findMany({
         where,
-        include: ALL_PHOTOS,
+        include: MAIN_PHOTO,
         orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
         ...page,
       }),

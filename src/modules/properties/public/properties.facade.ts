@@ -3,9 +3,26 @@ import { Injectable } from '@nestjs/common'
 import { IsoDate, toIsoDate } from '@/shared/dates/calendar-date'
 import { PropertyTypeNames } from '../application/property-type-names'
 import { PropertyStatus } from '../domain/property'
-import { PropertyRepository } from '../domain/property.ports'
+import { PaginatedResult, PaginationQueryDto } from '@/shared/pagination'
+import { paginateWith } from '@/shared/pagination/pagination'
+import {
+  PublicFiltersView,
+  PublicPropertyDetailView,
+  PublicPropertySummaryView,
+  PublicPropertyViews,
+} from '../application/public-property.views'
+import {
+  PropertyRepository,
+  PublicPropertyFilter,
+} from '../domain/property.ports'
 
 export { PropertyStatus }
+export type {
+  PublicFiltersView,
+  PublicPropertyDetailView,
+  PublicPropertySummaryView,
+  PublicPropertyFilter,
+}
 
 export interface OwnerPortfolio {
   /** Todas sus propiedades no borradas. */
@@ -61,7 +78,41 @@ export class PropertiesFacade {
   constructor(
     private readonly properties: PropertyRepository,
     private readonly typeNamesOf: PropertyTypeNames,
+    private readonly publicViews: PublicPropertyViews,
   ) {}
+
+  // ---------------------------------------------------- Portal público (Fase 22)
+  // Dentro del tenant del contexto. Sólo propiedades `AVAILABLE` y sólo la
+  // lista blanca de `PublicPropertyViews`: nada de propietario ni contrato.
+
+  /** Disponibles, más nuevas primero (`GET /public/:slug/properties`). */
+  listPublic(
+    filter: PublicPropertyFilter,
+    page: Partial<PaginationQueryDto>,
+  ): Promise<PaginatedResult<PublicPropertySummaryView>> {
+    return paginateWith(page, async (args) => {
+      const [properties, total] = await this.properties.listPublic(filter, args)
+      return [await this.publicViews.summaries(properties), total]
+    })
+  }
+
+  /** La ficha pública, o null si no existe o ya no está disponible. */
+  async getPublic(id: string): Promise<PublicPropertyDetailView | null> {
+    const property = await this.properties.findPublicById(id)
+    return property ? this.publicViews.detail(property) : null
+  }
+
+  /** Si la propiedad está disponible para el público (valida las consultas). */
+  async isPublic(id: string): Promise<boolean> {
+    return (await this.properties.findPublicById(id)) !== null
+  }
+
+  /** Tipos y ubicaciones de las propiedades disponibles, para los selects. */
+  async publicFilters(): Promise<PublicFiltersView> {
+    const { propertyTypeIds, locationIds } =
+      await this.properties.publicFilterOptions()
+    return this.publicViews.filters(propertyTypeIds, locationIds)
+  }
 
   /** Nombre del tipo de cada propiedad (casa, departamento…), para el portal (Fase 18). */
   async typeNames(ids: string[]): Promise<Map<string, string>> {
