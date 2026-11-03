@@ -57,11 +57,15 @@ export class PgBossQueueAdapter extends QueuePort {
   declare(definition: QueueDefinition): Promise<void> {
     let pending = this.declared.get(definition.name)
     if (!pending) {
-      pending = this.createQueues(definition)
+      // De a una: createQueue concurrente produce deadlocks en Postgres.
+      pending = this.queueSetup.then(() => this.createQueues(definition))
+      this.queueSetup = pending.catch(() => undefined)
       this.declared.set(definition.name, pending)
     }
     return pending
   }
+
+  private queueSetup: Promise<unknown> = Promise.resolve()
 
   async publish<T extends object>(
     definition: QueueDefinition,
