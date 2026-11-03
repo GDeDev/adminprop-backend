@@ -13,6 +13,7 @@ import {
 } from '../src/modules/valuation/domain/valuation.ports'
 import { FakeComparableSource } from '../src/modules/valuation/infrastructure/sources/fake.source'
 import { ValuationFacade } from '../src/modules/valuation/public'
+import { MarketSource as Source } from '../src/modules/valuation/domain/market'
 import { PrismaService } from '../src/shared/prisma/prisma.service'
 import { createTestApp, loginAs, loginToPortalAs } from './utils/app'
 import { createTenant, createUser, resetDatabase } from './utils/database'
@@ -30,7 +31,7 @@ const LA_PLATA = 'buenos-aires/la-plata'
 class ScriptedSource extends ComparableSourcePort {
   calls = 0
   constructor(
-    readonly source: MarketSource,
+    readonly source: Source,
     private behaviour: 'blocked' | 'parse' | 'empty',
   ) {
     super()
@@ -38,10 +39,10 @@ class ScriptedSource extends ComparableSourcePort {
   async search(): Promise<SourcePage> {
     this.calls += 1
     if (this.behaviour === 'blocked') {
-      throw new SourceBlockedError(this.source as never, 'HTTP 403')
+      throw new SourceBlockedError(this.source, 'HTTP 403')
     }
     if (this.behaviour === 'parse') {
-      throw new SourceParseError(this.source as never, 'cambió la estructura')
+      throw new SourceParseError(this.source, 'cambió la estructura')
     }
     return { items: [], hasMore: false }
   }
@@ -310,7 +311,7 @@ describe('Tasación automática (e2e, Postgres)', () => {
         .post(`/valuation/properties/${propertyId}/appraise`)
         .send({})
         .expect(422)
-      expect(res.body.error.code).toBe('INSUFFICIENT_MARKET_DATA')
+      expect(res.body.code).toBe('INSUFFICIENT_MARKET_DATA')
 
       // En dólares sí hay datos.
       await api(adminToken)
@@ -332,8 +333,8 @@ describe('Tasación automática (e2e, Postgres)', () => {
         .send({})
         .expect(422)
 
-      expect(res.body.error.code).toBe('INSUFFICIENT_MARKET_DATA')
-      expect(res.body.error.message).toBe(
+      expect(res.body.code).toBe('INSUFFICIENT_MARKET_DATA')
+      expect(res.body.message).toBe(
         'No hay suficientes datos de mercado para esta zona todavía',
       )
       const zone = await prisma.valuationZone.findFirstOrThrow({
@@ -422,7 +423,7 @@ describe('Tasación automática (e2e, Postgres)', () => {
         .post(`/valuation/properties/${propertyId}/appraise`)
         .send({ bedrooms: 5 })
         .expect(429)
-      expect(res.body.error.code).toBe('VALUATION_DAILY_LIMIT')
+      expect(res.body.code).toBe('VALUATION_DAILY_LIMIT')
 
       // Repetir una idéntica sigue andando: no cuenta.
       await api(adminToken)
@@ -432,11 +433,7 @@ describe('Tasación automática (e2e, Postgres)', () => {
 
       // El límite es por inmobiliaria: la otra no se entera.
       await seedComparables(TOLOSA, ['1'], { category: 'HOUSE' })
-      const other = await createProperty(
-        adminBToken,
-        refsB.tolosa,
-        refsB.casa,
-      )
+      const other = await createProperty(adminBToken, refsB.tolosa, refsB.casa)
       await api(adminBToken)
         .post(`/valuation/properties/${other}/appraise`)
         .send({})
@@ -461,7 +458,10 @@ describe('Tasación automática (e2e, Postgres)', () => {
         .get(`/valuation/properties/${propertyId}/history?page=1&limit=2`)
         .expect(200)
       expect(page1.body.data.data).toHaveLength(2)
-      expect(page1.body.data.pagination).toMatchObject({ total: 3, totalPages: 2 })
+      expect(page1.body.data.pagination).toMatchObject({
+        total: 3,
+        totalPages: 2,
+      })
       const dates = page1.body.data.data.map((r: any) => r.createdAt)
       expect(dates[0] >= dates[1]).toBe(true)
       expect(page1.body.data.data[0].requestedBy.fullName).toBe('emp@a.com')
@@ -513,7 +513,9 @@ describe('Tasación automática (e2e, Postgres)', () => {
         ).body.data.data,
       ).toHaveLength(1)
       expect(
-        await prisma.valuationRequest.count({ where: { tenantId: tenantA.id } }),
+        await prisma.valuationRequest.count({
+          where: { tenantId: tenantA.id },
+        }),
       ).toBe(1)
     })
 
@@ -553,7 +555,12 @@ describe('Tasación automática (e2e, Postgres)', () => {
         email: 'inquilino@a.com',
         role: Role.RENTER,
       })
-      const owner = await loginToPortalAs(app, 'tenant-a', 'duenio@a.com', 'OWNER')
+      const owner = await loginToPortalAs(
+        app,
+        'tenant-a',
+        'duenio@a.com',
+        'OWNER',
+      )
       const renter = await loginToPortalAs(
         app,
         'tenant-a',
@@ -627,7 +634,9 @@ describe('Tasación automática (e2e, Postgres)', () => {
     })
 
     it('market-status muestra cada fuente: las no activadas, DISABLED', async () => {
-      const res = await api(adminToken).get('/valuation/market-status').expect(200)
+      const res = await api(adminToken)
+        .get('/valuation/market-status')
+        .expect(200)
 
       expect(res.body.data.maxAgeDays).toBe(45)
       const bySource = Object.fromEntries(
@@ -655,9 +664,6 @@ describe('Tasación automática (e2e, Postgres)', () => {
       expect(first.sources[0]).toMatchObject({ source: 'FAKE', result: 'OK' })
       const count = await prisma.marketComparable.count()
       expect(count).toBe(20)
-      expect(
-        await prisma.marketComparable.count({ where: { tenantId: undefined } as never }),
-      ).toBe(20)
 
       // Una zona se corre a lo sumo una vez cada 24 h.
       const second = await facade.refreshComparables()
@@ -680,7 +686,9 @@ describe('Tasación automática (e2e, Postgres)', () => {
       expect(forced.updated).toBe(20)
       expect(await prisma.marketComparable.count()).toBe(20)
 
-      const status = await api(adminToken).get('/valuation/market-status').expect(200)
+      const status = await api(adminToken)
+        .get('/valuation/market-status')
+        .expect(200)
       expect(
         status.body.data.sources.find((s: any) => s.source === 'FAKE'),
       ).toMatchObject({ status: 'OK', activeComparables: 20 })
@@ -704,8 +712,8 @@ describe('Tasación automática (e2e, Postgres)', () => {
 
     it('una fuente BLOQUEADA o con PARSE_ERROR no rompe a las demás ni al job', async () => {
       registry.push(
-        new ScriptedSource(MarketSource.ZONAPROP, 'blocked'),
-        new ScriptedSource(MarketSource.ARGENPROP, 'parse'),
+        new ScriptedSource(Source.ZONAPROP, 'blocked'),
+        new ScriptedSource(Source.ARGENPROP, 'parse'),
       )
       await createProperty(adminToken, refsA.tolosa, refsA.casa)
 
@@ -721,12 +729,17 @@ describe('Tasación automática (e2e, Postgres)', () => {
       })
       expect(await prisma.marketComparable.count()).toBe(20)
       const states = Object.fromEntries(
-        (await prisma.valuationSourceState.findMany()).map((s) => [s.source, s]),
+        (await prisma.valuationSourceState.findMany()).map((s) => [
+          s.source,
+          s,
+        ]),
       )
       expect(states.ZONAPROP.blockedUntil).not.toBeNull()
       expect(states.FAKE.consecutiveFailures).toBe(0)
 
-      const status = await api(adminToken).get('/valuation/market-status').expect(200)
+      const status = await api(adminToken)
+        .get('/valuation/market-status')
+        .expect(200)
       const by = Object.fromEntries(
         status.body.data.sources.map((s: any) => [s.source, s.status]),
       )
@@ -755,7 +768,7 @@ describe('Tasación automática (e2e, Postgres)', () => {
     })
 
     it('si todas las fuentes fallan el job termina FAILED', async () => {
-      fake.failWith(new SourceParseError(MarketSource.FAKE as never, 'roto'))
+      fake.failWith(new SourceParseError(Source.FAKE, 'roto'))
       await createProperty(adminToken, refsA.tolosa, refsA.casa)
 
       const res = await api(adminToken)
@@ -797,13 +810,15 @@ describe('Tasación automática (e2e, Postgres)', () => {
         const summary = await service.refresh(refs, new Date())
         expect(summary.staleSources).toEqual(run === 2 ? ['FAKE'] : [])
       }
-      await service.notifyStale(['FAKE'], new Date())
-      await service.notifyStale(['FAKE'], new Date())
+      await service.notifyStale([Source.FAKE], new Date())
+      await service.notifyStale([Source.FAKE], new Date())
 
-      const alerts = await prisma.notification.findMany({
+      const alerts = await prisma.notificationLog.findMany({
         where: { type: 'COMPARABLES_SOURCE_STALE' },
       })
-      expect(alerts.map((a) => a.tenantId)).toEqual([tenantA.id])
+      expect(alerts.map((a: { tenantId: string }) => a.tenantId)).toEqual([
+        tenantA.id,
+      ])
     })
 
     it('POST /valuation/zones/refresh (admin) encola y responde 202 con un AsyncJob', async () => {
@@ -816,8 +831,9 @@ describe('Tasación automática (e2e, Postgres)', () => {
 
       let status = ''
       await waitFor(async () => {
-        status = (await api(adminToken).get(`/jobs/${jobId}/status`).expect(200))
-          .body.data.status
+        status = (
+          await api(adminToken).get(`/jobs/${jobId}/status`).expect(200)
+        ).body.data.status
         return ['COMPLETED', 'FAILED'].includes(status)
       })
       expect(status).toBe('COMPLETED')
