@@ -1162,3 +1162,67 @@ Sale de `adminprop-repo-files/docs/REDISENO_FASE_21.md` (que numera sus supuesto
 - **A-129** · La muestra de Tokko (`src/platform/tokko/fixtures`) está armada a mano con la forma de `property/search` que usa el mapper: el repo no trae las muestras que genera `tokko_scraper.js`. **Confirmar el mapeo en la primera corrida con la key de prueba** (`tokko-mapper.ts` es el único lugar a corregir).
 - **A-130** · Pasada la cantidad máxima de fotos por propiedad (20), las que sobran fallan con el mensaje de la regla y se pueden ver en el reporte.
 - **A-131** · Un lote `IMPORTING` interrumpido no se recupera solo; se vuelve a analizar el mismo archivo y sólo se importa lo que falta.
+
+---
+
+## Fase 24
+
+Sale de `adminprop-repo-files/docs/REDISENO_FASE_24.md` (que numera sus supuestos A-60 a A-69 y se implementaron tal cual) y de `shared-types/valuation.ts`. Rama `feature/fase-24-tasacion`, encadenada sobre la Fase 21.
+
+### D-173 · Los datos de mercado no llevan tenant
+
+- **Contexto**: los avisos de alquiler son del mercado, iguales para todas las inmobiliarias; la tasación sí es de cada una.
+- **Decisión**: `market_comparables`, `valuation_zones` y `valuation_source_states` no tienen `tenant_id` ni auditoría (`tenantScoped: false, audit: false` en `auditable-models.ts`, documentado en el test de modelos con tenant); los escribe el job global y cada fila dice cuándo se vio. `valuation_requests` es tenant-scoped, auditada y sin borrado. `valuation_zones.requested_count` cuenta cuántas veces se pidió (no cuántos tenants, como decía el rediseño) y se agregó `valuation_source_states` (no estaba en el rediseño) para guardar entre corridas el bloqueo y las fallas seguidas.
+- **Por qué**: compartir el caché abarata el scraping y no filtra nada de ninguna inmobiliaria; el resto sigue aislado por tenant.
+
+### D-174 · Zona de mercado por nombres y categoría por sinónimos
+
+- **Decisión**: `zone_key` = slug de los nombres de la jerarquía de ubicaciones del tenant sin el país (`caba/palermo`); la zona padre es la clave sin el último tramo, y la etiqueta son los dos últimos nombres. El tipo de propiedad se mapea a `MarketCategory` con una tabla de sinónimos en código; lo no reconocido es `OTHER` y no se descubre para refrescar. Una ubicación sin nombres usables da 422 `VALUATION_NO_ZONE`.
+- **Por qué**: las ubicaciones y tipos son por inmobiliaria y el caché es global; el nombre es lo único que comparten.
+
+### D-175 · Fuentes detrás de un puerto; la simulada es el default
+
+- **Decisión**: `ComparableSourcePort` con `FakeComparableSource` (default, `COMPARABLES_SOURCES=fake`) y una fuente por portal. `env.validation` rechaza fuentes desconocidas y **rechaza `fake` en producción**. Cero scraping real en CI.
+- **Por qué**: que datos inventados no lleguen jamás a una tasación real.
+
+### D-176 · Redondeo para mostrar: centena en pesos, decena en dólares
+
+- **Decisión**: el DTO trae el valor exacto en `suggestedPrice` y `suggestedPriceRounded` redondeado a 100 (ARS) o a 10 (USD). El rediseño decía «centena» sin distinguir moneda; 100 dólares sería un salto enorme.
+
+### D-177 · Detalles del cálculo que el rediseño no fijaba
+
+- **Decisión**: en base por m², un aviso sin superficie o con más de 35 % de diferencia **no entra y no cuenta como descartado** (no es un atípico, es no comparable); `discarded` son sólo precios ≤ 0 y atípicos por IQR (con 5 o más candidatos). Peso por ambientes: +0,5 si son iguales, +0,25 si difieren en uno, 0 si no. El percentil ponderado devuelve el primer valor que supera el peso objetivo y, si lo iguala, el promedio con el siguiente. Se toman a lo sumo los 500 avisos vistos más recientemente. La ampliación a la zona padre incluye sus descendientes. Las constantes son exportadas de `valuation-policy.ts`.
+- **Por qué**: los descartes deben informar sólo lo que el usuario entiende como «precio atípico»; el resto quedaba ambiguo.
+
+### D-178 · El redactor sólo ve hechos ya calculados
+
+- **Decisión**: `ValuationNarratorPort` recibe `ValuationFacts` (números, etiqueta de zona, confianza) y nunca dirección, propietario ni datos de la ficha. `LlmNarrator` (`VALUATION_NARRATOR=llm` y `ANTHROPIC_API_KEY`; Anthropic por HTTP, sin SDK nuevo, timeout 15 s, modelo `VALUATION_LLM_MODEL`) limpia el texto (HTML, enlaces, markdown, tope 700) y lo descarta si menciona una cifra que no está entre los hechos, si viene vacío o si falla la llamada; queda la plantilla. `engine = STATISTICAL_LLM` sólo si se usó el texto del modelo. Con `llm` y sin clave se avisa en el arranque y se usa la plantilla.
+- **Nota**: los comentarios del código citan esta regla como «A-70», número que en esta rama ya usa el rediseño de la Fase 21; la regla es esta D-178.
+
+### D-179 · Límite diario y reutilización
+
+- **Decisión**: el límite es `VALUATION_DAILY_LIMIT` (default 30, configurable en vez de la constante del rediseño) y se cuenta en **ventana móvil de 24 h**, no por día calendario. Una tasación idéntica (sha-256 del sujeto, moneda, zona y categoría) en las últimas 6 h se devuelve con `reused: true`, con status 201, y no cuenta contra el límite: la reutilización se resuelve antes del chequeo del límite. La zona se registra (`touch`) antes de calcular, aunque falten datos.
+- **Por qué**: la ventana móvil evita el reinicio a medianoche; registrar la zona asegura que el próximo refresco cubra lo que se pidió.
+
+### D-180 · Refresco global, estado de las fuentes y aviso de rotura
+
+- **Decisión**: job `valuation.refresh-comparables` (global, 03:00, catálogo de la Fase 13): descubre las zonas de las propiedades disponibles de cada tenant (categoría distinta de `OTHER`) y refresca hasta `VALUATION_ZONES_PER_RUN` zonas con más de 24 h. Por fuente: la bloqueada (`blocked_until`) se saltea; ante bloqueo o parser roto se corta **esa fuente** para el resto de la corrida y las demás siguen. Una corrida sin datos, bloqueada o con error suma una falla; con datos, las borra. 3 fallas seguidas generan `COMPARABLES_SOURCE_STALE` (una vez por día y fuente, sólo a inmobiliarias que tasaron en los últimos 30 días). Resultado del job: `SKIPPED` sin fuentes activas, `FAILED` si todas las que corrieron fallaron, `PARTIAL` si alguna falló o hay obsoletas, `SUCCEEDED` si no. Lo no visto en 30 días se da de baja. La corrida manual (`POST /valuation/zones/refresh`, admin) es un `AsyncJob` por cola con `retryLimit: 0`.
+- **Por qué**: no insistir contra un bloqueo ni contra un parser roto; que una rotura silenciosa no pase meses desapercibida.
+
+### D-181 · Portales sin validar contra los sitios reales
+
+- **Decisión**: las URL de búsqueda y los selectores de los tres parsers se escribieron contra fixtures HTML hechos a mano (`test/fixtures/valuation/`), **no contra los sitios reales**. Una página sin tarjetas que no diga que está vacía, o con más de la mitad sin precio o id, es `PARSE_ERROR`, nunca «0 comparables». Cortesía en `PageFetcher`: `User-Agent` con contacto (`VALUATION_SCRAPER_CONTACT`), `robots.txt` (caché 24 h), una request cada 2,5 s por dominio, un reintento con backoff de 10 s ante 403/429 y después bloqueo de 24 h. La primera corrida con fuentes reales es supervisada y los términos de uso de cada portal se revisan antes con Giuliano (A-62).
+
+### D-182 · pg-boss: las colas se declaran de a una
+
+- **Contexto**: varios consumidores arrancando juntos llamaban a `createQueue` en paralelo y Postgres entraba en deadlock, abortando el arranque de la app (se vio en el e2e de tasación, al sumar la cola `valuation-refresh-zone`).
+- **Decisión**: `PgBossQueueAdapter.declare` encadena las declaraciones en una promesa (`queueSetup`), de modo que se creen secuencialmente; el error de una no frena a las siguientes. Las llamadas repetidas con el mismo nombre siguen compartiendo la misma promesa.
+- **Por qué**: el arranque es una sola vez y la lista de colas es corta; serializar cuesta milisegundos y elimina el deadlock para todos los módulos, no sólo para este.
+
+### Supuestos a confirmar con Micaela y Giuliano (Fase 24)
+
+Los A-60 a A-69 están en el rediseño y se implementaron tal cual (motor estadístico, zona por nombres, sólo atributos del aviso, zonas pedidas o con propiedades, sin conversión de moneda, sin avisos individuales, límite diario, reutilización de 6 h, sólo alquiler, superficie y ambientes en el request). Lo que queda abierto:
+
+- Contrastar el rango y los pesos con tasaciones reales de Micaela (D-177).
+- Los términos de uso de los portales y la primera corrida supervisada (D-181, A-62).
+- Si el límite de 30 por día debe ser por plan cuando existan planes (D-179).
