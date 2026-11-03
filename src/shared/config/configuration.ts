@@ -112,6 +112,18 @@ export interface AutomationsConfig {
   indexSource: IndexSourceProvider
 }
 
+export interface SitesConfig {
+  /** Dominio de los subdominios de sitios, en minúsculas; null si no hay. */
+  baseDomain: string | null
+  protocol: 'http' | 'https'
+  /** Base del acceso por slug (`/_s/<slug>`); null en producción. */
+  devUrl: string | null
+  /** Hosts https permitidos para imágenes además de nuestro storage. */
+  allowedImageHosts: string[]
+  /** Secreto del token de vista previa. */
+  previewSecret: string
+}
+
 export interface Configuration {
   app: AppConfig
   database: DatabaseConfig
@@ -126,6 +138,7 @@ export interface Configuration {
   notifications: NotificationsConfig
   automations: AutomationsConfig
   pdf: PdfConfig
+  sites: SitesConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -325,6 +338,25 @@ export function configuration(): Configuration {
         process.env.PDF_PROVIDER,
         PdfProvider.Pdfmake,
       ) as PdfProvider,
+    },
+    sites: {
+      baseDomain:
+        str(process.env.SITES_BASE_DOMAIN, '').trim().toLowerCase() || null,
+      protocol:
+        str(process.env.SITES_PROTOCOL, 'https') === 'http' ? 'http' : 'https',
+      devUrl: process.env.SITES_DEV_URL
+        ? process.env.SITES_DEV_URL.replace(/\/+$/, '')
+        : isProduction
+          ? null
+          : 'http://localhost:3003',
+      allowedImageHosts: str(process.env.SITES_ALLOWED_IMAGE_HOSTS, '')
+        .split(',')
+        .map((h) => h.trim().toLowerCase())
+        .filter(Boolean),
+      previewSecret: str(
+        process.env.SITES_PREVIEW_SECRET,
+        `site-preview:${required(process.env.JWT_ACCESS_SECRET, 'JWT_ACCESS_SECRET')}`,
+      ),
     },
     automations: {
       enabled: bool(process.env.AUTOMATIONS_ENABLED, true),

@@ -25,6 +25,7 @@ import { AuditModule } from '@/modules/audit/public'
 import { InventoryModule } from '@/modules/inventory/public'
 import { NotificationsModule as NotificationsDeliveryModule } from '@/modules/notifications/public'
 import { PublicModule } from '@/modules/public/public'
+import { SiteModule } from '@/modules/site/public'
 import { ReportsModule } from '@/modules/reports/public'
 import { ExampleModule } from '@/modules/_example/public'
 import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
@@ -83,6 +84,7 @@ import { SharedModule } from './shared/shared.module'
     ReportsModule,
     InventoryModule,
     PublicModule,
+    SiteModule,
     NotificationsDeliveryModule,
     // Módulos de referencia (Fase 1). No se borran.
     ExampleModule,

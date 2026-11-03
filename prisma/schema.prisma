@@ -158,6 +158,9 @@ model Tenant {
   feePayments           FeePayment[]
   feePaymentAllocations FeePaymentAllocation[]
 
+  siteSettings SiteSettings?
+  siteAssets   SiteAsset[]
+
   @@map("tenants")
 }
 
@@ -2283,4 +2286,62 @@ model WhatsAppTemplate {
 
   @@unique([tenantId, key])
   @@map("whatsapp_templates")
+}
+
+// ---------------------------------------------------------------------------
+// Sitio web de la inmobiliaria (generador de sitios)
+// ---------------------------------------------------------------------------
+
+enum SiteTemplateKey {
+  CLASSIC
+  MODERN
+}
+
+/// Configuración del sitio web de una inmobiliaria (una fila por tenant). El
+/// editor escribe `draft`; el sitio público lee `published`, que se copia del
+/// borrador al publicar. Ambos son el `SiteSettingsDraft` del contrato.
+model SiteSettings {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @unique @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  enabled      Boolean         @default(false)
+  /// Espejo de `draft.template`; lo mantiene la aplicación.
+  templateKey  SiteTemplateKey @default(CLASSIC) @map("template_key")
+  /// Único global: minúsculas, [a-z0-9-], sin reservados.
+  subdomain    String?         @unique @db.VarChar(63)
+  customDomain String?         @unique @map("custom_domain") @db.VarChar(253)
+
+  draft         Json
+  published     Json?
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(3)
+  publishedById String?   @map("published_by_id") @db.Uuid
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@map("site_settings")
+}
+
+/// Imagen subida desde el editor del sitio. Sirve para saber qué URLs son
+/// nuestras al validar el contenido.
+model SiteAsset {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  storageKey  String @map("storage_key") @db.VarChar(500)
+  url         String @db.VarChar(1000)
+  contentType String @map("content_type") @db.VarChar(100)
+  sizeBytes   Int    @map("size_bytes")
+  width       Int?
+  height      Int?
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+
+  @@index([tenantId, url])
+  @@map("site_assets")
 }

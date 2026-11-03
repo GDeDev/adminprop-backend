@@ -375,6 +375,38 @@ export class EnvironmentVariables {
   })
   PDF_PROVIDER?: PdfProvider
 
+  // ------------------------------------------------------------ Sitios web
+  /**
+   * Dominio bajo el que viven los sitios por subdominio (`<sub>.<dominio>`).
+   * Sin valor, solo se resuelven dominios propios y el acceso por slug.
+   */
+  @IsOptional()
+  @IsString()
+  SITES_BASE_DOMAIN?: string
+
+  /** `https` (default) o `http` (desarrollo con *.lvh.me). */
+  @IsOptional()
+  @IsString()
+  SITES_PROTOCOL?: string
+
+  /**
+   * URL de la app de sitios para el acceso por slug (`<url>/_s/<slug>`).
+   * Default en desarrollo: http://localhost:3003. En producción, sin valor.
+   */
+  @IsOptional()
+  @IsString()
+  SITES_DEV_URL?: string
+
+  /** Hosts https extra desde los que se admiten imágenes (separados por coma). */
+  @IsOptional()
+  @IsString()
+  SITES_ALLOWED_IMAGE_HOSTS?: string
+
+  /** Secreto de la vista previa del sitio. Sin valor, se deriva de JWT_ACCESS_SECRET. */
+  @IsOptional()
+  @IsString()
+  SITES_PREVIEW_SECRET?: string
+
   // ---------------------------------------------------------- Automatizaciones
   @IsOptional()
   @IsEnum(IndexSourceProvider, {
