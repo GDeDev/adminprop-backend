@@ -1144,7 +1144,7 @@ Sale de `adminprop-repo-files/specs/web-inmobiliaria.md` (el contrato es la secc
 - **A-138** · ~~`www.<dominio>` y `<dominio>` abren el mismo sitio~~ **Revisado**: la coincidencia del host es exacta (D-182); `www.foo.com` y `foo.com` son dominios distintos y cada uno se verifica por separado.
 - **A-139** · El dominio propio solo se **guarda** y se resuelve: el alta en el hosting y el DNS los hace una persona; no se verifica el DNS.
 - **A-140** · Una propiedad destacada a mano que se borra después de publicar queda en el JSON publicado; el sitio la omite (la API pública no devuelve las no disponibles).
-- **A-141** · Variables de entorno nuevas, todas opcionales: `SITES_BASE_DOMAIN`, `SITES_PROTOCOL` (`https` por defecto), `SITES_DEV_URL` (default `http://localhost:3003` fuera de producción), `SITES_ALLOWED_IMAGE_HOSTS`, `SITES_PREVIEW_SECRET`. **Pendiente de Giuliano**: crearlas en Doppler (vacías) donde corresponda; sin `SITES_BASE_DOMAIN` solo funcionan dominios propios y el acceso por slug.
+- **A-141** · Variables de entorno nuevas, todas opcionales: `SITES_BASE_DOMAIN`, `SITES_PROTOCOL` (`https` por defecto), `SITES_DEV_URL` (default `http://localhost:3003` fuera de producción), `SITES_ALLOWED_IMAGE_HOSTS`, `SITES_PREVIEW_SECRET` (**obligatoria en producción**, D-198). **Pendiente de Giuliano**: crearlas en Doppler (vacías) donde corresponda; sin `SITES_BASE_DOMAIN` solo funcionan dominios propios y el acceso por slug.
 - **A-142** · En producción `TRUST_PROXY=true` y, si el servidor de `apps/sites` comparte IP con muchos visitantes, los topes de D-188 pueden ser chicos: revisarlos con tráfico real.
 - **A-143** · Una inmobiliaria desactivada deja de resolver su sitio (404) aunque esté publicado.
 - **A-144** · Máximos de longitud de campos que la spec no fijó (títulos de sección 120, textos de pasos 300, servicios 500, testimonios 600, respuestas 1500, SEO 70/200) y límite de 200 imágenes por inmobiliaria: elegidos como razonables, fáciles de cambiar en `SITE_LIMITS`.
@@ -1202,3 +1202,9 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Por qué no `x-site-slug`**: lo puede mandar cualquiera, así que no protege nada.
 - **Contra**: el secreto es una credencial más para rotar y quien lo tenga puede leer sin tope (solo lecturas públicas). Rotarlo requiere cambiarlo a la vez en la API y en `apps/sites`.
 - Supera la parte de A-142 que decía que había que revisar los topes con tráfico real para el servidor de sitios (los topes por IP siguen valiendo para el resto de los clientes).
+
+### D-198 · `SITES_PREVIEW_SECRET` obligatoria en producción y sin derivar de `JWT_ACCESS_SECRET`
+
+- **Antes**: sin la variable se usaba `site-preview:<JWT_ACCESS_SECRET>`. Un secreto distinto para una cosa distinta es la regla de este backend (los JWT de acceso y de refresh ya tienen secretos separados), y además este secreto firma la **prueba de propiedad de los dominios** (D-190).
+- **Ahora**: en producción `validateEnv` exige `SITES_PREVIEW_SECRET` de **32 caracteres o más** y la app no arranca sin ella. Fuera de producción hay un valor fijo de desarrollo (no derivado de nada).
+- **Qué pasa al rotarla**: se invalidan los tokens de vista previa en curso (duran 15 minutos) y **cambia el valor TXT esperado de todos los dominios**. Los dominios que ya estaban verificados siguen verificados (queda guardada la fecha), pero los TXT que cada inmobiliaria cargó en su DNS dejan de coincidir: una re-verificación (D-199) los marcaría como caídos hasta que carguen el valor nuevo. Rotarla es una operación que se avisa a las inmobiliarias con dominio propio.

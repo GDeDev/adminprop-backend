@@ -32,6 +32,20 @@ describe('validateEnv', () => {
     expect(validateEnv(VALID_ENV).SITES_DOMAIN_VERIFICATION).toBeUndefined()
   })
 
+  it('SITES_PREVIEW_SECRET es obligatoria y larga en producción, y opcional afuera', () => {
+    const production = { ...VALID_ENV, NODE_ENV: 'production' }
+
+    expect(() => validateEnv(production)).toThrow(/SITES_PREVIEW_SECRET/)
+    expect(() =>
+      validateEnv({ ...production, SITES_PREVIEW_SECRET: 'corta' }),
+    ).toThrow(/SITES_PREVIEW_SECRET/)
+    expect(() =>
+      validateEnv({ ...production, SITES_PREVIEW_SECRET: 'p'.repeat(40) }),
+    ).not.toThrow()
+    // Fuera de producción alcanza con el valor de desarrollo.
+    expect(() => validateEnv(VALID_ENV)).not.toThrow()
+  })
+
   it('falla si falta DATABASE_URL', () => {
     const { DATABASE_URL: _omitted, ...withoutDb } = VALID_ENV
 

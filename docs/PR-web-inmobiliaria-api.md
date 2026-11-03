@@ -22,7 +22,7 @@ Cada inmobiliaria puede activar su sitio web desde el backoffice: elige un templ
 6. **D-184** — La auditoría usa el diff automático de las columnas (`enabled`, `publishedAt`, `templateKey`, `subdomain`, `customDomain`); el JSON del contenido se excluye del historial.
 7. **D-187** — Ampliaciones **aditivas** al contrato: `GET /site/subdomain-availability`, `ids`/`bedrooms`/`bathrooms` en el listado público y cuatro campos más en `PublicPropertySummary` (`operation`, `rooms`, `coveredAreaM2`, `ageYears`).
 8. **D-188 / A-142** — Los topes de lectura del sitio (300/min) y de host (600/min) son más altos que los del portal porque los pide el servidor de `apps/sites` desde una sola IP.
-9. **A-141 — Pendiente de Giuliano**: variables nuevas, todas opcionales (`SITES_BASE_DOMAIN`, `SITES_PROTOCOL`, `SITES_DEV_URL`, `SITES_ALLOWED_IMAGE_HOSTS`, `SITES_PREVIEW_SECRET`). No pude crearlas en Doppler desde esta sesión. Sin `SITES_BASE_DOMAIN` solo funcionan dominios propios y el acceso por slug.
+9. **A-141 — Pendiente de Giuliano**: variables nuevas (`SITES_BASE_DOMAIN`, `SITES_PROTOCOL`, `SITES_DEV_URL`, `SITES_ALLOWED_IMAGE_HOSTS` opcionales; **`SITES_PREVIEW_SECRET` obligatoria en producción**, ver D-198). No pude crearlas en Doppler desde esta sesión. Sin `SITES_BASE_DOMAIN` solo funcionan dominios propios y el acceso por slug.
 
 ## Qué cambia, commit por commit
 

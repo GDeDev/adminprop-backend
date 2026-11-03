@@ -985,7 +985,7 @@ describe('Sitio web (e2e, Postgres)', () => {
         .signAsync(
           { typ: 'site-preview', tid: tenantA.id },
           {
-            secret: `site-preview:${process.env.JWT_ACCESS_SECRET}`,
+            secret: process.env.SITES_PREVIEW_SECRET,
             expiresIn: -10,
           },
         )

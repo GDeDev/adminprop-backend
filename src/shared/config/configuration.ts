@@ -372,9 +372,12 @@ export function configuration(): Configuration {
               secret: process.env.SITES_REVALIDATE_SECRET,
             }
           : null,
+      // En producción `validateEnv` ya exigió un secreto propio y largo. Fuera de
+      // producción hay un valor fijo de desarrollo: NO se deriva de
+      // JWT_ACCESS_SECRET (un secreto distinto para una cosa distinta).
       previewSecret: str(
         process.env.SITES_PREVIEW_SECRET,
-        `site-preview:${required(process.env.JWT_ACCESS_SECRET, 'JWT_ACCESS_SECRET')}`,
+        'desarrollo-solo-secreto-de-vista-previa-no-usar-en-produccion',
       ),
     },
     automations: {

@@ -425,7 +425,11 @@ export class EnvironmentVariables {
   @IsString()
   SITES_REVALIDATE_SECRET?: string
 
-  /** Secreto de la vista previa del sitio. Sin valor, se deriva de JWT_ACCESS_SECRET. */
+  /**
+   * Secreto de la vista previa del sitio y de la verificación de dominios.
+   * **Obligatoria en producción** (32 caracteres o más); fuera de producción hay
+   * un valor fijo de desarrollo.
+   */
   @IsOptional()
   @IsString()
   SITES_PREVIEW_SECRET?: string
@@ -534,6 +538,20 @@ export function validateEnv(
   }
 
   assertProviderCredentials(validated)
+
+  // El secreto de la vista previa también firma la prueba de propiedad de los
+  // dominios (TXT): sin uno propio y largo en producción, quien conozca el
+  // secreto de otra cosa podría fabricar tokens y valores de verificación.
+  if (validated.NODE_ENV === Environment.Production) {
+    const preview = validated.SITES_PREVIEW_SECRET ?? ''
+    if (preview.length < 32) {
+      throw new Error(
+        '\n❌ SITES_PREVIEW_SECRET es obligatoria en producción (32 caracteres o más).\n' +
+          'Firma los tokens de vista previa del sitio web y los TXT de verificación de dominios: ' +
+          'rotarla invalida los dominios que están pendientes de verificar (los ya verificados no se pierden).\n',
+      )
+    }
+  }
 
   if (validated.JWT_ACCESS_SECRET === validated.JWT_REFRESH_SECRET) {
     throw new Error(
