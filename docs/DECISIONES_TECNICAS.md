@@ -870,3 +870,46 @@ Referencia: `adminprop-repo-files/docs/REDISENO_FASE_19_20.md` (contrato HTTP en
 - **A-94 · En el reporte de pagos, `amount` y `currency` son lo que entregó el inquilino** (`paidCurrency`), que puede ser distinta de la moneda de la cuota (un contrato en USD pagado en pesos); el total del reporte suma por esa moneda. Incluye las aplicaciones de saldo a favor. _Si quieren ver siempre la moneda del contrato_: usar `amountInContractCurrency`.
 - **A-95 · Una renovación en curso es otro contrato, no rescindido, cuyo `renewedFromId` es el que vence.**
 - **A-96 · Un intento de ingreso con un email que no existe deja una fila global (sin inmobiliaria) que no se ve en ninguna pantalla**: en el login del backoffice no se sabe de qué inmobiliaria es; en el del portal sí, y esa fila sí aparece. Sirve para investigar un ataque desde la base. No hay límite propio de filas: lo frena el limitador de pedidos del login.
+
+## Fase 25 — Inventario del contrato (sin supervisión, rediseño)
+
+Sale de `adminprop-repo-files/docs/REDISENO_FASE_25.md`; el contrato HTTP lo fija `shared-types/inventory.ts` del frontend. Los supuestos del rediseño se llamaban A-42 a A-45 (ocupados por otras fases): acá son A-97 a A-100 (mapa en `docs/tecnica/fase-25.md`).
+
+### D-126 · Módulo `inventory` con ids planos y sin facade
+
+- **Decisión**: tablas `property_inventories`, `inventory_items` e `inventory_photos`, todas con `tenant_id`. El contrato y los usuarios se guardan como ids planos (sin FK, como el resto). Se habla con contratos por `ContractsFacade` (`find`, `exists`), con auth por `UsersFacade.describe` y con auditoría por `AuditFacade`. Nadie depende de inventario todavía, así que `public/` sólo exporta el módulo. Sólo `PropertyInventory` se audita con el diff automático; ítems y fotos no (se reemplazan en bloque mientras es borrador y llenarían el historial), y las altas y bajas de fotos dejan un evento `UPDATE` con resumen vía `AuditFacade`.
+
+### D-127 · Vigente = no reemplazado; índices únicos parciales
+
+- **Decisión**: `superseded_by_id` marca al inventario que reemplazó una corrección confirmada; "vigente" es `superseded_by_id IS NULL`. La migración agrega dos índices únicos parciales (Prisma no los declara; hay precedente en contratos): uno por `(tenant, contrato, tipo)` entre los vigentes que no son corrección (un solo original por tipo, A-97) y otro por `corrects_inventory_id` (una sola corrección en curso por inventario). La app valida antes y devuelve 409 con código propio; el índice es la red contra carreras. Confirmar una corrección marca al original en la misma transacción, con un `updateMany` condicionado a `status = DRAFT` que evita confirmar dos veces.
+- **Consecuencia**: mientras hay una corrección en borrador, el listado muestra los dos (el confirmado y el borrador con `correctsInventoryId`); al confirmarla queda sólo la nueva.
+
+### D-128 · Las correcciones comparten los archivos de las fotos
+
+- **Decisión**: al corregir se copian las filas de ítems y fotos apuntando a la misma `storage_key`, sin duplicar archivos. Un archivo sólo se borra del storage cuando ninguna fila lo usa (`countPhotosByKey`), tanto al borrar una foto como al borrar un ítem. Subir varias fotos valida primero todas por contenido y, si una subida falla, borra las ya subidas.
+
+### D-129 · La comparación usa sólo actas confirmadas y vigentes
+
+- **Decisión**: un borrador no es un acta: no entra en la comparación (`hasDelivery: false` si la entrega sigue en borrador). Los ítems se emparejan por categoría y descripción sin distinguir mayúsculas; los repetidos, en orden. `NOT_APPLICABLE` de cualquiera de los lados es `SAME`. Primero van las filas de la entrega, después las que sólo están en la devolución. La lógica es pura (`inventory-comparison.ts`).
+
+### D-130 · "Rescisión iniciada" es contrato `TERMINATED`
+
+- **Decisión**: el modelo de contratos no tiene un estado intermedio de rescisión: se rescinde de una vez. La devolución se habilita si el contrato no está `ACTIVE` (finalizado o rescindido) o faltan 30 días o menos para su fin (A-99).
+
+### D-131 · Errores de Multer en el filtro global
+
+- **Decisión**: Multer lanza `MulterError`, que no es `HttpException` y salía como 500 (más archivos que el máximo, o un archivo demasiado grande). El filtro global ahora responde 400 por cantidad o campo y 413 por tamaño. Cambia también el comportamiento de fotos de propiedades y comprobantes, para mejor.
+
+### D-132 · Fotos: HEIC por firma, avisos siempre calculados, alta con ítems opcionales
+
+- **Decisión**: `shared/files/file-signature` no reconoce HEIC, y el inventario lo necesita (fotos de iPhone): la política lo detecta por la marca `ftyp` (heic, heix, hevc, hevx, heim, heis, mif1, msf1). Se guarda tal cual, sin convertir. `warnings` (ítems en mal estado sin fotos) se calcula en cualquier `InventoryDetail`, no sólo al confirmar. `POST /contracts/:id/inventories` acepta `items` opcionales (el rediseño los menciona, `CreateInventoryRequest` de shared-types no): es un superconjunto del contrato.
+
+### Supuestos a confirmar con Micaela (Fase 25)
+
+- **A-97** (rediseño A-42) · Un solo inventario vigente por tipo y contrato; corregir = nuevo inventario con motivo, el anterior queda histórico.
+- **A-98** (rediseño A-43) · Plantilla estándar fija en código (9 categorías, 26 ítems), sin edición por tenant.
+- **A-99** (rediseño A-44) · La devolución se habilita con el contrato no activo o a 30 días o menos de su fin.
+- **A-100** (rediseño A-45) · Sin PDF del inventario ni de la comparación todavía.
+- **A-101** · Una corrección en borrador no se puede descartar (no hay baja en el contrato): se edita y se confirma. _Si molesta_: agregar `DELETE /inventories/:id` sólo para borradores.
+- **A-102** · Las fotos HEIC se guardan sin convertir: algunos navegadores no las muestran. _Si pasa_: convertirlas a JPG al subir.
+- **A-103** · El portal de propietarios e inquilinos no ve inventarios (403): sólo admin y empleado.
