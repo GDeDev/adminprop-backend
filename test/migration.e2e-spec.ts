@@ -172,14 +172,16 @@ describe('Migración (e2e, Postgres)', () => {
       .send({ defaultConflictResolution: 'SKIP', ...body })
       .expect(202)
     await finished(res.body.data.jobId)
-    if (waitAssets) {
-      await waitFor(async () => {
-        const { assets } = await batch(batchId)
-        return assets.pending === 0
-      })
-    }
+    if (waitAssets) await settled(batchId)
     return res.body.data
   }
+
+  /** El lote deja de importar recién cuando terminan las fotos. */
+  const settled = (batchId: string) =>
+    waitFor(async () => {
+      const { status, assets } = await batch(batchId)
+      return status !== 'IMPORTING' && assets.pending === 0
+    })
 
   const rows = async (batchId: string, query = '') =>
     (
@@ -1275,6 +1277,7 @@ describe('Migración (e2e, Postgres)', () => {
         `/migration/batches/${batchId}/assets/retry`,
       ).expect(202)
       await finished(retry.body.data.jobId)
+      await settled(batchId)
       expect(images.calls.length - callsBefore).toBe(1)
       expect((await batch(batchId)).assets).toEqual({
         migrated: 6,
@@ -1288,6 +1291,7 @@ describe('Migración (e2e, Postgres)', () => {
         `/migration/batches/${batchId}/assets/retry`,
       ).expect(202)
       expect(await finished(retry2.body.data.jobId)).toBe('COMPLETED')
+      await settled(batchId)
       expect((await batch(batchId)).assets).toEqual({
         migrated: 7,
         failed: 0,
@@ -1298,6 +1302,36 @@ describe('Migración (e2e, Postgres)', () => {
           where: { propertyId: property.id },
         }),
       ).toBe(2)
+    })
+
+    it('el lote sigue importando mientras se bajan las fotos y no se puede reintentar entonces', async () => {
+      let release: () => void = () => undefined
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const download = jest
+        .spyOn(images, 'download')
+        .mockImplementation(async () => {
+          await gate
+          return { buffer: PNG, mimeType: 'image/png' }
+        })
+
+      const batchId = await analyzeTokko({ limit: 1 })
+      await confirm(batchId)
+      await waitFor(async () => (await batch(batchId)).assets.pending > 0)
+
+      const during = await batch(batchId)
+      expect(during.status).toBe('IMPORTING')
+      const retry = await admin(
+        'post',
+        `/migration/batches/${batchId}/assets/retry`,
+      ).expect(409)
+      expect(retry.body.code).toBe('ASSETS_IN_PROGRESS')
+
+      release()
+      await settled(batchId)
+      download.mockRestore()
+      expect((await batch(batchId)).status).toBe('COMPLETED')
     })
 
     it('sin migrateAssets no se baja ninguna foto', async () => {

@@ -13,6 +13,7 @@ import { RequestContext } from '@/shared/context/request-context'
 import { PaginatedResult } from '@/shared/pagination'
 import { paginateWith } from '@/shared/pagination/pagination'
 import {
+  AssetsInProgressException,
   BatchAlreadyConfirmedException,
   BatchNotImportedException,
   BatchNotReadyException,
@@ -348,12 +349,30 @@ export class RetryImportAssetsHandler implements ICommandHandler<
     batchId,
   }: RetryImportAssetsCommand): Promise<{ jobId: string }> {
     const batch = await requireBatch(this.batches, batchId)
-    if (
-      batch.status !== ImportBatchStatus.COMPLETED &&
-      batch.status !== ImportBatchStatus.PARTIAL
-    ) {
+    if (batch.status === ImportBatchStatus.IMPORTING) {
+      throw new AssetsInProgressException()
+    }
+    const finalStatuses = [
+      ImportBatchStatus.COMPLETED,
+      ImportBatchStatus.PARTIAL,
+    ]
+    if (!finalStatuses.includes(batch.status)) {
       throw new BatchNotImportedException()
     }
+    // El lote vuelve a "importando" mientras dura el reintento; el cambio es
+    // atómico, así dos pedidos a la vez no lanzan dos trabajos.
+    const moved = await this.batches.transition(batch.id, batch.status, {
+      status: ImportBatchStatus.IMPORTING,
+      summary: {
+        ...(batch.summary ?? {
+          missingSheets: [],
+          mastersToCreate: { locations: 0, propertyTypes: 0, amenities: 0 },
+          mastersCreated: { locations: 0, propertyTypes: 0, amenities: 0 },
+        }),
+        finalStatus: batch.status,
+      },
+    })
+    if (!moved) throw new AssetsInProgressException()
     const retried = await this.assets.resetFailed(batch.id)
     const jobId = await this.executor.startAssets(batch.id, retried)
     return { jobId }

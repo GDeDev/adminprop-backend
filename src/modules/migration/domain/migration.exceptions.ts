@@ -102,3 +102,14 @@ export class DependencyNotImportedException extends DomainException {
     )
   }
 }
+
+/** Reintentar fotos mientras todavía se están migrando. */
+export class AssetsInProgressException extends DomainException {
+  constructor() {
+    super(
+      'ASSETS_IN_PROGRESS',
+      'Las fotos todavía se están migrando: esperá a que termine',
+      DomainErrorKind.Conflict,
+    )
+  }
+}

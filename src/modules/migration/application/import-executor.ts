@@ -182,8 +182,13 @@ export class ImportExecutor {
       ? ImportBatchStatus.PARTIAL
       : ImportBatchStatus.COMPLETED
     await this.batches.update(batch.id, {
-      status,
-      summary: { ...summary, mastersCreated: state.created },
+      // Con fotos por bajar el lote sigue importando hasta que terminen.
+      status: photos.length > 0 ? ImportBatchStatus.IMPORTING : status,
+      summary: {
+        ...summary,
+        mastersCreated: state.created,
+        finalStatus: status,
+      },
     })
     await this.deleteFile(batch)
     await this.jobs.complete(jobId, { batchId: batch.id })

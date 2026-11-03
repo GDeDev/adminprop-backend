@@ -4,8 +4,15 @@ import { AsyncJobsFacade } from '@/modules/jobs/public'
 import { PropertiesFacade } from '@/modules/properties/public'
 import { ImageDownloaderPort } from '@/platform/tokko/image-downloader.port'
 import { createLogger } from '@/shared/logging/root-logger'
-import { ImportAssetRepository } from '../domain/migration.ports'
-import { ImportAssetResult, ImportAssetStatus } from '../domain/migration.types'
+import {
+  ImportAssetRepository,
+  ImportBatchRepository,
+} from '../domain/migration.ports'
+import {
+  ImportAssetResult,
+  ImportAssetStatus,
+  ImportBatchStatus,
+} from '../domain/migration.types'
 import { MigrationJobPayload } from './migration-queues'
 import { userMessage } from './user-message'
 
@@ -23,6 +30,7 @@ export class AssetMigrator {
   private readonly logger = createLogger('AssetMigrator')
 
   constructor(
+    private readonly batches: ImportBatchRepository,
     private readonly assets: ImportAssetRepository,
     private readonly downloader: ImageDownloaderPort,
     private readonly properties: PropertiesFacade,
@@ -53,7 +61,18 @@ export class AssetMigrator {
     } catch (error) {
       this.logger.error({ err: error, batchId }, 'Falló la migración de fotos')
       await this.jobs.fail(jobId, userMessage(error).message)
+    } finally {
+      await this.settle(batchId)
     }
+  }
+
+  /** Terminadas las fotos, el lote vuelve a su estado final (completo o parcial). */
+  private async settle(batchId: string): Promise<void> {
+    const batch = await this.batches.findById(batchId)
+    if (!batch || batch.status !== ImportBatchStatus.IMPORTING) return
+    await this.batches.update(batchId, {
+      status: batch.summary?.finalStatus ?? ImportBatchStatus.COMPLETED,
+    })
   }
 
   private async migrate(

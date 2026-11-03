@@ -190,6 +190,11 @@ export interface MastersCount {
 }
 
 export interface BatchSummary {
+  /**
+   * Cómo termina el lote cuando se bajan las fotos: mientras tanto sigue
+   * `IMPORTING` (la pantalla consulta el lote hasta que deja de estarlo).
+   */
+  finalStatus?: ImportBatchStatus
   missingSheets: string[]
   mastersToCreate: MastersCount
   mastersCreated: MastersCount
