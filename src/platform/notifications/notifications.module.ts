@@ -5,10 +5,14 @@ import { NotificationsPort } from './notifications.port'
 import { NotificationsService } from './notifications.service'
 
 /**
- * Registra el `NotificationsPort`. Hoy `NOTIFICATIONS_PROVIDER` sólo admite
- * `console`; el adapter de Novu + Resend se suma en la Fase 14 con su `case`
- * acá (leyendo `notifications.provider` de la config). Global: cualquier
- * módulo puede inyectar `NotificationsService`.
+ * Registra el `NotificationsService`, la entrada que usa todo el sistema para
+ * avisar. El `NotificationsPipeline` que usa por dentro lo provee
+ * `NotificationsModule` de `modules/notifications` (Fase 14).
+ *
+ * `NotificationsPort` queda registrado como la costura para un proveedor
+ * completo de notificaciones (Novu, A-50): hoy sólo existe el adapter de
+ * consola y la entrega pasa por `EmailPort`. Global: cualquier módulo puede
+ * inyectar `NotificationsService`.
  */
 @Global()
 @Module({

@@ -16,8 +16,6 @@ import {
   JobTrigger,
   findJobDefinition,
 } from '../src/modules/automations/domain/job-catalog'
-import { ConsoleNotificationsAdapter } from '../src/platform/notifications/adapters/console.notifications-adapter'
-import { NotificationsPort } from '../src/platform/notifications/notifications.port'
 import {
   IndexSourcePort,
   IndexSourceUnavailableError,
@@ -61,7 +59,6 @@ describe('Automatizaciones (e2e, Postgres)', () => {
   let employeeToken: string
   let adminBToken: string
   let refs: { tolosa: string; casa: string; luz: string }
-  let notifier: ConsoleNotificationsAdapter
 
   const api = (token: string) => ({
     get: (url: string) =>
@@ -175,8 +172,44 @@ describe('Automatizaciones (e2e, Postgres)', () => {
     )
   }
 
-  const sentOf = (type: string) =>
-    notifier.sent.filter((request) => request.type === type)
+  // Desde la Fase 14 el aviso se encola en notification_log y sale por la cola de
+  // entrega: lo que verifican estos tests es lo que el job le pidió a
+  // NotificationsService. Se reconstruye desde las filas, juntando los mails por
+  // persona del personal (sufijo :u:<usuario>) en un único aviso.
+  const sentOf = async (type: string) => {
+    const rows = await prisma.notificationLog.findMany({
+      where: { type, status: { not: 'SKIPPED' } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    })
+    const seen = new Set<string>()
+    return rows
+      .filter((row) => {
+        const base = row.dedupeKey.replace(/:u:.*$/, '')
+        if (seen.has(base)) return false
+        seen.add(base)
+        return true
+      })
+      .map((row) => {
+        const { channels, phone, ...data } = row.payload as Record<
+          string,
+          unknown
+        >
+        return {
+          type: row.type,
+          recipient: {
+            kind: row.recipientKind as string,
+            email: row.recipientEmail,
+            phone,
+          },
+          entity: row.entityType
+            ? { type: row.entityType, id: row.entityId }
+            : undefined,
+          dedupeKey: row.dedupeKey,
+          channels,
+          data,
+        }
+      })
+  }
 
   const installmentsOf = async (contractId: string) =>
     (
@@ -213,7 +246,6 @@ describe('Automatizaciones (e2e, Postgres)', () => {
     app = moduleRef.createNestApplication<NestExpressApplication>()
     configureApp(app as NestExpressApplication)
     await app.init()
-    notifier = app.get(NotificationsPort) as ConsoleNotificationsAdapter
   })
 
   afterAll(async () => {
@@ -223,7 +255,6 @@ describe('Automatizaciones (e2e, Postgres)', () => {
 
   beforeEach(async () => {
     await resetDatabase(prisma)
-    notifier.sent.length = 0
     fakeSource.fetch.mockReset()
     fakeSource.fetch.mockResolvedValue({ source: 'bcra', values: [] })
 
@@ -705,13 +736,13 @@ describe('Automatizaciones (e2e, Postgres)', () => {
 
       const early = await runJob(JobName.PAYMENT_REMINDER, { today: day(3) })
       expect(early.status).toBe('SKIPPED')
-      expect(sentOf('PAYMENT_REMINDER')).toHaveLength(0)
+      expect(await sentOf('PAYMENT_REMINDER')).toHaveLength(0)
 
       // El servidor estuvo caído el día 5: sale el 6.
       const sent = await runJob(JobName.PAYMENT_REMINDER, { today: day(6) })
       expect(sent).toMatchObject({ status: 'SUCCEEDED', affected: 1 })
-      expect(sentOf('PAYMENT_REMINDER')).toHaveLength(1)
-      expect(sentOf('PAYMENT_REMINDER')[0]).toMatchObject({
+      expect(await sentOf('PAYMENT_REMINDER')).toHaveLength(1)
+      expect((await sentOf('PAYMENT_REMINDER'))[0]).toMatchObject({
         recipient: { kind: 'RENTER', email: 'ivan@inquilino.com' },
         channels: ['EMAIL', 'WHATSAPP_LINK'],
         data: { period: cur, amount: '100000.00', currency: 'ARS' },
@@ -719,7 +750,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
 
       const again = await runJob(JobName.PAYMENT_REMINDER, { today: day(7) })
       expect(again.affected).toBe(0)
-      expect(sentOf('PAYMENT_REMINDER')).toHaveLength(1)
+      expect(await sentOf('PAYMENT_REMINDER')).toHaveLength(1)
 
       // Pasada la gracia ya no es un recordatorio.
       const late = await runJob(JobName.PAYMENT_REMINDER, { today: day(12) })
@@ -741,7 +772,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       const result = await runJob(JobName.PAYMENT_REMINDER, { today: day(2) })
 
       expect(result.status).toBe('SKIPPED')
-      expect(sentOf('PAYMENT_REMINDER')).toHaveLength(0)
+      expect(await sentOf('PAYMENT_REMINDER')).toHaveLength(0)
     })
 
     it('mora: una vez por cuota, el primer día después de la gracia, al inquilino y a la inmobiliaria', async () => {
@@ -754,7 +785,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       // Caído el 11: sale el 12.
       const sent = await runJob(JobName.ARREARS_NOTICE, { today: day(12) })
       expect(sent).toMatchObject({ status: 'SUCCEEDED', affected: 1 })
-      const notices = sentOf('ARREARS_NOTICE')
+      const notices = await sentOf('ARREARS_NOTICE')
       expect(notices.map((n) => n.recipient.kind).sort()).toEqual([
         'RENTER',
         'TENANT_STAFF',
@@ -768,7 +799,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
 
       const again = await runJob(JobName.ARREARS_NOTICE, { today: day(13) })
       expect(again.affected).toBe(0)
-      expect(sentOf('ARREARS_NOTICE')).toHaveLength(2)
+      expect(await sentOf('ARREARS_NOTICE')).toHaveLength(2)
     })
 
     it('aseguradora: desde el día siguiente al recordatorio, para contratos con caución impagos, una vez por cuota', async () => {
@@ -787,7 +818,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
 
       const sent = await runJob(JobName.INSURER_ALERT, { today: day(2) })
       expect(sent).toMatchObject({ status: 'SUCCEEDED', affected: 1 })
-      const [alert] = sentOf('INSURER_ALERT')
+      const [alert] = await sentOf('INSURER_ALERT')
       expect(alert).toMatchObject({
         recipient: { kind: 'INSURER', email: 'alertas@finaer.com' },
         data: {
@@ -801,7 +832,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       expect(
         (await runJob(JobName.INSURER_ALERT, { today: day(3) })).affected,
       ).toBe(0)
-      expect(sentOf('INSURER_ALERT')).toHaveLength(1)
+      expect(await sentOf('INSURER_ALERT')).toHaveLength(1)
     })
   })
 
@@ -812,7 +843,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       const first = await runJob(JobName.CONTRACT_EXPIRY_NOTICE, { today })
 
       expect(first.affected).toBe(1)
-      const notices = sentOf('CONTRACT_EXPIRING')
+      const notices = await sentOf('CONTRACT_EXPIRING')
       expect(notices.map((n) => n.recipient.kind).sort()).toEqual([
         'OWNER',
         'TENANT_STAFF',
@@ -826,7 +857,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
         today: addDays(today, 5),
       })
       expect(later.affected).toBe(0)
-      expect(sentOf('CONTRACT_EXPIRING')).toHaveLength(2)
+      expect(await sentOf('CONTRACT_EXPIRING')).toHaveLength(2)
     })
 
     it('un contrato que vence dentro de más días que el aviso no se avisa', async () => {
@@ -849,7 +880,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       expect(
         (await runJob(JobName.POLICY_EXPIRY_NOTICE, { today })).affected,
       ).toBe(1)
-      expect(sentOf('POLICY_EXPIRING')).toHaveLength(1)
+      expect(await sentOf('POLICY_EXPIRING')).toHaveLength(1)
       expect(
         (
           await runJob(JobName.POLICY_EXPIRY_NOTICE, {
@@ -862,7 +893,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
         today: addDays(today, 15),
       })
       expect(expired.affected).toBe(1)
-      expect(sentOf('POLICY_EXPIRED')).toHaveLength(1)
+      expect(await sentOf('POLICY_EXPIRED')).toHaveLength(1)
     })
 
     it('servicios vencidos: desde el 5° día, al inquilino y a la inmobiliaria, una vez por vencimiento', async () => {
@@ -892,7 +923,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       const result = await runJob(JobName.SERVICE_OVERDUE_NOTICE, { today })
 
       expect(result).toMatchObject({ status: 'SUCCEEDED', affected: 2 })
-      const notices = sentOf('SERVICE_OVERDUE')
+      const notices = await sentOf('SERVICE_OVERDUE')
       expect(notices.map((n) => n.recipient.kind).sort()).toEqual([
         'RENTER',
         'RENTER',

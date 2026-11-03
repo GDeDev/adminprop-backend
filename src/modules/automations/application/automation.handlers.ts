@@ -7,6 +7,7 @@ import {
   QueryHandler,
 } from '@nestjs/cqrs'
 
+import { NotificationsFacade } from '@/modules/notifications/public'
 import { IndexType, IndicesFacade } from '@/modules/indices/public'
 import { IndexSourcePort } from '@/platform/index-source/index-source.port'
 import { Configuration } from '@/shared/config/configuration'
@@ -58,6 +59,9 @@ export const ALERT_TYPES = [
   'DOCUMENT_FAILED',
   'JOB_FAILED',
   'PUBLIC_INQUIRY',
+  // Fase 14: un aviso importante que no salió y un mail que rebotó.
+  'NOTIFICATION_FAILED',
+  'EMAIL_BOUNCED',
 ]
 
 /** Cuánto atrás llega la lista de avisos (Fase 13, 5). */
@@ -184,13 +188,23 @@ export class ListAlertsHandler implements IQueryHandler<
   constructor(
     private readonly alerts: AlertRepository,
     private readonly views: AutomationViews,
+    private readonly preferences: NotificationsFacade,
   ) {}
 
-  execute(query: ListAlertsQuery): Promise<PaginatedResult<InternalAlertView>> {
+  async execute(
+    query: ListAlertsQuery,
+  ): Promise<PaginatedResult<InternalAlertView>> {
     const since = new Date(Date.now() - ALERT_WINDOW_DAYS * 86_400_000)
+    // Fase 14: cada persona puede apagar tipos de aviso de su campana. La fila
+    // es una sola para todo el personal, así que el filtro se aplica al leer.
+    const userId = RequestContext.userId
+    const optedOut = userId
+      ? await this.preferences.inAppOptOutTypes(userId)
+      : []
+    const types = ALERT_TYPES.filter((type) => !optedOut.includes(type))
     return paginateWith(query.page, async (page) => {
       const [items, total] = await this.alerts.list(
-        { unreadOnly: query.unreadOnly, since, types: ALERT_TYPES },
+        { unreadOnly: query.unreadOnly, since, types },
         page,
       )
       return [items.map((a) => this.views.alert(a)), total]

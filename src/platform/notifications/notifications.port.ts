@@ -21,6 +21,7 @@ export enum NotificationRecipientKind {
   OWNER = 'OWNER',
   TENANT_STAFF = 'TENANT_STAFF',
   INSURER = 'INSURER',
+  EXTERNAL = 'EXTERNAL',
 }
 
 export enum NotificationStatus {
@@ -46,6 +47,11 @@ export type NotificationType =
   | 'JOB_FAILED'
   | 'DOCUMENT_FAILED'
   | 'PUBLIC_INQUIRY'
+  | 'SETTLEMENT_CONFIRMED'
+  | 'OWNER_STATEMENT_CLOSED'
+  | 'PAYMENT_RECEIVED'
+  | 'EMAIL_BOUNCED'
+  | 'NOTIFICATION_FAILED'
 
 export interface NotificationRecipient {
   kind: NotificationRecipientKind

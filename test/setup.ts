@@ -32,6 +32,8 @@ process.env.FEATURE_FLAGS_PROVIDER = 'memory'
 delete process.env.FLAGSMITH_ENVIRONMENT_KEY
 process.env.EMAIL_PROVIDER = 'console'
 process.env.NOTIFICATIONS_PROVIDER = 'console'
+// Secreto Svix descartable del webhook de Resend: los e2e firman con el mismo.
+process.env.RESEND_WEBHOOK_SECRET = `whsec_${Buffer.from('secreto-de-prueba-e2e').toString('base64')}`
 // Ni el scheduler ni la búsqueda de índices en internet corren solos en los
 // tests: se disparan a mano con una hora fija.
 process.env.AUTOMATIONS_ENABLED = 'false'

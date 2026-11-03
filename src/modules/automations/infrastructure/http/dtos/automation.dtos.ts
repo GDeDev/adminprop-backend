@@ -132,6 +132,9 @@ export class InternalAlertDto {
       'STATEMENT_PENDING',
       'DOCUMENT_FAILED',
       'JOB_FAILED',
+      'PUBLIC_INQUIRY',
+      'NOTIFICATION_FAILED',
+      'EMAIL_BOUNCED',
     ],
   })
   type: string

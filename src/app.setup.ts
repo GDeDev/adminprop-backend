@@ -140,7 +140,18 @@ function configureRequestHandling(
   app.use(compression())
 
   // Límite explícito de payload: sin tope, un body gigante es un DoS barato.
-  app.use(json({ limit: appConfig.bodyLimit }))
+  app.use(
+    json({
+      limit: appConfig.bodyLimit,
+      // La firma de un webhook se calcula sobre los bytes exactos que llegaron;
+      // un JSON re-serializado no la reproduce. Sólo se guarda para /webhooks.
+      verify: (req, _res, buf) => {
+        if (req.url?.includes('/webhooks/')) {
+          ;(req as typeof req & { rawBody?: Buffer }).rawBody = buf
+        }
+      },
+    }),
+  )
   app.use(urlencoded({ extended: true, limit: appConfig.bodyLimit }))
 
   app.useGlobalPipes(new CustomValidationPipe())
