@@ -968,3 +968,101 @@ Sale de `adminprop-repo-files/docs/REDISENO_FASE_22.md`; el contrato HTTP lo fij
 - **A-108** · Filtrar por ubicación no incluye las ubicaciones hijas (D-138).
 - **A-109** · Quienes comparten IP (una oficina) comparten el cupo de 5 consultas por hora; detrás de un proxy hace falta `TRUST_PROXY=true`.
 - **A-110** · Hasta que haya ambientes y superficie en la propiedad, esos datos no se muestran en el portal (D-139).
+
+## Fase 14 — Notificaciones y mailing (sin supervisión, rediseño)
+
+Sale de `adminprop-repo-files/docs/REDISENO_FASE_14.md` y del contrato `shared-types/notifications.ts`. Los supuestos del rediseño se llamaban A-50 a A-59 (ocupados por otras fases): acá son A-111 a A-120 (mapa en `docs/tecnica/fase-14.md`).
+
+### D-141 · `NotificationsService` delega en un `NotificationsPipeline`; `NotificationsPort` queda como costura sin uso
+
+- **Decisión**: `send()` y `notifyStaff()` conservan su firma, pero el cuerpo pasó a `NotificationsPipeline`, una clase abstracta en `platform/notifications` que implementa `modules/notifications` (`NotificationPipeline`) y que se provee desde un módulo `@Global`. `NotificationsPort` y su adapter de consola siguen registrados, pero **ya nadie los llama**: la entrega pasa por `EmailPort`. Quedan como la costura para un proveedor completo (Novu, A-111) si algún día se construye.
+- **Por qué**: el pipeline necesita auth (personal), tenants (marca), documentos (PDF) y jobs; `platform` no puede importar módulos (lo hace cumplir el linter). Mover `NotificationsService` obligaba a tocar cada job y cada mock.
+- **Consecuencia**: `test/automations.e2e-spec.ts` ya no lee `ConsoleNotificationsAdapter.sent`; reconstruye los avisos desde `notification_log`.
+
+### D-142 · Una fila por destinatario; el personal recibe un mail por persona y la campana es una sola fila
+
+- **Decisión**: un aviso a `TENANT_STAFF` sin `recipient.id` con canal EMAIL se abre en un mail por usuario activo (`dedupeKey:u:<usuario>`, vía `UsersFacade.listStaffContacts`). El canal `IN_APP` sigue siendo **una sola fila compartida** (`read_at` es de todos, como en la Fase 13). La preferencia personal de campana se aplica **al leer** (`GET /automations/alerts` esconde los tipos que ese usuario apagó), no al crear.
+- **Por qué**: duplicar la fila por persona rompería `read-all` y la campana actual; filtrar al leer da "el opt-out de uno no afecta al otro" sin cambiar el contrato.
+- **Consecuencia**: `read-all` marca todo para todos, incluso lo que el usuario no veía (A-122).
+
+### D-143 · Una fila `SKIPPED` o `FAILED` se vuelve a evaluar con el mismo `dedupeKey`
+
+- **Decisión**: sólo una fila `QUEUED` o `SENT` bloquea el reenvío. Una `FAILED` (como en la Fase 13) y también una `SKIPPED` se pisan en la próxima corrida del job.
+- **Por qué**: si un inquilino no tenía email o el tipo estaba apagado, y después se carga el dato o se prende el tipo, el recordatorio diario tiene que salir; con el dedupe estricto del rediseño quedaría descartado para siempre.
+- **Consecuencia**: cada corrida diaria reescribe las filas `SKIPPED` pendientes (idempotente). Un job que cuenta "ya avisados" suma también estas.
+
+### D-144 · Los reintentos los programa el servicio, no la cola; un error desconocido es temporal
+
+- **Decisión**: `NotificationDeliveryService` hace un intento por mensaje de la cola y, si falla de forma temporal, publica otro con `startAfterSeconds` de 60, 300 y 1800 (cuatro intentos). La cola `notifications-deliver` tiene `retryLimit: 3` sólo para fallos de infraestructura. Un error que no es `EmailDeliveryError` se trata como temporal.
+- **Por qué**: el backoff de pg-boss es uniforme y no distingue un rechazo definitivo; así `attempts`, `next_attempt_at` y el error quedan en `notification_log` en cada paso y los tests llaman `deliver()` sin esperar minutos.
+- **Consecuencia**: si falla la publicación del reintento, la fila queda `QUEUED` con `next_attempt_at` y sin mensaje; "reintentar fallidas" y el reenvío manual no la ven (no es `FAILED`). Se loguea el error.
+
+### D-145 · `send()` devuelve "aceptado", no "entregado"
+
+- **Decisión**: el `SendOutcome` `SENT` significa que quedó en la cola (o que un aviso interno ya está listo); `SKIPPED`, que ya estaba avisado o que una preferencia lo descartó; `FAILED`, que ni siquiera se pudo encolar. Un fallo de entrega aparece después, en el historial y, si es crítico, en la campana.
+- **Por qué**: la entrega es asincrónica por diseño (rediseño sección 2). Los jobs de la Fase 13 siguen andando igual; su resultado `PARTIAL` por "falló el envío" ya no se produce por fallos del proveedor.
+
+### D-146 · Eventos: se consumen las colas que ya existían y se suma una copia de `payment-confirmed`
+
+- **Decisión**: `settlement-confirmed` y `statement-closed` no tenían consumidor (los dejó previstos la Fase 12); los consume `NotificationEventsConsumer`. Para el recibo se agregó `payment-confirmed-notifications` y el relay de cobros publica una copia más (pg-boss entrega cada mensaje a un solo consumidor). Sólo `CASH_IN` (A-33).
+- **Consecuencia**: cada cobro genera una fila `SKIPPED (TYPE_DISABLED)` mientras `PAYMENT_RECEIVED` siga apagado: es la evidencia de por qué no salió.
+
+### D-147 · Adjuntos: `StoragePort.download` y `DocumentsFacade.currentPdf`
+
+- **Decisión**: el PDF vigente se baja por `StoragePort.download(key, url)` (nuevo, abstracto) y lo entrega `DocumentsFacade` (nueva). Si todavía no está listo (`PENDING` o inexistente), el mensaje se reprograma a 20 segundos, hasta 3 veces (el contador `attachmentWaits` vive en el payload de la fila); pasadas las esperas, o con el PDF `FAILED` o de más de 10 MB, sale **sin adjunto** (el texto lleva el link al portal). Las esperas no cuentan como intentos.
+- **Por qué**: los PDFs se generan en paralelo desde el mismo evento; no se puede garantizar el orden.
+
+### D-148 · Webhook: cuerpo crudo capturado en el parser JSON; sin secreto, 401
+
+- **Decisión**: `configureApp` guarda `rawBody` (sólo para URLs con `/webhooks/`) en el `verify` del `json()` que ya registraba. Sin `RESEND_WEBHOOK_SECRET` el endpoint responde 401 (nada es verificable). Un evento de un mensaje desconocido, repetido o de un tipo que no usamos responde 200 sin guardar.
+- **Por qué**: el parser de Nest con `rawBody: true` sólo existe en `main.ts`; los e2e arman la app sin esa opción y tienen que probar la verificación real.
+
+### D-149 · Las tablas auditadas no usan `upsert`
+
+- **Decisión**: plantillas, configuración y textos de WhatsApp se guardan con `findFirst` + `create`/`update` (y `delete`), no con `upsert`/`deleteMany`, y llevan `created_by_id`/`updated_by_id`.
+- **Por qué**: la extensión de auditoría sólo ve `create`, `update` y `delete`: un `upsert` cambiaba la plantilla sin dejar historial, y un modelo auditado sin esas columnas falla al crear. Lo detectó el e2e.
+
+### D-150 · `POST /notifications/dev/events` responde 404 fuera de desarrollo
+
+- **Decisión**: con `EMAIL_PROVIDER` distinto de `console` o en producción responde 404 `DEV_EVENTS_DISABLED`. Sólo admin. Opera sobre una notificación con `provider_message_id` (las de consola lo tienen: `console_<uuid>`).
+
+### D-151 · `ResendEmailAdapter` con `fetch`; `FlakyEmailAdapter` dentro de `src/`
+
+- **Decisión**: sin SDK de Resend (un POST alcanza); timeout de 15 s. `FlakyEmailAdapter` vive en `platform/email/adapters` para que lo usen unitarios y e2e, documentado como doble de pruebas.
+
+### D-152 · `buildWhatsAppLink` es una copia en `src/shared/whatsapp`
+
+- **Decisión**: copia de `apps/backoffice/src/lib/whatsapp.ts` con los mismos casos de prueba (A-118). El rediseño hablaba de un paquete `shared-utils` que el frontend no tiene; hasta que se extraiga hay dos copias. El backend todavía no la usa en ningún flujo: el link lo arma el backoffice.
+
+### D-153 · Reglas de la configuración por tipo
+
+- **Decisión**: un tipo obligatorio rechaza `enabled: false` o quitar alguno de sus canales por defecto (422 `NOTIFICATION_MANDATORY`); un canal fuera de `availableChannels` es 422; un tipo habilitado sin canales también. El pedido se valida entero antes de guardar. `GET /notifications/settings` lista los 19 tipos, incluidos los internos (siempre obligatorios, sólo `IN_APP`).
+
+### D-154 · `canResend` y reenvío
+
+- **Decisión**: sólo se reenvían filas `FAILED` de canal EMAIL con destinatario. El rediseño también mencionaba "`SKIPPED` por falla de proveedor": esa combinación no existe (una falla del proveedor es `FAILED`), así que no se implementó. El reenvío masivo (`resend-failed`) intenta cada fila en el momento para que el avance del `AsyncJob` sea el real.
+
+### D-155 · "Enviarme una prueba" sale en el momento
+
+- **Decisión**: crea una fila (`TEMPLATE_TEST:...`, asunto con prefijo `[Prueba]`) y la entrega sin esperar a la cola, al email del usuario logueado. Aparece en el historial como cualquier envío, a nombre de un destinatario `TENANT_STAFF`.
+
+### D-156 · `PORTAL_BASE_URL` y `{{portalUrl}}`
+
+- **Decisión**: variable de entorno opcional; `portalUrl` = `<base>/<slug>`. Sin ella, la variable queda vacía (el texto por defecto de liquidación y consolidado dice "También lo encontrás en tu portal:" sin link). Documentada en `.env.example`.
+
+### Supuestos a confirmar con Micaela (Fase 14)
+
+- **A-111** (rediseño A-50) · Plantillas propias (código + override por inmobiliaria), HTML generado por un layout; Novu fuera del camino crítico.
+- **A-112** (A-51) · Cuatro intentos (inmediato, +1, +5, +30 min) sólo para errores temporales.
+- **A-113** (A-52) · Un fallo definitivo de un tipo crítico avisa a la campana; los demás sólo quedan en el historial.
+- **A-114** (A-53) · Preferencias personales sólo para personal y tipos no obligatorios.
+- **A-115** (A-54) · El recibo por mail (`PAYMENT_RECEIVED`) viene apagado.
+- **A-116** (A-55) · La campana no cambia (`/automations/alerts`); no hay `/notifications/in-app`.
+- **A-117** (A-56) · Un evento de webhook de un mensaje desconocido se descarta con un log.
+- **A-118** (A-57) · Teléfonos sin código de país se asumen argentinos móviles (`549`).
+- **A-119** (A-58) · Ningún dato bancario en los mails salvo que la plantilla lo declare; hoy ninguna lo hace.
+- **A-120** (A-59) · Adjuntos de hasta 10 MB; el PDF que no está listo espera 3 veces y después sale sin adjunto.
+- **A-121** · El aviso de mora sale por email y link de WhatsApp; `IN_APP` queda disponible pero no por defecto (el rediseño decía "personal: EMAIL + IN_APP"). _Si se quiere en la campana_: sumar `IN_APP` a los canales por defecto del tipo y a lo que pide el job.
+- **A-122** · `read-all` de la campana marca para todo el personal (D-142).
+- **A-123** · Los mails del personal usan los mismos textos que los de inquilinos y propietarios, con "Hola <nombre del usuario>".
+- **A-124** · Las filas `IN_APP` del personal no se listan en `GET /notifications` (se leen en `/automations/alerts`).
