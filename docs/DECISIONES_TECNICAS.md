@@ -1066,3 +1066,85 @@ Sale de `adminprop-repo-files/docs/REDISENO_FASE_14.md` y del contrato `shared-t
 - **A-122** · `read-all` de la campana marca para todo el personal (D-142).
 - **A-123** · Los mails del personal usan los mismos textos que los de inquilinos y propietarios, con "Hola <nombre del usuario>".
 - **A-124** · Las filas `IN_APP` del personal no se listan en `GET /notifications` (se leen en `/automations/alerts`).
+
+## Sitio web de la inmobiliaria (generador de sitios)
+
+Sale de `adminprop-repo-files/specs/web-inmobiliaria.md` (el contrato es la sección 5). Rama `feature/web-inmobiliaria-api`, desde `feature/fase-14-notificaciones`. Numeración que sigue a la Fase 14 (D-157 en adelante, A-125 en adelante).
+
+### D-157 · La validación del contenido es una política pura, no class-validator anidado
+
+- **Contexto**: la spec pide validar con class-validator. El contenido son ~12 bloques anidados con arrays, claves cerradas, límites por campo y reglas cruzadas (fuente según template, secciones soportadas, imágenes propias).
+- **Decisión**: el DTO solo exige que `theme` y `content` sean objetos; el detalle lo valida `validateSiteDraft` (`modules/site/domain/site-content.policy.ts`), una función pura que devuelve **errores por campo con ruta** (`content.faqs[2].answer`). Sale como 422 con `errors[]`, el mismo formato que el resto de la API. Las clases de `site.dtos.ts` existen para el OpenAPI.
+- **Por qué**: una sola fuente de verdad testeable sin Nest (57 unitarios), claves de más rechazadas en cualquier nivel (class-validator con `whitelist` no recorre objetos planos) y mensajes en español por campo.
+
+### D-158 · `PUT /site/settings` es parcial; dominios en el momento
+
+- `template` se reemplaza; `theme` se mezcla campo a campo; en `content` **cada bloque** (`brand`, `hero`, `steps`…) que se manda reemplaza al anterior entero. El resultado se valida completo antes de guardar.
+- `subdomain` y `customDomain` **no pasan por el borrador**: son de infraestructura y valen al instante (publicado o no). `null` los quita.
+- Cambiar de template **no pisa el tema** (hay un endpoint aparte para restaurarlo, como pide la spec); sí corrige `fontKey` si el template nuevo no la tiene.
+
+### D-159 · Dos niveles de validación: guardar y publicar
+
+- Guardar acepta un borrador a medias (secciones visibles vacías, SEO vacío, contraste bajo) pero nunca texto con HTML, links o imágenes inválidas.
+- **Publicar** exige además: SEO completo, ninguna sección visible sin contenido, destacadas a mano con al menos una propiedad existente y **contraste AA** (texto/fondo y texto/tarjeta ≥ 4,5:1; color principal/fondo ≥ 3:1). Reporta todos los problemas juntos.
+
+### D-160 · `hasUnpublishedChanges` es `true` si nunca se publicó
+
+- La spec dice "true si el borrador difiere de lo publicado". Sin publicación previa no hay con qué comparar: se informa `true` (hay todo por publicar) para que el botón Publicar nunca quede deshabilitado por error. La comparación ignora el orden de las claves.
+
+### D-161 · Imágenes: solo propias o de hosts permitidos; sin SVG
+
+- `POST /site/assets`: JPG, PNG o WebP detectados **por los primeros bytes** (no por extensión ni `Content-Type`), ≤ 5 MB, ≤ 12.000 px por lado, hasta 200 por inmobiliaria. **SVG se rechaza** (puede llevar scripts; el sitio no lo necesita). Se guardan en `site_assets` (tenant-scoped).
+- Una URL de imagen en el contenido vale si está en los `site_assets` **de esa inmobiliaria**, es el logo del tenant o es `https` de un host de `SITES_ALLOWED_IMAGE_HOSTS` (vacío por defecto). La imagen de otra inmobiliaria no sirve.
+- Las dimensiones se leen sin decodificar la imagen (`domain/image-info.ts`).
+
+### D-162 · Resolución por host: caché corta y solo sitios publicados
+
+- `GET /public/site-by-host?host=`: `<sub>.<SITES_BASE_DOMAIN>` (un solo nivel) o dominio propio; `www.` y el dominio pelado son equivalentes. Solo resuelve sitios **habilitados y publicados** de inmobiliarias activas; todo lo demás es el mismo 404 `SITE_NOT_FOUND`.
+- Caché en memoria: 30 s los aciertos, 10 s los fallos, tope de 5.000 entradas; se vacía al publicar, despublicar o cambiar un dominio. Con varias instancias, un cambio tarda como mucho el TTL.
+- La consulta es la única de `site` sin tenant en el contexto (`prisma.unscoped`), igual que la de unicidad de subdominio/dominio, que cruza inmobiliarias a propósito.
+
+### D-163 · Token de vista previa
+
+- `GET /site/preview-token` devuelve `{ token, expiresAt }`. JWT HS256 de 15 min, con `typ: "site-preview"` y el `tid` de la inmobiliaria, firmado con **su propio secreto** (`SITES_PREVIEW_SECRET`, o derivado de `JWT_ACCESS_SECRET`). No sirve como access token ni al revés.
+- `GET /public/:slug/site?preview=<token>` devuelve el **borrador** (aunque el sitio no esté publicado) con `Cache-Control: no-store` y `X-Robots-Tag: noindex`. Un token vencido, inválido o de otra inmobiliaria es el mismo 404 de siempre.
+
+### D-164 · Auditoría por diff de columnas; el contenido no entra al historial
+
+- `SiteSettings` está auditada con `draft` y `published` en `excludeFromDiff` (son JSON grandes que cambian en cada guardado). Quedan en el historial, con usuario y antes/después: `enabled` (publicar/despublicar), `publishedAt`, `templateKey`, `subdomain` y `customDomain`. No se agregaron eventos explícitos aparte: duplicarían la fila.
+- `SiteAsset` no se audita (la fila es la traza).
+
+### D-165 · Tipografías: pilas del sistema
+
+- `fontOptions` son pilas de fuentes del sistema (`system`, `serif`, `humanist`, `rounded`), sin descargar fuentes: mejor Lighthouse, ninguna dependencia externa y nada que romper en el build. El sitio traduce cada `fontKey` a su pila de CSS.
+
+### D-166 · Contenido inicial genérico
+
+- Armado con nombre, color, teléfono, WhatsApp, dirección y email del tenant. El color de marca solo se usa si contrasta ≥ 3:1 con el fondo del template. Textos genéricos en voseo; **sin números inventados**: "números" y "testimonios" arrancan vacíos y ocultos; "nosotros" oculto; "contacto" visible solo si hay algún dato (si no, el sitio inicial no se podría publicar). Todas las imágenes en `null`: el sitio usa neutras propias.
+
+### D-167 · Ampliaciones aditivas al contrato
+
+- `GET /site/subdomain-availability?value=` (el editor verifica disponibilidad mientras se escribe).
+- Listado público: `ids` (hasta 12, para las destacadas a mano), `bedrooms` y `bathrooms` (mínimos) además de `operation`.
+- `PublicPropertySummary` suma `operation`, `rooms`, `coveredAreaM2` y `ageYears`; `areaM2` es la superficie total. `features` de la ficha suma ambientes, dormitorios, baños, superficies (incluida la descubierta, calculada) y antigüedad cuando están cargados.
+- Nada de lo anterior cambia una respuesta existente.
+
+### D-168 · Límites de tasa del sitio
+
+- Las lecturas públicas del sitio las hace el servidor de `apps/sites`, que llega con **una sola IP**: 300 por minuto para `/public/:slug/site` y 600 para `site-by-host` (el portal tiene 60). Ver A-130.
+
+### D-169 · Campos de propiedad (spec 4.3)
+
+- Migración `add_property_listing_extras`: `listing_operation` (`SALE|RENT`, default `RENT`, así que las propiedades existentes siguen en alquiler), `bedrooms`, `bathrooms`, `rooms`, `age_years`, `total_area_m2`, `covered_area_m2` (`Decimal(10,2)`), `latitude`, `longitude` (`Decimal(9,6)`). Todos opcionales.
+- Superficies y coordenadas son `number` en la API (no son dinero). Latitud y longitud se guardan y se devuelven en el backoffice, pero **no** salen en la API pública (no se usan en la v1).
+
+### Supuestos (sitio web)
+
+- **A-125** · Publicar **no exige** subdominio ni dominio propio. Sin ellos, `publicUrl` es la URL por slug (`<SITES_DEV_URL>/_s/<slug>`) en desarrollo y `null` en producción.
+- **A-126** · `www.<dominio>` y `<dominio>` abren el mismo sitio (D-162).
+- **A-127** · El dominio propio solo se **guarda** y se resuelve: el alta en el hosting y el DNS los hace una persona; no se verifica el DNS.
+- **A-128** · Una propiedad destacada a mano que se borra después de publicar queda en el JSON publicado; el sitio la omite (la API pública no devuelve las no disponibles).
+- **A-129** · Variables de entorno nuevas, todas opcionales: `SITES_BASE_DOMAIN`, `SITES_PROTOCOL` (`https` por defecto), `SITES_DEV_URL` (default `http://localhost:3003` fuera de producción), `SITES_ALLOWED_IMAGE_HOSTS`, `SITES_PREVIEW_SECRET`. **Pendiente de Giuliano**: crearlas en Doppler (vacías) donde corresponda; sin `SITES_BASE_DOMAIN` solo funcionan dominios propios y el acceso por slug.
+- **A-130** · En producción `TRUST_PROXY=true` y, si el servidor de `apps/sites` comparte IP con muchos visitantes, los topes de D-168 pueden ser chicos: revisarlos con tráfico real.
+- **A-131** · Una inmobiliaria desactivada deja de resolver su sitio (404) aunque esté publicado.
+- **A-132** · Máximos de longitud de campos que la spec no fijó (títulos de sección 120, textos de pasos 300, servicios 500, testimonios 600, respuestas 1500, SEO 70/200) y límite de 200 imágenes por inmobiliaria: elegidos como razonables, fáciles de cambiar en `SITE_LIMITS`.
