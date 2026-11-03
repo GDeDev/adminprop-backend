@@ -126,6 +126,10 @@ model Tenant {
   whatsappTemplates           WhatsAppTemplate[]
   importBatches               ImportBatch[]
   valuationRequests           ValuationRequest[]
+  inquiryActivities           InquiryActivity[]
+  propertyViews               PropertyView[]
+  listingChannels             ListingChannelAccount[]
+  propertyListings            PropertyListing[]
   importRows                  ImportRow[]
   importLinks                 ImportLink[]
   importAssetResults          ImportAssetResult[]
@@ -2125,20 +2129,42 @@ model InventoryPhoto {
   @@map("inventory_photos")
 }
 
-enum PublicInquiryStatus {
+/// Columnas del tablero del CRM (Fase 23, 3.1).
+enum InquiryStage {
   NEW
   CONTACTED
-  CLOSED
+  VISIT_SCHEDULED
+  PROPOSAL_SENT
+  CLOSED_WON
+  CLOSED_LOST
 }
 
 enum PublicInquirySource {
   PORTAL
+  MERCADOLIBRE
+  ZONAPROP
+  ARGENPROP
+  WHATSAPP
+  PHONE
+  MANUAL
 }
 
-/// Consulta que llega por el formulario del portal público (Fase 22). Sin
-/// usuario: la crea el público, por eso `created_by_id` queda en null.
-/// `property_id` es un id plano (sin FK): la propiedad puede borrarse después.
-/// `ip` sólo sirve para frenar el spam; nunca sale por la API.
+enum InquiryActivityType {
+  CREATED
+  STAGE_CHANGED
+  ASSIGNED
+  NOTE
+  CONTACT_ATTEMPT
+  FOLLOW_UP_SET
+  EDITED
+}
+
+/// Una consulta de alguien interesado en alquilar (la Fase 22 la creaba; desde
+/// la Fase 23 la administra el CRM). La tabla conserva su nombre
+/// `public_inquiries` (A-80). `property_id` y `contract_id` son ids planos (sin
+/// FK): la propiedad o el contrato pueden borrarse después. `ip` sólo sirve
+/// para frenar el spam y nunca sale por la API. Al menos uno entre `email` y
+/// `phone` (CHECK en la migración).
 model PublicInquiry {
   id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId String @map("tenant_id") @db.Uuid
@@ -2146,24 +2172,152 @@ model PublicInquiry {
 
   name       String              @db.VarChar(120)
   /// En minúsculas, para contar el límite por email.
-  email      String              @db.VarChar(200)
-  phone      String              @db.VarChar(40)
-  message    String              @db.VarChar(2000)
+  email      String?             @db.VarChar(200)
+  phone      String?             @db.VarChar(40)
+  message    String              @default("") @db.VarChar(2000)
   propertyId String?             @map("property_id") @db.Uuid
-  status     PublicInquiryStatus @default(NEW)
   source     PublicInquirySource @default(PORTAL)
   ip         String?             @db.VarChar(64)
+
+  stage          InquiryStage @default(NEW)
+  stageChangedAt DateTime     @default(now()) @map("stage_changed_at") @db.Timestamptz(3)
+  /// Orden dentro de la columna: se inserta entre vecinos sin renumerar (A-82).
+  boardPosition  Float        @default(0) @map("board_position")
+  assignedToId   String?      @map("assigned_to_id") @db.Uuid
+  nextActionAt   DateTime?    @map("next_action_at") @db.Date
+  lastContactAt  DateTime?    @map("last_contact_at") @db.Timestamptz(3)
+  lostReason     String?      @map("lost_reason") @db.VarChar(200)
+  closedAt       DateTime?    @map("closed_at") @db.Timestamptz(3)
+  contractId     String?      @map("contract_id") @db.Uuid
+  /// Id de la consulta en el portal de origen; evita duplicar al sincronizar.
+  externalId     String?      @map("external_id") @db.VarChar(120)
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+
+  activities InquiryActivity[]
+
+  @@unique([tenantId, source, externalId])
+  @@index([tenantId, stage, boardPosition])
+  @@index([tenantId, assignedToId])
+  @@index([tenantId, nextActionAt])
+  @@index([tenantId, propertyId, createdAt])
+  @@index([tenantId, ip, createdAt])
+  @@index([tenantId, email, createdAt])
+  @@map("public_inquiries")
+}
+
+/// Línea de tiempo de una consulta. Inmutable: las notas tampoco se editan ni
+/// se borran. `author_id` null = el sistema.
+model InquiryActivity {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String        @map("tenant_id") @db.Uuid
+  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  inquiryId String        @map("inquiry_id") @db.Uuid
+  inquiry   PublicInquiry @relation(fields: [inquiryId], references: [id], onDelete: Restrict)
+
+  type     InquiryActivityType
+  authorId String?             @map("author_id") @db.Uuid
+  payload  Json                @default("{}")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, inquiryId, createdAt])
+  @@map("inquiry_activities")
+}
+
+/// Vistas de la ficha pública por propiedad y día (A-83). Sin dato personal.
+model PropertyView {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  propertyId String   @map("property_id") @db.Uuid
+  day        DateTime @db.Date
+  views      Int      @default(0)
+
+  @@unique([tenantId, propertyId, day])
+  @@index([tenantId, day])
+  @@map("property_views")
+}
+
+enum ListingChannel {
+  MERCADOLIBRE
+  ZONAPROP
+  ARGENPROP
+}
+
+enum ListingChannelState {
+  DISCONNECTED
+  CONNECTED
+  ERROR
+}
+
+enum ListingState {
+  NOT_PUBLISHED
+  PUBLISHING
+  PUBLISHED
+  PAUSED
+  ERROR
+  CLOSED
+}
+
+/// Cuenta conectada de la inmobiliaria en un portal (Fase 23, 3.4). Los tokens
+/// se guardan cifrados (A-84) y nunca salen en un DTO ni en el log.
+model ListingChannelAccount {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  channel           ListingChannel
+  status            ListingChannelState @default(DISCONNECTED)
+  accountLabel      String?             @map("account_label") @db.VarChar(200)
+  accessTokenEnc    String?             @map("access_token_enc") @db.Text
+  refreshTokenEnc   String?             @map("refresh_token_enc") @db.Text
+  tokenExpiresAt    DateTime?           @map("token_expires_at") @db.Timestamptz(3)
+  connectedById     String?             @map("connected_by_id") @db.Uuid
+  connectedAt       DateTime?           @map("connected_at") @db.Timestamptz(3)
+  lastError         String?             @map("last_error") @db.VarChar(500)
+  /// Hasta cuándo se trajeron las consultas del portal.
+  lastInquirySyncAt DateTime?           @map("last_inquiry_sync_at") @db.Timestamptz(3)
 
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   createdById String?  @map("created_by_id") @db.Uuid
   updatedById String?  @map("updated_by_id") @db.Uuid
 
-  @@index([tenantId, status, createdAt])
-  @@index([tenantId, propertyId])
-  @@index([tenantId, ip, createdAt])
-  @@index([tenantId, email, createdAt])
-  @@map("public_inquiries")
+  @@unique([tenantId, channel])
+  @@map("listing_channels")
+}
+
+/// Estado de una propiedad en un portal. `payload_hash` sirve para saber si la
+/// propiedad cambió desde que se publicó.
+model PropertyListing {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  /// Id plano: la propiedad puede borrarse después.
+  propertyId String @map("property_id") @db.Uuid
+
+  channel      ListingChannel
+  externalId   String?        @map("external_id") @db.VarChar(120)
+  externalUrl  String?        @map("external_url") @db.VarChar(500)
+  status       ListingState   @default(NOT_PUBLISHED)
+  payloadHash  String?        @map("payload_hash") @db.VarChar(64)
+  publishedAt  DateTime?      @map("published_at") @db.Timestamptz(3)
+  lastSyncedAt DateTime?      @map("last_synced_at") @db.Timestamptz(3)
+  lastError    String?        @map("last_error") @db.VarChar(500)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, propertyId, channel])
+  @@index([tenantId, status])
+  @@map("property_listings")
 }
 
 // ------------------------------------------------- Notificaciones (Fase 14)

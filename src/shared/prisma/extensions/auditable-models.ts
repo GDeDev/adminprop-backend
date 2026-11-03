@@ -127,15 +127,28 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   InventoryItem: { tenantScoped: true, audit: false, softDelete: false },
   InventoryPhoto: { tenantScoped: true, audit: false, softDelete: false },
 
-  // Consultas del portal público (Fase 22): las crea el público (sin usuario),
-  // el personal cambia su estado y eso queda en el historial. La IP es sólo
-  // para frenar spam: no va al historial.
+  // Consultas (Fase 22 las crea el público, sin usuario; Fase 23 las administra
+  // el CRM): cada cambio queda en el historial. La IP es sólo para frenar spam:
+  // no va al historial. `externalId` se muta al borrar para liberar el único.
   PublicInquiry: {
     tenantScoped: true,
     audit: true,
-    softDelete: false,
+    softDelete: true,
     excludeFromDiff: ['ip'],
+    mutateOnDelete: ['externalId'],
   },
+  // CRM (Fase 23): la línea de tiempo es inmutable y es su propia traza; las
+  // vistas son un contador sin dato personal. Los canales y las publicaciones
+  // tienen historial; los tokens cifrados nunca van al diff.
+  InquiryActivity: { tenantScoped: true, audit: false, softDelete: false },
+  PropertyView: { tenantScoped: true, audit: false, softDelete: false },
+  ListingChannelAccount: {
+    tenantScoped: true,
+    audit: true,
+    softDelete: false,
+    excludeFromDiff: ['accessTokenEnc', 'refreshTokenEnc'],
+  },
+  PropertyListing: { tenantScoped: true, audit: true, softDelete: false },
 
   // Cobros (Fase 11): todo es plata, con historial y sin borrado lógico (se
   // anula con registro, nunca se borra). El detalle diario del punitorio se
