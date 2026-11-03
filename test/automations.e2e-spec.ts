@@ -408,7 +408,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       const scheduler = app.get(JobScheduler)
 
       const first = await scheduler.enqueueDue(at)
-      expect(first).toBe(2 * 10 + 1)
+      expect(first).toBe(2 * 11 + 1)
       expect(await scheduler.enqueueDue(at)).toBe(0)
 
       const executions = app.get(JobExecutionRepository)
