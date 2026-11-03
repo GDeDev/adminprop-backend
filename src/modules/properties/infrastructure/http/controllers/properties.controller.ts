@@ -94,6 +94,7 @@ export class PropertiesController {
           ownerId: query.ownerId,
           propertyTypeId: query.propertyTypeId,
           search: query.search || undefined,
+          needsReview: query.needsReview,
         },
         { page: query.page, limit: query.limit },
       ),
@@ -167,6 +168,7 @@ export class PropertiesController {
         listingPrice: dto.listingPrice,
         listingCurrency: dto.listingCurrency,
         publicDescription: dto.publicDescription,
+        needsReview: dto.needsReview,
       }),
     )
     return { success: true, message: 'Propiedad actualizada', data: property }

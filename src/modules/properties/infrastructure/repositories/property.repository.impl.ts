@@ -60,6 +60,9 @@ export class PropertyRepositoryImpl extends PropertyRepository {
       ...(filter.propertyTypeId
         ? { propertyTypeId: filter.propertyTypeId }
         : {}),
+      ...(filter.needsReview !== undefined
+        ? { needsReview: filter.needsReview }
+        : {}),
       // ILIKE '%...%': lo resuelve el índice trigram de la dirección.
       ...(filter.search
         ? { address: { contains: filter.search, mode: 'insensitive' } }
@@ -298,6 +301,7 @@ function toDomain(row: PropertyRow): Property {
     listingPrice: row.listingPrice ? row.listingPrice.toFixed(2) : null,
     listingCurrency: row.listingCurrency as ListingCurrency,
     publicDescription: row.publicDescription,
+    needsReview: row.needsReview,
     photos: row.photos.map(photoToDomain),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

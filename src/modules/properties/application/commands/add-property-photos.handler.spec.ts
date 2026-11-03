@@ -23,6 +23,7 @@ const PROPERTY: Property = {
   listingPrice: null,
   listingCurrency: ListingCurrency.ARS,
   publicDescription: null,
+  needsReview: false,
   photos: [],
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),

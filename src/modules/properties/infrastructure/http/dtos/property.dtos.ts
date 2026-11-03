@@ -3,6 +3,7 @@ import { Transform } from 'class-transformer'
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   Matches,
   IsNotEmpty,
@@ -18,6 +19,13 @@ import {
   PropertyStatus,
 } from '@/modules/properties/domain/property'
 import { PaginationQueryDto } from '@/shared/pagination'
+
+const toBoolean = ({ value }: { value: unknown }) =>
+  value === 'true' || value === true
+    ? true
+    : value === 'false' || value === false
+      ? false
+      : value
 
 const trimmed = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value
@@ -100,7 +108,15 @@ export class CreatePropertyDto {
   publicDescription?: string | null
 }
 
-export class UpdatePropertyDto extends PartialType(CreatePropertyDto) {}
+export class UpdatePropertyDto extends PartialType(CreatePropertyDto) {
+  @ApiPropertyOptional({
+    description:
+      'Marcar o limpiar la revisión pendiente de una propiedad migrada. Cambiar la ubicación también la limpia.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  needsReview?: boolean
+}
 
 export class ChangePropertyStatusDto {
   @ApiProperty({ enum: PropertyStatus, example: PropertyStatus.MAINTENANCE })
@@ -133,6 +149,16 @@ export class ListPropertiesQueryDto extends PaginationQueryDto {
   @IsString()
   @MaxLength(100)
   search?: string
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description:
+      'Sólo las propiedades que la migración dejó para revisar (true) o sin esa marca (false)',
+  })
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  needsReview?: boolean
 }
 
 // ------------------------------------------------------------ Respuestas
@@ -197,6 +223,10 @@ export class PropertySummaryDto {
   @ApiProperty({ enum: ListingCurrency }) listingCurrency: ListingCurrency
   @ApiProperty({ type: String, nullable: true })
   publicDescription: string | null
+  @ApiProperty({
+    description: 'La migración la dejó para revisar (ej. sin ubicación)',
+  })
+  needsReview: boolean
   @ApiProperty() createdAt: Date
   @ApiProperty() updatedAt: Date
 }

@@ -44,6 +44,8 @@ export interface Property {
   listingCurrency: ListingCurrency
   /** Texto que ve el público; las `notes` internas nunca salen. */
   publicDescription: string | null
+  /** Cargada por una migración con datos dudosos; alguien tiene que revisarla (A-77). */
+  needsReview: boolean
   /** Ordenadas por posición: la primera es la principal. */
   photos: PropertyPhoto[]
   createdAt: Date

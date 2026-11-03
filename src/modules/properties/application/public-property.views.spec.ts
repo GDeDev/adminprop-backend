@@ -16,6 +16,7 @@ const PROPERTY: Property = {
   listingPrice: '150000.00',
   listingCurrency: ListingCurrency.USD,
   publicDescription: 'Luminoso',
+  needsReview: false,
   photos: [
     {
       id: 'ph1',

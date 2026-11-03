@@ -34,6 +34,8 @@ export interface PropertySummaryView {
   listingPrice: string | null
   listingCurrency: ListingCurrency
   publicDescription: string | null
+  /** Marcada por una migración para que alguien la revise. */
+  needsReview: boolean
   createdAt: Date
   updatedAt: Date
 }
@@ -129,6 +131,7 @@ function toSummary(
     listingPrice: property.listingPrice,
     listingCurrency: property.listingCurrency,
     publicDescription: property.publicDescription,
+    needsReview: property.needsReview,
     createdAt: property.createdAt,
     updatedAt: property.updatedAt,
   }

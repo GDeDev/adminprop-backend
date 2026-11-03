@@ -146,6 +146,15 @@ export class UpdatePropertyHandler implements ICommandHandler<
       )
     }
 
+    // Elegir otra ubicación es justamente revisar la propiedad (A-77).
+    if (
+      changes.needsReview === undefined &&
+      changes.locationId !== undefined &&
+      changes.locationId !== current.locationId
+    ) {
+      changes.needsReview = false
+    }
+
     const updated = await this.properties.update(current.id, changes)
     return this.views.detail(updated)
   }

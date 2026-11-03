@@ -15,6 +15,8 @@ export interface PropertyData {
   listingPrice: string | null
   listingCurrency: ListingCurrency
   publicDescription: string | null
+  /** Sólo la migración lo manda; una alta manual nace en false. */
+  needsReview?: boolean
 }
 
 /** Filtros del portal público (Fase 22). Siempre sobre propiedades disponibles. */
@@ -33,6 +35,8 @@ export interface PropertyFilter {
   propertyTypeId?: string
   /** Parte de la dirección, sin distinguir mayúsculas. */
   search?: string
+  /** Sólo las marcadas para revisar (o las que no) tras una migración. */
+  needsReview?: boolean
 }
 
 /**
