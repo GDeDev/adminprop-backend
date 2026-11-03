@@ -127,6 +127,16 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   InventoryItem: { tenantScoped: true, audit: false, softDelete: false },
   InventoryPhoto: { tenantScoped: true, audit: false, softDelete: false },
 
+  // Consultas del portal público (Fase 22): las crea el público (sin usuario),
+  // el personal cambia su estado y eso queda en el historial. La IP es sólo
+  // para frenar spam: no va al historial.
+  PublicInquiry: {
+    tenantScoped: true,
+    audit: true,
+    softDelete: false,
+    excludeFromDiff: ['ip'],
+  },
+
   // Cobros (Fase 11): todo es plata, con historial y sin borrado lógico (se
   // anula con registro, nunca se borra). El detalle diario del punitorio se
   // escribe de una vez al saldar la cuota: la fila misma es la traza.

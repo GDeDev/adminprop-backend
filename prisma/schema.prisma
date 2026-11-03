@@ -118,6 +118,7 @@ model Tenant {
   propertyInventories PropertyInventory[]
   inventoryItems      InventoryItem[]
   inventoryPhotos     InventoryPhoto[]
+  publicInquiries     PublicInquiry[]
 
   properties     Property[]
   owners         Owner[]
@@ -2092,4 +2093,45 @@ model InventoryPhoto {
   @@index([tenantId, itemId, position])
   @@index([tenantId, storageKey])
   @@map("inventory_photos")
+}
+
+enum PublicInquiryStatus {
+  NEW
+  CONTACTED
+  CLOSED
+}
+
+enum PublicInquirySource {
+  PORTAL
+}
+
+/// Consulta que llega por el formulario del portal público (Fase 22). Sin
+/// usuario: la crea el público, por eso `created_by_id` queda en null.
+/// `property_id` es un id plano (sin FK): la propiedad puede borrarse después.
+/// `ip` sólo sirve para frenar el spam; nunca sale por la API.
+model PublicInquiry {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  name       String              @db.VarChar(120)
+  /// En minúsculas, para contar el límite por email.
+  email      String              @db.VarChar(200)
+  phone      String              @db.VarChar(40)
+  message    String              @db.VarChar(2000)
+  propertyId String?             @map("property_id") @db.Uuid
+  status     PublicInquiryStatus @default(NEW)
+  source     PublicInquirySource @default(PORTAL)
+  ip         String?             @db.VarChar(64)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, propertyId])
+  @@index([tenantId, ip, createdAt])
+  @@index([tenantId, email, createdAt])
+  @@map("public_inquiries")
 }
