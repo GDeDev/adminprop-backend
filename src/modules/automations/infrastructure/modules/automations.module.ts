@@ -24,6 +24,7 @@ import { PolicyExpiryNoticeJob } from '@/modules/automations/application/jobs/po
 import { RentUpdatesJob } from '@/modules/automations/application/jobs/rent-updates.job'
 import { ServiceOverdueNoticeJob } from '@/modules/automations/application/jobs/service-overdue-notice.job'
 import { DiscardStaleImportBatchesJob } from '@/modules/automations/application/jobs/discard-stale-import-batches.job'
+import { RefreshComparablesJob } from '@/modules/automations/application/jobs/refresh-comparables.job'
 import { StatementReminderJob } from '@/modules/automations/application/jobs/statement-reminder.job'
 import {
   AlertRepository,
@@ -42,6 +43,7 @@ import { RentersModule } from '@/modules/renters/public'
 import { ServicesModule } from '@/modules/services/public'
 import { SettlementsModule } from '@/modules/settlements/public'
 import { TenantsModule } from '@/modules/tenants/public'
+import { ValuationModule } from '@/modules/valuation/public'
 import { JobsConsumer } from '../consumers/jobs.consumer'
 import {
   AutomationsController,
@@ -71,6 +73,7 @@ import { CronSchedulerTask } from '../tasks/cron-scheduler.task'
     PropertiesModule,
     MasterDataModule,
     MigrationModule,
+    ValuationModule,
     AuditRecorderModule,
   ],
   controllers: [AutomationsController, IndexStatusController],
@@ -93,6 +96,7 @@ import { CronSchedulerTask } from '../tasks/cron-scheduler.task'
     ServiceOverdueNoticeJob,
     StatementReminderJob,
     DiscardStaleImportBatchesJob,
+    RefreshComparablesJob,
     JobsConsumer,
     CronSchedulerTask,
     ListJobsHandler,

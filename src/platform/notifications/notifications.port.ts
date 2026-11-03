@@ -51,6 +51,7 @@ export type NotificationType =
   | 'OWNER_STATEMENT_CLOSED'
   | 'PAYMENT_RECEIVED'
   | 'EMAIL_BOUNCED'
+  | 'COMPARABLES_SOURCE_STALE'
   | 'NOTIFICATION_FAILED'
 
 export interface NotificationRecipient {

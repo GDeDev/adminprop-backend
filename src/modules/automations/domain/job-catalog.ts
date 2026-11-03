@@ -12,6 +12,7 @@ export enum JobName {
   SERVICE_OVERDUE_NOTICE = 'services.overdue-notice',
   STATEMENT_REMINDER = 'settlements.statement-reminder',
   MIGRATION_DISCARD_STALE = 'migration.discard-stale-batches',
+  VALUATION_REFRESH_COMPARABLES = 'valuation.refresh-comparables',
 }
 
 /** Coinciden con los enums de Prisma. */
@@ -148,6 +149,14 @@ export const JOB_CATALOG: JobDefinition[] = [
       'Descarta los lotes de migración que llevan más de 7 días esperando su revisión y borra el archivo que se había subido.',
     scope: JobScope.TENANT,
     times: ['03:30'],
+  },
+  {
+    name: JobName.VALUATION_REFRESH_COMPARABLES,
+    title: 'Actualizar datos de mercado',
+    description:
+      'Trae avisos de alquiler de los portales para las zonas más atrasadas (con propiedades disponibles o tasadas), con cortesía de scraping. Alimenta la tasación automática; es global, no por inmobiliaria.',
+    scope: JobScope.GLOBAL,
+    times: ['03:00'],
   },
 ]
 

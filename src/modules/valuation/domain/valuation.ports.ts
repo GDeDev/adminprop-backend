@@ -188,11 +188,10 @@ export abstract class ValuationRequestRepository {
     inputHash: string,
     since: Date,
   ): Promise<ValuationRecord | null>
+  /** Cuántas hizo esta inmobiliaria desde esa fecha (límite diario y aviso de fuente rota). */
   abstract countSince(since: Date): Promise<number>
   abstract listByProperty(
     propertyId: string,
     page: { skip: number; take: number },
   ): Promise<[ValuationRecord[], number]>
-  /** Cuántas tasaciones hizo esta inmobiliaria desde esa fecha (aviso de fuente rota). */
-  abstract countAnySince(since: Date): Promise<number>
 }

@@ -27,6 +27,7 @@ import { NotificationsModule as NotificationsDeliveryModule } from '@/modules/no
 import { PublicModule } from '@/modules/public/public'
 import { ReportsModule } from '@/modules/reports/public'
 import { MigrationModule } from '@/modules/migration/public'
+import { ValuationModule } from '@/modules/valuation/public'
 import { ExampleModule } from '@/modules/_example/public'
 import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
 import { QueueModule } from '@/platform/queue/queue.module'
@@ -88,6 +89,7 @@ import { SharedModule } from './shared/shared.module'
     PublicModule,
     NotificationsDeliveryModule,
     MigrationModule,
+    ValuationModule,
     // Módulos de referencia (Fase 1). No se borran.
     ExampleModule,
     ExampleListenerModule,

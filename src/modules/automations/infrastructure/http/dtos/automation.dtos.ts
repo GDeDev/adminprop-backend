@@ -135,6 +135,7 @@ export class InternalAlertDto {
       'PUBLIC_INQUIRY',
       'NOTIFICATION_FAILED',
       'EMAIL_BOUNCED',
+      'COMPARABLES_SOURCE_STALE',
     ],
   })
   type: string

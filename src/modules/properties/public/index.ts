@@ -15,6 +15,7 @@ export type {
   PropertyContractInfo,
   PropertyReportRef,
   PropertyRef,
+  PropertyValuationInfo,
   PublicFiltersView,
   PublicPropertyDetailView,
   PublicPropertyFilter,

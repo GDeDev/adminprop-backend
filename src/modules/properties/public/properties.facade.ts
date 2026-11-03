@@ -9,7 +9,7 @@ import {
   UpdatePropertyCommand,
 } from '../application/commands/property.commands'
 import { PropertyTypeNames } from '../application/property-type-names'
-import { ListingCurrency, PropertyStatus } from '../domain/property'
+import { ListingCurrency, Property, PropertyStatus } from '../domain/property'
 import { PaginatedResult, PaginationQueryDto } from '@/shared/pagination'
 import { paginateWith } from '@/shared/pagination/pagination'
 import {
@@ -70,6 +70,19 @@ export interface PropertyReportRef {
   ownerId: string | null
   /** Alta en el sistema (día en UTC), desde cuando cuenta si nunca se alquiló. */
   createdAt: IsoDate
+}
+
+/**
+ * Lo que la tasación (Fase 24) necesita de una propiedad: ubicación, tipo y
+ * comodidades. Sin dirección, propietario ni notas: no hacen falta y nunca
+ * deben llegar a un redactor externo.
+ */
+export interface PropertyValuationInfo {
+  id: string
+  locationId: string
+  propertyTypeId: string
+  amenityIds: string[]
+  listingCurrency: ListingCurrency
 }
 
 /** Una propiedad tal como la trae una migración (Fase 21). */
@@ -156,6 +169,22 @@ export class PropertiesFacade {
     return this.typeNamesOf.of(
       await this.properties.findByIds([...new Set(ids)]),
     )
+  }
+
+  // ------------------------------------------------------------ Tasación (Fase 24)
+
+  /** Lo que la tasación necesita de la propiedad, o null si no existe en esta inmobiliaria. */
+  async getForValuation(id: string): Promise<PropertyValuationInfo | null> {
+    const property = await this.properties.findById(id)
+    return property ? toValuationInfo(property) : null
+  }
+
+  /** Las disponibles: de ahí salen las zonas que vale la pena refrescar (A-63). */
+  async listAvailableForValuation(): Promise<PropertyValuationInfo[]> {
+    const properties = await this.properties.listAll({
+      status: PropertyStatus.AVAILABLE,
+    })
+    return properties.map(toValuationInfo)
   }
 
   // ---------------------------------------------------------- Migración (Fase 21)
@@ -289,5 +318,15 @@ export class PropertiesFacade {
   /** La propiedad vuelve a disponible, sin contrato activo. */
   async detachContract(propertyId: string): Promise<void> {
     await this.properties.detachContract(propertyId)
+  }
+}
+
+function toValuationInfo(property: Property): PropertyValuationInfo {
+  return {
+    id: property.id,
+    locationId: property.locationId,
+    propertyTypeId: property.propertyTypeId,
+    amenityIds: property.amenityIds,
+    listingCurrency: property.listingCurrency,
   }
 }

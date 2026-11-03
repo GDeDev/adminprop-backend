@@ -62,6 +62,8 @@ export const ALERT_TYPES = [
   // Fase 14: un aviso importante que no salió y un mail que rebotó.
   'NOTIFICATION_FAILED',
   'EMAIL_BOUNCED',
+  // Fase 24: una fuente de comparables dejó de traer datos.
+  'COMPARABLES_SOURCE_STALE',
 ]
 
 /** Cuánto atrás llega la lista de avisos (Fase 13, 5). */

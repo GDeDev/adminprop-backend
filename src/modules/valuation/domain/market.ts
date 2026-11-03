@@ -36,6 +36,9 @@ export enum RefreshResult {
   PARSE_ERROR = 'PARSE_ERROR',
 }
 
+/** La única operación de esta fase (A-68). */
+export const MarketOperationRent = 'RENT' as const
+
 export type MarketCurrency = 'ARS' | 'USD'
 
 /** Un aviso tal como lo devuelve una fuente, antes de guardarlo. */

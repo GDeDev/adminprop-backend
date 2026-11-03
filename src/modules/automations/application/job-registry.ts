@@ -10,6 +10,7 @@ import { GenerateInstallmentsJob } from './jobs/generate-installments.job'
 import { InsurerAlertJob } from './jobs/insurer-alert.job'
 import { IndicesFetchJob } from './jobs/indices-fetch.job'
 import { PaymentReminderJob } from './jobs/payment-reminder.job'
+import { RefreshComparablesJob } from './jobs/refresh-comparables.job'
 import { PolicyExpiryNoticeJob } from './jobs/policy-expiry-notice.job'
 import { RentUpdatesJob } from './jobs/rent-updates.job'
 import { ServiceOverdueNoticeJob } from './jobs/service-overdue-notice.job'
@@ -33,6 +34,7 @@ export class JobRegistry {
     serviceOverdue: ServiceOverdueNoticeJob,
     statementReminder: StatementReminderJob,
     discardStaleBatches: DiscardStaleImportBatchesJob,
+    refreshComparables: RefreshComparablesJob,
   ) {
     this.jobs = new Map(
       [
@@ -48,6 +50,7 @@ export class JobRegistry {
         serviceOverdue,
         statementReminder,
         discardStaleBatches,
+        refreshComparables,
       ].map((job) => [job.name, job]),
     )
   }

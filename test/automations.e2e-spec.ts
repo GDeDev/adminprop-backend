@@ -306,7 +306,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
         lastExecution: unknown
         nextRunAt: string | null
       }[]
-      expect(jobs).toHaveLength(12)
+      expect(jobs).toHaveLength(13)
       expect(
         jobs.find((j) => j.name === 'billing.arrears-notice'),
       ).toMatchObject({

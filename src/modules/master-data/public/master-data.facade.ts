@@ -73,6 +73,27 @@ export class MasterDataFacade {
     private readonly commands: CommandBus,
   ) {}
 
+  // ------------------------------------------------------------ Tasación (Fase 24)
+
+  /**
+   * Los nombres de la jerarquía de una ubicación, de lo general a lo
+   * específico y sin el país (`["Buenos Aires", "La Plata", "City Bell"]`), o
+   * null si no existe. De ahí sale la zona de mercado.
+   */
+  async locationNames(id: string): Promise<string[] | null> {
+    let current = await this.locations.findById(id)
+    if (!current) return null
+    const names: string[] = []
+    // La jerarquía tiene a lo sumo país/provincia/ciudad/barrio; el tope evita ciclos.
+    for (let depth = 0; current && depth < 8; depth += 1) {
+      if (current.level !== LocationLevel.COUNTRY) names.unshift(current.name)
+      current = current.parentId
+        ? await this.locations.findById(current.parentId)
+        : null
+    }
+    return names
+  }
+
   // ---------------------------------------------------------- Migración (Fase 21)
 
   /** Todas las ubicaciones activas, para resolver rutas sin tocar la base una por una. */

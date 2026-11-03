@@ -21,6 +21,7 @@ export const NOTIFICATION_TYPES = [
   'PAYMENT_RECEIVED',
   'PUBLIC_INQUIRY',
   'EMAIL_BOUNCED',
+  'COMPARABLES_SOURCE_STALE',
   'NOTIFICATION_FAILED',
   'RENT_UPDATE_PENDING',
   'INDEX_FETCH_FAILED',
@@ -189,6 +190,13 @@ export const NOTIFICATION_CATALOG: readonly CatalogEntry[] = [
       defaultChannels: [IN_APP],
       availableChannels: [IN_APP],
     },
+  ),
+  entry(
+    'COMPARABLES_SOURCE_STALE',
+    'Datos de mercado desactualizados',
+    'Avisa al personal que una fuente de la tasación automática dejó de traer avisos, así que las sugerencias de precio pueden estar viejas.',
+    'Personal',
+    { defaultChannels: [IN_APP], availableChannels: [IN_APP] },
   ),
   entry(
     'NOTIFICATION_FAILED',
