@@ -101,4 +101,31 @@ describe('validateEnv', () => {
       ).toThrow(/STORAGE_PROVIDER/)
     })
   })
+
+  describe('fuentes de comparables (Fase 24)', () => {
+    it('acepta una lista válida', () => {
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          COMPARABLES_SOURCES: 'zonaprop, argenprop',
+        }),
+      ).not.toThrow()
+    })
+
+    it('rechaza una fuente desconocida', () => {
+      expect(() =>
+        validateEnv({ ...VALID_ENV, COMPARABLES_SOURCES: 'zonaprop,tokko' }),
+      ).toThrow(/tokko/)
+    })
+
+    it('rechaza la fuente de prueba en producción', () => {
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          NODE_ENV: 'production',
+          COMPARABLES_SOURCES: 'fake',
+        }),
+      ).toThrow(/fake/)
+    })
+  })
 })

@@ -10,6 +10,7 @@ import {
   QueueProvider,
   StorageProvider,
   TokkoSourceProvider,
+  ValuationNarratorProvider,
 } from './env.validation'
 
 export interface AppConfig {
@@ -119,6 +120,20 @@ export interface AutomationsConfig {
   indexSource: IndexSourceProvider
 }
 
+export interface ValuationConfig {
+  /** Fuentes activas (`fake`, `zonaprop`...). */
+  sources: string[]
+  maxAgeDays: number
+  minComparables: number
+  zonesPerRun: number
+  dailyLimit: number
+  narrator: ValuationNarratorProvider
+  /** Sólo con narrador `llm`. Nunca se loguea. */
+  anthropicApiKey: string | null
+  llmModel: string
+  scraperContact: string
+}
+
 export interface Configuration {
   app: AppConfig
   database: DatabaseConfig
@@ -134,6 +149,7 @@ export interface Configuration {
   automations: AutomationsConfig
   pdf: PdfConfig
   tokko: TokkoConfig
+  valuation: ValuationConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -347,6 +363,26 @@ export function configuration(): Configuration {
         process.env.INDEX_SOURCE_PROVIDER,
         IndexSourceProvider.BcraIndec,
       ) as IndexSourceProvider,
+    },
+    valuation: {
+      sources: str(process.env.COMPARABLES_SOURCES, 'fake')
+        .split(',')
+        .map((name) => name.trim().toLowerCase())
+        .filter(Boolean),
+      maxAgeDays: num(process.env.VALUATION_MAX_AGE_DAYS, 45),
+      minComparables: num(process.env.VALUATION_MIN_COMPARABLES, 3),
+      zonesPerRun: num(process.env.VALUATION_ZONES_PER_RUN, 10),
+      dailyLimit: num(process.env.VALUATION_DAILY_LIMIT, 30),
+      narrator: str(
+        process.env.VALUATION_NARRATOR,
+        ValuationNarratorProvider.Template,
+      ) as ValuationNarratorProvider,
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY || null,
+      llmModel: str(process.env.VALUATION_LLM_MODEL, 'claude-sonnet-5-5'),
+      scraperContact: str(
+        process.env.VALUATION_SCRAPER_CONTACT,
+        'contacto@adminprop.example',
+      ),
     },
   }
 }

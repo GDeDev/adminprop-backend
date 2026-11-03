@@ -66,6 +66,22 @@ export enum PdfProvider {
   Pdfmake = 'pdfmake',
 }
 
+/** Cómo se redacta la justificación de una tasación (Fase 24, A-60). */
+export enum ValuationNarratorProvider {
+  /** Plantilla con los números. El default. */
+  Template = 'template',
+  /** Un modelo de lenguaje redacta a partir de números ya calculados; necesita ANTHROPIC_API_KEY. */
+  Llm = 'llm',
+}
+
+/** Fuentes de comparables que se pueden activar (Fase 24, 4). */
+export const COMPARABLE_SOURCE_NAMES = [
+  'fake',
+  'zonaprop',
+  'argenprop',
+  'mercadolibre',
+] as const
+
 /** De dónde sale el stock de Tokko para migrar (Fase 21, 4.1). */
 export enum TokkoSourceProvider {
   /** Muestra reducida incluida en el código: tests, CI y desarrollo sin red. */
@@ -408,6 +424,60 @@ export class EnvironmentVariables {
   @IsBoolean()
   AUTOMATIONS_ENABLED?: boolean
 
+  // ----------------------------------------------------------------------- Tasación
+  /** Lista separada por comas: fake (default), zonaprop, argenprop, mercadolibre. */
+  @IsOptional()
+  @IsString()
+  COMPARABLES_SOURCES?: string
+
+  /** Antigüedad máxima de un aviso para usarlo. Default: 45. */
+  @toInt()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  VALUATION_MAX_AGE_DAYS?: number
+
+  /** Avisos mínimos para tasar. Default: 3. */
+  @toInt()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  VALUATION_MIN_COMPARABLES?: number
+
+  /** Zonas que refresca cada corrida del job. Default: 10. */
+  @toInt()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  VALUATION_ZONES_PER_RUN?: number
+
+  /** Tasaciones por día y por inmobiliaria. Default: 30. */
+  @toInt()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  VALUATION_DAILY_LIMIT?: number
+
+  @IsOptional()
+  @IsEnum(ValuationNarratorProvider, {
+    message: `VALUATION_NARRATOR debe ser uno de: ${Object.values(ValuationNarratorProvider).join(', ')}`,
+  })
+  VALUATION_NARRATOR?: ValuationNarratorProvider
+
+  /** Sólo con VALUATION_NARRATOR=llm; vive en Doppler. */
+  @IsOptional()
+  @IsString()
+  ANTHROPIC_API_KEY?: string
+
+  @IsOptional()
+  @IsString()
+  VALUATION_LLM_MODEL?: string
+
+  /** Contacto que se declara en el User-Agent de los scrapers. */
+  @IsOptional()
+  @IsString()
+  VALUATION_SCRAPER_CONTACT?: string
+
   // -------------------------------------------------------------------------- CORS
   /** Lista separada por comas. `*` permite cualquier origen (sólo para desarrollo). */
   @IsOptional()
@@ -465,6 +535,27 @@ function assertProviderCredentials(env: EnvironmentVariables): void {
   }
 }
 
+/** Nombres válidos y, en producción, sin la fuente de prueba (Fase 24, auditoría 8.3). */
+function assertComparableSources(env: EnvironmentVariables): void {
+  if (!env.COMPARABLES_SOURCES) return
+  const names = env.COMPARABLES_SOURCES.split(',')
+    .map((n) => n.trim().toLowerCase())
+    .filter(Boolean)
+  const unknown = names.filter(
+    (n) => !(COMPARABLE_SOURCE_NAMES as readonly string[]).includes(n),
+  )
+  if (unknown.length > 0) {
+    throw new Error(
+      `\n❌ COMPARABLES_SOURCES tiene fuentes desconocidas: ${unknown.join(', ')}. Válidas: ${COMPARABLE_SOURCE_NAMES.join(', ')}.\n`,
+    )
+  }
+  if (env.NODE_ENV === Environment.Production && names.includes('fake')) {
+    throw new Error(
+      '\n❌ COMPARABLES_SOURCES no puede incluir "fake" en producción: son datos inventados.\n',
+    )
+  }
+}
+
 /**
  * Valida `process.env` contra `EnvironmentVariables`.
  * La pasamos a `ConfigModule.forRoot({ validate })`.
@@ -499,6 +590,7 @@ export function validateEnv(
   }
 
   assertProviderCredentials(validated)
+  assertComparableSources(validated)
 
   if (validated.JWT_ACCESS_SECRET === validated.JWT_REFRESH_SECRET) {
     throw new Error(
