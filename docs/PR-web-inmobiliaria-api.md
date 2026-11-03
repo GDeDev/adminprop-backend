@@ -54,7 +54,7 @@ Revisé el código del PR y corregí lo encontrado:
 
 ## Desvíos respecto del contrato (spec sección 5)
 
-Ninguno en las respuestas definidas. Ampliaciones aditivas en D-187. Dos precisiones donde la spec era ambigua: `hasUnpublishedChanges` es `true` si nunca se publicó (D-180) y `GET /site/preview-token` devuelve `{ token, expiresAt }`.
+**Un desvío de nombre:** la spec (5.2) pide, para publicar con contenido inválido, un 422 «con `details` por campo». La API serializa los errores por campo en **`errors`** (`{ field, message }[]`), que es la convención de toda la API (`ErrorDetail` / `error-body.ts`); `details` es el nombre interno de la excepción, no el del cuerpo de la respuesta. Los tests y el frontend usan `errors`. Si se prefiere `details`, hay que cambiarlo en el filtro global para toda la API, no solo acá. Fuera de eso no hay desvíos en las respuestas definidas. Ampliaciones aditivas en D-187. Dos precisiones donde la spec era ambigua: `hasUnpublishedChanges` es `true` si nunca se publicó (D-180) y `GET /site/preview-token` devuelve `{ token, expiresAt }`.
 
 ## Cómo se probó
 
