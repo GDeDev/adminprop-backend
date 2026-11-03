@@ -24,7 +24,7 @@ Al cargar o editar una propiedad hay campos nuevos, todos opcionales: **operaci�
 ## Dirección del sitio
 
 - **Subdominio**: elegís un nombre (por ejemplo `miinmobiliaria`) y el sitio queda en `miinmobiliaria.<dominio de Adminprop>`. Tiene que ser único: el editor te avisa si ya está en uso. Se usan letras, números y guiones; algunos nombres (`www`, `admin`, `api`…) están reservados.
-- **Dominio propio** (por ejemplo `www.tuinmobiliaria.com.ar`): se guarda en el sistema, pero el alta en el hosting y el apuntado del DNS los hace una persona del equipo técnico.
+- **Dominio propio** (por ejemplo `www.tuinmobiliaria.com.ar`): al guardarlo queda reservado, pero el sitio no responde ahí hasta que se **verifica** con un registro TXT en el DNS (el editor muestra el nombre y el valor). Verificado, el dominio es exclusivo de esa inmobiliaria. El alta en el hosting y el registro CNAME los hace una persona del equipo técnico.
 
 ## Reglas para publicar
 

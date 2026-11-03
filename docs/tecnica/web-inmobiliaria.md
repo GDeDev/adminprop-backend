@@ -1,6 +1,6 @@
 # Sitio web de la inmobiliaria — documentación técnica (backend)
 
-Spec: `adminprop-repo-files/specs/web-inmobiliaria.md` (el contrato es la sección 5). Rama `feature/web-inmobiliaria-api`, desde `feature/fase-14-notificaciones`. Decisiones D-157 a D-169 y supuestos A-125 a A-132 en `DECISIONES_TECNICAS.md`.
+Spec: `adminprop-repo-files/specs/web-inmobiliaria.md` (el contrato es la sección 5). Rama `feature/web-inmobiliaria-api`, desde `feature/fase-14-notificaciones`. Decisiones D-157 a D-176 y supuestos A-125 a A-136 en `DECISIONES_TECNICAS.md`.
 
 ## Qué se construyó
 
@@ -46,6 +46,12 @@ Prefijo `/api/v1`, respuestas `{ success, message, data }`.
 
 El resto de la API pública (`/properties/:id`, `/filters`, `/contact`) no cambia, salvo los campos aditivos de la ficha.
 
+## Dominio propio, avisos y caché (segunda ronda)
+
+- **Verificación** (D-170): `SiteDomainVerification` (HMAC del tenant y el dominio), `DnsTxtPort` / `NodeDnsTxt`, `VerifySiteDomainHandler`, `GetSiteDomainHandler`. Índice único parcial sobre dominios verificados. La resolución por host y `publicUrl` ignoran los no verificados.
+- **Aviso a la app de sitios** (D-171): `SiteRevalidationPort` / `HttpSiteRevalidation`.
+- Variables nuevas: `SITES_DOMAIN_VERIFICATION`, `SITES_REVALIDATE_URL`, `SITES_REVALIDATE_SECRET`.
+
 ## Seguridad
 
 - **ADMIN y tenant-scoped** todo `/site/*` (`@Roles(Role.ADMIN)`; un empleado recibe 403, probado en e2e). `SiteSettings` y `SiteAsset` están en `auditable-models.ts` con `tenantScoped`.
@@ -53,10 +59,11 @@ El resto de la API pública (`/properties/:id`, `/filters`, `/contact`) no cambi
 - **URLs**: redes sociales solo `https` y del dominio de la red; sin credenciales embebidas. Imágenes según D-161.
 - **Lista blanca de lectura**: `PublicSite` expone solo plantilla, tema, contenido, `{ slug, name, logoUrl }` y la fecha. Un sitio inexistente, sin publicar, de una inmobiliaria inactiva o con token de vista previa ajeno devuelven el mismo 404.
 - **Multi-tenant**: lo único que cruza inmobiliarias a propósito es la unicidad de subdominio/dominio y la resolución por host, ambas por `prisma.unscoped` y comentadas en el código.
-- **Rate limit** de lecturas públicas (D-168).
+- **Rate limit** de lecturas públicas (D-168) y topes por minuto en subida de imágenes y verificación de dominio (D-175).
+- **Dominio propio verificado por TXT** (D-170): nadie reserva el dominio de otro. **Texto sin caracteres invisibles ni bidi** (D-174).
 
 ## Cómo se probó
 
 - Unitarios (57 nuevos): política de contenido (HTML/scripts, límites, claves de más, redes, imágenes, publicación, contraste), subdominios y dominios, templates y contenido inicial, lectura de imágenes, resolución por host con caché.
-- e2e `test/site.e2e-spec.ts` (27 casos contra Postgres): 401/403 en todas las rutas, creación al primer GET, guardado parcial y errores por campo, XSS, subida de imágenes (SVG, HTML disfrazado, > 5 MB, imagen de otra inmobiliaria), unicidad global, borrador vs publicado, despublicar, publicar incompleto o sin contraste, destacadas ajenas, auditoría, host, vista previa (token ajeno, vencido o access token) y **aislamiento entre dos inmobiliarias** (sitio, propiedades y consultas).
+- e2e `test/site.e2e-spec.ts` (37 casos contra Postgres, con DNS y aviso a sitios simulados): 401/403 en todas las rutas, creación al primer GET, guardado parcial y errores por campo, XSS, subida de imágenes (SVG, HTML disfrazado, > 5 MB, imagen de otra inmobiliaria), unicidad global, borrador vs publicado, despublicar, publicar incompleto o sin contraste, destacadas ajenas, auditoría, host, vista previa (token ajeno, vencido o access token) y **aislamiento entre dos inmobiliarias** (sitio, propiedades y consultas).
 - `test/public.e2e-spec.ts` suma los campos de propiedad y los filtros nuevos.

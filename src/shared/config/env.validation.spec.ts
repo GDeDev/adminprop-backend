@@ -17,6 +17,21 @@ describe('validateEnv', () => {
     expect(result.NODE_ENV).toBe(Environment.Development)
   })
 
+  it('acepta las variables de los sitios web, con el booleano como texto', () => {
+    // Doppler y los .env entregan siempre strings: "false" tiene que ser false.
+    // Antes SITES_DOMAIN_VERIFICATION=false se rechazaba (faltaba @toBool).
+    const result = validateEnv({
+      ...VALID_ENV,
+      SITES_DOMAIN_VERIFICATION: 'false',
+      SITES_BASE_DOMAIN: 'sitios.test',
+      SITES_REVALIDATE_URL: 'http://localhost:3003',
+      SITES_REVALIDATE_SECRET: 'secreto',
+    })
+
+    expect(result.SITES_DOMAIN_VERIFICATION).toBe(false)
+    expect(validateEnv(VALID_ENV).SITES_DOMAIN_VERIFICATION).toBeUndefined()
+  })
+
   it('falla si falta DATABASE_URL', () => {
     const { DATABASE_URL: _omitted, ...withoutDb } = VALID_ENV
 

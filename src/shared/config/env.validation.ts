@@ -406,6 +406,7 @@ export class EnvironmentVariables {
    * Exige un registro TXT para activar un dominio propio. `false` (solo
    * desarrollo) lo da por verificado al cargarlo. Default: true.
    */
+  @toBool()
   @IsOptional()
   @IsBoolean()
   SITES_DOMAIN_VERIFICATION?: boolean

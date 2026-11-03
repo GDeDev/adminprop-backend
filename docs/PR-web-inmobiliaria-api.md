@@ -32,9 +32,25 @@ Cada inmobiliaria puede activar su sitio web desde el backoffice: elige un templ
 4. `docs(site)` — técnica, funcional, D-157 a D-169 y A-125 a A-132.
 5. `test(public)` / `docs` — ajuste del e2e del portal a los campos aditivos y esta descripción.
 
+## Segunda ronda: revisión de este PR (D-170 a D-176)
+
+Revisé el código del PR y corregí lo encontrado:
+
+| Hallazgo                                                         | Corrección                                                                                                                                                |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cualquier ADMIN podía reservar el dominio de otro (y bloquearlo) | Verificación por TXT, único solo entre verificados, `GET /site/domain` y `POST /site/domain/verify` (**D-170**; migración `add_site_domain_verification`) |
+| Publicar tardaba hasta ~2 min en verse                           | Aviso a `apps/sites` (`SiteRevalidationPort`, **D-171**)                                                                                                  |
+| El primer acceso con dos pestañas daba 500                       | `ensure()` relee si choca (**D-173**, test con 4 pedidos simultáneos)                                                                                     |
+| Los cambios de contenido no dejaban rastro                       | Evento «borrador guardado» con los bloques tocados, sin los textos (**D-172**)                                                                            |
+| Textos con caracteres invisibles o bidi                          | Rechazados (**D-174**)                                                                                                                                    |
+| Subida de imágenes y verificación sin tope                       | 30 y 20 por minuto (**D-175**)                                                                                                                            |
+| `SITES_DOMAIN_VERIFICATION=false` rompía el arranque             | Faltaba `@toBool()`; lo encontré probando contra la API real (**D-176**)                                                                                  |
+
+**Para revisar de esta ronda:** D-170 (el cambio más grande: nueva migración con índice parcial y dominios existentes marcados como verificados, A-134), A-135 (variables nuevas a cargar en Doppler) y A-136 (el TXT puede tardar en verse por el caché del resolvedor DNS).
+
 ## Endpoints
 
-`GET /site/templates`, `GET|PUT /site/settings`, `POST /site/settings/reset-template`, `POST /site/publish`, `POST /site/unpublish`, `POST /site/assets`, `GET /site/preview-token`, `GET /site/subdomain-availability` (todos **solo ADMIN**, empleado = 403) y, públicos, `GET /public/:slug/site[?preview=]` y `GET /public/site-by-host?host=`. Detalle y errores en `docs/tecnica/web-inmobiliaria.md`.
+`GET /site/templates`, `GET|PUT /site/settings`, `POST /site/settings/reset-template`, `POST /site/publish`, `POST /site/unpublish`, `POST /site/assets`, `GET /site/preview-token`, `GET /site/subdomain-availability`, `GET /site/domain`, `POST /site/domain/verify` (todos **solo ADMIN**, empleado = 403) y, públicos, `GET /public/:slug/site[?preview=]` y `GET /public/site-by-host?host=`. Detalle y errores en `docs/tecnica/web-inmobiliaria.md`.
 
 ## Desvíos respecto del contrato (spec sección 5)
 
@@ -43,9 +59,9 @@ Ninguno en las respuestas definidas. Ampliaciones aditivas en D-167. Dos precisi
 ## Cómo se probó
 
 - `tsc`, lint y formato limpios.
-- **688 unitarios** (74 suites), 57 de ellos nuevos del módulo `site`.
-- **e2e completa corrida archivo por archivo contra Postgres real: 28 suites, 468 tests en verde.** Dos archivos fallaron en la primera pasada y pasaron al repetirlos solos: `settlements` (timeouts de `waitFor` de 15 s mientras la máquina compilaba otra cosa) y `public` (un `toEqual` exacto que no conocía los campos aditivos: se corrigió el test). Los e2e se corren de a un archivo porque pg-boss puede dar un `deadlock detected` al crear colas cuando dos aplicaciones arrancan seguidas en la misma base (ya ocurría antes de este cambio).
-- `test/site.e2e-spec.ts` (27 casos): 401/403 en todas las rutas, creación al primer GET, borrador vs publicado, despublicar, publicar incompleto o ilegible, XSS en cada campo, imágenes (SVG, HTML disfrazado, > 5 MB, imagen de otra inmobiliaria), unicidad global de subdominio/dominio, auditoría, host, vista previa (token ajeno, vencido, access token) y **aislamiento entre dos inmobiliarias** (sitio, propiedades y consultas).
+- **690 unitarios** (74 suites), 59 de ellos del módulo `site`.
+- **e2e completa corrida archivo por archivo contra Postgres real: 28 suites, 478 tests.** Todas en verde **salvo `settlements`**, que falla de forma intermitente (1 o 2 de 9 tests, siempre por `waitFor: la condición no se cumplió en 15000ms` en el cierre asíncrono por cola) **también en la rama base `feature/fase-14-notificaciones`, sin ningún cambio mío** (3 de 3 corridas con fallas): es una intermitencia previa de este entorno de pruebas, no de este PR. En la primera ronda había pasado 9/9 corriéndolo solo. Hay que mirarlo en el CI real. Los e2e se corren de a un archivo porque pg-boss puede dar un `deadlock detected` al crear colas cuando dos aplicaciones arrancan seguidas en la misma base (ya ocurría antes).
+- `test/site.e2e-spec.ts` (37 casos): 401/403 en todas las rutas, creación al primer GET, borrador vs publicado, despublicar, publicar incompleto o ilegible, XSS en cada campo, imágenes (SVG, HTML disfrazado, > 5 MB, imagen de otra inmobiliaria), unicidad global de subdominio/dominio, auditoría, host, vista previa (token ajeno, vencido, access token) y **aislamiento entre dos inmobiliarias** (sitio, propiedades y consultas).
 - Las migraciones se generaron con `migrate diff` y se aplicaron con `migrate deploy` sobre bases descartables; el diff contra el schema da vacío. Nunca `migrate dev` ni `reset`.
 
 ## Después de mergear

@@ -1148,3 +1148,45 @@ Sale de `adminprop-repo-files/specs/web-inmobiliaria.md` (el contrato es la secc
 - **A-130** · En producción `TRUST_PROXY=true` y, si el servidor de `apps/sites` comparte IP con muchos visitantes, los topes de D-168 pueden ser chicos: revisarlos con tráfico real.
 - **A-131** · Una inmobiliaria desactivada deja de resolver su sitio (404) aunque esté publicado.
 - **A-132** · Máximos de longitud de campos que la spec no fijó (títulos de sección 120, textos de pasos 300, servicios 500, testimonios 600, respuestas 1500, SEO 70/200) y límite de 200 imágenes por inmobiliaria: elegidos como razonables, fáciles de cambiar en `SITE_LIMITS`.
+
+### Segunda ronda de "Sitio web" (revisión del PR)
+
+### D-170 · El dominio propio se verifica con un registro TXT
+
+- **Problema**: cualquier ADMIN podía reservar el dominio de otro (`banco.com`) y bloquear a quien sí lo tenía con `DOMAIN_TAKEN`.
+- **Decisión**: un dominio nuevo arranca **sin verificar**. La prueba es un registro TXT en `_adminprop-verify.<dominio>` con el valor `adminprop-verify=<HMAC-SHA256(tenant, dominio)>` (32 hex), calculado con el secreto del servidor: solo esta inmobiliaria puede conocerlo, y cambia si cambia el dominio. `GET /site/domain` devuelve el estado y el registro; `POST /site/domain/verify` lo busca (`DnsTxtPort`, `NodeDnsTxt`) y, si está, activa el dominio (422 `DOMAIN_NOT_VERIFIED` si no; 422 `NO_CUSTOM_DOMAIN` sin dominio).
+- **Unicidad**: el índice único de `custom_domain` pasó a ser **parcial y solo sobre los verificados** (migración `add_site_domain_verification`, columna `custom_domain_verified_at`). Reservar sin verificar no bloquea a nadie; el que verifica primero se lo queda (409 `DOMAIN_TAKEN` al otro). Cambiar o quitar el dominio lo deja sin verificar.
+- **Efecto en el resto**: `site-by-host` solo resuelve dominios verificados; `publicUrl` usa el dominio solo si está verificado (si no, el subdominio o la URL por slug).
+- **Desarrollo**: `SITES_DOMAIN_VERIFICATION=false` da el dominio por verificado al cargarlo (default `true`). Los dominios que ya estaban cargados al migrar se marcan verificados (no hay cómo comprobarlos y cortar sitios publicados sería peor).
+- **No cambia `SiteSettings`** (5.1): el estado de verificación va en endpoints aparte (`/site/domain`).
+
+### D-171 · Aviso a `apps/sites` al publicar (`SiteRevalidationPort`)
+
+Publicar, despublicar y verificar un dominio llaman a `POST <SITES_REVALIDATE_URL>/api/revalidate` con `Authorization: Bearer <SITES_REVALIDATE_SECRET>` y `{ slug }` (3 s de timeout). **Nunca falla**: si la otra app no responde, se loguea y el sitio se actualiza solo al vencer su caché (60 s). Sin URL y secreto configurados no hace nada. Antes un cambio podía tardar hasta ~2 minutos en verse.
+
+### D-172 · Auditoría del borrador: qué se tocó, sin el contenido
+
+Guardar el borrador escribe un evento `UPDATE` («Sitio web: borrador guardado») con **los nombres** del template, los campos del tema y los bloques de contenido que cambiaron, nunca los textos. Complementa a D-164 (el JSON sigue fuera del historial automático).
+
+### D-173 · Primer acceso concurrente
+
+Dos pedidos simultáneos de `GET /site/settings` en una inmobiliaria sin configuración chocaban con el índice único de `tenant_id` y uno recibía un 500. `ensure()` ahora, si la creación falla, relee la fila (probado con 4 pedidos a la vez).
+
+### D-174 · Texto sin caracteres invisibles ni de dirección
+
+Se rechazan los espacios de ancho cero y las marcas/controles de dirección (`U+200B–200F`, `202A–202E`, `2060–2069`, `FEFF`) en todos los textos: sirven para disfrazar un texto o un link y nadie los escribe a propósito en un sitio.
+
+### D-175 · Topes por minuto en las rutas costosas
+
+`POST /site/assets`: 30 por minuto; `POST /site/domain/verify`: 20 por minuto (consulta DNS). Se suman al tope de 200 imágenes por inmobiliaria.
+
+### D-176 · `SITES_DOMAIN_VERIFICATION` es un booleano de entorno
+
+Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (siempre llega como texto desde Doppler o un `.env`) se rechazaba al arrancar. Hay un test en `env.validation.spec.ts`.
+
+### Supuestos (segunda ronda)
+
+- **A-133** · No hay verificación de **subdominios** (son de Adminprop y el primero que los pide se los queda; ver A-125).
+- **A-134** · Los dominios existentes al migrar se consideran verificados (D-170).
+- **A-135** · Nuevas variables, todas opcionales: `SITES_DOMAIN_VERIFICATION` (default `true`), `SITES_REVALIDATE_URL` y `SITES_REVALIDATE_SECRET`. **Pendiente de Giuliano**: cargarlas en Doppler junto con las de A-129; el secreto tiene que ser el mismo que `SITES_REVALIDATE_SECRET` de `apps/sites`.
+- **A-136** · La verificación consulta el DNS del servidor de la API (`dns.resolveTxt`): un TXT recién cargado puede tardar en verse por el caché del resolvedor.
