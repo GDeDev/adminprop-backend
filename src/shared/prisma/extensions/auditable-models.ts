@@ -214,6 +214,14 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   // Auditarlos generaría una fila de historial por cada refresh.
   RefreshToken: { audit: false, softDelete: false },
 
+  // Migración de datos (Fase 21): el lote se audita (cada paso del flujo queda
+  // en el historial); sus filas, vínculos y fotos son staging o bitácora técnica
+  // y las altas reales se auditan en el módulo de cada entidad.
+  ImportBatch: { tenantScoped: true, audit: true, softDelete: false },
+  ImportRow: { tenantScoped: true, audit: false, softDelete: false },
+  ImportLink: { tenantScoped: true, audit: false, softDelete: false },
+  ImportAssetResult: { tenantScoped: true, audit: false, softDelete: false },
+
   // La propia tabla de auditoría no se audita: sería recursión infinita.
   // Guarda el tenantId de cada cambio, pero no se filtra todavía: la escribe la
   // extensión de auditoría también desde procesos sin tenant. Su lectura por

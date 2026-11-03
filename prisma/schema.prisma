@@ -124,6 +124,10 @@ model Tenant {
   notificationUserPreferences NotificationUserPreference[]
   emailEvents                 EmailEvent[]
   whatsappTemplates           WhatsAppTemplate[]
+  importBatches               ImportBatch[]
+  importRows                  ImportRow[]
+  importLinks                 ImportLink[]
+  importAssetResults          ImportAssetResult[]
 
   properties     Property[]
   owners         Owner[]
@@ -549,6 +553,9 @@ model Property {
   listingCurrency   Currency       @default(ARS) @map("listing_currency")
   /// Texto que ve el público (máx. 2000). Distinto de las notas internas.
   publicDescription String?        @map("public_description") @db.VarChar(2000)
+  /// Marca de la migración (Fase 21, A-77): cargada con datos dudosos (p. ej. sin
+  /// ubicación) y a la espera de que alguien la revise. Se limpia a mano.
+  needsReview       Boolean        @default(false) @map("needs_review")
 
   photos PropertyPhoto[]
 
@@ -565,6 +572,7 @@ model Property {
   @@index([tenantId, activeContractId])
   @@index([tenantId, propertyTypeId])
   @@index([tenantId, deletedAt])
+  @@index([tenantId, needsReview])
   /// Búsqueda por dirección parcial (ILIKE): trigramas. La extensión pg_trgm
   /// la crea la migración `add_properties`.
   @@index([address(ops: raw("gin_trgm_ops"))], type: Gin, map: "properties_address_trgm_idx")
@@ -2266,4 +2274,173 @@ model WhatsAppTemplate {
 
   @@unique([tenantId, key])
   @@map("whatsapp_templates")
+}
+
+// ------------------------------------------------- Migración de datos (Fase 21)
+
+enum ImportSource {
+  EXCEL
+  TOKKO
+}
+
+enum ImportBatchMode {
+  DRY_RUN
+  IMPORT
+}
+
+enum ImportBatchStatus {
+  ANALYZING
+  READY
+  IMPORTING
+  COMPLETED
+  PARTIAL
+  FAILED
+  DISCARDED
+}
+
+enum ImportEntity {
+  OWNER
+  RENTER
+  GUARANTOR
+  PROPERTY
+  CONTRACT
+}
+
+enum ImportRowStatus {
+  VALID
+  ERROR
+  CONFLICT
+  ALREADY_IMPORTED
+  IMPORTED
+  SKIPPED
+  FAILED
+}
+
+enum ImportResolution {
+  SKIP
+  MERGE_EMPTY_FIELDS
+}
+
+enum ImportAssetStatus {
+  PENDING
+  MIGRATED
+  FAILED
+}
+
+/// Un lote de migración: sale en `DRY_RUN` (análisis) y pasa a `IMPORT` al
+/// confirmarse. Lo analizado es exactamente lo que se importa (A-70).
+model ImportBatch {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  source        ImportSource
+  mode          ImportBatchMode   @default(DRY_RUN)
+  status        ImportBatchStatus @default(ANALYZING)
+  fileName      String?           @map("file_name") @db.VarChar(255)
+  /// El .xlsx subido, en el storage; se borra al confirmar, descartar o vencer.
+  fileKey       String?           @map("file_key") @db.VarChar(500)
+  analysisJobId String?           @map("analysis_job_id") @db.Uuid
+  importJobId   String?           @map("import_job_id") @db.Uuid
+  /// Hojas faltantes y maestros a crear / creados.
+  summary       Json?
+  /// Lo pedido al analizar (Tokko) y lo elegido al confirmar.
+  options       Json?
+  /// Por qué quedó en FAILED, en español.
+  errorMessage  String?           @map("error_message") @db.VarChar(500)
+  confirmedById String?           @map("confirmed_by_id") @db.Uuid
+  confirmedAt   DateTime?         @map("confirmed_at") @db.Timestamptz(3)
+
+  rows         ImportRow[]
+  assetResults ImportAssetResult[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
+  @@index([tenantId, source, status])
+  @@map("import_batches")
+}
+
+/// Una fila del lote ya normalizada y validada (área de staging, A-71).
+model ImportRow {
+  id       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String      @map("tenant_id") @db.Uuid
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  batchId  String      @map("batch_id") @db.Uuid
+  batch    ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  entity      ImportEntity
+  /// Fila del Excel (con encabezado, tal como la ve el usuario) o null en Tokko.
+  rowNumber   Int?              @map("row_number")
+  /// Id de Tokko, o el código de la hoja de propiedades del Excel.
+  externalId  String?           @map("external_id") @db.VarChar(100)
+  naturalKey  String            @map("natural_key") @db.VarChar(300)
+  label       String            @db.VarChar(200)
+  status      ImportRowStatus
+  /// La fila normalizada; su forma depende de la entidad.
+  data        Json
+  /// `{ field, code, message }[]`
+  errors      Json              @default("[]")
+  /// `{ entityId, reason, differingFields, kind }`
+  conflict    Json?
+  resolution  ImportResolution?
+  excluded    Boolean           @default(false)
+  targetId    String?           @map("target_id") @db.Uuid
+  needsReview Boolean           @default(false) @map("needs_review")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([batchId, entity, status])
+  @@index([batchId, entity, rowNumber])
+  @@index([tenantId, batchId])
+  @@map("import_rows")
+}
+
+/// Lo que hace idempotente a la migración: cada fila importada deja su vínculo.
+model ImportLink {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  source      ImportSource
+  entity      ImportEntity
+  /// Id de Tokko, o la clave natural normalizada en el Excel.
+  externalKey String       @map("external_key") @db.VarChar(300)
+  targetId    String       @map("target_id") @db.Uuid
+  batchId     String       @map("batch_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, source, entity, externalKey])
+  @@index([tenantId, batchId])
+  @@map("import_links")
+}
+
+/// Una foto de Tokko a traer al storage propio (migración de assets).
+model ImportAssetResult {
+  id       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String      @map("tenant_id") @db.Uuid
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  batchId  String      @map("batch_id") @db.Uuid
+  batch    ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  propertyId String            @map("property_id") @db.Uuid
+  sourceUrl  String            @map("source_url") @db.VarChar(1000)
+  /// Orden dentro de la propiedad (0 = principal).
+  position   Int               @default(0)
+  status     ImportAssetStatus @default(PENDING)
+  error      String?           @db.VarChar(300)
+  storageKey String?           @map("storage_key") @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([batchId, status])
+  @@index([batchId, propertyId])
+  @@map("import_asset_results")
 }
