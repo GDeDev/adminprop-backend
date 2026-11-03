@@ -1066,3 +1066,99 @@ Sale de `adminprop-repo-files/docs/REDISENO_FASE_14.md` y del contrato `shared-t
 - **A-122** · `read-all` de la campana marca para todo el personal (D-142).
 - **A-123** · Los mails del personal usan los mismos textos que los de inquilinos y propietarios, con "Hola <nombre del usuario>".
 - **A-124** · Las filas `IN_APP` del personal no se listan en `GET /notifications` (se leen en `/automations/alerts`).
+
+---
+
+## Fase 21 — Migración de datos / ETL (sin supervisión, rediseño)
+
+Sale de `adminprop-repo-files/docs/REDISENO_FASE_21.md` (que numera sus supuestos A-70 a A-79 y se implementaron tal cual) y del contrato `shared-types/migration.ts`. Acá van las decisiones de implementación (D-157 a D-172) y los supuestos que el rediseño no definía (A-125 a A-131). Detalle en `docs/tecnica/fase-21.md`.
+
+### D-157 · Confirmar es un cambio de estado atómico (`READY → IMPORTING`)
+
+- **Contexto**: dos pedidos de confirmación a la vez (doble click, dos pestañas) podían importar el lote dos veces.
+- **Decisión**: `ImportBatchRepository.transition(id, from, changes)` es un `updateMany` con `where: { id, status: from }`; el que no cambia ninguna fila recibe 409 `BATCH_ALREADY_CONFIRMED`. Lo mismo para descartar. Como `updateMany` no pasa por el diff de auditoría de Prisma, la confirmación y el descarte dejan su propio evento `JOB_RUN` (D-167).
+- **Por qué**: la idempotencia por vínculos protege los datos, pero no evita el doble trabajo ni los conflictos de unicidad a mitad de camino.
+
+### D-158 · Las facades de alta despachan el comando del propio módulo
+
+- **Decisión**: `OwnersFacade.createFromImport`, `RentersFacade.createRenterFromImport`/`createGuarantorFromImport`, `PropertiesFacade.createFromImport` y `MasterDataFacade.ensureCatalogItem`/`ensureLocationPath` ejecutan por el `CommandBus` el mismo comando que usa el controller (`CreateOwnerCommand`, etc.). Los repositorios de personas suman `findByNationalIds` (una consulta por entidad en el análisis).
+- **Por qué**: así una fila importada pasa por **las mismas validaciones y la misma auditoría** que una carga manual (el rediseño lo exige) sin duplicar reglas en `migration`, que no toca tablas ajenas. El costo: las facades dependen del `CommandBus` y de los comandos de su módulo, lo cual es legal (todo adentro del mismo módulo).
+
+### D-159 · La plantilla se aparta de la tabla del rediseño en dos columnas
+
+- **Garantes**: suma «Tipo de garantía» y «Detalle de la garantía». El alta manual de un garante los exige (`guaranteeType`, `guaranteeDetail` nunca vacío) y la tabla del rediseño no los tenía. Sin ellos, el garante se carga como «Recibos de sueldo» con detalle «Importado sin detalle: completar» (A-125).
+- **Contratos**: se quita «Día de vencimiento». No existe por contrato en el modelo (la inmobiliaria tiene su regla de vencimiento); aceptar la columna e ignorarla en silencio habría sido peor que no tenerla.
+- **Versión de la plantilla**: `Meta!B1 = template_version` (hoja muy oculta). Los encabezados se buscan por texto, no por posición: reordenar columnas no rompe el archivo.
+
+### D-160 · Contratos importados: defaults seguros y reglas de superposición
+
+- **Decisión**: sin índice de aumento → `OTHER` (manual) y frecuencia `ANNUAL`: el job de aumentos **avisa** en vez de aplicar un índice que nadie eligió (A-126); sin modalidad de cobro → cobra la inmobiliaria; sin depósito → `0.00`; sin moneda del depósito → la del contrato. Con aumento «Fijo» el `% fijo` es obligatorio.
+- **Fin anterior a hoy** → el contrato nace `FINISHED` por `ContractImporter` (`NewContract.status` opcional), **sin** `attachContract` a la propiedad ni al inquilino: el contrato vigente de la misma propiedad no se pisa. Los vigentes pasan por `CreateContractCommand` normal.
+- **Superposición**: dos contratos vigentes sobre la misma propiedad → `CONTRACT_OVERLAP`; dos del mismo inquilino → `RENTER_ALREADY_ACTIVE`; propiedad sin propietario → `PROPERTY_WITHOUT_OWNER`. Se detectan en el análisis (contra lo cargado y dentro del archivo), no recién al confirmar.
+- **Sin cuotas**: nada en el alta genera cuotas (las crea el job de cobros por período), así que no hay nada que apagar: el arranque es limpio desde el período actual (A-74).
+
+### D-161 · Referencias entre hojas
+
+- **Decisión**: propiedad → propietario, inquilino → garante y contrato → inquilino se enlazan por DNI/CUIT; contrato → propiedad por «Código de propiedad», que **sólo** se resuelve contra la hoja Propiedades del mismo archivo (el código es una clave local, no se guarda). Un DNI/código que no está en el archivo ni cargado es error de fila (`OWNER_NOT_FOUND`, `GUARANTOR_NOT_FOUND`, `RENTER_NOT_FOUND`, `PROPERTY_CODE_UNKNOWN`); si la fila referenciada tiene errores, la dependiente también (`*_ROW_INVALID`).
+- **Para contratos de propiedades ya cargadas**: se incluye la propiedad en el archivo; sale como `CONFLICT`/`ALREADY_IMPORTED` con su `targetId` y el contrato se cuelga de ella.
+- **En la confirmación**: los ids se resuelven desde las filas del propio lote (importadas o existentes) y, si no, por DNI en el sistema. Una dependencia omitida/excluida/fallida deja la fila `FAILED` con `DEPENDENCY_NOT_IMPORTED`.
+
+### D-162 · Claves naturales y vínculos
+
+- **Decisión**: persona = DNI/CUIT (sólo dígitos). Propiedad = `dirección normalizada | ruta de ubicación normalizada` (sin acentos, minúsculas, sin «calle/av.»; la ruta sale del árbol cuando existe, para que «Tolosa» y «Buenos Aires > La Plata > Tolosa» den la misma clave). Contrato = `clave de la propiedad | DNI del inquilino | inicio`. El vínculo usa la clave natural en Excel y el id de Tokko en Tokko. Un documento inválido recibe una clave `invalid:...` para no chocar con nada.
+- **Precedencia**: error → duplicado en el archivo → vínculo previo (`ALREADY_IMPORTED`) → colisión con lo cargado (`CONFLICT`) → `VALID`.
+- **Duplicado en el archivo**: `CONFLICT` con `conflict.kind = DUPLICATE_IN_FILE` y `entityId` = id de la fila que lo precede; no admite resolución (se omite siempre).
+
+### D-163 · Ubicaciones: rutas, país opcional y nombre suelto
+
+- **Decisión**: la ruta admite hasta tres niveles (provincia, ciudad, barrio) bajo el primer país del tenant; el país puede escribirse o no. Un solo nombre se acepta si es único en el árbol; si está repetido es `AMBIGUOUS_LOCATION` y si no existe es `UNKNOWN_LOCATION` (no se sabe dónde crearlo: hay que escribir la ruta). Tokko: `Argentina | Provincia | Ciudad | Barrio` descarta el país; con un solo nombre inexistente se crea como provincia; una ruta ambigua cae al comodín con `needsReview` (A-77).
+- **Por qué**: crear en silencio una «Palermo» huérfana ensucia el maestro; el rediseño pide no duplicar y aceptar rutas.
+
+### D-164 · Fusión (`MERGE_EMPTY_FIELDS`): qué se completa
+
+- **Decisión**: `fillEmptyFields(current, incoming, fields)` (en `shared/core`) devuelve sólo campos hoy vacíos con valor en el archivo. Propietario: teléfono, email, domicilio, notas y los cuatro datos bancarios (por `UpdateOwnerBankAccountCommand`, que sigue quedando como su propio registro de auditoría); inquilino y garante: contacto, notas y (inquilino) garante; propiedad: propietario, precio, descripción pública y notas; contrato: notas. **No** se crean maestros ni se suman amenities en una fusión. Nunca se modifica nombre, apellido, DNI, dirección ni ubicación.
+- **`differingFields`** lista los campos donde el archivo trae un valor distinto del existente (sirve de aviso en la pantalla); comparar ignora mayúsculas y acentos.
+
+### D-165 · Fotos: trabajo aparte, orden por propiedad, descargador a prueba de SSRF
+
+- **Decisión**: al terminar las filas se insertan los `import_asset_results` y se encola un `AsyncJob` `migration-assets` (concurrencia 3 **entre propiedades**, en orden dentro de cada una: la portada de Tokko va primera y queda como foto principal). El `jobId` de ese trabajo sólo se devuelve en `assets/retry`; para la primera corrida la pantalla sigue `assets` del detalle del lote. **El lote queda `IMPORTING` hasta que terminan las fotos** (el frontend sólo vuelve a consultar el lote mientras está `ANALYZING` o `IMPORTING`; si pasara a `COMPLETED` antes, el avance de las fotos quedaría congelado) y recién entonces toma su estado final (`summary.finalStatus`); reintentar fotos lo vuelve a poner `IMPORTING` y mientras tanto otro reintento recibe 409 `ASSETS_IN_PROGRESS`. `HttpImageDownloader` sólo sigue http(s) a hosts públicos, con timeout de 15 s, dos reintentos ante fallas transitorias (no ante 404 ni tipos no permitidos), `image/jpeg|png|webp` y 10 MB. Con `TOKKO_SOURCE=fixture` el descargador devuelve un PNG de 1×1.
+- **Por qué**: la URL viene de un sistema externo; sin el chequeo de host, un dato malicioso podría apuntar a la red interna.
+
+### D-166 · Estado final del lote y fallas
+
+- **Decisión**: `COMPLETED` si no quedó ninguna fila `ERROR` ni `FAILED`; si no, `PARTIAL` (incluso con cero importadas). `FAILED` es sólo para lo catastrófico (análisis imposible, error fuera de las filas). Las colas de la migración tienen `retryLimit: 0` (fotos: 1): un análisis que falla queda `FAILED` con motivo en vez de reintentarse en silencio. Un lote `IMPORTING` cuyo proceso se corta queda así (no hay recuperación automática): se vuelve a subir el archivo, y los vínculos hacen que sólo se importe lo que falta (A-131).
+
+### D-167 · Auditoría
+
+- **Decisión**: `ImportBatch` se audita por el diff automático (`MODEL_BEHAVIOUR`); `ImportRow`, `ImportLink` e `ImportAssetResult` no (staging y bitácora). Además se registran eventos `JOB_RUN` sobre `ImportBatch` al analizar, confirmar, terminar y descartar, con el `correlationId` de la confirmación en `changes` (las altas individuales comparten ese correlationId y quedan a nombre de quien confirmó, porque la cola restaura el usuario).
+- **Por qué no `bulk_import`**: el rediseño habla de `@Audit('bulk_import')`, pero ese decorador no existe y una acción nueva exige migrar el enum `AuditAction` y tocar la pantalla de auditoría del frontend. `JOB_RUN` ya está soportada en el filtro y en el resumen.
+
+### D-168 · Limpieza de lotes vencidos como un job más de la Fase 13
+
+- **Decisión**: `migration.discard-stale-batches` (03:30, alcance por inmobiliaria) en el catálogo de automatizaciones; usa `MigrationFacade.discardStaleBatches`. Cuenta desde `created_at` (no desde la última edición de una fila). `test/automations.e2e-spec.ts` pasa de 11 a 12 jobs.
+
+### D-169 · Configuración de Tokko
+
+- **Decisión**: `TOKKO_SOURCE=fixture|http` (default `fixture`) y `TOKKO_API_KEY`, ambas opcionales y documentadas en `.env.example`. La key **no** se valida al arrancar (Doppler la tiene vacía hasta tener la de Oppido): con `http` y sin key, el análisis falla con «Falta configurar la API key de Tokko (TOKKO_API_KEY) en el servidor».
+
+### D-170 · Dos ajustes de forma a `migration.ts` (aditivos)
+
+- `ImportBatchDetail.errorMessage` (el motivo de un lote `FAILED`; la pantalla no tendría de dónde sacarlo) y `ImportRowDto.conflict` sin el `kind` interno. No rompen al frontend actual. Anotado para que lo sume a `migration.ts` cuando regenere tipos.
+
+### D-171 · `needsReview` en propiedades
+
+- **Decisión**: columna `properties.needs_review`; aparece en el resumen de propiedades, se filtra con `GET /properties?needsReview=true` y se puede cambiar con `PATCH`. Cambiar la ubicación (o pasarlo a `false`) la limpia sola. La marca la pone sólo la migración (el alta manual nace en `false`).
+
+### D-172 · Tablero de la plantilla
+
+- **Decisión**: los desplegables cubren 5.000 filas; tipo de propiedad y ubicación son listas **abiertas** (se admiten valores nuevos, que se crean al confirmar); las enumeraciones (moneda, índice, frecuencia, modalidad, tipo de garantía) son cerradas. La hoja `Listas` se regenera en cada descarga con los maestros del tenant.
+
+### Supuestos a confirmar con Micaela (Fase 21)
+
+- **A-125** · Un garante sin tipo ni detalle de garantía se carga como «Recibos de sueldo» con el detalle «Importado sin detalle: completar». _Si prefieren rechazar la fila_: volver el detalle obligatorio en el validador.
+- **A-126** · Un contrato sin índice de aumento queda manual y anual. _Si prefieren que sea obligatorio_: marcar la columna `required` en la plantilla.
+- **A-127** · Un contrato con fin pasado se carga `FINISHED` sin cuotas ni saldo (A-74 del rediseño). _Si Micaela quiere saldo inicial por contrato_: columna «Saldo inicial» con un cargo de apertura.
+- **A-128** · Tokko: el precio de publicación es el primer precio en ARS/USD de la operación de alquiler; la descripción pública es título + descripción (recortada a 2000).
+- **A-129** · La muestra de Tokko (`src/platform/tokko/fixtures`) está armada a mano con la forma de `property/search` que usa el mapper: el repo no trae las muestras que genera `tokko_scraper.js`. **Confirmar el mapeo en la primera corrida con la key de prueba** (`tokko-mapper.ts` es el único lugar a corregir).
+- **A-130** · Pasada la cantidad máxima de fotos por propiedad (20), las que sobran fallan con el mensaje de la regla y se pueden ver en el reporte.
+- **A-131** · Un lote `IMPORTING` interrumpido no se recupera solo; se vuelve a analizar el mismo archivo y sólo se importa lo que falta.
