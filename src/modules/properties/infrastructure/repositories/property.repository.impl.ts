@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 
 import {
   ListingCurrency,
+  ListingOperation,
   Property,
   PropertyPhoto,
   PropertyStatus,
@@ -91,6 +92,14 @@ export class PropertyRepositoryImpl extends PropertyRepository {
         ? { propertyTypeId: filter.propertyTypeId }
         : {}),
       ...(filter.currency ? { listingCurrency: filter.currency } : {}),
+      ...(filter.operation ? { listingOperation: filter.operation } : {}),
+      ...(filter.bedroomsMin !== undefined
+        ? { bedrooms: { gte: filter.bedroomsMin } }
+        : {}),
+      ...(filter.bathroomsMin !== undefined
+        ? { bathrooms: { gte: filter.bathroomsMin } }
+        : {}),
+      ...(filter.ids ? { id: { in: filter.ids } } : {}),
       // Con un rango de precio, las que no tienen precio (Consultar) quedan afuera.
       ...(hasPrice
         ? {
@@ -298,6 +307,15 @@ function toDomain(row: PropertyRow): Property {
     listingPrice: row.listingPrice ? row.listingPrice.toFixed(2) : null,
     listingCurrency: row.listingCurrency as ListingCurrency,
     publicDescription: row.publicDescription,
+    listingOperation: row.listingOperation as ListingOperation,
+    bedrooms: row.bedrooms,
+    bathrooms: row.bathrooms,
+    rooms: row.rooms,
+    totalAreaM2: row.totalAreaM2 ? row.totalAreaM2.toNumber() : null,
+    coveredAreaM2: row.coveredAreaM2 ? row.coveredAreaM2.toNumber() : null,
+    ageYears: row.ageYears,
+    latitude: row.latitude ? row.latitude.toNumber() : null,
+    longitude: row.longitude ? row.longitude.toNumber() : null,
     photos: row.photos.map(photoToDomain),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -651,6 +651,99 @@ describe('Portal público (e2e, Postgres)', () => {
     })
   })
 
+  describe('datos de la ficha para el sitio web', () => {
+    it('se cargan en el alta y la edición, y salen en la API pública sin romper su forma', async () => {
+      const created = await createProperty({
+        listingOperation: 'SALE',
+        listingPrice: '120000',
+        listingCurrency: 'USD',
+        bedrooms: 3,
+        bathrooms: 2,
+        rooms: 4,
+        totalAreaM2: 85.5,
+        coveredAreaM2: 70,
+        ageYears: 12,
+      })
+      const bare = await createProperty({ address: 'Sin datos 1' })
+
+      const detail = await pub
+        .get(`/public/tenant-a/properties/${created.id}`)
+        .expect(200)
+      expect(detail.body.data).toMatchObject({
+        bedrooms: 3,
+        bathrooms: 2,
+        areaM2: 85.5,
+        operation: 'SALE',
+        rooms: 4,
+        coveredAreaM2: 70,
+        ageYears: 12,
+      })
+      expect(JSON.stringify(detail.body)).not.toContain('latitude')
+
+      // Una propiedad vieja (sin datos) se publica en alquiler y con null.
+      const old = await pub
+        .get(`/public/tenant-a/properties/${bare.id}`)
+        .expect(200)
+      expect(old.body.data).toMatchObject({
+        bedrooms: null,
+        areaM2: null,
+        operation: 'RENT',
+      })
+
+      await api(adminToken)
+        .patch(`/properties/${bare.id}`)
+        .send({ bedrooms: 1, listingOperation: 'SALE' })
+        .expect(200)
+      const edited = await api(adminToken)
+        .get(`/properties/${bare.id}`)
+        .expect(200)
+      expect(edited.body.data).toMatchObject({
+        bedrooms: 1,
+        listingOperation: 'SALE',
+        totalAreaM2: null,
+      })
+    })
+
+    it('filtra por operación, dormitorios, baños e ids', async () => {
+      const sale = await createProperty({
+        listingOperation: 'SALE',
+        bedrooms: 3,
+        bathrooms: 2,
+      })
+      const rent = await createProperty({ bedrooms: 1, bathrooms: 1 })
+
+      const ids = async (query: string) =>
+        (
+          (await pub.get(`/public/tenant-a/properties?${query}`).expect(200))
+            .body.data.data as { id: string }[]
+        ).map((p) => p.id)
+
+      expect(await ids('operation=SALE')).toEqual([sale.id])
+      expect(await ids('operation=RENT')).toEqual([rent.id])
+      expect(await ids('bedrooms=2')).toEqual([sale.id])
+      expect(await ids('bathrooms=1')).toHaveLength(2)
+      expect(await ids(`ids=${rent.id}`)).toEqual([rent.id])
+
+      await setStatus(rent.id, 'MAINTENANCE')
+      expect(await ids(`ids=${rent.id}`)).toEqual([])
+    })
+
+    it('rechaza valores fuera de rango', async () => {
+      await api(adminToken)
+        .post('/properties')
+        .send({
+          address: 'X 1',
+          locationId: refs.tolosa,
+          propertyTypeId: refs.casa,
+          bedrooms: -1,
+          latitude: 120,
+        })
+        .expect(400)
+      await pub.get('/public/tenant-a/properties?operation=NOPE').expect(400)
+      await pub.get('/public/tenant-a/properties?bedrooms=abc').expect(400)
+    })
+  })
+
   describe('rate limiting de las lecturas', () => {
     let throttled: INestApplication
     const original = process.env.THROTTLE_ENABLED

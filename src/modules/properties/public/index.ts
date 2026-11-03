@@ -6,6 +6,7 @@
 export { PropertiesModule } from '../infrastructure/modules/properties.module'
 export {
   ListingCurrency,
+  ListingOperation,
   PropertiesFacade,
   PropertyStatus,
 } from './properties.facade'

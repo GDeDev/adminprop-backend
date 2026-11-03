@@ -11,6 +11,21 @@ export enum ListingCurrency {
   USD = 'USD',
 }
 
+/** Operación con la que se publica la propiedad en el sitio web. Coincide con el enum de Prisma. */
+export enum ListingOperation {
+  SALE = 'SALE',
+  RENT = 'RENT',
+}
+
+/** Topes de los datos de la ficha pública (sitio web de la inmobiliaria). */
+export const LISTING_LIMITS = {
+  /** Dormitorios, baños y ambientes. */
+  count: { min: 0, max: 99 },
+  /** Superficies en m². */
+  area: { min: 0, max: 99_999_999 },
+  ageYears: { min: 0, max: 500 },
+} as const
+
 /** Largo máximo de la descripción pública (Fase 22). */
 export const MAX_PUBLIC_DESCRIPTION = 2000
 
@@ -44,6 +59,16 @@ export interface Property {
   listingCurrency: ListingCurrency
   /** Texto que ve el público; las `notes` internas nunca salen. */
   publicDescription: string | null
+  /** Datos de la ficha pública; todos opcionales (sitio web). */
+  listingOperation: ListingOperation
+  bedrooms: number | null
+  bathrooms: number | null
+  rooms: number | null
+  totalAreaM2: number | null
+  coveredAreaM2: number | null
+  ageYears: number | null
+  latitude: number | null
+  longitude: number | null
   /** Ordenadas por posición: la primera es la principal. */
   photos: PropertyPhoto[]
   createdAt: Date
