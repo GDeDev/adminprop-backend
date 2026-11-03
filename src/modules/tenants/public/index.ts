@@ -5,6 +5,7 @@ export { TenantsModule } from '../infrastructure/modules/tenants.module'
 export { TenantsFacade } from './tenants.facade'
 export type {
   ActiveTenantRef,
+  PublicTenantRef,
   TenantAutomationSettings,
   TenantBrandingData,
   TenantBillingSettings,

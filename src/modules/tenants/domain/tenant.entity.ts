@@ -10,6 +10,8 @@ export interface Tenant {
   logoUrl: string | null
   primaryColor: string | null
   isActive: boolean
+  /** Moneda por defecto de la inmobiliaria (precio de publicación, Fase 22). */
+  defaultCurrency: 'ARS' | 'USD'
   /** Propiedades activas desde las que aplica el honorario reducido (PRD 5.0). */
   reducedFeeThreshold: number
   /** Honorarios de administración estándar, en % ("5.00"). Nunca `number`. */

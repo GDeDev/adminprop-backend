@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
+import { RequestContext } from '@/shared/context/request-context'
 import { Tenant, TenantSettingsPatch } from '../domain/tenant.entity'
 import { TenantRepository } from '../domain/tenant.repository'
 
@@ -37,6 +38,20 @@ export interface TenantAutomationSettings {
   paymentReminderDay: number
   monthlyReportDay: number
   contractExpiryNoticeDays: number
+}
+
+/**
+ * Lo que el portal público necesita de una inmobiliaria habilitada, resuelta
+ * por su slug (Fase 22): quién es, a dónde llegan las consultas y en qué
+ * moneda se publica por defecto.
+ */
+export interface PublicTenantRef {
+  id: string
+  name: string
+  slug: string
+  /** Email de contacto: recibe el aviso de cada consulta. */
+  email: string | null
+  defaultCurrency: 'ARS' | 'USD'
 }
 
 /**
@@ -78,6 +93,29 @@ export class TenantsFacade {
   async findActiveIdBySlug(slug: string): Promise<string | null> {
     const tenant = await this.tenants.findBySlug(slug)
     return tenant?.isActive ? tenant.id : null
+  }
+
+  /**
+   * La inmobiliaria habilitada con ese slug, o `null` si no existe o está
+   * deshabilitada. La usa el portal público (Fase 22): ambos casos son 404.
+   */
+  async findActiveBySlug(slug: string): Promise<PublicTenantRef | null> {
+    const tenant = await this.tenants.findBySlug(slug)
+    if (!tenant?.isActive) return null
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      email: tenant.email,
+      defaultCurrency: tenant.defaultCurrency,
+    }
+  }
+
+  /** Moneda por defecto de la inmobiliaria del contexto (precio de publicación, Fase 22). */
+  async defaultCurrency(): Promise<'ARS' | 'USD'> {
+    const tenantId = RequestContext.tenantId
+    if (!tenantId) throw new Error('Operación de tenants sin tenant')
+    return (await this.require(tenantId)).defaultCurrency
   }
 
   /**
