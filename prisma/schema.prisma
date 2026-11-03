@@ -114,11 +114,16 @@ model Tenant {
   notificationLogs NotificationLog[]
   jobExecutions    JobExecution[]
 
-  generatedDocuments  GeneratedDocument[]
-  propertyInventories PropertyInventory[]
-  inventoryItems      InventoryItem[]
-  inventoryPhotos     InventoryPhoto[]
-  publicInquiries     PublicInquiry[]
+  generatedDocuments          GeneratedDocument[]
+  propertyInventories         PropertyInventory[]
+  inventoryItems              InventoryItem[]
+  inventoryPhotos             InventoryPhoto[]
+  publicInquiries             PublicInquiry[]
+  notificationTemplates       NotificationTemplate[]
+  notificationSettings        NotificationSetting[]
+  notificationUserPreferences NotificationUserPreference[]
+  emailEvents                 EmailEvent[]
+  whatsappTemplates           WhatsAppTemplate[]
 
   properties     Property[]
   owners         Owner[]
@@ -1940,11 +1945,25 @@ model NotificationLog {
   sentAt         DateTime?                 @map("sent_at") @db.Timestamptz(3)
   readAt         DateTime?                 @map("read_at") @db.Timestamptz(3)
 
+  // Fase 14: plantilla usada, entrega con reintentos y trazabilidad del proveedor.
+  /// Plantilla con la que se armó el mensaje ("PAYMENT_REMINDER.EMAIL").
+  templateKey       String?   @map("template_key") @db.VarChar(60)
+  subject           String?   @db.VarChar(200)
+  /// Intentos de entrega hechos. "Reintentando" = QUEUED con attempts > 0.
+  attempts          Int       @default(0)
+  nextAttemptAt     DateTime? @map("next_attempt_at") @db.Timestamptz(3)
+  /// Id que devolvió el proveedor de email; une los eventos del webhook.
+  providerMessageId String?   @map("provider_message_id") @db.VarChar(100)
+  /// Por qué quedó SKIPPED (TYPE_DISABLED, CHANNEL_DISABLED, USER_OPTED_OUT, NO_RECIPIENT_EMAIL, NO_PHONE).
+  skipReason        String?   @map("skip_reason") @db.VarChar(40)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@unique([tenantId, dedupeKey])
   @@index([tenantId, recipientKind, channel, createdAt])
   @@index([tenantId, entityType, entityId])
+  @@index([providerMessageId])
+  @@index([tenantId, status, createdAt])
   @@map("notification_log")
 }
 
@@ -2134,4 +2153,110 @@ model PublicInquiry {
   @@index([tenantId, ip, createdAt])
   @@index([tenantId, email, createdAt])
   @@map("public_inquiries")
+}
+
+// ------------------------------------------------- Notificaciones (Fase 14)
+
+enum EmailEventType {
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  DELAYED
+}
+
+/// Override por inmobiliaria del texto de un mail. Sin fila se usa el default
+/// de código; borrar la fila = "restaurar el original" (A-50).
+model NotificationTemplate {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// "PAYMENT_REMINDER.EMAIL".
+  key         String  @db.VarChar(60)
+  subject     String  @db.VarChar(200)
+  bodyText    String  @map("body_text") @db.Text
+  updatedById String? @map("updated_by_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, key])
+  @@map("notification_templates")
+}
+
+/// Qué tipos de aviso y por qué canales los usa la inmobiliaria. Sin fila,
+/// rige el default del catálogo.
+model NotificationSetting {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  type     String                @db.VarChar(40)
+  enabled  Boolean
+  channels NotificationChannel[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, type])
+  @@map("notification_settings")
+}
+
+/// Preferencia personal de un usuario del personal sobre un tipo no obligatorio.
+model NotificationUserPreference {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  userId       String  @map("user_id") @db.Uuid
+  type         String  @db.VarChar(40)
+  emailEnabled Boolean @map("email_enabled")
+  inAppEnabled Boolean @map("in_app_enabled")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, userId, type])
+  @@map("notification_user_preferences")
+}
+
+/// Eventos que reporta el proveedor de email por webhook (entregado, abierto,
+/// rebotó...). Único por (mensaje, tipo): un evento repetido no duplica.
+model EmailEvent {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Id plano (sin FK) de la fila de `notification_log`.
+  notificationId    String?        @map("notification_id") @db.Uuid
+  providerMessageId String         @map("provider_message_id") @db.VarChar(100)
+  eventType         EmailEventType @map("event_type")
+  recipientEmail    String?        @map("recipient_email") @db.VarChar(255)
+  payloadRaw        Json           @map("payload_raw")
+  occurredAt        DateTime       @map("occurred_at") @db.Timestamptz(3)
+  receivedAt        DateTime       @default(now()) @map("received_at") @db.Timestamptz(3)
+
+  @@unique([providerMessageId, eventType])
+  @@index([tenantId, notificationId])
+  @@map("email_events")
+}
+
+/// Override por inmobiliaria del texto de un mensaje de WhatsApp (link wa.me).
+model WhatsAppTemplate {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  key   String @db.VarChar(60)
+  title String @db.VarChar(120)
+  body  String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, key])
+  @@map("whatsapp_templates")
 }

@@ -185,6 +185,20 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   JobExecution: { audit: false, softDelete: false },
   NotificationLog: { tenantScoped: true, audit: false, softDelete: false },
 
+  // Notificaciones (Fase 14): plantillas, configuración por tipo y mensajes de
+  // WhatsApp son decisiones de la inmobiliaria, con historial. Las preferencias
+  // personales y los eventos del proveedor son ruido para la auditoría: el log
+  // de envíos (notification_log) ya es la traza.
+  NotificationTemplate: { tenantScoped: true, audit: true, softDelete: false },
+  NotificationSetting: { tenantScoped: true, audit: true, softDelete: false },
+  WhatsAppTemplate: { tenantScoped: true, audit: true, softDelete: false },
+  NotificationUserPreference: {
+    tenantScoped: true,
+    audit: false,
+    softDelete: false,
+  },
+  EmailEvent: { tenantScoped: true, audit: false, softDelete: false },
+
   // PDFs (Fase 15): cada versión es una fila; el historial dice quién pidió
   // la regeneración. El snapshot de datos es grande y ya vive en la fila, así
   // que no va al diff.
