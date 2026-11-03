@@ -9,6 +9,7 @@ import {
   FeatureFlagsProvider,
   QueueProvider,
   StorageProvider,
+  TokkoSourceProvider,
 } from './env.validation'
 
 export interface AppConfig {
@@ -106,6 +107,12 @@ export interface PdfConfig {
   provider: PdfProvider
 }
 
+export interface TokkoConfig {
+  source: TokkoSourceProvider
+  /** Sólo con `source: http`. Nunca se loguea ni se guarda en la base. */
+  apiKey: string | null
+}
+
 export interface AutomationsConfig {
   /** Si el scheduler dispara los jobs solo. Los manuales no dependen de esto. */
   enabled: boolean
@@ -126,6 +133,7 @@ export interface Configuration {
   notifications: NotificationsConfig
   automations: AutomationsConfig
   pdf: PdfConfig
+  tokko: TokkoConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -325,6 +333,13 @@ export function configuration(): Configuration {
         process.env.PDF_PROVIDER,
         PdfProvider.Pdfmake,
       ) as PdfProvider,
+    },
+    tokko: {
+      source: str(
+        process.env.TOKKO_SOURCE,
+        TokkoSourceProvider.Fixture,
+      ) as TokkoSourceProvider,
+      apiKey: process.env.TOKKO_API_KEY || null,
     },
     automations: {
       enabled: bool(process.env.AUTOMATIONS_ENABLED, true),

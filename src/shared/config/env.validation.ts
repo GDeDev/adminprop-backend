@@ -66,6 +66,14 @@ export enum PdfProvider {
   Pdfmake = 'pdfmake',
 }
 
+/** De dónde sale el stock de Tokko para migrar (Fase 21, 4.1). */
+export enum TokkoSourceProvider {
+  /** Muestra reducida incluida en el código: tests, CI y desarrollo sin red. */
+  Fixture = 'fixture',
+  /** La API real de Tokko; necesita TOKKO_API_KEY. */
+  Http = 'http',
+}
+
 export enum SecretsProvider {
   /** Lee todo de `process.env`, que llena Doppler. */
   Env = 'env',
@@ -374,6 +382,18 @@ export class EnvironmentVariables {
     message: `PDF_PROVIDER debe ser uno de: ${Object.values(PdfProvider).join(', ')}`,
   })
   PDF_PROVIDER?: PdfProvider
+
+  // ------------------------------------------------------- Migración (Tokko)
+  @IsOptional()
+  @IsEnum(TokkoSourceProvider, {
+    message: `TOKKO_SOURCE debe ser uno de: ${Object.values(TokkoSourceProvider).join(', ')}`,
+  })
+  TOKKO_SOURCE?: TokkoSourceProvider
+
+  /** API key de Tokko. Sólo con `TOKKO_SOURCE=http`; vive en Doppler. */
+  @IsOptional()
+  @IsString()
+  TOKKO_API_KEY?: string
 
   // ---------------------------------------------------------- Automatizaciones
   @IsOptional()
