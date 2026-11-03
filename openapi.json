@@ -3408,6 +3408,15 @@
               "example": "corrientes",
               "type": "string"
             }
+          },
+          {
+            "name": "needsReview",
+            "required": false,
+            "in": "query",
+            "description": "Sólo las propiedades que la migración dejó para revisar (true) o sin esa marca (false)",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -11182,6 +11191,790 @@
         ]
       }
     },
+    "/api/v1/migration/excel/template": {
+      "get": {
+        "description": "Hojas Instrucciones, Propietarios, Garantes, Inquilinos, Propiedades y Contratos, con desplegables armados con los maestros de la inmobiliaria.",
+        "operationId": "MigrationController_template_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "El .xlsx"
+          },
+          "403": {
+            "description": "Sólo el administrador migra datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Descargar la plantilla de Excel",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
+    "/api/v1/migration/excel/analyze": {
+      "post": {
+        "description": "Multipart: `file` (.xlsx, hasta 10 MB y 5.000 filas). No crea ninguna entidad: arma un lote con las filas validadas para revisar.",
+        "operationId": "MigrationController_analyzeExcel_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartMigrationResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el administrador migra datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "INVALID_XLSX, TEMPLATE_VERSION_MISMATCH o IMPORT_TOO_MANY_ROWS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Analizar un Excel (dry-run)",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
+    "/api/v1/migration/tokko/analyze": {
+      "post": {
+        "description": "Siempre es un análisis: no hay \"importar directo\". Con `TOKKO_SOURCE=fixture` usa una muestra incluida; con `http`, la API real.",
+        "operationId": "MigrationController_analyzeTokko_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeTokkoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartMigrationResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el administrador migra datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Analizar el stock de Tokko (dry-run)",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
+    "/api/v1/migration/batches": {
+      "get": {
+        "operationId": "MigrationController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "source",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "EXCEL",
+                "TOKKO"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ANALYZING",
+                "READY",
+                "IMPORTING",
+                "COMPLETED",
+                "PARTIAL",
+                "FAILED",
+                "DISCARDED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lotes de la inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/ImportBatchSummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el administrador migra datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Historial de lotes",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
+    "/api/v1/migration/batches/{id}": {
+      "get": {
+        "operationId": "MigrationController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportBatchDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el administrador migra datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resumen y reporte de un lote",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
+    "/api/v1/migration/batches/{id}/rows": {
+      "get": {
+        "operationId": "MigrationController_rows_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "entity",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OWNER",
+                "RENTER",
+                "GUARANTOR",
+                "PROPERTY",
+                "CONTRACT"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "VALID",
+                "ERROR",
+                "CONFLICT",
+                "ALREADY_IMPORTED",
+                "IMPORTED",
+                "SKIPPED",
+                "FAILED"
+              ]
+            }
+          },
+          {
+            "name": "needsReview",
+            "required": false,
+            "in": "query",
+            "description": "Sólo las marcadas para revisar.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Filas del lote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/ImportRowDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el administrador migra datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Filas del lote, con filtros",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
+    "/api/v1/migration/batches/{id}/rows/{rowId}": {
+      "patch": {
+        "description": "Sólo mientras el lote está pendiente de revisión (READY).",
+        "operationId": "MigrationController_updateRow_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rowId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateImportRowDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportRowDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el administrador migra datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BATCH_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Excluir una fila o elegir cómo resolver su conflicto",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
+    "/api/v1/migration/batches/{id}/confirm": {
+      "post": {
+        "description": "Importa exactamente las filas analizadas. Las filas con error se omiten solas. Un conflicto se saltea por defecto; `MERGE_EMPTY_FIELDS` sólo completa campos vacíos, nunca pisa un valor cargado.",
+        "operationId": "MigrationController_confirm_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmImportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartMigrationResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el administrador migra datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BATCH_NOT_READY o BATCH_ALREADY_CONFIRMED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirmar el lote revisado",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
+    "/api/v1/migration/batches/{id}/discard": {
+      "post": {
+        "operationId": "MigrationController_discard_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportBatchDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el administrador migra datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BATCH_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Descartar el lote sin importar nada",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
+    "/api/v1/migration/batches/{id}/assets/retry": {
+      "post": {
+        "operationId": "MigrationController_retryAssets_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryAssetsResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Sólo el administrador migra datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "BATCH_NOT_IMPORTED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reintentar sólo las fotos que fallaron",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
+    "/api/v1/migration/batches/{id}/report.xlsx": {
+      "get": {
+        "description": "Una hoja con los errores y conflictos (fila, campo, mensaje) para corregir y volver a subir, y otra con las fotos por propiedad.",
+        "operationId": "MigrationController_report_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "El .xlsx"
+          },
+          "403": {
+            "description": "Sólo el administrador migra datos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Descargar el reporte del lote",
+        "tags": [
+          "Migration"
+        ]
+      }
+    },
     "/api/v1/documents": {
       "get": {
         "description": "Todas las versiones, más nuevas primero.",
@@ -17388,6 +18181,10 @@
             "type": "string",
             "nullable": true
           },
+          "needsReview": {
+            "type": "boolean",
+            "description": "La migración la dejó para revisar (ej. sin ubicación)"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -17410,6 +18207,7 @@
           "listingPrice",
           "listingCurrency",
           "publicDescription",
+          "needsReview",
           "createdAt",
           "updatedAt"
         ]
@@ -17533,6 +18331,10 @@
             "type": "string",
             "nullable": true
           },
+          "needsReview": {
+            "type": "boolean",
+            "description": "La migración la dejó para revisar (ej. sin ubicación)"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -17583,6 +18385,7 @@
           "listingPrice",
           "listingCurrency",
           "publicDescription",
+          "needsReview",
           "createdAt",
           "updatedAt",
           "locationId",
@@ -17707,6 +18510,10 @@
             "nullable": true,
             "description": "Texto que ve el público en el portal.",
             "maxLength": 2000
+          },
+          "needsReview": {
+            "type": "boolean",
+            "description": "Marcar o limpiar la revisión pendiente de una propiedad migrada. Cambiar la ubicación también la limpia."
           }
         }
       },
@@ -24422,6 +25229,479 @@
           "lastAttemptStatus",
           "lastAttemptError",
           "provider"
+        ]
+      },
+      "StartMigrationResultDto": {
+        "type": "object",
+        "properties": {
+          "batchId": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string",
+            "description": "Se consulta en GET /jobs/:id/status."
+          }
+        },
+        "required": [
+          "batchId",
+          "jobId"
+        ]
+      },
+      "AnalyzeTokkoDto": {
+        "type": "object",
+        "properties": {
+          "operationTypes": {
+            "example": [
+              "Rent"
+            ],
+            "description": "Tipos de operación a traer. Por defecto sólo alquiler.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "limit": {
+            "type": "number",
+            "description": "Para probar con pocas propiedades.",
+            "example": 10
+          },
+          "includeAssets": {
+            "type": "boolean",
+            "description": "Si también se traen las fotos al confirmar."
+          }
+        },
+        "required": [
+          "includeAssets"
+        ]
+      },
+      "ImportAuthorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName"
+        ]
+      },
+      "ImportCountsDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number"
+          },
+          "valid": {
+            "type": "number"
+          },
+          "errors": {
+            "type": "number"
+          },
+          "conflicts": {
+            "type": "number"
+          },
+          "alreadyImported": {
+            "type": "number"
+          },
+          "imported": {
+            "type": "number"
+          },
+          "skipped": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "number"
+          },
+          "needsReview": {
+            "type": "number"
+          },
+          "byEntity": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ImportEntityCountsDto"
+            },
+            "description": "Por entidad: OWNER, RENTER, GUARANTOR, PROPERTY, CONTRACT."
+          }
+        },
+        "required": [
+          "total",
+          "valid",
+          "errors",
+          "conflicts",
+          "alreadyImported",
+          "imported",
+          "skipped",
+          "failed",
+          "needsReview",
+          "byEntity"
+        ]
+      },
+      "ImportBatchSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "EXCEL",
+              "TOKKO"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ANALYZING",
+              "READY",
+              "IMPORTING",
+              "COMPLETED",
+              "PARTIAL",
+              "FAILED",
+              "DISCARDED"
+            ]
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/ImportAuthorDto"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "confirmedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ImportCountsDto"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "status",
+          "fileName",
+          "createdBy",
+          "createdAt",
+          "confirmedAt",
+          "counts"
+        ]
+      },
+      "ImportMastersCountDto": {
+        "type": "object",
+        "properties": {
+          "locations": {
+            "type": "number"
+          },
+          "propertyTypes": {
+            "type": "number"
+          },
+          "amenities": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "locations",
+          "propertyTypes",
+          "amenities"
+        ]
+      },
+      "ImportAssetsDto": {
+        "type": "object",
+        "properties": {
+          "migrated": {
+            "type": "number"
+          },
+          "failed": {
+            "type": "number"
+          },
+          "pending": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "migrated",
+          "failed",
+          "pending"
+        ]
+      },
+      "ImportBatchDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "EXCEL",
+              "TOKKO"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ANALYZING",
+              "READY",
+              "IMPORTING",
+              "COMPLETED",
+              "PARTIAL",
+              "FAILED",
+              "DISCARDED"
+            ]
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/ImportAuthorDto"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "confirmedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ImportCountsDto"
+          },
+          "missingSheets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mastersToCreate": {
+            "$ref": "#/components/schemas/ImportMastersCountDto"
+          },
+          "mastersCreated": {
+            "$ref": "#/components/schemas/ImportMastersCountDto"
+          },
+          "assets": {
+            "$ref": "#/components/schemas/ImportAssetsDto"
+          },
+          "canConfirm": {
+            "type": "boolean",
+            "description": "El lote está listo para revisar y tiene algo para importar."
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "status",
+          "fileName",
+          "createdBy",
+          "createdAt",
+          "confirmedAt",
+          "counts",
+          "missingSheets",
+          "mastersToCreate",
+          "mastersCreated",
+          "assets",
+          "canConfirm",
+          "errorMessage"
+        ]
+      },
+      "ImportRowErrorDto": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "code",
+          "message"
+        ]
+      },
+      "ImportRowConflictDto": {
+        "type": "object",
+        "properties": {
+          "entityId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "differingFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "entityId",
+          "reason",
+          "differingFields"
+        ]
+      },
+      "ImportRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "entity": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "RENTER",
+              "GUARANTOR",
+              "PROPERTY",
+              "CONTRACT"
+            ]
+          },
+          "rowNumber": {
+            "type": "number",
+            "nullable": true
+          },
+          "externalId": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "description": "Texto para identificar la fila."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "VALID",
+              "ERROR",
+              "CONFLICT",
+              "ALREADY_IMPORTED",
+              "IMPORTED",
+              "SKIPPED",
+              "FAILED"
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportRowErrorDto"
+            }
+          },
+          "conflict": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ImportRowConflictDto"
+              }
+            ]
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "SKIP",
+              "MERGE_EMPTY_FIELDS"
+            ],
+            "nullable": true
+          },
+          "excluded": {
+            "type": "boolean"
+          },
+          "needsReview": {
+            "type": "boolean"
+          },
+          "targetId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "entity",
+          "rowNumber",
+          "externalId",
+          "label",
+          "status",
+          "errors",
+          "conflict",
+          "resolution",
+          "excluded",
+          "needsReview",
+          "targetId"
+        ]
+      },
+      "UpdateImportRowDto": {
+        "type": "object",
+        "properties": {
+          "excluded": {
+            "type": "boolean",
+            "description": "Excluir la fila de la importación."
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "SKIP",
+              "MERGE_EMPTY_FIELDS"
+            ],
+            "description": "Cómo resolver el conflicto de esta fila."
+          }
+        }
+      },
+      "ConfirmImportDto": {
+        "type": "object",
+        "properties": {
+          "excludeRowIds": {
+            "description": "Filas a dejar afuera.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultConflictResolution": {
+            "type": "string",
+            "enum": [
+              "SKIP",
+              "MERGE_EMPTY_FIELDS"
+            ],
+            "description": "Qué hacer con los conflictos sin resolución propia. Nunca se pisa un valor ya cargado."
+          },
+          "migrateAssets": {
+            "type": "boolean",
+            "description": "Si se traen las fotos de Tokko (por defecto, lo pedido al analizar)."
+          }
+        },
+        "required": [
+          "defaultConflictResolution"
+        ]
+      },
+      "RetryAssetsResultDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId"
         ]
       },
       "DocumentKind": {
