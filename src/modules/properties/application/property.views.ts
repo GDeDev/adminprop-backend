@@ -8,7 +8,7 @@ import {
   MasterDataRef,
 } from '@/modules/master-data/public'
 import { OwnerRef, OwnersFacade } from '@/modules/owners/public/owners.facade'
-import { Property, PropertyStatus } from '../domain/property'
+import { ListingCurrency, Property, PropertyStatus } from '../domain/property'
 
 export interface PropertyPhotoView {
   id: string
@@ -30,6 +30,10 @@ export interface PropertySummaryView {
   location: LocationRef | null
   propertyType: MasterDataRef | null
   mainPhotoUrl: string | null
+  /** Precio de publicación; null = "Consultar" (Fase 22). */
+  listingPrice: string | null
+  listingCurrency: ListingCurrency
+  publicDescription: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -122,6 +126,9 @@ function toSummary(
     location: locations.get(property.locationId) ?? null,
     propertyType: types.get(property.propertyTypeId) ?? null,
     mainPhotoUrl: property.photos[0]?.url ?? null,
+    listingPrice: property.listingPrice,
+    listingCurrency: property.listingCurrency,
+    publicDescription: property.publicDescription,
     createdAt: property.createdAt,
     updatedAt: property.updatedAt,
   }

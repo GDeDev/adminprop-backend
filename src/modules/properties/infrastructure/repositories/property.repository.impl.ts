@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 
 import {
+  ListingCurrency,
   Property,
   PropertyPhoto,
   PropertyStatus,
@@ -10,6 +11,7 @@ import {
   PropertyData,
   PropertyFilter,
   PropertyRepository,
+  PublicPropertyFilter,
 } from '@/modules/properties/domain/property.ports'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 
@@ -74,6 +76,67 @@ export class PropertyRepositoryImpl extends PropertyRepository {
       this.prisma.db.property.count({ where }),
     ])
     return [rows.map(toDomain), total]
+  }
+
+  async listPublic(
+    filter: PublicPropertyFilter,
+    page: { skip: number; take: number },
+  ): Promise<[Property[], number]> {
+    const hasPrice =
+      filter.priceFrom !== undefined || filter.priceTo !== undefined
+    const where: Prisma.PropertyWhereInput = {
+      status: PropertyStatus.AVAILABLE,
+      ...(filter.locationId ? { locationId: filter.locationId } : {}),
+      ...(filter.propertyTypeId
+        ? { propertyTypeId: filter.propertyTypeId }
+        : {}),
+      ...(filter.currency ? { listingCurrency: filter.currency } : {}),
+      // Con un rango de precio, las que no tienen precio (Consultar) quedan afuera.
+      ...(hasPrice
+        ? {
+            listingPrice: {
+              ...(filter.priceFrom !== undefined
+                ? { gte: filter.priceFrom }
+                : {}),
+              ...(filter.priceTo !== undefined ? { lte: filter.priceTo } : {}),
+            },
+          }
+        : {}),
+    }
+
+    const [rows, total] = await this.prisma.db.$transaction([
+      this.prisma.db.property.findMany({
+        where,
+        include: ALL_PHOTOS,
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        ...page,
+      }),
+      this.prisma.db.property.count({ where }),
+    ])
+    return [rows.map(toDomain), total]
+  }
+
+  async findPublicById(id: string): Promise<Property | null> {
+    const row = await this.prisma.db.property.findFirst({
+      where: { id, status: PropertyStatus.AVAILABLE },
+      include: ALL_PHOTOS,
+    })
+    return row ? toDomain(row) : null
+  }
+
+  async publicFilterOptions(): Promise<{
+    locationIds: string[]
+    propertyTypeIds: string[]
+  }> {
+    const rows = await this.prisma.db.property.findMany({
+      where: { status: PropertyStatus.AVAILABLE },
+      select: { locationId: true, propertyTypeId: true },
+      distinct: ['locationId', 'propertyTypeId'],
+    })
+    return {
+      locationIds: [...new Set(rows.map((row) => row.locationId))],
+      propertyTypeIds: [...new Set(rows.map((row) => row.propertyTypeId))],
+    }
   }
 
   async listAll(filter: PropertyFilter): Promise<Property[]> {
@@ -232,6 +295,9 @@ function toDomain(row: PropertyRow): Property {
     notes: row.notes,
     activeContractId: row.activeContractId,
     lastContractId: row.lastContractId,
+    listingPrice: row.listingPrice ? row.listingPrice.toFixed(2) : null,
+    listingCurrency: row.listingCurrency as ListingCurrency,
+    publicDescription: row.publicDescription,
     photos: row.photos.map(photoToDomain),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -1,8 +1,16 @@
-import { PropertyStatus } from '@/modules/properties/domain/property'
+import {
+  ListingCurrency,
+  PropertyStatus,
+} from '@/modules/properties/domain/property'
 import { PropertyData } from '@/modules/properties/domain/property.ports'
 
+/** Sin moneda, se usa la de la inmobiliaria. */
+export type CreatePropertyData = Omit<PropertyData, 'listingCurrency'> & {
+  listingCurrency?: ListingCurrency
+}
+
 export class CreatePropertyCommand {
-  constructor(public readonly data: PropertyData) {}
+  constructor(public readonly data: CreatePropertyData) {}
 }
 
 export class UpdatePropertyCommand {

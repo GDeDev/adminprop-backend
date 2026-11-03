@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsEnum,
+  Matches,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -11,7 +12,11 @@ import {
   MaxLength,
 } from 'class-validator'
 
-import { PropertyStatus } from '@/modules/properties/domain/property'
+import {
+  ListingCurrency,
+  MAX_PUBLIC_DESCRIPTION,
+  PropertyStatus,
+} from '@/modules/properties/domain/property'
 import { PaginationQueryDto } from '@/shared/pagination'
 
 const trimmed = ({ value }: { value: unknown }) =>
@@ -59,6 +64,40 @@ export class CreatePropertyDto {
   @IsString()
   @MaxLength(5000)
   notes?: string | null
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '150000.00',
+    description:
+      'Precio de publicación en el portal, como string. Sin precio (o null) se publica como "Consultar".',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^d{1,12}(.d{1,2})?$/, {
+    message:
+      'El precio tiene que ser un monto con hasta 2 decimales y punto decimal (ej. "150000.50")',
+  })
+  listingPrice?: string | null
+
+  @ApiPropertyOptional({
+    enum: ListingCurrency,
+    description: 'Moneda del precio. Por defecto, la de la inmobiliaria.',
+  })
+  @IsOptional()
+  @IsEnum(ListingCurrency, { message: 'La moneda no es válida' })
+  listingCurrency?: ListingCurrency
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Texto que ve el público en el portal.',
+    maxLength: MAX_PUBLIC_DESCRIPTION,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_PUBLIC_DESCRIPTION)
+  publicDescription?: string | null
 }
 
 export class UpdatePropertyDto extends PartialType(CreatePropertyDto) {}
@@ -148,6 +187,16 @@ export class PropertySummaryDto {
   @ApiProperty({ type: MasterDataRefDto, nullable: true })
   propertyType: MasterDataRefDto | null
   @ApiProperty({ type: String, nullable: true }) mainPhotoUrl: string | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '150000.00',
+    description: 'Precio de publicación; null = "Consultar"',
+  })
+  listingPrice: string | null
+  @ApiProperty({ enum: ListingCurrency }) listingCurrency: ListingCurrency
+  @ApiProperty({ type: String, nullable: true })
+  publicDescription: string | null
   @ApiProperty() createdAt: Date
   @ApiProperty() updatedAt: Date
 }

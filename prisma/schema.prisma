@@ -522,21 +522,27 @@ model Property {
   tenantId String @map("tenant_id") @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  address          String         @db.VarChar(200)
-  locationId       String         @map("location_id") @db.Uuid
-  propertyTypeId   String         @map("property_type_id") @db.Uuid
-  status           PropertyStatus @default(AVAILABLE)
+  address           String         @db.VarChar(200)
+  locationId        String         @map("location_id") @db.Uuid
+  propertyTypeId    String         @map("property_type_id") @db.Uuid
+  status            PropertyStatus @default(AVAILABLE)
   /// Nullable: la propiedad se puede cargar antes que su propietario.
-  ownerId          String?        @map("owner_id") @db.Uuid
-  amenityIds       String[]       @default([]) @map("amenity_ids") @db.Uuid
+  ownerId           String?        @map("owner_id") @db.Uuid
+  amenityIds        String[]       @default([]) @map("amenity_ids") @db.Uuid
   /// Notas internas: nunca se exponen en el portal público.
-  notes            String?        @db.Text
+  notes             String?        @db.Text
   /// Contrato activo (módulo de contratos, sin FK). Lo fija y lo limpia el
   /// módulo de contratos por `PropertiesFacade`; acá sólo se lee (D-51).
-  activeContractId String?        @map("active_contract_id") @db.Uuid
+  activeContractId  String?        @map("active_contract_id") @db.Uuid
   /// Último contrato que tuvo, activo o no. Nunca se limpia: es el "historial
   /// de contratos" que bloquea el borrado (spec Fase 6, 3.8).
-  lastContractId   String?        @map("last_contract_id") @db.Uuid
+  lastContractId    String?        @map("last_contract_id") @db.Uuid
+  /// Precio de publicación en el portal público (Fase 22). Null = "Consultar".
+  listingPrice      Decimal?       @map("listing_price") @db.Decimal(14, 2)
+  /// Moneda del precio de publicación; sin precio no se muestra.
+  listingCurrency   Currency       @default(ARS) @map("listing_currency")
+  /// Texto que ve el público (máx. 2000). Distinto de las notas internas.
+  publicDescription String?        @map("public_description") @db.VarChar(2000)
 
   photos PropertyPhoto[]
 
@@ -548,6 +554,7 @@ model Property {
   deletedById String?   @map("deleted_by_id") @db.Uuid
 
   @@index([tenantId, status])
+  @@index([tenantId, status, createdAt])
   @@index([tenantId, ownerId])
   @@index([tenantId, activeContractId])
   @@index([tenantId, propertyTypeId])

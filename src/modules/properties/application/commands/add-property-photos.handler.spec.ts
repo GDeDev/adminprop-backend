@@ -1,4 +1,8 @@
-import { Property, PropertyStatus } from '@/modules/properties/domain/property'
+import {
+  ListingCurrency,
+  Property,
+  PropertyStatus,
+} from '@/modules/properties/domain/property'
 import { PropertyRepository } from '@/modules/properties/domain/property.ports'
 import { StoragePort } from '@/platform/storage/storage.port'
 import { PropertyViews } from '../property.views'
@@ -16,6 +20,9 @@ const PROPERTY: Property = {
   notes: null,
   activeContractId: null,
   lastContractId: null,
+  listingPrice: null,
+  listingCurrency: ListingCurrency.ARS,
+  publicDescription: null,
   photos: [],
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),

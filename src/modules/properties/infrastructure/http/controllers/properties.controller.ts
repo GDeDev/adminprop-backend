@@ -138,6 +138,9 @@ export class PropertiesController {
         ownerId: dto.ownerId ?? null,
         amenityIds: dto.amenityIds ?? [],
         notes: dto.notes ?? null,
+        listingPrice: dto.listingPrice ?? null,
+        listingCurrency: dto.listingCurrency,
+        publicDescription: dto.publicDescription ?? null,
       }),
     )
     return { success: true, message: 'Propiedad creada', data: property }
@@ -161,6 +164,9 @@ export class PropertiesController {
         ownerId: dto.ownerId,
         amenityIds: dto.amenityIds,
         notes: dto.notes,
+        listingPrice: dto.listingPrice,
+        listingCurrency: dto.listingCurrency,
+        publicDescription: dto.publicDescription,
       }),
     )
     return { success: true, message: 'Propiedad actualizada', data: property }

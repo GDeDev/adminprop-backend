@@ -21,6 +21,7 @@ import {
 } from '@/modules/properties/domain/property.ports'
 import { MasterDataModule } from '@/modules/master-data/public'
 import { OwnersModule } from '@/modules/owners/public'
+import { TenantsModule } from '@/modules/tenants/public'
 import { PropertiesFacade } from '@/modules/properties/public/properties.facade'
 import { PropertiesController } from '../http/controllers/properties.controller'
 import { PropertyContractsImpl } from '../repositories/property-contracts.impl'
@@ -31,7 +32,7 @@ import { PropertyRepositoryImpl } from '../repositories/property.repository.impl
  * explicado en `OwnersModule`.
  */
 @Module({
-  imports: [MasterDataModule, forwardRef(() => OwnersModule)],
+  imports: [MasterDataModule, TenantsModule, forwardRef(() => OwnersModule)],
   controllers: [PropertiesController],
   providers: [
     { provide: PropertyRepository, useClass: PropertyRepositoryImpl },

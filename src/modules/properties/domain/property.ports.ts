@@ -1,4 +1,9 @@
-import { Property, PropertyPhoto, PropertyStatus } from './property'
+import {
+  ListingCurrency,
+  Property,
+  PropertyPhoto,
+  PropertyStatus,
+} from './property'
 
 export interface PropertyData {
   address: string
@@ -7,6 +12,19 @@ export interface PropertyData {
   ownerId: string | null
   amenityIds: string[]
   notes: string | null
+  listingPrice: string | null
+  listingCurrency: ListingCurrency
+  publicDescription: string | null
+}
+
+/** Filtros del portal público (Fase 22). Siempre sobre propiedades disponibles. */
+export interface PublicPropertyFilter {
+  locationId?: string
+  propertyTypeId?: string
+  /** Montos en string; sólo tienen sentido junto con `currency`. */
+  priceFrom?: string
+  priceTo?: string
+  currency?: ListingCurrency
 }
 
 export interface PropertyFilter {
@@ -31,6 +49,24 @@ export abstract class PropertyRepository {
     filter: PropertyFilter,
     page: { skip: number; take: number },
   ): Promise<[Property[], number]>
+
+  /**
+   * Las disponibles para el portal público, más nuevas primero, con sus fotos
+   * y sin ningún filtro por propietario o contrato (Fase 22).
+   */
+  abstract listPublic(
+    filter: PublicPropertyFilter,
+    page: { skip: number; take: number },
+  ): Promise<[Property[], number]>
+
+  /** Una propiedad disponible con todas sus fotos; null si no lo está. */
+  abstract findPublicById(id: string): Promise<Property | null>
+
+  /** Ubicaciones y tipos de las propiedades disponibles (para los selects). */
+  abstract publicFilterOptions(): Promise<{
+    locationIds: string[]
+    propertyTypeIds: string[]
+  }>
 
   /** Todas las que cumplen el filtro, sin paginar (reportes de la Fase 19). */
   abstract listAll(filter: PropertyFilter): Promise<Property[]>
