@@ -873,6 +873,74 @@ describe('Sitio web (e2e, Postgres)', () => {
     })
   })
 
+  describe('tope por IP de las lecturas del sitio', () => {
+    let throttled: INestApplication
+    const original = process.env.THROTTLE_ENABLED
+    const SECRET = 'secreto-compartido-e2e'
+
+    beforeAll(async () => {
+      process.env.THROTTLE_ENABLED = 'true'
+      throttled = await createTestApp()
+    })
+
+    afterAll(async () => {
+      await throttled.close()
+      process.env.THROTTLE_ENABLED = original
+    })
+
+    /** Pide `times` veces y devuelve cuántas respondieron 429. */
+    async function blockedOf(
+      path: string,
+      times: number,
+      secret?: string,
+    ): Promise<number> {
+      let blocked = 0
+      for (let i = 0; i < times; i += 1) {
+        const req = request(throttled.getHttpServer()).get(`/api/v1${path}`)
+        const response = await (secret
+          ? req.set('X-Sites-Secret', secret)
+          : req)
+        if (response.status === 429) blocked += 1
+      }
+      return blocked
+    }
+
+    it('sin el secreto del servidor de sitios, la lectura pública se limita por IP', async () => {
+      expect(await blockedOf('/public/tenant-a/site', 320)).toBeGreaterThan(0)
+    })
+
+    it('con un secreto equivocado también se limita', async () => {
+      expect(
+        await blockedOf('/public/tenant-a/site', 320, 'secreto-equivocado'),
+      ).toBeGreaterThan(0)
+    })
+
+    it('con el secreto compartido no cuenta contra el tope (todos los sitios salen de una IP)', async () => {
+      expect(await blockedOf('/public/tenant-b/site', 320, SECRET)).toBe(0)
+      expect(
+        await blockedOf('/public/site-by-host?host=x.sites.test', 620, SECRET),
+      ).toBe(0)
+    })
+
+    it('el secreto no abre nada más: el contacto público sigue limitado', async () => {
+      // Solo las lecturas marcadas se saltean el tope; el formulario no.
+      let blocked = 0
+      for (let i = 0; i < 25; i += 1) {
+        const response = await request(throttled.getHttpServer())
+          .post('/api/v1/public/tenant-a/contact')
+          .set('X-Sites-Secret', SECRET)
+          .send({
+            name: 'x',
+            email: 'x@x.com',
+            message: 'hola',
+            website: 'bot',
+          })
+        if (response.status === 429) blocked += 1
+      }
+      expect(blocked).toBeGreaterThan(0)
+    })
+  })
+
   describe('vista previa', () => {
     it('el token abre el borrador (aunque no esté publicado), sin caché ni indexación', async () => {
       await settingsOf(adminA)

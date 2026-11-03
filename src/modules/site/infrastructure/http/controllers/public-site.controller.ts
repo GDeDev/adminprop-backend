@@ -12,6 +12,7 @@ import type { Response } from 'express'
 
 import { IsPublic } from '@/modules/auth/public'
 import { ApiErrorDto, ApiSuccessDto } from '@/shared/dtos/api-response.dto'
+import { SkipThrottleForTrustedServer } from '@/shared/infra/throttler/trusted-server'
 import { PublicSiteView } from '../../../application/site.query-handlers'
 import {
   GetPublicSiteQuery,
@@ -32,6 +33,7 @@ export class PublicSiteController {
 
   @Get('site-by-host')
   @Throttle(HOST_LOOKUP_LIMIT)
+  @SkipThrottleForTrustedServer()
   @ApiOperation({
     summary: 'Resuelve el slug a partir del host',
     description:
@@ -58,6 +60,7 @@ export class PublicSiteController {
 
   @Get(':slug/site')
   @Throttle(SITE_READ_LIMIT)
+  @SkipThrottleForTrustedServer()
   @ApiOperation({
     summary: 'El sitio publicado de una inmobiliaria',
     description:

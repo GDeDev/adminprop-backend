@@ -124,6 +124,12 @@ export interface SitesConfig {
   previewSecret: string
   /** Exige verificar con un TXT el dominio propio (default true). */
   domainVerification: boolean
+  /**
+   * Secreto compartido con `apps/sites` (el mismo de la revalidación): quien lo
+   * manda en `X-Sites-Secret` no cuenta contra el tope por IP de las lecturas
+   * públicas del sitio. Null = nadie se saltea el tope.
+   */
+  serverSecret: string | null
   /** Aviso a `apps/sites` al publicar; sin URL o secreto no se avisa. */
   revalidate: { url: string; secret: string } | null
 }
@@ -358,6 +364,7 @@ export function configuration(): Configuration {
         .map((h) => h.trim().toLowerCase())
         .filter(Boolean),
       domainVerification: bool(process.env.SITES_DOMAIN_VERIFICATION, true),
+      serverSecret: process.env.SITES_REVALIDATE_SECRET || null,
       revalidate:
         process.env.SITES_REVALIDATE_URL && process.env.SITES_REVALIDATE_SECRET
           ? {

@@ -1192,3 +1192,13 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **A-146** · Los dominios existentes al migrar se consideran verificados (D-190).
 - **A-147** · Nuevas variables, todas opcionales: `SITES_DOMAIN_VERIFICATION` (default `true`), `SITES_REVALIDATE_URL` y `SITES_REVALIDATE_SECRET`. **Pendiente de Giuliano**: cargarlas en Doppler junto con las de A-141; el secreto tiene que ser el mismo que `SITES_REVALIDATE_SECRET` de `apps/sites`.
 - **A-148** · La verificación consulta el DNS del servidor de la API (`dns.resolveTxt`): un TXT recién cargado puede tardar en verse por el caché del resolvedor.
+
+### Revisión del PR (tercera ronda)
+
+### D-197 · Las lecturas del sitio no cuentan contra el tope por IP cuando llega el secreto del servidor de sitios
+
+- **Problema**: `apps/sites` pide en nombre de todos los visitantes de todas las inmobiliarias desde una sola IP. Con un tope por IP (60/min en el portal, 300/min en el sitio, 600/min en el host), el tope era **global a todos los sitios**: un bot contra un sitio dejaba sin servicio a los demás.
+- **Decisión**: los endpoints marcados con `@SkipThrottleForTrustedServer()` se saltean el tope si el pedido trae el header `X-Sites-Secret` igual a `SITES_REVALIDATE_SECRET` (el mismo secreto compartido de la revalidación), comparado en tiempo constante (`sha256` + `timingSafeEqual`). Sin el header, o con un valor distinto, el endpoint se limita como cualquier lectura pública. Marcados: `GET /public/:slug/site`, `GET /public/site-by-host` y las tres lecturas del portal público que consume el sitio (`properties`, `properties/:id`, `filters`). **El contacto (`POST /contact`) no se marca**: sigue limitado (5 por hora por IP y por email contados en la base) y `apps/sites` le reenvía la IP real del visitante.
+- **Por qué no `x-site-slug`**: lo puede mandar cualquiera, así que no protege nada.
+- **Contra**: el secreto es una credencial más para rotar y quien lo tenga puede leer sin tope (solo lecturas públicas). Rotarlo requiere cambiarlo a la vez en la API y en `apps/sites`.
+- Supera la parte de A-142 que decía que había que revisar los topes con tráfico real para el servidor de sitios (los topes por IP siguen valiendo para el resto de los clientes).

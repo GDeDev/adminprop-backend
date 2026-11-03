@@ -416,7 +416,11 @@ export class EnvironmentVariables {
   @IsString()
   SITES_REVALIDATE_URL?: string
 
-  /** Secreto compartido con `apps/sites` para ese aviso. */
+  /**
+   * Secreto compartido con `apps/sites`: sirve para el aviso de publicación y
+   * para que ese servidor no cuente contra el tope por IP de las lecturas
+   * públicas (header `X-Sites-Secret`).
+   */
   @IsOptional()
   @IsString()
   SITES_REVALIDATE_SECRET?: string

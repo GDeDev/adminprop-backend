@@ -19,6 +19,7 @@ import {
   PublicPropertyDetailView,
   PublicPropertySummaryView,
 } from '@/modules/properties/public'
+import { SkipThrottleForTrustedServer } from '@/shared/infra/throttler/trusted-server'
 import { RequestContext } from '@/shared/context/request-context'
 import { ApiErrorDto, ApiSuccessDto } from '@/shared/dtos/api-response.dto'
 import { PaginatedResult } from '@/shared/pagination'
@@ -73,6 +74,7 @@ export class PublicController {
 
   @Get('properties')
   @Throttle(READ_LIMIT)
+  @SkipThrottleForTrustedServer()
   @ApiOperation({ summary: 'Propiedades disponibles, con filtros' })
   @ApiPaginatedResponse(
     PublicPropertySummaryDto,
@@ -107,6 +109,7 @@ export class PublicController {
 
   @Get('properties/:id')
   @Throttle(READ_LIMIT)
+  @SkipThrottleForTrustedServer()
   @ApiOperation({ summary: 'Ficha pública de una propiedad disponible' })
   @ApiResponse({ status: 200, type: PublicPropertyDetailDto })
   @ApiResponse({
@@ -127,6 +130,7 @@ export class PublicController {
 
   @Get('filters')
   @Throttle(READ_LIMIT)
+  @SkipThrottleForTrustedServer()
   @ApiOperation({
     summary: 'Tipos y ubicaciones en uso por propiedades disponibles',
   })

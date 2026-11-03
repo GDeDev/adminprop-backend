@@ -763,6 +763,17 @@ describe('Portal público (e2e, Postgres)', () => {
       process.env.THROTTLE_ENABLED = original
     })
 
+    it('el servidor de sitios (con el secreto compartido) no cuenta contra el tope de las lecturas', async () => {
+      let blocked = 0
+      for (let i = 0; i < 80; i += 1) {
+        const response = await request(throttled.getHttpServer())
+          .get('/api/v1/public/tenant-a/filters')
+          .set('X-Sites-Secret', 'secreto-compartido-e2e')
+        if (response.status === 429) blocked += 1
+      }
+      expect(blocked).toBe(0)
+    })
+
     it('frena a una IP que pide demasiado y avisa con Retry-After', async () => {
       const statuses: number[] = []
       let blocked: request.Response | undefined

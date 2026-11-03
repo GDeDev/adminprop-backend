@@ -41,5 +41,6 @@ process.env.INDEX_SOURCE_PROVIDER = 'manual'
 // Los e2e esperan a los consumidores de la cola: que busquen seguido.
 process.env.QUEUE_POLLING_INTERVAL_SECONDS = '0.5'
 process.env.SITES_BASE_DOMAIN = 'sites.test'
+process.env.SITES_REVALIDATE_SECRET = 'secreto-compartido-e2e'
 process.env.STORAGE_PROVIDER = 'local'
 process.env.STORAGE_LOCAL_DIR = join(tmpdir(), 'adminprop-test-storage')
