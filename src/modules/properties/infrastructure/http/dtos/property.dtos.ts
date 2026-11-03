@@ -74,7 +74,7 @@ export class CreatePropertyDto {
   })
   @IsOptional()
   @IsString()
-  @Matches(/^d{1,12}(.d{1,2})?$/, {
+  @Matches(/^\d{1,12}(\.\d{1,2})?$/, {
     message:
       'El precio tiene que ser un monto con hasta 2 decimales y punto decimal (ej. "150000.50")',
   })
