@@ -351,6 +351,11 @@ export class EnvironmentVariables {
   @IsString()
   RESEND_API_KEY?: string
 
+  /** URL base del portal de propietarios e inquilinos; los mails linkean a `<base>/<slug>`. */
+  @IsOptional()
+  @IsString()
+  PORTAL_BASE_URL?: string
+
   /** Secreto Svix (`whsec_...`) con el que se firma el webhook de Resend. */
   @IsOptional()
   @IsString()

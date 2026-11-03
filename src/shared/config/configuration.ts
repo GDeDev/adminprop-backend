@@ -91,6 +91,8 @@ export interface EmailConfig {
   provider: EmailProvider
   /** Remitente (`notificaciones@dominio`); sin valor sale desde un default de desarrollo. */
   from: string
+  /** Base del link al portal que llevan los mails; sin valor, la variable queda vacía. */
+  portalBaseUrl: string | null
   resendApiKey: string | null
   /** Secreto Svix del webhook; sin él, el webhook responde 503. */
   resendWebhookSecret: string | null
@@ -308,6 +310,7 @@ export function configuration(): Configuration {
         EmailProvider.Console,
       ) as EmailProvider,
       from: str(process.env.EMAIL_FROM, 'notificaciones@adminprop.local'),
+      portalBaseUrl: process.env.PORTAL_BASE_URL || null,
       resendApiKey: process.env.RESEND_API_KEY || null,
       resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET || null,
     },
