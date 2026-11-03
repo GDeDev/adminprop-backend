@@ -15,6 +15,7 @@ import {
   ListDocumentsHandler,
   RegenerateDocumentHandler,
 } from '../../application/document.handlers'
+import { DocumentsFacade } from '../../public/documents.facade'
 import { GeneratedDocumentRepository } from '../../domain/document.ports'
 import { DocumentEventsConsumer } from '../consumers/document-events.consumer'
 import { DocumentsController } from '../http/controllers/documents.controller'
@@ -44,10 +45,12 @@ import { GeneratedDocumentRepositoryImpl } from '../repositories/generated-docum
     DocumentBrandingResolver,
     DocumentGenerator,
     DocumentAccess,
+    DocumentsFacade,
     DocumentEventsConsumer,
     GetDocumentHandler,
     ListDocumentsHandler,
     RegenerateDocumentHandler,
   ],
+  exports: [DocumentsFacade],
 })
 export class DocumentsModule {}

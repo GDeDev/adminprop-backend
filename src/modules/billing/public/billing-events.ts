@@ -90,3 +90,13 @@ export const PAYMENT_VOIDED_DOCUMENTS_QUEUE: QueueDefinition = {
   retryLimit: 3,
   retryDelaySeconds: 30,
 }
+
+/**
+ * Copia propia del pago confirmado para las notificaciones (Fase 14): el
+ * recibo por mail al inquilino. Mismo motivo que la de documentos.
+ */
+export const PAYMENT_CONFIRMED_NOTIFICATIONS_QUEUE: QueueDefinition = {
+  name: 'payment-confirmed-notifications',
+  retryLimit: 3,
+  retryDelaySeconds: 30,
+}

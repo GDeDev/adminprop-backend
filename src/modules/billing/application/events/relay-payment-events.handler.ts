@@ -2,6 +2,7 @@ import { EventsHandler, IEventHandler } from '@nestjs/cqrs'
 
 import {
   PAYMENT_CONFIRMED_DOCUMENTS_QUEUE,
+  PAYMENT_CONFIRMED_NOTIFICATIONS_QUEUE,
   PAYMENT_CONFIRMED_QUEUE,
   PAYMENT_VOIDED_DOCUMENTS_QUEUE,
   PAYMENT_VOIDED_QUEUE,
@@ -43,6 +44,7 @@ export class RelayPaymentConfirmedHandler implements IEventHandler<PaymentConfir
     try {
       await this.queue.publish(PAYMENT_CONFIRMED_QUEUE, payload)
       await this.queue.publish(PAYMENT_CONFIRMED_DOCUMENTS_QUEUE, payload)
+      await this.queue.publish(PAYMENT_CONFIRMED_NOTIFICATIONS_QUEUE, payload)
     } catch (error) {
       this.logger.error(
         { err: error, paymentId: payment.id },

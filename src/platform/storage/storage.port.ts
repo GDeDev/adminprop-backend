@@ -22,6 +22,13 @@ export abstract class StoragePort {
 
   /** Borra un archivo por la `key` que devolvió `upload`. Idempotente. */
   abstract delete(key: string): Promise<void>
+
+  /**
+   * Baja el contenido de un archivo propio (para adjuntarlo a un mail). Recibe
+   * la `key` y la `url` que devolvió `upload`: el disco usa la key, un CDN la
+   * url. Falla si el archivo no existe o no es del tenant del contexto.
+   */
+  abstract download(key: string, url: string): Promise<Buffer>
 }
 
 export interface UploadOptions {

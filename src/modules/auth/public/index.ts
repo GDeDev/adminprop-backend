@@ -23,6 +23,6 @@ export {
 } from './portal-accounts.facade'
 export type { PortalCredentials } from './portal-accounts.facade'
 export { UsersFacade } from './users.facade'
-export type { UserRef } from './users.facade'
+export type { StaffContact, UserRef } from './users.facade'
 export type { PortalRole } from '../domain/enums/role.enum'
 export { PortalCredentialsDto } from './portal-credentials.dto'

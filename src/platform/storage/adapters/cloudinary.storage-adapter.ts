@@ -56,6 +56,15 @@ export class CloudinaryStorageAdapter extends StoragePort {
     }
   }
 
+  async download(key: string, url: string): Promise<Buffer> {
+    assertKeyInTenant(key.slice(key.indexOf(':') + 1))
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`No se pudo bajar el archivo (${response.status})`)
+    }
+    return Buffer.from(await response.arrayBuffer())
+  }
+
   async delete(key: string): Promise<void> {
     const separator = key.indexOf(':')
     const resourceType = key.slice(0, separator)

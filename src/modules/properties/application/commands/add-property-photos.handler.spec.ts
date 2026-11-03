@@ -42,7 +42,7 @@ describe('AddPropertyPhotosHandler', () => {
       findById: jest.fn().mockResolvedValue(PROPERTY),
       addPhotos: jest.fn().mockResolvedValue([]),
     }
-    storage = { upload: jest.fn(), delete: jest.fn() }
+    storage = { upload: jest.fn(), delete: jest.fn(), download: jest.fn() }
     const views = { detail: jest.fn().mockResolvedValue({}) }
     handler = new AddPropertyPhotosHandler(
       properties as unknown as PropertyRepository,
