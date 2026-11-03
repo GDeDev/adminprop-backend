@@ -1904,6 +1904,8 @@ enum NotificationRecipientKind {
   OWNER
   TENANT_STAFF
   INSURER
+  /// Un email suelto que no es persona del sistema (Fase 14).
+  EXTERNAL
 }
 
 enum NotificationChannel {
@@ -2178,6 +2180,7 @@ model NotificationTemplate {
   key         String  @db.VarChar(60)
   subject     String  @db.VarChar(200)
   bodyText    String  @map("body_text") @db.Text
+  createdById String? @map("created_by_id") @db.Uuid
   updatedById String? @map("updated_by_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -2198,8 +2201,10 @@ model NotificationSetting {
   enabled  Boolean
   channels NotificationChannel[]
 
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
 
   @@unique([tenantId, type])
   @@map("notification_settings")
@@ -2254,8 +2259,10 @@ model WhatsAppTemplate {
   title String @db.VarChar(120)
   body  String @db.Text
 
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
 
   @@unique([tenantId, key])
   @@map("whatsapp_templates")
