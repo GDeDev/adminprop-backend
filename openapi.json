@@ -14503,6 +14503,523 @@
         ]
       }
     },
+    "/api/v1/public/{slug}/properties": {
+      "get": {
+        "operationId": "PublicController_list_api/v1",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "oppido",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "locationId",
+            "required": false,
+            "in": "query",
+            "description": "Ubicación (de `GET /filters`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "propertyTypeId",
+            "required": false,
+            "in": "query",
+            "description": "Tipo de propiedad (de `GET /filters`)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "priceFrom",
+            "required": false,
+            "in": "query",
+            "description": "Precio desde, string",
+            "schema": {
+              "example": "100000",
+              "type": "string"
+            }
+          },
+          {
+            "name": "priceTo",
+            "required": false,
+            "in": "query",
+            "description": "Precio hasta, string",
+            "schema": {
+              "example": "300000",
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency",
+            "required": false,
+            "in": "query",
+            "description": "Moneda del rango; por defecto, la de la inmobiliaria",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ARS",
+                "USD"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Propiedades disponibles, más nuevas primero",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/PublicPropertySummaryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "La inmobiliaria no existe o está deshabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiadas solicitudes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Propiedades disponibles, con filtros",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/v1/public/{slug}/properties/{id}": {
+      "get": {
+        "operationId": "PublicController_findOne_api/v1",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "oppido",
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPropertyDetailDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PROPERTY_NOT_AVAILABLE: no existe o ya no está disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiadas solicitudes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Ficha pública de una propiedad disponible",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/v1/public/{slug}/filters": {
+      "get": {
+        "operationId": "PublicController_filters_api/v1",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "oppido",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicFiltersDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "La inmobiliaria no existe o está deshabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiadas solicitudes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Tipos y ubicaciones en uso por propiedades disponibles",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/v1/public/{slug}/contact": {
+      "post": {
+        "description": "Anti-spam: honeypot (`website` vacío) y 5 consultas por hora por IP y por email. Con el honeypot lleno responde 201 igual y no guarda nada.",
+        "operationId": "PublicController_contact_api/v1",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "oppido",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicContactDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicContactResultDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "La inmobiliaria no existe o está deshabilitada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PROPERTY_NOT_AVAILABLE: la propiedad ya no está disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiadas solicitudes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Enviar una consulta",
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/api/v1/inquiries": {
+      "get": {
+        "operationId": "InquiriesController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "NEW",
+                "CONTACTED",
+                "CLOSED"
+              ]
+            }
+          },
+          {
+            "name": "propertyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consultas, más nuevas primero",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/PublicInquiryDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Listar las consultas del portal",
+        "tags": [
+          "Inquiries"
+        ]
+      }
+    },
+    "/api/v1/inquiries/{id}/status": {
+      "patch": {
+        "operationId": "InquiriesController_updateStatus_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInquiryStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicInquiryDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cambiar el estado de una consulta",
+        "tags": [
+          "Inquiries"
+        ]
+      }
+    },
     "/api/v1/examples": {
       "post": {
         "operationId": "ExampleItemsController_create_api/v1",
@@ -15884,6 +16401,23 @@
             "type": "string",
             "nullable": true
           },
+          "listingPrice": {
+            "type": "string",
+            "nullable": true,
+            "example": "150000.00",
+            "description": "Precio de publicación; null = \"Consultar\""
+          },
+          "listingCurrency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "publicDescription": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -15903,6 +16437,9 @@
           "location",
           "propertyType",
           "mainPhotoUrl",
+          "listingPrice",
+          "listingCurrency",
+          "publicDescription",
           "createdAt",
           "updatedAt"
         ]
@@ -16009,6 +16546,23 @@
             "type": "string",
             "nullable": true
           },
+          "listingPrice": {
+            "type": "string",
+            "nullable": true,
+            "example": "150000.00",
+            "description": "Precio de publicación; null = \"Consultar\""
+          },
+          "listingCurrency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "publicDescription": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -16056,6 +16610,9 @@
           "location",
           "propertyType",
           "mainPhotoUrl",
+          "listingPrice",
+          "listingCurrency",
+          "publicDescription",
           "createdAt",
           "updatedAt",
           "locationId",
@@ -16099,6 +16656,26 @@
             "nullable": true,
             "description": "Notas internas. Nunca se muestran en el portal.",
             "maxLength": 5000
+          },
+          "listingPrice": {
+            "type": "string",
+            "nullable": true,
+            "example": "150000.00",
+            "description": "Precio de publicación en el portal, como string. Sin precio (o null) se publica como \"Consultar\"."
+          },
+          "listingCurrency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "description": "Moneda del precio. Por defecto, la de la inmobiliaria."
+          },
+          "publicDescription": {
+            "type": "string",
+            "nullable": true,
+            "description": "Texto que ve el público en el portal.",
+            "maxLength": 2000
           }
         },
         "required": [
@@ -16140,6 +16717,26 @@
             "nullable": true,
             "description": "Notas internas. Nunca se muestran en el portal.",
             "maxLength": 5000
+          },
+          "listingPrice": {
+            "type": "string",
+            "nullable": true,
+            "example": "150000.00",
+            "description": "Precio de publicación en el portal, como string. Sin precio (o null) se publica como \"Consultar\"."
+          },
+          "listingCurrency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "description": "Moneda del precio. Por defecto, la de la inmobiliaria."
+          },
+          "publicDescription": {
+            "type": "string",
+            "nullable": true,
+            "description": "Texto que ve el público en el portal.",
+            "maxLength": 2000
           }
         }
       },
@@ -25010,6 +25607,382 @@
         },
         "required": [
           "reason"
+        ]
+      },
+      "PublicPropertySummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "description": "Dirección corta"
+          },
+          "address": {
+            "type": "string"
+          },
+          "propertyType": {
+            "type": "string"
+          },
+          "neighborhood": {
+            "type": "string",
+            "nullable": true
+          },
+          "bedrooms": {
+            "type": "number",
+            "nullable": true
+          },
+          "bathrooms": {
+            "type": "number",
+            "nullable": true
+          },
+          "areaM2": {
+            "type": "number",
+            "nullable": true
+          },
+          "price": {
+            "type": "string",
+            "nullable": true,
+            "example": "150000.00",
+            "description": "Null = \"Consultar\""
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "nullable": true
+          },
+          "coverPhotoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "amenities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "address",
+          "propertyType",
+          "neighborhood",
+          "bedrooms",
+          "bathrooms",
+          "areaM2",
+          "price",
+          "currency",
+          "coverPhotoUrl",
+          "amenities"
+        ]
+      },
+      "PublicPhotoDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url"
+        ]
+      },
+      "PublicFeatureDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ]
+      },
+      "PublicPropertyDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "description": "Dirección corta"
+          },
+          "address": {
+            "type": "string"
+          },
+          "propertyType": {
+            "type": "string"
+          },
+          "neighborhood": {
+            "type": "string",
+            "nullable": true
+          },
+          "bedrooms": {
+            "type": "number",
+            "nullable": true
+          },
+          "bathrooms": {
+            "type": "number",
+            "nullable": true
+          },
+          "areaM2": {
+            "type": "number",
+            "nullable": true
+          },
+          "price": {
+            "type": "string",
+            "nullable": true,
+            "example": "150000.00",
+            "description": "Null = \"Consultar\""
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "nullable": true
+          },
+          "coverPhotoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "amenities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "publicDescription": {
+            "type": "string",
+            "nullable": true
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicPhotoDto"
+            }
+          },
+          "location": {
+            "type": "string",
+            "description": "Barrio, ciudad"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicFeatureDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "address",
+          "propertyType",
+          "neighborhood",
+          "bedrooms",
+          "bathrooms",
+          "areaM2",
+          "price",
+          "currency",
+          "coverPhotoUrl",
+          "amenities",
+          "publicDescription",
+          "photos",
+          "location",
+          "features"
+        ]
+      },
+      "PublicFilterOptionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "PublicFiltersDto": {
+        "type": "object",
+        "properties": {
+          "propertyTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicFilterOptionDto"
+            }
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicFilterOptionDto"
+            }
+          }
+        },
+        "required": [
+          "propertyTypes",
+          "locations"
+        ]
+      },
+      "PublicContactDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "Puede ir vacío"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "propertyId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Propiedad sobre la que se consulta; tiene que seguir disponible"
+          },
+          "website": {
+            "type": "string",
+            "description": "Honeypot: tiene que ir vacío. Con texto la consulta se descarta sin avisar.",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "message"
+        ]
+      },
+      "PublicContactResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "InquiryPropertyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "address"
+        ]
+      },
+      "PublicInquiryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "propertyId": {
+            "type": "string",
+            "nullable": true
+          },
+          "property": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InquiryPropertyDto"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "NEW",
+              "CONTACTED",
+              "CLOSED"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "PORTAL"
+            ]
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "phone",
+          "message",
+          "propertyId",
+          "property",
+          "status",
+          "source",
+          "createdAt"
+        ]
+      },
+      "UpdateInquiryStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "NEW",
+              "CONTACTED",
+              "CLOSED"
+            ]
+          }
+        },
+        "required": [
+          "status"
         ]
       },
       "CreateExampleItemDto": {
