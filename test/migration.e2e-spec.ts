@@ -665,6 +665,29 @@ describe('Migración (e2e, Postgres)', () => {
       expect(await counts(tenantA.id)).toEqual(after)
     })
 
+    // Qué fallaba: con dos lotes analizados antes de confirmar ninguno tenía
+    // vínculos, los dos salían con todo VALID y al confirmar el segundo se
+    // recreaba todo (las propiedades se duplicaban: no tienen unicidad en base).
+    it('dos lotes del mismo archivo analizados antes de confirmar no duplican nada', async () => {
+      const file = await workbook(FULL)
+      const first = await analyzeExcel(file)
+      const second = await analyzeExcel(file)
+      expect((await batch(second)).counts.valid).toBeGreaterThan(0)
+
+      await confirm(first)
+      const after = await counts(tenantA.id)
+      await confirm(second)
+
+      expect(await counts(tenantA.id)).toEqual(after)
+      const secondRows = await prisma.importRow.findMany({
+        where: { batchId: second },
+      })
+      expect(
+        secondRows.filter((r) => r.status === 'ALREADY_IMPORTED').length,
+      ).toBe(9)
+      expect(secondRows.some((r) => r.status === 'IMPORTED')).toBe(false)
+    })
+
     it('un conflicto con lo cargado a mano se saltea por defecto y no modifica ningún campo', async () => {
       const owner = await prisma.owner.create({
         data: {
