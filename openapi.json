@@ -11975,6 +11975,2860 @@
         ]
       }
     },
+    "/api/v1/valuation/properties/{propertyId}/appraise": {
+      "post": {
+        "description": "Síncrono: consulta sólo el caché de avisos, sin red. Devuelve 201 también cuando `reused` es true (una tasación idéntica de las últimas 6 horas). 422 `INSUFFICIENT_MARKET_DATA` si no hay avisos suficientes; 429 `VALUATION_DAILY_LIMIT`. No modifica la propiedad. Auditado.",
+        "operationId": "ValuationController_appraise_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppraisePropertyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValuationResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sugerir un rango de alquiler",
+        "tags": [
+          "Valuation"
+        ]
+      }
+    },
+    "/api/v1/valuation/properties/{propertyId}/history": {
+      "get": {
+        "operationId": "ValuationController_history_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tasaciones de la propiedad",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/ValuationResultDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Historial de tasaciones de una propiedad, las nuevas primero",
+        "tags": [
+          "Valuation"
+        ]
+      }
+    },
+    "/api/v1/valuation/market-status": {
+      "get": {
+        "description": "Por fuente: último ingreso, estado y avisos vigentes. Son datos de mercado agregados, iguales para todas las inmobiliarias.",
+        "operationId": "ValuationController_marketStatus_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketStatusDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Estado de las fuentes de datos de mercado",
+        "tags": [
+          "Valuation"
+        ]
+      }
+    },
+    "/api/v1/valuation/market-coverage": {
+      "get": {
+        "description": "Para anticipar el 422 antes de tasar. No distingue categoría ni moneda: es una cobertura orientativa.",
+        "operationId": "ValuationController_marketCoverage_api/v1",
+        "parameters": [
+          {
+            "name": "locationId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketCoverageDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Avisos vigentes de la zona de una ubicación",
+        "tags": [
+          "Valuation"
+        ]
+      }
+    },
+    "/api/v1/valuation/zones/refresh": {
+      "post": {
+        "description": "Se encola y responde 202 con el id del trabajo (`GET /jobs/:id/status`). Respeta el máximo de una corrida por zona cada 24 h.",
+        "operationId": "ValuationController_refreshZone_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshZoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshZoneResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Refrescar los avisos de la zona de una ubicación (admin)",
+        "tags": [
+          "Valuation"
+        ]
+      }
+    },
+    "/api/v1/crm/pipeline": {
+      "get": {
+        "operationId": "CrmController_pipeline_api/v1",
+        "parameters": [
+          {
+            "name": "assignedToId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "propertyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PORTAL",
+                "MERCADOLIBRE",
+                "ZONAPROP",
+                "ARGENPROP",
+                "WHATSAPP",
+                "PHONE",
+                "MANUAL"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Busca en nombre, contacto y mensaje",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "unassigned",
+            "required": false,
+            "in": "query",
+            "description": "Sólo las sin asignar",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tablero: 6 columnas con hasta 50 tarjetas cada una",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/inquiries": {
+      "get": {
+        "description": "Con `stage` ordena por posición del tablero; sin él, las más nuevas primero.",
+        "operationId": "CrmController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "stage",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "NEW",
+                "CONTACTED",
+                "VISIT_SCHEDULED",
+                "PROPOSAL_SENT",
+                "CLOSED_WON",
+                "CLOSED_LOST"
+              ]
+            }
+          },
+          {
+            "name": "assignedToId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "propertyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PORTAL",
+                "MERCADOLIBRE",
+                "ZONAPROP",
+                "ARGENPROP",
+                "WHATSAPP",
+                "PHONE",
+                "MANUAL"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "unassigned",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consultas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/InquiryCardDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Consultas paginadas (ver más de una columna, lista mobile)",
+        "tags": [
+          "CRM"
+        ]
+      },
+      "post": {
+        "operationId": "CrmController_create_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInquiryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InquiryDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ASSIGNEE_INVALID o INQUIRY_CONTACT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cargar una consulta a mano (llamado, WhatsApp, visita)",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/inquiries/{id}": {
+      "get": {
+        "operationId": "CrmController_detail_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InquiryDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "INQUIRY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Detalle de una consulta con su línea de tiempo",
+        "tags": [
+          "CRM"
+        ]
+      },
+      "patch": {
+        "operationId": "CrmController_update_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInquiryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InquiryDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar datos de contacto, propiedad o seguimiento",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/inquiries/{id}/stage": {
+      "patch": {
+        "description": "La posición sale de los vecinos (`beforeId` arriba, `afterId` abajo); sin vecinos va arriba. `CLOSED_LOST` exige `lostReason` (422 `LOST_REASON_REQUIRED`). Reabrir una cerrada está permitido.",
+        "operationId": "CrmController_move_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveInquiryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InquiryCardDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mover una tarjeta de columna o de lugar",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/inquiries/{id}/assign": {
+      "patch": {
+        "operationId": "CrmController_assign_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignInquiryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InquiryCardDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ASSIGNEE_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Asignar la consulta a un usuario (null la libera)",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/inquiries/{id}/notes": {
+      "post": {
+        "description": "Las notas no se editan ni se borran: queda el rastro.",
+        "operationId": "CrmController_addNote_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddInquiryNoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InquiryActivityDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Agregar una nota",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/inquiries/{id}/contact-attempts": {
+      "post": {
+        "description": "Fija el último contacto y, si la consulta estaba en `NEW`, la pasa a `CONTACTED`.",
+        "operationId": "CrmController_contactAttempt_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactAttemptDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InquiryCardDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Registrar un intento de contacto",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/inquiries/{id}/whatsapp-link": {
+      "get": {
+        "description": "`url` es null si la consulta no tiene un teléfono utilizable. Plantilla por defecto: `INQUIRY_FIRST_CONTACT`.",
+        "operationId": "CrmController_whatsapp_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "templateKey",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsAppLinkDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Link de WhatsApp con el mensaje de la plantilla ya armado",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/assignees": {
+      "get": {
+        "operationId": "CrmController_assignees_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CrmAssigneeDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Personal activo al que se puede asignar",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/analytics/overview": {
+      "get": {
+        "operationId": "CrmController_overview_api/v1",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Default: hace 30 días",
+            "schema": {
+              "example": "2026-10-07",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Default: hoy",
+            "schema": {
+              "example": "2026-11-05",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmOverviewDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ANALYTICS_RANGE_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resumen del CRM en un rango de fechas",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/analytics/properties/{propertyId}": {
+      "get": {
+        "description": "Las vistas se cuentan desde la activación de la fase; antes figuran en 0.",
+        "operationId": "CrmController_propertyAnalytics_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Default: hace 30 días",
+            "schema": {
+              "example": "2026-10-07",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Default: hoy",
+            "schema": {
+              "example": "2026-11-05",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyInquiryAnalyticsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Vistas, consultas y conversión de una propiedad",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/channels": {
+      "get": {
+        "operationId": "ChannelsController_list_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ListingChannelDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Los tres canales; Zonaprop y Argenprop salen UNAVAILABLE",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/channels/mercadolibre/connect": {
+      "post": {
+        "description": "Devuelve la URL del portal a la que hay que mandar al navegador. El `state` va firmado con el tenant y el usuario y vence a los 10 minutos.",
+        "operationId": "ChannelsController_connect_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectChannelResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Empezar la conexión con Mercado Libre",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/channels/{channel}": {
+      "delete": {
+        "description": "Borra los tokens. Las publicaciones activas quedan en el portal.",
+        "operationId": "ChannelsController_disconnect_api/v1",
+        "parameters": [
+          {
+            "name": "channel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "MERCADOLIBRE",
+                "ZONAPROP",
+                "ARGENPROP"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ListingChannelDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Desconectar un canal",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/channels/mercadolibre/callback": {
+      "get": {
+        "description": "Valida el `state`, canjea el código y guarda los tokens cifrados. Redirige a `/configuracion/canales?connected=mercadolibre` (o `?error=`). Un `state` vencido o manipulado es 400 `OAUTH_STATE_INVALID`.",
+        "operationId": "ChannelOAuthController_callback_api/v1",
+        "parameters": [
+          {
+            "name": "code",
+            "required": false,
+            "in": "query",
+            "description": "Código de autorización del portal",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "description": "State firmado que devolvió `connect`",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "required": false,
+            "in": "query",
+            "description": "El portal avisa que el usuario no autorizó",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirección al backoffice"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Callback del OAuth de Mercado Libre (redirige al backoffice)",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/properties/{propertyId}/listings": {
+      "get": {
+        "operationId": "PropertyListingsController_list_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PropertyListingDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PROPERTY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Estado de la propiedad en cada canal",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/properties/{propertyId}/listings/{channel}/publish": {
+      "post": {
+        "description": "Responde 202 con el `jobId` (consultá `GET /jobs/:id/status`). Valida antes de encolar: 422 `LISTING_NOT_READY` (la lista de lo que falta va en `errors`), 409 `CHANNEL_NOT_CONNECTED`.",
+        "operationId": "PropertyListingsController_publish_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "MERCADOLIBRE",
+                "ZONAPROP",
+                "ARGENPROP"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartListingResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PROPERTY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Publicar o actualizar la publicación (trabajo en segundo plano)",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/properties/{propertyId}/listings/{channel}/retry": {
+      "post": {
+        "description": "409 `LISTING_STATE_INVALID` si no está en `ERROR`.",
+        "operationId": "PropertyListingsController_retry_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "MERCADOLIBRE",
+                "ZONAPROP",
+                "ARGENPROP"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartListingResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PROPERTY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reintentar una publicación en error",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/properties/{propertyId}/listings/{channel}/pause": {
+      "post": {
+        "operationId": "PropertyListingsController_pause_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "MERCADOLIBRE",
+                "ZONAPROP",
+                "ARGENPROP"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyListingDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PROPERTY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pausar la publicación en el portal",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/properties/{propertyId}/listings/{channel}/resume": {
+      "post": {
+        "operationId": "PropertyListingsController_resume_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "MERCADOLIBRE",
+                "ZONAPROP",
+                "ARGENPROP"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyListingDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PROPERTY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reanudar una publicación pausada",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/crm/properties/{propertyId}/listings/{channel}/close": {
+      "post": {
+        "description": "Un aviso cerrado no se reabre: publicar de nuevo crea uno nuevo.",
+        "operationId": "PropertyListingsController_close_api/v1",
+        "parameters": [
+          {
+            "name": "propertyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "MERCADOLIBRE",
+                "ZONAPROP",
+                "ARGENPROP"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyListingDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PROPERTY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cerrar la publicación en el portal",
+        "tags": [
+          "CRM"
+        ]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "description": "Los envíos de la inmobiliaria, más nuevos primero (los avisos internos de la campana no figuran: están en `/automations/alerts`).",
+        "operationId": "NotificationsController_list_api/v1",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Número de página, empezando en 1",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Resultados por página (máximo 100)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PAYMENT_REMINDER",
+                "ARREARS_NOTICE",
+                "INSURER_ALERT",
+                "CONTRACT_EXPIRING",
+                "POLICY_EXPIRING",
+                "POLICY_EXPIRED",
+                "SERVICE_OVERDUE",
+                "STATEMENT_PENDING",
+                "SETTLEMENT_CONFIRMED",
+                "OWNER_STATEMENT_CLOSED",
+                "PAYMENT_RECEIVED",
+                "PUBLIC_INQUIRY",
+                "INQUIRY_FOLLOW_UP",
+                "INQUIRY_ASSIGNED",
+                "LISTING_CHANNEL_ERROR",
+                "EMAIL_BOUNCED",
+                "COMPARABLES_SOURCE_STALE",
+                "NOTIFICATION_FAILED",
+                "RENT_UPDATE_PENDING",
+                "INDEX_FETCH_FAILED",
+                "INSTALLMENT_BASE_OUTDATED",
+                "JOB_FAILED",
+                "DOCUMENT_FAILED"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "QUEUED",
+                "SENT",
+                "FAILED",
+                "SKIPPED"
+              ]
+            }
+          },
+          {
+            "name": "channel",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "EMAIL",
+                "WHATSAPP_LINK",
+                "IN_APP"
+              ]
+            }
+          },
+          {
+            "name": "recipientKind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TENANT_STAFF",
+                "RENTER",
+                "OWNER",
+                "INSURER",
+                "EXTERNAL"
+              ]
+            }
+          },
+          {
+            "name": "entityId",
+            "required": false,
+            "in": "query",
+            "description": "Id de la entidad a la que cuelga",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-11-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-11-30",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historial de notificaciones",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/NotificationLogItemDto"
+                              }
+                            },
+                            "pagination": {
+                              "$ref": "#/components/schemas/PaginationMetaDto"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Historial de notificaciones",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/resend-failed": {
+      "post": {
+        "description": "Encola un trabajo (`notifications-resend-failed`) y responde 202 con su id. El avance se consulta en `GET /jobs/:id/status`.",
+        "operationId": "NotificationsController_resendFailed_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendFailedDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResendFailedResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reintentar todas las notificaciones fallidas",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/settings": {
+      "get": {
+        "description": "El catálogo con el estado de la inmobiliaria.",
+        "operationId": "NotificationsController_settings_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationTypeSettingDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tipos de aviso y sus canales",
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "put": {
+        "description": "Un tipo obligatorio no se puede deshabilitar ni sacarle sus canales originales (422 `NOTIFICATION_MANDATORY`).",
+        "operationId": "NotificationsController_updateSettings_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNotificationSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationTypeSettingDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Habilitar tipos de aviso y elegir canales",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/templates": {
+      "get": {
+        "operationId": "NotificationsController_templates_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationTemplateDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Plantillas de email",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/templates/{key}": {
+      "put": {
+        "description": "Usar una variable que el tipo no declara da 422 `TEMPLATE_UNKNOWN_VARIABLE`.",
+        "operationId": "NotificationsController_updateTemplate_api/v1",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationTemplateDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar una plantilla",
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "delete": {
+        "operationId": "NotificationsController_resetTemplate_api/v1",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationTemplateDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Restaurar el texto original de una plantilla",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/templates/{key}/preview": {
+      "post": {
+        "description": "Con datos de ejemplo del tipo. No envía nada.",
+        "operationId": "NotificationsController_preview_api/v1",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplatePreviewDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Vista previa de una plantilla",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/templates/{key}/test": {
+      "post": {
+        "description": "Manda la plantilla vigente con datos de ejemplo al email del usuario logueado, por el mismo camino de entrega que un aviso real.",
+        "operationId": "NotificationsController_test_api/v1",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestTemplateResultDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Enviarme una prueba",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/me/preferences": {
+      "get": {
+        "operationId": "NotificationsController_myPreferences_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyNotificationPreferencesDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mis preferencias de notificación",
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "put": {
+        "description": "Sólo aplican a los avisos al personal que no son obligatorios. Apagar uno obligatorio da 422 `NOTIFICATION_MANDATORY`.",
+        "operationId": "NotificationsController_updateMyPreferences_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMyPreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyNotificationPreferencesDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Actualizar mis preferencias de notificación",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/whatsapp-templates": {
+      "get": {
+        "description": "Los textos con los que el backoffice arma los links `wa.me` (recordatorio, mora, primer contacto de una consulta).",
+        "operationId": "NotificationsController_whatsapp_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WhatsAppTemplateDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Plantillas de WhatsApp",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/whatsapp-templates/{key}": {
+      "put": {
+        "operationId": "NotificationsController_updateWhatsapp_api/v1",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWhatsAppTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsAppTemplateDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Editar una plantilla de WhatsApp",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/dev/events": {
+      "post": {
+        "description": "Registra un evento (entregado, abierto, rebotó...) sobre una notificación ya enviada. Sólo con `EMAIL_PROVIDER=console` y fuera de producción; si no, 404.",
+        "operationId": "NotificationsController_devEvent_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordedEventDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Simular un evento del proveedor de email (sólo desarrollo)",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/{id}": {
+      "get": {
+        "description": "Con el asunto, el texto enviado y la cronología de entregas, aperturas y rebotes.",
+        "operationId": "NotificationsController_detail_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDetailDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe, o es de otra inmobiliaria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Detalle de una notificación",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/{id}/resend": {
+      "post": {
+        "description": "Vuelve a encolarla con los intentos en cero. Queda en la auditoría.",
+        "operationId": "NotificationsController_resend_api/v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationLogItemDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rol insuficiente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "La notificación no está fallida (`NOTIFICATION_NOT_RESENDABLE`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reenviar una notificación fallida",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/webhooks/resend": {
+      "post": {
+        "description": "Público, con firma Svix (`svix-id`, `svix-timestamp`, `svix-signature`) y tolerancia de 5 minutos. Firma inválida: 401. Un evento repetido o de un mensaje desconocido responde 200 sin duplicar nada.",
+        "operationId": "WebhooksController_resendEvent_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Webhook de Resend",
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
     "/api/v1/documents": {
       "get": {
         "description": "Todas las versiones, más nuevas primero.",
@@ -15636,1153 +18490,6 @@
         ]
       }
     },
-    "/api/v1/inquiries": {
-      "get": {
-        "operationId": "InquiriesController_list_api/v1",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Número de página, empezando en 1",
-            "schema": {
-              "minimum": 1,
-              "default": 1,
-              "example": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "description": "Resultados por página (máximo 100)",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20,
-              "example": 20,
-              "type": "number"
-            }
-          },
-          {
-            "name": "status",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "NEW",
-                "CONTACTED",
-                "CLOSED"
-              ]
-            }
-          },
-          {
-            "name": "propertyId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Consultas, más nuevas primero",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "example": true
-                        },
-                        "message": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "data": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "#/components/schemas/PublicInquiryDto"
-                              }
-                            },
-                            "pagination": {
-                              "$ref": "#/components/schemas/PaginationMetaDto"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Listar las consultas del portal",
-        "tags": [
-          "Inquiries"
-        ]
-      }
-    },
-    "/api/v1/inquiries/{id}/status": {
-      "patch": {
-        "operationId": "InquiriesController_updateStatus_api/v1",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateInquiryStatusDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublicInquiryDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Cambiar el estado de una consulta",
-        "tags": [
-          "Inquiries"
-        ]
-      }
-    },
-    "/api/v1/notifications": {
-      "get": {
-        "description": "Los envíos de la inmobiliaria, más nuevos primero (los avisos internos de la campana no figuran: están en `/automations/alerts`).",
-        "operationId": "NotificationsController_list_api/v1",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Número de página, empezando en 1",
-            "schema": {
-              "minimum": 1,
-              "default": 1,
-              "example": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "description": "Resultados por página (máximo 100)",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20,
-              "example": 20,
-              "type": "number"
-            }
-          },
-          {
-            "name": "type",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "PAYMENT_REMINDER",
-                "ARREARS_NOTICE",
-                "INSURER_ALERT",
-                "CONTRACT_EXPIRING",
-                "POLICY_EXPIRING",
-                "POLICY_EXPIRED",
-                "SERVICE_OVERDUE",
-                "STATEMENT_PENDING",
-                "SETTLEMENT_CONFIRMED",
-                "OWNER_STATEMENT_CLOSED",
-                "PAYMENT_RECEIVED",
-                "PUBLIC_INQUIRY",
-                "EMAIL_BOUNCED",
-                "NOTIFICATION_FAILED",
-                "RENT_UPDATE_PENDING",
-                "INDEX_FETCH_FAILED",
-                "INSTALLMENT_BASE_OUTDATED",
-                "JOB_FAILED",
-                "DOCUMENT_FAILED"
-              ]
-            }
-          },
-          {
-            "name": "status",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "QUEUED",
-                "SENT",
-                "FAILED",
-                "SKIPPED"
-              ]
-            }
-          },
-          {
-            "name": "channel",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "EMAIL",
-                "WHATSAPP_LINK",
-                "IN_APP"
-              ]
-            }
-          },
-          {
-            "name": "recipientKind",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "TENANT_STAFF",
-                "RENTER",
-                "OWNER",
-                "INSURER",
-                "EXTERNAL"
-              ]
-            }
-          },
-          {
-            "name": "entityId",
-            "required": false,
-            "in": "query",
-            "description": "Id de la entidad a la que cuelga",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "from",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "example": "2026-11-01",
-              "type": "string"
-            }
-          },
-          {
-            "name": "to",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "example": "2026-11-30",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Historial de notificaciones",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "example": true
-                        },
-                        "message": {
-                          "type": "string",
-                          "nullable": true
-                        },
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "data": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "#/components/schemas/NotificationLogItemDto"
-                              }
-                            },
-                            "pagination": {
-                              "$ref": "#/components/schemas/PaginationMetaDto"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Historial de notificaciones",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/resend-failed": {
-      "post": {
-        "description": "Encola un trabajo (`notifications-resend-failed`) y responde 202 con su id. El avance se consulta en `GET /jobs/:id/status`.",
-        "operationId": "NotificationsController_resendFailed_api/v1",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResendFailedDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResendFailedResultDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Reintentar todas las notificaciones fallidas",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/settings": {
-      "get": {
-        "description": "El catálogo con el estado de la inmobiliaria.",
-        "operationId": "NotificationsController_settings_api/v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/NotificationTypeSettingDto"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Tipos de aviso y sus canales",
-        "tags": [
-          "Notifications"
-        ]
-      },
-      "put": {
-        "description": "Un tipo obligatorio no se puede deshabilitar ni sacarle sus canales originales (422 `NOTIFICATION_MANDATORY`).",
-        "operationId": "NotificationsController_updateSettings_api/v1",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateNotificationSettingsDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/NotificationTypeSettingDto"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Habilitar tipos de aviso y elegir canales",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/templates": {
-      "get": {
-        "operationId": "NotificationsController_templates_api/v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/NotificationTemplateDto"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Plantillas de email",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/templates/{key}": {
-      "put": {
-        "description": "Usar una variable que el tipo no declara da 422 `TEMPLATE_UNKNOWN_VARIABLE`.",
-        "operationId": "NotificationsController_updateTemplate_api/v1",
-        "parameters": [
-          {
-            "name": "key",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TemplateBodyDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotificationTemplateDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Editar una plantilla",
-        "tags": [
-          "Notifications"
-        ]
-      },
-      "delete": {
-        "operationId": "NotificationsController_resetTemplate_api/v1",
-        "parameters": [
-          {
-            "name": "key",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotificationTemplateDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Restaurar el texto original de una plantilla",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/templates/{key}/preview": {
-      "post": {
-        "description": "Con datos de ejemplo del tipo. No envía nada.",
-        "operationId": "NotificationsController_preview_api/v1",
-        "parameters": [
-          {
-            "name": "key",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TemplateBodyDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TemplatePreviewDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Vista previa de una plantilla",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/templates/{key}/test": {
-      "post": {
-        "description": "Manda la plantilla vigente con datos de ejemplo al email del usuario logueado, por el mismo camino de entrega que un aviso real.",
-        "operationId": "NotificationsController_test_api/v1",
-        "parameters": [
-          {
-            "name": "key",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TestTemplateResultDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Enviarme una prueba",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/me/preferences": {
-      "get": {
-        "operationId": "NotificationsController_myPreferences_api/v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MyNotificationPreferencesDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Mis preferencias de notificación",
-        "tags": [
-          "Notifications"
-        ]
-      },
-      "put": {
-        "description": "Sólo aplican a los avisos al personal que no son obligatorios. Apagar uno obligatorio da 422 `NOTIFICATION_MANDATORY`.",
-        "operationId": "NotificationsController_updateMyPreferences_api/v1",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateMyPreferencesDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MyNotificationPreferencesDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Actualizar mis preferencias de notificación",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/whatsapp-templates": {
-      "get": {
-        "description": "Los textos con los que el backoffice arma los links `wa.me` (recordatorio, mora, primer contacto de una consulta).",
-        "operationId": "NotificationsController_whatsapp_api/v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WhatsAppTemplateDto"
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Plantillas de WhatsApp",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/whatsapp-templates/{key}": {
-      "put": {
-        "operationId": "NotificationsController_updateWhatsapp_api/v1",
-        "parameters": [
-          {
-            "name": "key",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateWhatsAppTemplateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WhatsAppTemplateDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Editar una plantilla de WhatsApp",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/dev/events": {
-      "post": {
-        "description": "Registra un evento (entregado, abierto, rebotó...) sobre una notificación ya enviada. Sólo con `EMAIL_PROVIDER=console` y fuera de producción; si no, 404.",
-        "operationId": "NotificationsController_devEvent_api/v1",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DevEventDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecordedEventDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Simular un evento del proveedor de email (sólo desarrollo)",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/{id}": {
-      "get": {
-        "description": "Con el asunto, el texto enviado y la cronología de entregas, aperturas y rebotes.",
-        "operationId": "NotificationsController_detail_api/v1",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotificationDetailDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No existe, o es de otra inmobiliaria",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Detalle de una notificación",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/notifications/{id}/resend": {
-      "post": {
-        "description": "Vuelve a encolarla con los intentos en cero. Queda en la auditoría.",
-        "operationId": "NotificationsController_resend_api/v1",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NotificationLogItemDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Rol insuficiente",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "La notificación no está fallida (`NOTIFICATION_NOT_RESENDABLE`)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Reenviar una notificación fallida",
-        "tags": [
-          "Notifications"
-        ]
-      }
-    },
-    "/api/v1/webhooks/resend": {
-      "post": {
-        "description": "Público, con firma Svix (`svix-id`, `svix-timestamp`, `svix-signature`) y tolerancia de 5 minutos. Firma inválida: 401. Un evento repetido o de un mensaje desconocido responde 200 sin duplicar nada.",
-        "operationId": "WebhooksController_resendEvent_api/v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Webhook de Resend",
-        "tags": [
-          "Webhooks"
-        ]
-      }
-    },
     "/api/v1/examples": {
       "post": {
         "operationId": "ExampleItemsController_create_api/v1",
@@ -17060,6 +18767,8 @@
               "UNSUPPORTED_MEDIA_TYPE",
               "METHOD_NOT_ALLOWED",
               "RATE_LIMIT_EXCEEDED",
+              "VALUATION_DAILY_LIMIT",
+              "LISTING_NOT_READY",
               "SERVICE_UNAVAILABLE",
               "REQUEST_TIMEOUT",
               "UNAUTHENTICATED",
@@ -25114,7 +26823,11 @@
               "JOB_FAILED",
               "PUBLIC_INQUIRY",
               "NOTIFICATION_FAILED",
-              "EMAIL_BOUNCED"
+              "EMAIL_BOUNCED",
+              "COMPARABLES_SOURCE_STALE",
+              "INQUIRY_FOLLOW_UP",
+              "INQUIRY_ASSIGNED",
+              "LISTING_CHANNEL_ERROR"
             ]
           },
           "title": {
@@ -25702,6 +27415,1964 @@
         },
         "required": [
           "jobId"
+        ]
+      },
+      "AppraisePropertyDto": {
+        "type": "object",
+        "properties": {
+          "areaM2": {
+            "type": "string",
+            "description": "Superficie en m² (decimal como string). Si la ficha no la tiene, se manda desde el formulario; sin ella se compara el precio absoluto.",
+            "example": "48.5"
+          },
+          "bedrooms": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "amenities": {
+            "description": "Textos libres; por defecto los de la propiedad.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "description": "Por defecto, la moneda de publicación de la propiedad."
+          }
+        }
+      },
+      "ValuationRequesterDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName"
+        ]
+      },
+      "ValuationResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "propertyId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "minPrice": {
+            "type": "string",
+            "example": "420000.00"
+          },
+          "maxPrice": {
+            "type": "string",
+            "example": "510000.00"
+          },
+          "suggestedPrice": {
+            "type": "string",
+            "example": "455000.00"
+          },
+          "suggestedPriceRounded": {
+            "type": "string",
+            "example": "455000.00",
+            "description": "A la centena más cercana en pesos y a la decena en dólares."
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ]
+          },
+          "comparablesUsed": {
+            "type": "number"
+          },
+          "comparablesDiscarded": {
+            "type": "number"
+          },
+          "zoneLabel": {
+            "type": "string",
+            "example": "Palermo, CABA"
+          },
+          "zoneWidened": {
+            "type": "boolean"
+          },
+          "oldestComparableAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "justification": {
+            "type": "string"
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "STATISTICAL",
+              "STATISTICAL_LLM"
+            ]
+          },
+          "requestedBy": {
+            "$ref": "#/components/schemas/ValuationRequesterDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reused": {
+            "type": "boolean",
+            "description": "true si es una tasación idéntica de las últimas 6 horas que se devolvió en vez de crear otra."
+          }
+        },
+        "required": [
+          "id",
+          "propertyId",
+          "currency",
+          "minPrice",
+          "maxPrice",
+          "suggestedPrice",
+          "suggestedPriceRounded",
+          "confidence",
+          "comparablesUsed",
+          "comparablesDiscarded",
+          "zoneLabel",
+          "zoneWidened",
+          "oldestComparableAt",
+          "justification",
+          "engine",
+          "requestedBy",
+          "createdAt",
+          "reused"
+        ]
+      },
+      "MarketSourceStatusDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "ZONAPROP",
+              "ARGENPROP",
+              "MERCADOLIBRE",
+              "FAKE"
+            ]
+          },
+          "lastIngestAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OK",
+              "STALE",
+              "BLOCKED",
+              "PARSE_ERROR",
+              "DISABLED"
+            ]
+          },
+          "activeComparables": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "source",
+          "lastIngestAt",
+          "status",
+          "activeComparables"
+        ]
+      },
+      "MarketStatusDto": {
+        "type": "object",
+        "properties": {
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarketSourceStatusDto"
+            }
+          },
+          "maxAgeDays": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "sources",
+          "maxAgeDays"
+        ]
+      },
+      "MarketCoverageDto": {
+        "type": "object",
+        "properties": {
+          "zoneLabel": {
+            "type": "string",
+            "example": "Palermo, CABA"
+          },
+          "activeComparables": {
+            "type": "number"
+          },
+          "enoughData": {
+            "type": "boolean"
+          },
+          "lastRefreshedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "zoneLabel",
+          "activeComparables",
+          "enoughData",
+          "lastRefreshedAt"
+        ]
+      },
+      "RefreshZoneDto": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "locationId"
+        ]
+      },
+      "RefreshZoneResultDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Se consulta con GET /jobs/:id/status"
+          }
+        },
+        "required": [
+          "jobId"
+        ]
+      },
+      "InquiryPropertyRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "address"
+        ]
+      },
+      "InquiryUserRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName"
+        ]
+      },
+      "InquiryCardDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Primeros 140 caracteres"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "NEW",
+              "CONTACTED",
+              "VISIT_SCHEDULED",
+              "PROPOSAL_SENT",
+              "CLOSED_WON",
+              "CLOSED_LOST"
+            ]
+          },
+          "boardPosition": {
+            "type": "number",
+            "description": "Decimal para ordenar dentro de la columna"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "PORTAL",
+              "MERCADOLIBRE",
+              "ZONAPROP",
+              "ARGENPROP",
+              "WHATSAPP",
+              "PHONE",
+              "MANUAL"
+            ]
+          },
+          "property": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InquiryPropertyRefDto"
+              }
+            ]
+          },
+          "assignedTo": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InquiryUserRefDto"
+              }
+            ]
+          },
+          "nextActionAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-11-10"
+          },
+          "lastContactAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ageHours": {
+            "type": "number"
+          },
+          "hasWhatsApp": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "phone",
+          "message",
+          "stage",
+          "boardPosition",
+          "source",
+          "property",
+          "assignedTo",
+          "nextActionAt",
+          "lastContactAt",
+          "createdAt",
+          "ageHours",
+          "hasWhatsApp"
+        ]
+      },
+      "PipelineColumnDto": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "NEW",
+              "CONTACTED",
+              "VISIT_SCHEDULED",
+              "PROPOSAL_SENT",
+              "CLOSED_WON",
+              "CLOSED_LOST"
+            ]
+          },
+          "total": {
+            "type": "number"
+          },
+          "cards": {
+            "description": "Hasta 50",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InquiryCardDto"
+            }
+          }
+        },
+        "required": [
+          "stage",
+          "total",
+          "cards"
+        ]
+      },
+      "PipelineDto": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineColumnDto"
+            }
+          }
+        },
+        "required": [
+          "columns"
+        ]
+      },
+      "CreateInquiryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "propertyId": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "WHATSAPP",
+              "PHONE",
+              "MANUAL",
+              "ZONAPROP",
+              "ARGENPROP"
+            ]
+          },
+          "assignedToId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source"
+        ]
+      },
+      "InquiryActivityDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "STAGE_CHANGED",
+              "ASSIGNED",
+              "NOTE",
+              "CONTACT_ATTEMPT",
+              "FOLLOW_UP_SET",
+              "EDITED"
+            ]
+          },
+          "author": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InquiryUserRefDto"
+              }
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "author",
+          "payload",
+          "createdAt"
+        ]
+      },
+      "InquiryDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Primeros 140 caracteres"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "NEW",
+              "CONTACTED",
+              "VISIT_SCHEDULED",
+              "PROPOSAL_SENT",
+              "CLOSED_WON",
+              "CLOSED_LOST"
+            ]
+          },
+          "boardPosition": {
+            "type": "number",
+            "description": "Decimal para ordenar dentro de la columna"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "PORTAL",
+              "MERCADOLIBRE",
+              "ZONAPROP",
+              "ARGENPROP",
+              "WHATSAPP",
+              "PHONE",
+              "MANUAL"
+            ]
+          },
+          "property": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InquiryPropertyRefDto"
+              }
+            ]
+          },
+          "assignedTo": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InquiryUserRefDto"
+              }
+            ]
+          },
+          "nextActionAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-11-10"
+          },
+          "lastContactAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ageHours": {
+            "type": "number"
+          },
+          "hasWhatsApp": {
+            "type": "boolean"
+          },
+          "lostReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "closedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "contractId": {
+            "type": "string",
+            "nullable": true
+          },
+          "activities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InquiryActivityDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "phone",
+          "message",
+          "stage",
+          "boardPosition",
+          "source",
+          "property",
+          "assignedTo",
+          "nextActionAt",
+          "lastContactAt",
+          "createdAt",
+          "ageHours",
+          "hasWhatsApp",
+          "lostReason",
+          "closedAt",
+          "contractId",
+          "activities"
+        ]
+      },
+      "UpdateInquiryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "description": "Vacío = borrarlo (si queda el teléfono)"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "propertyId": {
+            "type": "string"
+          },
+          "nextActionAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-11-10",
+            "description": "Fecha de seguimiento; null la quita"
+          }
+        }
+      },
+      "MoveInquiryDto": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "NEW",
+              "CONTACTED",
+              "VISIT_SCHEDULED",
+              "PROPOSAL_SENT",
+              "CLOSED_WON",
+              "CLOSED_LOST"
+            ]
+          },
+          "beforeId": {
+            "type": "string",
+            "description": "Tarjeta que queda arriba"
+          },
+          "afterId": {
+            "type": "string",
+            "description": "Tarjeta que queda abajo"
+          },
+          "lostReason": {
+            "type": "string",
+            "description": "Obligatorio para CLOSED_LOST"
+          },
+          "contractId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage"
+        ]
+      },
+      "AssignInquiryDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "userId"
+        ]
+      },
+      "AddInquiryNoteDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "ContactAttemptDto": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "WHATSAPP",
+              "PHONE",
+              "EMAIL"
+            ]
+          }
+        },
+        "required": [
+          "channel"
+        ]
+      },
+      "WhatsAppLinkDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "message"
+        ]
+      },
+      "CrmAssigneeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fullName",
+          "role"
+        ]
+      },
+      "CrmTopPropertyDto": {
+        "type": "object",
+        "properties": {
+          "propertyId": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "inquiries": {
+            "type": "number"
+          },
+          "views": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "propertyId",
+          "address",
+          "inquiries",
+          "views"
+        ]
+      },
+      "CrmOverviewDto": {
+        "type": "object",
+        "properties": {
+          "openCount": {
+            "type": "number"
+          },
+          "byStage": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "bySource": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "unassignedCount": {
+            "type": "number"
+          },
+          "averageFirstContactHours": {
+            "type": "number",
+            "nullable": true
+          },
+          "conversionRate": {
+            "type": "string",
+            "nullable": true,
+            "example": "12.5"
+          },
+          "topProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmTopPropertyDto"
+            }
+          }
+        },
+        "required": [
+          "openCount",
+          "byStage",
+          "bySource",
+          "unassignedCount",
+          "averageFirstContactHours",
+          "conversionRate",
+          "topProperties"
+        ]
+      },
+      "DailyPointDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "example": "2026-11-05"
+          },
+          "views": {
+            "type": "number"
+          },
+          "inquiries": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "views",
+          "inquiries"
+        ]
+      },
+      "PropertyInquiryAnalyticsDto": {
+        "type": "object",
+        "properties": {
+          "views": {
+            "type": "number"
+          },
+          "inquiries": {
+            "type": "number"
+          },
+          "byStage": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "bySource": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "conversionRate": {
+            "type": "string",
+            "nullable": true
+          },
+          "daily": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyPointDto"
+            }
+          }
+        },
+        "required": [
+          "views",
+          "inquiries",
+          "byStage",
+          "bySource",
+          "conversionRate",
+          "daily"
+        ]
+      },
+      "ListingChannelDto": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "MERCADOLIBRE",
+              "ZONAPROP",
+              "ARGENPROP"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DISCONNECTED",
+              "CONNECTED",
+              "ERROR",
+              "UNAVAILABLE"
+            ]
+          },
+          "accountLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "connectedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "unavailableReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "channel",
+          "status",
+          "accountLabel",
+          "connectedAt",
+          "lastError",
+          "unavailableReason"
+        ]
+      },
+      "ConnectChannelResultDto": {
+        "type": "object",
+        "properties": {
+          "authorizeUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorizeUrl"
+        ]
+      },
+      "PropertyListingDto": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "MERCADOLIBRE",
+              "ZONAPROP",
+              "ARGENPROP"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "NOT_PUBLISHED",
+              "PUBLISHING",
+              "PUBLISHED",
+              "PAUSED",
+              "ERROR",
+              "CLOSED"
+            ]
+          },
+          "externalUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "lastSyncedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUnpublishedChanges": {
+            "type": "boolean"
+          },
+          "canPublish": {
+            "type": "boolean",
+            "description": "Canal disponible, cuenta conectada y la propiedad lista para publicarse"
+          },
+          "missingForPublish": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "channel",
+          "status",
+          "externalUrl",
+          "publishedAt",
+          "lastSyncedAt",
+          "lastError",
+          "hasUnpublishedChanges",
+          "canPublish",
+          "missingForPublish"
+        ]
+      },
+      "StartListingResultDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId"
+        ]
+      },
+      "NotificationLogItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PAYMENT_REMINDER",
+              "ARREARS_NOTICE",
+              "INSURER_ALERT",
+              "CONTRACT_EXPIRING",
+              "POLICY_EXPIRING",
+              "POLICY_EXPIRED",
+              "SERVICE_OVERDUE",
+              "STATEMENT_PENDING",
+              "SETTLEMENT_CONFIRMED",
+              "OWNER_STATEMENT_CLOSED",
+              "PAYMENT_RECEIVED",
+              "PUBLIC_INQUIRY",
+              "INQUIRY_FOLLOW_UP",
+              "INQUIRY_ASSIGNED",
+              "LISTING_CHANNEL_ERROR",
+              "EMAIL_BOUNCED",
+              "COMPARABLES_SOURCE_STALE",
+              "NOTIFICATION_FAILED",
+              "RENT_UPDATE_PENDING",
+              "INDEX_FETCH_FAILED",
+              "INSTALLMENT_BASE_OUTDATED",
+              "JOB_FAILED",
+              "DOCUMENT_FAILED"
+            ]
+          },
+          "templateKey": {
+            "type": "string",
+            "nullable": true,
+            "example": "PAYMENT_REMINDER.EMAIL"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "EMAIL",
+              "WHATSAPP_LINK",
+              "IN_APP"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "SENT",
+              "FAILED",
+              "SKIPPED"
+            ]
+          },
+          "skipReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "TYPE_DISABLED",
+              "CHANNEL_DISABLED",
+              "USER_OPTED_OUT",
+              "NO_RECIPIENT_EMAIL",
+              "NO_PHONE"
+            ]
+          },
+          "recipientKind": {
+            "type": "string",
+            "enum": [
+              "TENANT_STAFF",
+              "RENTER",
+              "OWNER",
+              "INSURER",
+              "EXTERNAL"
+            ]
+          },
+          "recipientLabel": {
+            "type": "string",
+            "description": "Nombre o email del destinatario"
+          },
+          "recipientEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "entityType": {
+            "type": "string",
+            "nullable": true
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true
+          },
+          "attempts": {
+            "type": "number"
+          },
+          "nextAttemptAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "sentAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "deliveredAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "openedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "bouncedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "templateKey",
+          "channel",
+          "status",
+          "skipReason",
+          "recipientKind",
+          "recipientLabel",
+          "recipientEmail",
+          "entityType",
+          "entityId",
+          "attempts",
+          "nextAttemptAt",
+          "lastError",
+          "sentAt",
+          "deliveredAt",
+          "openedAt",
+          "bouncedAt",
+          "createdAt"
+        ]
+      },
+      "ResendFailedDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PAYMENT_REMINDER",
+              "ARREARS_NOTICE",
+              "INSURER_ALERT",
+              "CONTRACT_EXPIRING",
+              "POLICY_EXPIRING",
+              "POLICY_EXPIRED",
+              "SERVICE_OVERDUE",
+              "STATEMENT_PENDING",
+              "SETTLEMENT_CONFIRMED",
+              "OWNER_STATEMENT_CLOSED",
+              "PAYMENT_RECEIVED",
+              "PUBLIC_INQUIRY",
+              "INQUIRY_FOLLOW_UP",
+              "INQUIRY_ASSIGNED",
+              "LISTING_CHANNEL_ERROR",
+              "EMAIL_BOUNCED",
+              "COMPARABLES_SOURCE_STALE",
+              "NOTIFICATION_FAILED",
+              "RENT_UPDATE_PENDING",
+              "INDEX_FETCH_FAILED",
+              "INSTALLMENT_BASE_OUTDATED",
+              "JOB_FAILED",
+              "DOCUMENT_FAILED"
+            ]
+          },
+          "from": {
+            "type": "string",
+            "example": "2026-11-01"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-11-30"
+          }
+        }
+      },
+      "ResendFailedResultDto": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "AsyncJob: GET /jobs/:id/status"
+          }
+        },
+        "required": [
+          "jobId"
+        ]
+      },
+      "NotificationTypeSettingDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PAYMENT_REMINDER",
+              "ARREARS_NOTICE",
+              "INSURER_ALERT",
+              "CONTRACT_EXPIRING",
+              "POLICY_EXPIRING",
+              "POLICY_EXPIRED",
+              "SERVICE_OVERDUE",
+              "STATEMENT_PENDING",
+              "SETTLEMENT_CONFIRMED",
+              "OWNER_STATEMENT_CLOSED",
+              "PAYMENT_RECEIVED",
+              "PUBLIC_INQUIRY",
+              "INQUIRY_FOLLOW_UP",
+              "INQUIRY_ASSIGNED",
+              "LISTING_CHANNEL_ERROR",
+              "EMAIL_BOUNCED",
+              "COMPARABLES_SOURCE_STALE",
+              "NOTIFICATION_FAILED",
+              "RENT_UPDATE_PENDING",
+              "INDEX_FETCH_FAILED",
+              "INSTALLMENT_BASE_OUTDATED",
+              "JOB_FAILED",
+              "DOCUMENT_FAILED"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "audience": {
+            "type": "string",
+            "example": "Inquilino"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "EMAIL",
+                "WHATSAPP_LINK",
+                "IN_APP"
+              ]
+            }
+          },
+          "availableChannels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "EMAIL",
+                "WHATSAPP_LINK",
+                "IN_APP"
+              ]
+            }
+          },
+          "mandatory": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "description",
+          "audience",
+          "enabled",
+          "channels",
+          "availableChannels",
+          "mandatory"
+        ]
+      },
+      "NotificationSettingItemDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PAYMENT_REMINDER",
+              "ARREARS_NOTICE",
+              "INSURER_ALERT",
+              "CONTRACT_EXPIRING",
+              "POLICY_EXPIRING",
+              "POLICY_EXPIRED",
+              "SERVICE_OVERDUE",
+              "STATEMENT_PENDING",
+              "SETTLEMENT_CONFIRMED",
+              "OWNER_STATEMENT_CLOSED",
+              "PAYMENT_RECEIVED",
+              "PUBLIC_INQUIRY",
+              "INQUIRY_FOLLOW_UP",
+              "INQUIRY_ASSIGNED",
+              "LISTING_CHANNEL_ERROR",
+              "EMAIL_BOUNCED",
+              "COMPARABLES_SOURCE_STALE",
+              "NOTIFICATION_FAILED",
+              "RENT_UPDATE_PENDING",
+              "INDEX_FETCH_FAILED",
+              "INSTALLMENT_BASE_OUTDATED",
+              "JOB_FAILED",
+              "DOCUMENT_FAILED"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "EMAIL",
+                "WHATSAPP_LINK",
+                "IN_APP"
+              ]
+            }
+          }
+        },
+        "required": [
+          "type",
+          "enabled",
+          "channels"
+        ]
+      },
+      "UpdateNotificationSettingsDto": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationSettingItemDto"
+            }
+          }
+        },
+        "required": [
+          "settings"
+        ]
+      },
+      "TemplateVariableDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "example": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "example"
+        ]
+      },
+      "NotificationTemplateDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "PAYMENT_REMINDER.EMAIL"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PAYMENT_REMINDER",
+              "ARREARS_NOTICE",
+              "INSURER_ALERT",
+              "CONTRACT_EXPIRING",
+              "POLICY_EXPIRING",
+              "POLICY_EXPIRED",
+              "SERVICE_OVERDUE",
+              "STATEMENT_PENDING",
+              "SETTLEMENT_CONFIRMED",
+              "OWNER_STATEMENT_CLOSED",
+              "PAYMENT_RECEIVED",
+              "PUBLIC_INQUIRY",
+              "INQUIRY_FOLLOW_UP",
+              "INQUIRY_ASSIGNED",
+              "LISTING_CHANNEL_ERROR",
+              "EMAIL_BOUNCED",
+              "COMPARABLES_SOURCE_STALE",
+              "NOTIFICATION_FAILED",
+              "RENT_UPDATE_PENDING",
+              "INDEX_FETCH_FAILED",
+              "INSTALLMENT_BASE_OUTDATED",
+              "JOB_FAILED",
+              "DOCUMENT_FAILED"
+            ]
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "EMAIL"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "bodyText": {
+            "type": "string"
+          },
+          "variables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateVariableDto"
+            }
+          },
+          "isCustomized": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "key",
+          "type",
+          "channel",
+          "title",
+          "subject",
+          "bodyText",
+          "variables",
+          "isCustomized",
+          "updatedAt"
+        ]
+      },
+      "TemplateBodyDto": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "bodyText": {
+            "type": "string",
+            "maxLength": 10000
+          }
+        },
+        "required": [
+          "subject",
+          "bodyText"
+        ]
+      },
+      "TemplatePreviewDto": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "text",
+          "html"
+        ]
+      },
+      "TestTemplateResultDto": {
+        "type": "object",
+        "properties": {
+          "sentTo": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sentTo"
+        ]
+      },
+      "MyPreferenceItemViewDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PAYMENT_REMINDER",
+              "ARREARS_NOTICE",
+              "INSURER_ALERT",
+              "CONTRACT_EXPIRING",
+              "POLICY_EXPIRING",
+              "POLICY_EXPIRED",
+              "SERVICE_OVERDUE",
+              "STATEMENT_PENDING",
+              "SETTLEMENT_CONFIRMED",
+              "OWNER_STATEMENT_CLOSED",
+              "PAYMENT_RECEIVED",
+              "PUBLIC_INQUIRY",
+              "INQUIRY_FOLLOW_UP",
+              "INQUIRY_ASSIGNED",
+              "LISTING_CHANNEL_ERROR",
+              "EMAIL_BOUNCED",
+              "COMPARABLES_SOURCE_STALE",
+              "NOTIFICATION_FAILED",
+              "RENT_UPDATE_PENDING",
+              "INDEX_FETCH_FAILED",
+              "INSTALLMENT_BASE_OUTDATED",
+              "JOB_FAILED",
+              "DOCUMENT_FAILED"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "emailEnabled": {
+            "type": "boolean"
+          },
+          "inAppEnabled": {
+            "type": "boolean"
+          },
+          "mandatory": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "emailEnabled",
+          "inAppEnabled",
+          "mandatory"
+        ]
+      },
+      "MyNotificationPreferencesDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyPreferenceItemViewDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "MyPreferenceItemDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "PAYMENT_REMINDER",
+              "ARREARS_NOTICE",
+              "INSURER_ALERT",
+              "CONTRACT_EXPIRING",
+              "POLICY_EXPIRING",
+              "POLICY_EXPIRED",
+              "SERVICE_OVERDUE",
+              "STATEMENT_PENDING",
+              "SETTLEMENT_CONFIRMED",
+              "OWNER_STATEMENT_CLOSED",
+              "PAYMENT_RECEIVED",
+              "PUBLIC_INQUIRY",
+              "INQUIRY_FOLLOW_UP",
+              "INQUIRY_ASSIGNED",
+              "LISTING_CHANNEL_ERROR",
+              "EMAIL_BOUNCED",
+              "COMPARABLES_SOURCE_STALE",
+              "NOTIFICATION_FAILED",
+              "RENT_UPDATE_PENDING",
+              "INDEX_FETCH_FAILED",
+              "INSTALLMENT_BASE_OUTDATED",
+              "JOB_FAILED",
+              "DOCUMENT_FAILED"
+            ]
+          },
+          "emailEnabled": {
+            "type": "boolean"
+          },
+          "inAppEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "emailEnabled",
+          "inAppEnabled"
+        ]
+      },
+      "UpdateMyPreferencesDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyPreferenceItemDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "WhatsAppVariableDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label"
+        ]
+      },
+      "WhatsAppTemplateDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "PAYMENT_REMINDER"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "variables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsAppVariableDto"
+            }
+          },
+          "isCustomized": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "body",
+          "variables",
+          "isCustomized"
+        ]
+      },
+      "UpdateWhatsAppTemplateDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "DevEventDto": {
+        "type": "object",
+        "properties": {
+          "notificationId": {
+            "type": "string",
+            "description": "Id de la notificación (con providerMessageId)"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "SENT",
+              "DELIVERED",
+              "OPENED",
+              "CLICKED",
+              "BOUNCED",
+              "COMPLAINED",
+              "DELAYED"
+            ]
+          }
+        },
+        "required": [
+          "notificationId",
+          "type"
+        ]
+      },
+      "RecordedEventDto": {
+        "type": "object",
+        "properties": {
+          "recorded": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "recorded"
+        ]
+      },
+      "EmailEventDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "SENT",
+              "DELIVERED",
+              "OPENED",
+              "CLICKED",
+              "BOUNCED",
+              "COMPLAINED",
+              "DELAYED"
+            ]
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "occurredAt"
+        ]
+      },
+      "NotificationDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PAYMENT_REMINDER",
+              "ARREARS_NOTICE",
+              "INSURER_ALERT",
+              "CONTRACT_EXPIRING",
+              "POLICY_EXPIRING",
+              "POLICY_EXPIRED",
+              "SERVICE_OVERDUE",
+              "STATEMENT_PENDING",
+              "SETTLEMENT_CONFIRMED",
+              "OWNER_STATEMENT_CLOSED",
+              "PAYMENT_RECEIVED",
+              "PUBLIC_INQUIRY",
+              "INQUIRY_FOLLOW_UP",
+              "INQUIRY_ASSIGNED",
+              "LISTING_CHANNEL_ERROR",
+              "EMAIL_BOUNCED",
+              "COMPARABLES_SOURCE_STALE",
+              "NOTIFICATION_FAILED",
+              "RENT_UPDATE_PENDING",
+              "INDEX_FETCH_FAILED",
+              "INSTALLMENT_BASE_OUTDATED",
+              "JOB_FAILED",
+              "DOCUMENT_FAILED"
+            ]
+          },
+          "templateKey": {
+            "type": "string",
+            "nullable": true,
+            "example": "PAYMENT_REMINDER.EMAIL"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "EMAIL",
+              "WHATSAPP_LINK",
+              "IN_APP"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED",
+              "SENT",
+              "FAILED",
+              "SKIPPED"
+            ]
+          },
+          "skipReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "TYPE_DISABLED",
+              "CHANNEL_DISABLED",
+              "USER_OPTED_OUT",
+              "NO_RECIPIENT_EMAIL",
+              "NO_PHONE"
+            ]
+          },
+          "recipientKind": {
+            "type": "string",
+            "enum": [
+              "TENANT_STAFF",
+              "RENTER",
+              "OWNER",
+              "INSURER",
+              "EXTERNAL"
+            ]
+          },
+          "recipientLabel": {
+            "type": "string",
+            "description": "Nombre o email del destinatario"
+          },
+          "recipientEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "entityType": {
+            "type": "string",
+            "nullable": true
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true
+          },
+          "attempts": {
+            "type": "number"
+          },
+          "nextAttemptAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "sentAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "deliveredAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "openedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "bouncedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "subject": {
+            "type": "string",
+            "nullable": true
+          },
+          "bodyText": {
+            "type": "string",
+            "nullable": true
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmailEventDto"
+            }
+          },
+          "canResend": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "templateKey",
+          "channel",
+          "status",
+          "skipReason",
+          "recipientKind",
+          "recipientLabel",
+          "recipientEmail",
+          "entityType",
+          "entityId",
+          "attempts",
+          "nextAttemptAt",
+          "lastError",
+          "sentAt",
+          "deliveredAt",
+          "openedAt",
+          "bouncedAt",
+          "createdAt",
+          "subject",
+          "bodyText",
+          "events",
+          "canResend"
         ]
       },
       "DocumentKind": {
@@ -28142,983 +31813,6 @@
         },
         "required": [
           "id"
-        ]
-      },
-      "InquiryPropertyDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "address": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "address"
-        ]
-      },
-      "PublicInquiryDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "phone": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "propertyId": {
-            "type": "string",
-            "nullable": true
-          },
-          "property": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/InquiryPropertyDto"
-              }
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "NEW",
-              "CONTACTED",
-              "CLOSED"
-            ]
-          },
-          "source": {
-            "type": "string",
-            "enum": [
-              "PORTAL"
-            ]
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "email",
-          "phone",
-          "message",
-          "propertyId",
-          "property",
-          "status",
-          "source",
-          "createdAt"
-        ]
-      },
-      "UpdateInquiryStatusDto": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "NEW",
-              "CONTACTED",
-              "CLOSED"
-            ]
-          }
-        },
-        "required": [
-          "status"
-        ]
-      },
-      "NotificationLogItemDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "PAYMENT_REMINDER",
-              "ARREARS_NOTICE",
-              "INSURER_ALERT",
-              "CONTRACT_EXPIRING",
-              "POLICY_EXPIRING",
-              "POLICY_EXPIRED",
-              "SERVICE_OVERDUE",
-              "STATEMENT_PENDING",
-              "SETTLEMENT_CONFIRMED",
-              "OWNER_STATEMENT_CLOSED",
-              "PAYMENT_RECEIVED",
-              "PUBLIC_INQUIRY",
-              "EMAIL_BOUNCED",
-              "NOTIFICATION_FAILED",
-              "RENT_UPDATE_PENDING",
-              "INDEX_FETCH_FAILED",
-              "INSTALLMENT_BASE_OUTDATED",
-              "JOB_FAILED",
-              "DOCUMENT_FAILED"
-            ]
-          },
-          "templateKey": {
-            "type": "string",
-            "nullable": true,
-            "example": "PAYMENT_REMINDER.EMAIL"
-          },
-          "channel": {
-            "type": "string",
-            "enum": [
-              "EMAIL",
-              "WHATSAPP_LINK",
-              "IN_APP"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "QUEUED",
-              "SENT",
-              "FAILED",
-              "SKIPPED"
-            ]
-          },
-          "skipReason": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "TYPE_DISABLED",
-              "CHANNEL_DISABLED",
-              "USER_OPTED_OUT",
-              "NO_RECIPIENT_EMAIL",
-              "NO_PHONE"
-            ]
-          },
-          "recipientKind": {
-            "type": "string",
-            "enum": [
-              "TENANT_STAFF",
-              "RENTER",
-              "OWNER",
-              "INSURER",
-              "EXTERNAL"
-            ]
-          },
-          "recipientLabel": {
-            "type": "string",
-            "description": "Nombre o email del destinatario"
-          },
-          "recipientEmail": {
-            "type": "string",
-            "nullable": true
-          },
-          "entityType": {
-            "type": "string",
-            "nullable": true
-          },
-          "entityId": {
-            "type": "string",
-            "nullable": true
-          },
-          "attempts": {
-            "type": "number"
-          },
-          "nextAttemptAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "lastError": {
-            "type": "string",
-            "nullable": true
-          },
-          "sentAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "deliveredAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "openedAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "bouncedAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "type",
-          "templateKey",
-          "channel",
-          "status",
-          "skipReason",
-          "recipientKind",
-          "recipientLabel",
-          "recipientEmail",
-          "entityType",
-          "entityId",
-          "attempts",
-          "nextAttemptAt",
-          "lastError",
-          "sentAt",
-          "deliveredAt",
-          "openedAt",
-          "bouncedAt",
-          "createdAt"
-        ]
-      },
-      "ResendFailedDto": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": [
-              "PAYMENT_REMINDER",
-              "ARREARS_NOTICE",
-              "INSURER_ALERT",
-              "CONTRACT_EXPIRING",
-              "POLICY_EXPIRING",
-              "POLICY_EXPIRED",
-              "SERVICE_OVERDUE",
-              "STATEMENT_PENDING",
-              "SETTLEMENT_CONFIRMED",
-              "OWNER_STATEMENT_CLOSED",
-              "PAYMENT_RECEIVED",
-              "PUBLIC_INQUIRY",
-              "EMAIL_BOUNCED",
-              "NOTIFICATION_FAILED",
-              "RENT_UPDATE_PENDING",
-              "INDEX_FETCH_FAILED",
-              "INSTALLMENT_BASE_OUTDATED",
-              "JOB_FAILED",
-              "DOCUMENT_FAILED"
-            ]
-          },
-          "from": {
-            "type": "string",
-            "example": "2026-11-01"
-          },
-          "to": {
-            "type": "string",
-            "example": "2026-11-30"
-          }
-        }
-      },
-      "ResendFailedResultDto": {
-        "type": "object",
-        "properties": {
-          "jobId": {
-            "type": "string",
-            "description": "AsyncJob: GET /jobs/:id/status"
-          }
-        },
-        "required": [
-          "jobId"
-        ]
-      },
-      "NotificationTypeSettingDto": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": [
-              "PAYMENT_REMINDER",
-              "ARREARS_NOTICE",
-              "INSURER_ALERT",
-              "CONTRACT_EXPIRING",
-              "POLICY_EXPIRING",
-              "POLICY_EXPIRED",
-              "SERVICE_OVERDUE",
-              "STATEMENT_PENDING",
-              "SETTLEMENT_CONFIRMED",
-              "OWNER_STATEMENT_CLOSED",
-              "PAYMENT_RECEIVED",
-              "PUBLIC_INQUIRY",
-              "EMAIL_BOUNCED",
-              "NOTIFICATION_FAILED",
-              "RENT_UPDATE_PENDING",
-              "INDEX_FETCH_FAILED",
-              "INSTALLMENT_BASE_OUTDATED",
-              "JOB_FAILED",
-              "DOCUMENT_FAILED"
-            ]
-          },
-          "title": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "audience": {
-            "type": "string",
-            "example": "Inquilino"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "channels": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "EMAIL",
-                "WHATSAPP_LINK",
-                "IN_APP"
-              ]
-            }
-          },
-          "availableChannels": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "EMAIL",
-                "WHATSAPP_LINK",
-                "IN_APP"
-              ]
-            }
-          },
-          "mandatory": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "type",
-          "title",
-          "description",
-          "audience",
-          "enabled",
-          "channels",
-          "availableChannels",
-          "mandatory"
-        ]
-      },
-      "NotificationSettingItemDto": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": [
-              "PAYMENT_REMINDER",
-              "ARREARS_NOTICE",
-              "INSURER_ALERT",
-              "CONTRACT_EXPIRING",
-              "POLICY_EXPIRING",
-              "POLICY_EXPIRED",
-              "SERVICE_OVERDUE",
-              "STATEMENT_PENDING",
-              "SETTLEMENT_CONFIRMED",
-              "OWNER_STATEMENT_CLOSED",
-              "PAYMENT_RECEIVED",
-              "PUBLIC_INQUIRY",
-              "EMAIL_BOUNCED",
-              "NOTIFICATION_FAILED",
-              "RENT_UPDATE_PENDING",
-              "INDEX_FETCH_FAILED",
-              "INSTALLMENT_BASE_OUTDATED",
-              "JOB_FAILED",
-              "DOCUMENT_FAILED"
-            ]
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "channels": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "EMAIL",
-                "WHATSAPP_LINK",
-                "IN_APP"
-              ]
-            }
-          }
-        },
-        "required": [
-          "type",
-          "enabled",
-          "channels"
-        ]
-      },
-      "UpdateNotificationSettingsDto": {
-        "type": "object",
-        "properties": {
-          "settings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/NotificationSettingItemDto"
-            }
-          }
-        },
-        "required": [
-          "settings"
-        ]
-      },
-      "TemplateVariableDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          },
-          "example": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "label",
-          "example"
-        ]
-      },
-      "NotificationTemplateDto": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "example": "PAYMENT_REMINDER.EMAIL"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "PAYMENT_REMINDER",
-              "ARREARS_NOTICE",
-              "INSURER_ALERT",
-              "CONTRACT_EXPIRING",
-              "POLICY_EXPIRING",
-              "POLICY_EXPIRED",
-              "SERVICE_OVERDUE",
-              "STATEMENT_PENDING",
-              "SETTLEMENT_CONFIRMED",
-              "OWNER_STATEMENT_CLOSED",
-              "PAYMENT_RECEIVED",
-              "PUBLIC_INQUIRY",
-              "EMAIL_BOUNCED",
-              "NOTIFICATION_FAILED",
-              "RENT_UPDATE_PENDING",
-              "INDEX_FETCH_FAILED",
-              "INSTALLMENT_BASE_OUTDATED",
-              "JOB_FAILED",
-              "DOCUMENT_FAILED"
-            ]
-          },
-          "channel": {
-            "type": "string",
-            "enum": [
-              "EMAIL"
-            ]
-          },
-          "title": {
-            "type": "string"
-          },
-          "subject": {
-            "type": "string"
-          },
-          "bodyText": {
-            "type": "string"
-          },
-          "variables": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TemplateVariableDto"
-            }
-          },
-          "isCustomized": {
-            "type": "boolean"
-          },
-          "updatedAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "required": [
-          "key",
-          "type",
-          "channel",
-          "title",
-          "subject",
-          "bodyText",
-          "variables",
-          "isCustomized",
-          "updatedAt"
-        ]
-      },
-      "TemplateBodyDto": {
-        "type": "object",
-        "properties": {
-          "subject": {
-            "type": "string",
-            "maxLength": 200
-          },
-          "bodyText": {
-            "type": "string",
-            "maxLength": 10000
-          }
-        },
-        "required": [
-          "subject",
-          "bodyText"
-        ]
-      },
-      "TemplatePreviewDto": {
-        "type": "object",
-        "properties": {
-          "subject": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          },
-          "html": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "subject",
-          "text",
-          "html"
-        ]
-      },
-      "TestTemplateResultDto": {
-        "type": "object",
-        "properties": {
-          "sentTo": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "sentTo"
-        ]
-      },
-      "MyPreferenceItemViewDto": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": [
-              "PAYMENT_REMINDER",
-              "ARREARS_NOTICE",
-              "INSURER_ALERT",
-              "CONTRACT_EXPIRING",
-              "POLICY_EXPIRING",
-              "POLICY_EXPIRED",
-              "SERVICE_OVERDUE",
-              "STATEMENT_PENDING",
-              "SETTLEMENT_CONFIRMED",
-              "OWNER_STATEMENT_CLOSED",
-              "PAYMENT_RECEIVED",
-              "PUBLIC_INQUIRY",
-              "EMAIL_BOUNCED",
-              "NOTIFICATION_FAILED",
-              "RENT_UPDATE_PENDING",
-              "INDEX_FETCH_FAILED",
-              "INSTALLMENT_BASE_OUTDATED",
-              "JOB_FAILED",
-              "DOCUMENT_FAILED"
-            ]
-          },
-          "title": {
-            "type": "string"
-          },
-          "emailEnabled": {
-            "type": "boolean"
-          },
-          "inAppEnabled": {
-            "type": "boolean"
-          },
-          "mandatory": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "type",
-          "title",
-          "emailEnabled",
-          "inAppEnabled",
-          "mandatory"
-        ]
-      },
-      "MyNotificationPreferencesDto": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MyPreferenceItemViewDto"
-            }
-          }
-        },
-        "required": [
-          "items"
-        ]
-      },
-      "MyPreferenceItemDto": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": [
-              "PAYMENT_REMINDER",
-              "ARREARS_NOTICE",
-              "INSURER_ALERT",
-              "CONTRACT_EXPIRING",
-              "POLICY_EXPIRING",
-              "POLICY_EXPIRED",
-              "SERVICE_OVERDUE",
-              "STATEMENT_PENDING",
-              "SETTLEMENT_CONFIRMED",
-              "OWNER_STATEMENT_CLOSED",
-              "PAYMENT_RECEIVED",
-              "PUBLIC_INQUIRY",
-              "EMAIL_BOUNCED",
-              "NOTIFICATION_FAILED",
-              "RENT_UPDATE_PENDING",
-              "INDEX_FETCH_FAILED",
-              "INSTALLMENT_BASE_OUTDATED",
-              "JOB_FAILED",
-              "DOCUMENT_FAILED"
-            ]
-          },
-          "emailEnabled": {
-            "type": "boolean"
-          },
-          "inAppEnabled": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "type",
-          "emailEnabled",
-          "inAppEnabled"
-        ]
-      },
-      "UpdateMyPreferencesDto": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MyPreferenceItemDto"
-            }
-          }
-        },
-        "required": [
-          "items"
-        ]
-      },
-      "WhatsAppVariableDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "label"
-        ]
-      },
-      "WhatsAppTemplateDto": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "example": "PAYMENT_REMINDER"
-          },
-          "title": {
-            "type": "string"
-          },
-          "body": {
-            "type": "string"
-          },
-          "variables": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/WhatsAppVariableDto"
-            }
-          },
-          "isCustomized": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "key",
-          "title",
-          "body",
-          "variables",
-          "isCustomized"
-        ]
-      },
-      "UpdateWhatsAppTemplateDto": {
-        "type": "object",
-        "properties": {
-          "body": {
-            "type": "string",
-            "maxLength": 2000
-          }
-        },
-        "required": [
-          "body"
-        ]
-      },
-      "DevEventDto": {
-        "type": "object",
-        "properties": {
-          "notificationId": {
-            "type": "string",
-            "description": "Id de la notificación (con providerMessageId)"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "SENT",
-              "DELIVERED",
-              "OPENED",
-              "CLICKED",
-              "BOUNCED",
-              "COMPLAINED",
-              "DELAYED"
-            ]
-          }
-        },
-        "required": [
-          "notificationId",
-          "type"
-        ]
-      },
-      "RecordedEventDto": {
-        "type": "object",
-        "properties": {
-          "recorded": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "recorded"
-        ]
-      },
-      "EmailEventDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "SENT",
-              "DELIVERED",
-              "OPENED",
-              "CLICKED",
-              "BOUNCED",
-              "COMPLAINED",
-              "DELAYED"
-            ]
-          },
-          "occurredAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "type",
-          "occurredAt"
-        ]
-      },
-      "NotificationDetailDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "PAYMENT_REMINDER",
-              "ARREARS_NOTICE",
-              "INSURER_ALERT",
-              "CONTRACT_EXPIRING",
-              "POLICY_EXPIRING",
-              "POLICY_EXPIRED",
-              "SERVICE_OVERDUE",
-              "STATEMENT_PENDING",
-              "SETTLEMENT_CONFIRMED",
-              "OWNER_STATEMENT_CLOSED",
-              "PAYMENT_RECEIVED",
-              "PUBLIC_INQUIRY",
-              "EMAIL_BOUNCED",
-              "NOTIFICATION_FAILED",
-              "RENT_UPDATE_PENDING",
-              "INDEX_FETCH_FAILED",
-              "INSTALLMENT_BASE_OUTDATED",
-              "JOB_FAILED",
-              "DOCUMENT_FAILED"
-            ]
-          },
-          "templateKey": {
-            "type": "string",
-            "nullable": true,
-            "example": "PAYMENT_REMINDER.EMAIL"
-          },
-          "channel": {
-            "type": "string",
-            "enum": [
-              "EMAIL",
-              "WHATSAPP_LINK",
-              "IN_APP"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "QUEUED",
-              "SENT",
-              "FAILED",
-              "SKIPPED"
-            ]
-          },
-          "skipReason": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "TYPE_DISABLED",
-              "CHANNEL_DISABLED",
-              "USER_OPTED_OUT",
-              "NO_RECIPIENT_EMAIL",
-              "NO_PHONE"
-            ]
-          },
-          "recipientKind": {
-            "type": "string",
-            "enum": [
-              "TENANT_STAFF",
-              "RENTER",
-              "OWNER",
-              "INSURER",
-              "EXTERNAL"
-            ]
-          },
-          "recipientLabel": {
-            "type": "string",
-            "description": "Nombre o email del destinatario"
-          },
-          "recipientEmail": {
-            "type": "string",
-            "nullable": true
-          },
-          "entityType": {
-            "type": "string",
-            "nullable": true
-          },
-          "entityId": {
-            "type": "string",
-            "nullable": true
-          },
-          "attempts": {
-            "type": "number"
-          },
-          "nextAttemptAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "lastError": {
-            "type": "string",
-            "nullable": true
-          },
-          "sentAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "deliveredAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "openedAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "bouncedAt": {
-            "format": "date-time",
-            "type": "string",
-            "nullable": true
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "subject": {
-            "type": "string",
-            "nullable": true
-          },
-          "bodyText": {
-            "type": "string",
-            "nullable": true
-          },
-          "events": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EmailEventDto"
-            }
-          },
-          "canResend": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "type",
-          "templateKey",
-          "channel",
-          "status",
-          "skipReason",
-          "recipientKind",
-          "recipientLabel",
-          "recipientEmail",
-          "entityType",
-          "entityId",
-          "attempts",
-          "nextAttemptAt",
-          "lastError",
-          "sentAt",
-          "deliveredAt",
-          "openedAt",
-          "bouncedAt",
-          "createdAt",
-          "subject",
-          "bodyText",
-          "events",
-          "canResend"
         ]
       },
       "CreateExampleItemDto": {
