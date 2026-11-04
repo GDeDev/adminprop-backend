@@ -165,15 +165,35 @@ describe('Sitio web (e2e, Postgres)', () => {
   })
 
   describe('configuración', () => {
-    it('lista los dos templates con tema, secciones y tipografías', async () => {
+    it('lista los tres templates con tema, secciones y tipografías', async () => {
       const { body } = await as(adminA).get('/site/templates').expect(200)
       expect(body.data.map((t: { key: string }) => t.key)).toEqual([
         'CLASSIC',
         'MODERN',
+        'LUXURY',
       ])
       expect(body.data[0].defaultTheme.background).toBe('#181C14')
       expect(body.data[0].supportedSections).toContain('hero')
       expect(body.data[1].fontOptions.length).toBeGreaterThan(1)
+    })
+
+    it('LUXURY se guarda, se valida con sus tipografías y se puede reiniciar', async () => {
+      await settingsOf(adminA)
+      await save(adminA, { theme: { fontKey: 'rounded' } }).expect(422)
+      const saved = await save(adminA, {
+        template: 'LUXURY',
+        theme: { fontKey: 'serif' },
+      }).expect(200)
+      expect(saved.body.data.draft.template).toBe('LUXURY')
+      const reset = await as(adminA)
+        .post('/site/settings/reset-template')
+        .send({ keepContent: true })
+        .expect(200)
+      expect(reset.body.data.draft.theme).toMatchObject({
+        primary: '#C9A961',
+        background: '#0B0B0C',
+        radius: 0,
+      })
     })
 
     it('el primer GET crea el sitio con los datos de la inmobiliaria, deshabilitado', async () => {

@@ -1,6 +1,7 @@
 import { contrastRatio, HEX_COLOR } from './color'
 import {
   SITE_SECTION_KEYS,
+  SITE_TEMPLATE_KEYS,
   SiteContent,
   SiteSettingsDraft,
   SiteTemplateInfo,
@@ -34,6 +35,11 @@ const FONT_OPTIONS = {
     { key: 'humanist', label: 'Humanista' },
     { key: 'rounded', label: 'Redondeada' },
   ],
+  LUXURY: [
+    { key: 'serif', label: 'Clásica (serif)' },
+    { key: 'system', label: 'Moderna (sans del sistema)' },
+    { key: 'humanist', label: 'Humanista' },
+  ],
 } as const
 
 const DEFAULT_THEMES: Record<SiteTemplateKey, SiteTheme> = {
@@ -57,6 +63,16 @@ const DEFAULT_THEMES: Record<SiteTemplateKey, SiteTheme> = {
     fontKey: 'system',
     radius: 16,
   },
+  // Negro profundo con un solo acento dorado, serif y esquinas rectas.
+  LUXURY: {
+    primary: '#C9A961',
+    secondary: '#8C8577',
+    background: '#0B0B0C',
+    surface: '#1C1A17',
+    text: '#F5F1E8',
+    fontKey: 'serif',
+    radius: 0,
+  },
 }
 
 const INFO: Record<
@@ -79,6 +95,14 @@ const INFO: Record<
     previewImageUrl: null,
     supportedSections: [...SITE_SECTION_KEYS],
   },
+  LUXURY: {
+    key: 'LUXURY',
+    name: 'Lujo',
+    description:
+      'Negro profundo con detalles dorados y tipografía serif. Imágenes grandes y mucho aire, pensado para propiedades premium.',
+    previewImageUrl: null,
+    supportedSections: [...SITE_SECTION_KEYS],
+  },
 }
 
 export function templateInfo(key: SiteTemplateKey): SiteTemplateInfo {
@@ -90,7 +114,7 @@ export function templateInfo(key: SiteTemplateKey): SiteTemplateInfo {
 }
 
 export function allTemplates(): SiteTemplateInfo[] {
-  return (['CLASSIC', 'MODERN'] as const).map(templateInfo)
+  return SITE_TEMPLATE_KEYS.map(templateInfo)
 }
 
 export function defaultTheme(key: SiteTemplateKey): SiteTheme {

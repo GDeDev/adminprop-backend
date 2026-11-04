@@ -12,9 +12,9 @@ const TENANT = {
 }
 
 describe('templates', () => {
-  it('hay dos, con tema legible (AA) y fuentes que incluyen la del tema', () => {
+  it('hay tres, con tema legible (AA) y fuentes que incluyen la del tema', () => {
     const templates = allTemplates()
-    expect(templates.map((t) => t.key)).toEqual(['CLASSIC', 'MODERN'])
+    expect(templates.map((t) => t.key)).toEqual(['CLASSIC', 'MODERN', 'LUXURY'])
     for (const t of templates) {
       const { defaultTheme: th } = t
       expect(contrastRatio(th.text, th.background)).toBeGreaterThanOrEqual(4.5)
@@ -22,6 +22,22 @@ describe('templates', () => {
       expect(contrastRatio(th.primary, th.background)).toBeGreaterThanOrEqual(3)
       expect(t.fontOptions.map((f) => f.key)).toContain(th.fontKey)
     }
+  })
+
+  it('LUXURY cumple el mismo contrato: todas las secciones, tema AA y dorado por defecto', () => {
+    const luxury = allTemplates().find((t) => t.key === 'LUXURY')
+    expect(luxury).toBeDefined()
+    expect(luxury?.supportedSections).toEqual(
+      allTemplates()[0].supportedSections,
+    )
+    expect(luxury?.defaultTheme).toMatchObject({
+      primary: '#C9A961',
+      fontKey: 'serif',
+    })
+    expect(themeFor('LUXURY', null).background).toBe('#0B0B0C')
+    // Un color de marca casi igual al fondo negro no se aplica.
+    expect(themeFor('LUXURY', '#0c0c0d').primary).toBe('#C9A961')
+    expect(themeFor('LUXURY', '#ff6600').primary).toBe('#FF6600')
   })
 
   it('usa el color de la marca solo si se lee sobre el fondo del template', () => {

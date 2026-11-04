@@ -2295,6 +2295,7 @@ model WhatsAppTemplate {
 enum SiteTemplateKey {
   CLASSIC
   MODERN
+  LUXURY
 }
 
 /// Configuración del sitio web de una inmobiliaria (una fila por tenant). El

@@ -2,7 +2,7 @@
  * Forma del contenido del sitio web. Espeja `packages/shared-types/src/site.ts`
  * del frontend (spec web-inmobiliaria, 5.1): si cambia uno, cambia el otro.
  */
-export const SITE_TEMPLATE_KEYS = ['CLASSIC', 'MODERN'] as const
+export const SITE_TEMPLATE_KEYS = ['CLASSIC', 'MODERN', 'LUXURY'] as const
 export type SiteTemplateKey = (typeof SITE_TEMPLATE_KEYS)[number]
 
 export const SITE_SECTION_KEYS = [
