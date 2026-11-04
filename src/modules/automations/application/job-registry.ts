@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { JobName } from '../domain/job-catalog'
 import { AutomationJob } from './job.types'
+import { CrmFollowUpReminderJob } from './jobs/crm-follow-up-reminder.job'
 import { ArrearsNoticeJob } from './jobs/arrears-notice.job'
 import { ContractExpiryNoticeJob } from './jobs/contract-expiry-notice.job'
 import { DiscardStaleImportBatchesJob } from './jobs/discard-stale-import-batches.job'
@@ -35,6 +36,7 @@ export class JobRegistry {
     statementReminder: StatementReminderJob,
     discardStaleBatches: DiscardStaleImportBatchesJob,
     refreshComparables: RefreshComparablesJob,
+    crmFollowUp: CrmFollowUpReminderJob,
   ) {
     this.jobs = new Map(
       [
@@ -51,6 +53,7 @@ export class JobRegistry {
         statementReminder,
         discardStaleBatches,
         refreshComparables,
+        crmFollowUp,
       ].map((job) => [job.name, job]),
     )
   }

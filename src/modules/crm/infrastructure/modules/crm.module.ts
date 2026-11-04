@@ -20,6 +20,7 @@ import {
   RecordContactAttemptHandler,
   UpdateInquiryHandler,
 } from '../../application/inquiry.handlers'
+import { FollowUpReminderService } from '../../application/follow-up-reminder.service'
 import { InquiryNotifier } from '../../application/inquiry-notifier'
 import { InquiryRegistrar } from '../../application/inquiry-registrar'
 import { InquiryViews } from '../../application/crm.views'
@@ -69,6 +70,7 @@ import { InquiryRepositoryImpl } from '../repositories/inquiry.repository.impl'
     InquiryRegistrar,
     InquiryNotifier,
     PropertyViewsRecorder,
+    FollowUpReminderService,
     CreateInquiryHandler,
     UpdateInquiryHandler,
     MoveInquiryHandler,

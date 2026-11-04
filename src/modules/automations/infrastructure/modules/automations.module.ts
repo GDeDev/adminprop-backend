@@ -13,6 +13,8 @@ import { AutomationViews } from '@/modules/automations/application/automation.vi
 import { JobRegistry } from '@/modules/automations/application/job-registry'
 import { JobRunner } from '@/modules/automations/application/job-runner'
 import { JobScheduler } from '@/modules/automations/application/job-scheduler'
+import { CrmFollowUpReminderJob } from '@/modules/automations/application/jobs/crm-follow-up-reminder.job'
+import { CrmModule } from '@/modules/crm/public'
 import { ArrearsNoticeJob } from '@/modules/automations/application/jobs/arrears-notice.job'
 import { ContractExpiryNoticeJob } from '@/modules/automations/application/jobs/contract-expiry-notice.job'
 import { FinishExpiredContractsJob } from '@/modules/automations/application/jobs/finish-expired-contracts.job'
@@ -74,6 +76,7 @@ import { CronSchedulerTask } from '../tasks/cron-scheduler.task'
     MasterDataModule,
     MigrationModule,
     ValuationModule,
+    CrmModule,
     AuditRecorderModule,
   ],
   controllers: [AutomationsController, IndexStatusController],
@@ -97,6 +100,7 @@ import { CronSchedulerTask } from '../tasks/cron-scheduler.task'
     StatementReminderJob,
     DiscardStaleImportBatchesJob,
     RefreshComparablesJob,
+    CrmFollowUpReminderJob,
     JobsConsumer,
     CronSchedulerTask,
     ListJobsHandler,

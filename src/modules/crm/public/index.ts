@@ -4,4 +4,8 @@
  */
 export { CrmModule } from '../infrastructure/modules/crm.module'
 export { CrmFacade } from './crm.facade'
-export type { NewPortalInquiry, RegisteredInquiry } from './crm.facade'
+export type {
+  FollowUpSummary,
+  NewPortalInquiry,
+  RegisteredInquiry,
+} from './crm.facade'

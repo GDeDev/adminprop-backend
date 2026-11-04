@@ -373,6 +373,42 @@ describe('CRM (e2e, Postgres)', () => {
     expect(page.body.data.pagination.total).toBe(2)
   })
 
+  it('job crm.follow-up-reminder: avisa el seguimiento vencido una sola vez y no los de otro tenant', async () => {
+    const due = await create({ name: 'Vencida' })
+    const later = await create({ name: 'Futura' })
+    await api(adminToken)
+      .patch(`/crm/inquiries/${due.id}`)
+      .send({ nextActionAt: '2020-01-01' })
+      .expect(200)
+    await api(adminToken)
+      .patch(`/crm/inquiries/${later.id}`)
+      .send({ nextActionAt: '2999-01-01' })
+      .expect(200)
+
+    const run = () =>
+      api(adminToken)
+        .post('/automations/jobs/crm.follow-up-reminder/run')
+        .send({})
+    await run().expect(202)
+    const alerts = async (token: string) =>
+      (await api(token).get('/automations/alerts').expect(200)).body.data
+        .data as {
+        type: string
+        entityId: string
+      }[]
+    await waitFor(async () =>
+      (await alerts(adminToken)).some((a) => a.type === 'INQUIRY_FOLLOW_UP'),
+    )
+    await run().expect(202)
+    const mine = (await alerts(adminToken)).filter(
+      (a) => a.type === 'INQUIRY_FOLLOW_UP',
+    )
+    expect(mine.map((a) => a.entityId)).toEqual([due.id])
+    expect(
+      (await alerts(adminBToken)).some((a) => a.type === 'INQUIRY_FOLLOW_UP'),
+    ).toBe(false)
+  })
+
   describe('analítica', () => {
     it('por propiedad: vistas, consultas por etapa y origen, conversión y serie diaria', async () => {
       const won = await create({ propertyId })

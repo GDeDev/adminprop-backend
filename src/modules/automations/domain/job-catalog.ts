@@ -13,6 +13,7 @@ export enum JobName {
   STATEMENT_REMINDER = 'settlements.statement-reminder',
   MIGRATION_DISCARD_STALE = 'migration.discard-stale-batches',
   VALUATION_REFRESH_COMPARABLES = 'valuation.refresh-comparables',
+  CRM_FOLLOW_UP_REMINDER = 'crm.follow-up-reminder',
 }
 
 /** Coinciden con los enums de Prisma. */
@@ -157,6 +158,14 @@ export const JOB_CATALOG: JobDefinition[] = [
       'Trae avisos de alquiler de los portales para las zonas más atrasadas (con propiedades disponibles o tasadas), con cortesía de scraping. Alimenta la tasación automática; es global, no por inmobiliaria.',
     scope: JobScope.GLOBAL,
     times: ['03:00'],
+  },
+  {
+    name: JobName.CRM_FOLLOW_UP_REMINDER,
+    title: 'Seguimiento de consultas',
+    description:
+      'Avisa las consultas abiertas cuya fecha de seguimiento ya llegó, una sola vez por fecha, a quien la tiene asignada o a todo el personal si no tiene responsable.',
+    scope: JobScope.TENANT,
+    times: ['09:15'],
   },
 ]
 

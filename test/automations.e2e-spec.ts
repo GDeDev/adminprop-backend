@@ -295,7 +295,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
   })
 
   describe('catálogo, permisos y corrida manual', () => {
-    it('lista los 12 jobs con su cron legible; sólo el admin; el empleado lee los avisos', async () => {
+    it('lista los 14 jobs con su cron legible; sólo el admin; el empleado lee los avisos', async () => {
       const response = await api(adminToken)
         .get('/automations/jobs')
         .expect(200)
@@ -306,7 +306,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
         lastExecution: unknown
         nextRunAt: string | null
       }[]
-      expect(jobs).toHaveLength(13)
+      expect(jobs).toHaveLength(14)
       expect(
         jobs.find((j) => j.name === 'billing.arrears-notice'),
       ).toMatchObject({
@@ -408,7 +408,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       const scheduler = app.get(JobScheduler)
 
       const first = await scheduler.enqueueDue(at)
-      expect(first).toBe(2 * 11 + 1)
+      expect(first).toBe(2 * 12 + 1)
       expect(await scheduler.enqueueDue(at)).toBe(0)
 
       const executions = app.get(JobExecutionRepository)
@@ -418,7 +418,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
           {},
           { skip: 0, take: 100 },
         )
-        return rows.length >= 11 && rows.every((r) => r.status !== 'RUNNING')
+        return rows.length >= 12 && rows.every((r) => r.status !== 'RUNNING')
       })
       const [rowsA] = await executions.list(
         tenantA.id,
@@ -430,8 +430,8 @@ describe('Automatizaciones (e2e, Postgres)', () => {
         {},
         { skip: 0, take: 100 },
       )
-      expect(rowsA.filter((r) => r.tenantId === tenantA.id)).toHaveLength(10)
-      expect(rowsB.filter((r) => r.tenantId === tenantB.id)).toHaveLength(10)
+      expect(rowsA.filter((r) => r.tenantId === tenantA.id)).toHaveLength(11)
+      expect(rowsB.filter((r) => r.tenantId === tenantB.id)).toHaveLength(11)
       expect([...rowsA, ...rowsB].filter((r) => r.status === 'FAILED')).toEqual(
         [],
       )
