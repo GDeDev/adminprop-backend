@@ -5,7 +5,7 @@ import {
   PaymentConfirmedPayload,
 } from '@/modules/billing/public'
 import { ContractsFacade } from '@/modules/contracts/public'
-import { OwnersFacade } from '@/modules/owners/public'
+import { OwnersFacade, StatementSendMode } from '@/modules/owners/public'
 import { PropertiesFacade } from '@/modules/properties/public'
 import { RentersFacade } from '@/modules/renters/public'
 import {
@@ -60,10 +60,29 @@ export class NotificationEventsConsumer implements OnModuleInit {
     )
   }
 
+  /**
+   * El aviso de cada liquidación respeta el modo de envío del propietario
+   * (D-228, Micaela #7): con "solo el resumen" el comprobante individual no
+   * sale. El consolidado puede pedirlo después, al cerrarse, con otro modo.
+   */
   async onSettlementConfirmed(
     message: QueueMessage<SettlementConfirmedPayload>,
   ): Promise<void> {
     const event = message.payload
+    const settings = await this.owners.feeSettings(event.ownerId)
+    if (settings?.statementSendMode === StatementSendMode.SUMMARY) {
+      this.logger.info(
+        { settlementId: event.settlementId, ownerId: event.ownerId },
+        'Comprobante individual omitido: el propietario recibe sólo el resumen',
+      )
+      return
+    }
+    await this.sendSettlementConfirmed(event)
+  }
+
+  private async sendSettlementConfirmed(
+    event: SettlementConfirmedPayload,
+  ): Promise<void> {
     const owner = (await this.owners.contacts([event.ownerId])).get(
       event.ownerId,
     )
@@ -98,6 +117,21 @@ export class NotificationEventsConsumer implements OnModuleInit {
     message: QueueMessage<StatementClosedPayload>,
   ): Promise<void> {
     const event = message.payload
+    // Con "ambos" o "comprobantes" salen los comprobantes que el aviso al
+    // confirmar dejó pendientes (modo del propietario distinto del elegido al
+    // cerrar). Los ya enviados no se repiten: mismo `dedupeKey`.
+    if (event.sendMode !== 'SUMMARY') {
+      for (const settlement of event.settlements ?? []) {
+        await this.sendSettlementConfirmed(settlement)
+      }
+    }
+    if (event.sendMode === 'RECEIPTS') {
+      this.logger.info(
+        { statementId: event.statementId, ownerId: event.ownerId },
+        'Aviso del consolidado omitido: el envío es sólo de comprobantes',
+      )
+      return
+    }
     const owner = (await this.owners.contacts([event.ownerId])).get(
       event.ownerId,
     )

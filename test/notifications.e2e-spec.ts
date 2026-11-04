@@ -20,7 +20,10 @@ import { QueuePort } from '../src/platform/queue/queue.port'
 import { StoragePort } from '../src/platform/storage/storage.port'
 import { RequestContext } from '../src/shared/context/request-context'
 import { PrismaService } from '../src/shared/prisma/prisma.service'
-import { SETTLEMENT_CONFIRMED_QUEUE } from '../src/modules/settlements/public'
+import {
+  SETTLEMENT_CONFIRMED_QUEUE,
+  STATEMENT_CLOSED_QUEUE,
+} from '../src/modules/settlements/public'
 import { loginAs } from './utils/app'
 import { createTenant, createUser, resetDatabase } from './utils/database'
 import { waitFor } from './utils/wait-for'
@@ -50,6 +53,10 @@ describe('Notificaciones (e2e, Postgres)', () => {
     post: (url: string) =>
       request(server())
         .post(`/api/v1${url}`)
+        .set('Authorization', `Bearer ${token}`),
+    patch: (url: string) =>
+      request(server())
+        .patch(`/api/v1${url}`)
         .set('Authorization', `Bearer ${token}`),
     put: (url: string) =>
       request(server())
@@ -894,6 +901,151 @@ describe('Notificaciones (e2e, Postgres)', () => {
         entityId: settlementId,
         subject: expect.stringContaining('10/2026'),
       })
+    })
+  })
+
+  describe('modo de envío del consolidado (D-228, Micaela #7)', () => {
+    const createOwner = async (
+      nationalId: string,
+      sendMode: 'SUMMARY' | 'RECEIPTS' | 'BOTH',
+    ): Promise<string> => {
+      const owner = await api(adminToken)
+        .post('/owners')
+        .send({
+          firstName: 'Ana',
+          lastName: nationalId,
+          nationalId,
+          email: `${nationalId}@propietario.com`,
+        })
+        .expect(201)
+      await api(adminToken)
+        .patch(`/owners/${owner.body.data.id}/fee-settings`)
+        .send({ statementSendMode: sendMode })
+        .expect(200)
+      return owner.body.data.id
+    }
+
+    const settlementPayload = (ownerId: string, settlementId: string) => ({
+      settlementId,
+      ownerId,
+      contractId: UNKNOWN_ID,
+      period: '2026-10',
+      netAmount: '250000.00',
+      currency: 'ARS',
+    })
+
+    const logged = (dedupeKey: string) =>
+      prisma.notificationLog.count({ where: { dedupeKey } })
+
+    const pause = () => new Promise((resolve) => setTimeout(resolve, 500))
+
+    it('con "sólo el resumen" el comprobante individual no sale; con "ambos" sí', async () => {
+      const summaryOwner = await createOwner('30111001', 'SUMMARY')
+      const bothOwner = await createOwner('30111002', 'BOTH')
+      const skipped = '55555555-5555-4555-8555-555555555551'
+      const sent = '55555555-5555-4555-8555-555555555552'
+
+      await inTenant(tenantA.id, async () => {
+        await app
+          .get(QueuePort)
+          .publish(
+            SETTLEMENT_CONFIRMED_QUEUE,
+            settlementPayload(summaryOwner, skipped),
+          )
+        await app
+          .get(QueuePort)
+          .publish(
+            SETTLEMENT_CONFIRMED_QUEUE,
+            settlementPayload(bothOwner, sent),
+          )
+      })
+
+      await waitFor(
+        async () => (await logged(`SETTLEMENT_CONFIRMED:${sent}`)) === 1,
+      )
+      await pause()
+      expect(await logged(`SETTLEMENT_CONFIRMED:${skipped}`)).toBe(0)
+    })
+
+    it('al cerrar: "comprobantes" no manda el resumen y sí los comprobantes pendientes; "resumen" no manda comprobantes; "ambos" manda los dos', async () => {
+      // Los tres propietarios nacen en "resumen": al confirmar no salió nada.
+      const receiptsOwner = await createOwner('30111003', 'SUMMARY')
+      const summaryOwner = await createOwner('30111004', 'SUMMARY')
+      const bothOwner = await createOwner('30111005', 'SUMMARY')
+      const ids = {
+        receipts: ['66666666-6666-4666-8666-666666666601'],
+        summary: ['66666666-6666-4666-8666-666666666602'],
+        both: ['66666666-6666-4666-8666-666666666603'],
+      }
+      const statementIds = {
+        receipts: '77777777-7777-4777-8777-777777777701',
+        summary: '77777777-7777-4777-8777-777777777702',
+        both: '77777777-7777-4777-8777-777777777703',
+      }
+      const close = (
+        key: 'receipts' | 'summary' | 'both',
+        ownerId: string,
+        sendMode: 'SUMMARY' | 'RECEIPTS' | 'BOTH',
+      ) =>
+        app.get(QueuePort).publish(STATEMENT_CLOSED_QUEUE, {
+          statementId: statementIds[key],
+          ownerId,
+          period: '2026-10',
+          sendMode,
+          settlements: ids[key].map((id) => settlementPayload(ownerId, id)),
+        })
+
+      await inTenant(tenantA.id, async () => {
+        await close('receipts', receiptsOwner, 'RECEIPTS')
+        await close('summary', summaryOwner, 'SUMMARY')
+        await close('both', bothOwner, 'BOTH')
+      })
+
+      await waitFor(
+        async () =>
+          (await logged(`OWNER_STATEMENT_CLOSED:${statementIds.both}`)) === 1 &&
+          (await logged(`OWNER_STATEMENT_CLOSED:${statementIds.summary}`)) ===
+            1 &&
+          (await logged(`SETTLEMENT_CONFIRMED:${ids.both[0]}`)) === 1 &&
+          (await logged(`SETTLEMENT_CONFIRMED:${ids.receipts[0]}`)) === 1,
+      )
+      await pause()
+      expect(
+        await logged(`OWNER_STATEMENT_CLOSED:${statementIds.receipts}`),
+      ).toBe(0)
+      expect(await logged(`SETTLEMENT_CONFIRMED:${ids.summary[0]}`)).toBe(0)
+    })
+
+    it('un comprobante que ya salió al confirmar no se duplica al cerrar con "ambos"', async () => {
+      const owner = await createOwner('30111006', 'BOTH')
+      const settlementId = '88888888-8888-4888-8888-888888888801'
+      const statementId = '88888888-8888-4888-8888-888888888802'
+      await inTenant(tenantA.id, () =>
+        app
+          .get(QueuePort)
+          .publish(
+            SETTLEMENT_CONFIRMED_QUEUE,
+            settlementPayload(owner, settlementId),
+          ),
+      )
+      await waitFor(
+        async () =>
+          (await logged(`SETTLEMENT_CONFIRMED:${settlementId}`)) === 1,
+      )
+      await inTenant(tenantA.id, () =>
+        app.get(QueuePort).publish(STATEMENT_CLOSED_QUEUE, {
+          statementId,
+          ownerId: owner,
+          period: '2026-10',
+          sendMode: 'BOTH',
+          settlements: [settlementPayload(owner, settlementId)],
+        }),
+      )
+      await waitFor(
+        async () =>
+          (await logged(`OWNER_STATEMENT_CLOSED:${statementId}`)) === 1,
+      )
+      expect(await logged(`SETTLEMENT_CONFIRMED:${settlementId}`)).toBe(1)
     })
   })
 

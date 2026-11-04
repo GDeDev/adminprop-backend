@@ -32,6 +32,12 @@ export interface StatementClosedPayload {
   ownerId: string
   period: string
   sendMode: 'SUMMARY' | 'RECEIPTS' | 'BOTH'
+  /**
+   * Las liquidaciones del consolidado. Con `RECEIPTS` o `BOTH` el email las
+   * reenvía si el aviso individual no salió al confirmarlas (D-228); el
+   * `dedupeKey` evita duplicar las que ya salieron.
+   */
+  settlements: SettlementConfirmedPayload[]
 }
 
 /**
