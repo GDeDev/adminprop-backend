@@ -4,8 +4,11 @@ import {
   IsEmail,
   IsOptional,
   IsString,
+  IsInt,
   Matches,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator'
 
 /** Un string vacío en un campo opcional es "sin dato", no un error. */
@@ -106,6 +109,31 @@ export class UpdateTenantSettingsDto {
   @IsString()
   @MaxLength(500)
   documentFooter?: string | null
+
+  @ApiPropertyOptional({
+    type: String,
+    example: '0.50',
+    description:
+      'Punitorio diario por defecto, en %. Lo heredan los contratos que no fijan el suyo; no puede quedar vacío una vez fijado (0 = sin punitorio).',
+  })
+  @IsOptional()
+  @Matches(/^\d{1,3}(\.\d{1,2})?$/, {
+    message:
+      'dailyLateFeePercentage debe ser un porcentaje con hasta 2 decimales',
+  })
+  dailyLateFeePercentage?: string
+
+  @ApiPropertyOptional({
+    type: Number,
+    example: 10,
+    description:
+      'Días del mes sin punitorio por defecto (el punitorio corre desde el día siguiente).',
+  })
+  @IsOptional()
+  @IsInt({ message: 'paymentGraceDays tiene que ser un entero' })
+  @Min(0)
+  @Max(60)
+  paymentGraceDays?: number
 }
 
 export class TenantSettingsDto {
@@ -132,6 +160,19 @@ export class TenantSettingsDto {
   @ApiProperty({ type: String, nullable: true }) bankCbu: string | null
   @ApiProperty({ type: String, nullable: true }) bankAlias: string | null
   @ApiProperty({ type: String, nullable: true }) documentFooter: string | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '0.50',
+    description: 'Null = sin punitorio por defecto: cada contrato fija el suyo',
+  })
+  dailyLateFeePercentage: string | null
+  @ApiProperty({ example: 10 }) paymentGraceDays: number
+  @ApiProperty({
+    example: 11,
+    description: 'Día del mes desde el que corre el punitorio (gracia + 1)',
+  })
+  lateFeeStartDay: number
   @ApiProperty({ description: 'Último número de recibo emitido' })
   receiptSequence: number
 }

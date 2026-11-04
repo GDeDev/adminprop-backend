@@ -3,13 +3,16 @@ import {
   addMoney,
   compareMoney,
   roundMoney,
+  subtractMoney,
   toMoneyString,
 } from '@/shared/money'
-import { Currency, DepositDeductionConcept } from './billing'
+import { Currency, DepositDeductionConcept, DepositReturnMode } from './billing'
 import {
+  DepositDeductionsExceedReferenceException,
   DepositReturnContractActiveException,
   DepositReturnUnbalancedException,
   InvalidDepositDeductionException,
+  InvalidDepositReferenceException,
   InvalidDepositReturnDateException,
 } from './billing.exceptions'
 
@@ -21,6 +24,11 @@ export interface DepositContract {
   endDate: IsoDate
   deposit: string
   depositCurrency: Currency
+  /** Cómo se devuelve (Micaela #1): decide el monto de referencia. */
+  depositReturnMode: DepositReturnMode
+  /** Moneda y alquiler vigente, para el modo `FOLLOWS_RENT`. */
+  currency: Currency
+  currentRent: string
 }
 
 export interface DeductionInput {
@@ -40,7 +48,10 @@ export const DepositReturnPolicy = {
    * o activo con el fin ya pasado (el cron de la Fase 13 todavía no lo
    * finalizó). Un contrato vigente → 409.
    */
-  assertReturnable(contract: DepositContract, today: IsoDate): void {
+  assertReturnable(
+    contract: Pick<DepositContract, 'id' | 'status' | 'endDate'>,
+    today: IsoDate,
+  ): void {
     if (contract.status === 'ACTIVE' && contract.endDate >= today) {
       throw new DepositReturnContractActiveException(contract.id)
     }
@@ -113,24 +124,84 @@ export const DepositReturnPolicy = {
   },
 
   /**
-   * Invariante: `returnedAmount + Σ deducciones = depositAmount` (400
-   * `DEPOSIT_RETURN_UNBALANCED` si no cierra). Así lo que se le devuelve al
-   * inquilino y lo que se le descuenta siempre explican el depósito entero.
+   * El monto del que se descuentan las deducciones (D-227; Micaela #1). El
+   * depósito se registra por lo recibido y no se actualiza solo; lo que se
+   * devuelve lo fija el modo del contrato:
+   * - `FIXED`: lo recibido.
+   * - `FOLLOWS_RENT`: el alquiler vigente al cerrar (el "último mes"). Sólo
+   *   se calcula si el contrato y el depósito están en la misma moneda; no
+   *   hay cotización en una devolución, así que en otro caso hay que
+   *   indicarlo a mano.
+   * - `MANUAL`: el que se indique al cerrar las cuentas (obligatorio).
+   * Si el cliente manda un valor en un modo automático tiene que coincidir:
+   * una diferencia es un error de pantalla desactualizada, no una decisión.
    */
-  assertBalanced(
-    depositAmount: string,
-    returnedAmount: string,
-    deductions: Pick<DeductionInput, 'amount'>[],
-  ): void {
-    const accounted = toMoneyString(
-      addMoney(returnedAmount, ...deductions.map((d) => d.amount)),
-    )
-    if (compareMoney(accounted, depositAmount) !== 0) {
-      throw new DepositReturnUnbalancedException(
-        toMoneyString(depositAmount),
-        accounted,
+  resolveReference(
+    contract: DepositContract,
+    provided: string | null,
+  ): { mode: DepositReturnMode; referenceAmount: string } {
+    const mode = contract.depositReturnMode
+    const normalized = provided === null ? null : normalizeReference(provided)
+    let computed: string | null = null
+    if (mode === DepositReturnMode.FIXED) {
+      computed = toMoneyString(roundMoney(contract.deposit))
+    } else if (
+      mode === DepositReturnMode.FOLLOWS_RENT &&
+      contract.currency === contract.depositCurrency
+    ) {
+      computed = toMoneyString(roundMoney(contract.currentRent))
+    }
+    if (computed === null) {
+      if (normalized === null) {
+        throw new InvalidDepositReferenceException(
+          mode === DepositReturnMode.MANUAL
+            ? 'el contrato define el monto a mano: indicalo'
+            : 'el alquiler está en otra moneda que el depósito: indicá el monto',
+        )
+      }
+      return { mode, referenceAmount: normalized }
+    }
+    if (normalized !== null && compareMoney(normalized, computed) !== 0) {
+      throw new InvalidDepositReferenceException(
+        `según el contrato corresponde ${computed} y se indicó ${normalized}`,
       )
     }
+    return { mode, referenceAmount: computed }
+  },
+
+  /**
+   * Las deducciones justificadas se descuentan del monto de referencia y lo
+   * que queda se devuelve. Si el cliente manda `returnedAmount` tiene que dar
+   * lo mismo (400 `DEPOSIT_RETURN_UNBALANCED`); si las deducciones superan la
+   * referencia, 400 `DEPOSIT_RETURN_DEDUCTIONS_EXCEED`.
+   */
+  settle(
+    referenceAmount: string,
+    deductions: Pick<DeductionInput, 'amount'>[],
+    returnedAmount: string | null,
+  ): string {
+    const totalDeductions = toMoneyString(
+      addMoney('0', ...deductions.map((d) => d.amount)),
+    )
+    if (compareMoney(totalDeductions, referenceAmount) > 0) {
+      throw new DepositDeductionsExceedReferenceException(
+        toMoneyString(referenceAmount),
+        totalDeductions,
+      )
+    }
+    const toReturn = toMoneyString(
+      subtractMoney(referenceAmount, totalDeductions),
+    )
+    if (
+      returnedAmount !== null &&
+      compareMoney(returnedAmount, toReturn) !== 0
+    ) {
+      throw new DepositReturnUnbalancedException(
+        toMoneyString(referenceAmount),
+        toMoneyString(addMoney(returnedAmount, totalDeductions)),
+      )
+    }
+    return toReturn
   },
 
   /**
@@ -159,4 +230,17 @@ export const DepositReturnPolicy = {
       )
     }
   },
+}
+
+function normalizeReference(value: string): string {
+  let amount
+  try {
+    amount = roundMoney(value)
+  } catch {
+    throw new InvalidDepositReferenceException('no es un número')
+  }
+  if (amount.lessThanOrEqualTo(0)) {
+    throw new InvalidDepositReferenceException('tiene que ser mayor que cero')
+  }
+  return toMoneyString(amount)
 }

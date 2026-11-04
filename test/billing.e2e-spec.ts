@@ -1522,6 +1522,122 @@ describe('Cobros (e2e, Postgres)', () => {
     })
   })
 
+  describe('devolución del depósito según el modo del contrato (D-227)', () => {
+    const closedContract = (overrides: Record<string, unknown>) =>
+      createContract({
+        startDate: addMonths(today, -3),
+        endDate: addDays(today, -1),
+        deposit: '100000',
+        initialRent: '130000',
+        ...overrides,
+      })
+
+    const returnDeposit = (contractId: string, body: Record<string, unknown>) =>
+      api(adminToken)
+        .post(`/contracts/${contractId}/deposit-return`)
+        .send({
+          returnedAt: today,
+          method: 'TRANSFER',
+          deductions: [],
+          ...body,
+        })
+
+    it('FIXED: se devuelve lo recibido menos las deducciones; el monto se calcula solo', async () => {
+      const contract = await closedContract({ depositReturnMode: 'FIXED' })
+      const res = await returnDeposit(contract.id, {
+        deductions: [
+          { concept: 'DAMAGE', description: 'Pintura', amount: '10000' },
+        ],
+      }).expect(201)
+      expect(res.body.data).toMatchObject({
+        mode: 'FIXED',
+        depositAmount: '100000.00',
+        referenceAmount: '100000.00',
+        returnedAmount: '90000.00',
+      })
+    })
+
+    it('FOLLOWS_RENT: se devuelve el alquiler vigente aunque supere lo recibido (antes daba DEPOSIT_RETURN_UNBALANCED)', async () => {
+      const contract = await closedContract({
+        depositReturnMode: 'FOLLOWS_RENT',
+      })
+      const res = await returnDeposit(contract.id, {
+        deductions: [
+          { concept: 'OTHER', description: 'Llaves perdidas', amount: '30000' },
+        ],
+      }).expect(201)
+      expect(res.body.data).toMatchObject({
+        mode: 'FOLLOWS_RENT',
+        depositAmount: '100000.00',
+        referenceAmount: '130000.00',
+        returnedAmount: '100000.00',
+      })
+      const account = await api(adminToken)
+        .get(`/contracts/${contract.id}/account`)
+        .expect(200)
+      const movements = account.body.data.movements as {
+        type: string
+        amount: string | null
+        amountCurrency: string | null
+        balance: string
+      }[]
+      expect(
+        movements
+          .filter((m) => m.type.startsWith('DEPOSIT_'))
+          .map((m) => [m.type, m.amount, m.amountCurrency]),
+      ).toEqual([
+        ['DEPOSIT_RECEIVED', '100000.00', 'ARS'],
+        ['DEPOSIT_RETURNED', '100000.00', 'ARS'],
+        ['DEPOSIT_DEDUCTION', '30000.00', 'ARS'],
+      ])
+    })
+
+    it('un returnedAmount que no cierra, o deducciones mayores que la referencia, se rechazan', async () => {
+      const contract = await closedContract({
+        depositReturnMode: 'FOLLOWS_RENT',
+      })
+      const unbalanced = await returnDeposit(contract.id, {
+        returnedAmount: '100000',
+      }).expect(400)
+      expect(unbalanced.body.code).toBe('DEPOSIT_RETURN_UNBALANCED')
+      const exceed = await returnDeposit(contract.id, {
+        deductions: [
+          { concept: 'DAMAGE', description: 'Todo roto', amount: '130000.01' },
+        ],
+      }).expect(400)
+      expect(exceed.body.code).toBe('DEPOSIT_RETURN_DEDUCTIONS_EXCEED')
+      const noReason = await returnDeposit(contract.id, {
+        deductions: [{ concept: 'DAMAGE', description: ' ', amount: '1' }],
+      })
+      expect(noReason.status).toBe(400)
+    })
+
+    it('MANUAL: el monto es obligatorio y puede superar lo recibido', async () => {
+      const contract = await closedContract({ depositReturnMode: 'MANUAL' })
+      const missing = await returnDeposit(contract.id, {}).expect(400)
+      expect(missing.body.code).toBe('DEPOSIT_RETURN_INVALID_REFERENCE')
+      const res = await returnDeposit(contract.id, {
+        referenceAmount: '150000',
+        deductions: [
+          { concept: 'DAMAGE', description: 'Puerta', amount: '20000' },
+        ],
+      }).expect(201)
+      expect(res.body.data).toMatchObject({
+        mode: 'MANUAL',
+        referenceAmount: '150000.00',
+        returnedAmount: '130000.00',
+      })
+    })
+
+    it('otra inmobiliaria no puede devolver el depósito de este contrato', async () => {
+      const contract = await closedContract({ depositReturnMode: 'FIXED' })
+      await api(adminBToken)
+        .post(`/contracts/${contract.id}/deposit-return`)
+        .send({ returnedAt: today, method: 'CASH', deductions: [] })
+        .expect(422)
+    })
+  })
+
   describe('aislamiento entre inmobiliarias', () => {
     it('la generación y los listados son por inmobiliaria; otra no ve la cuota ni la cuenta corriente', async () => {
       const contract = await createContract()

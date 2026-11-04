@@ -20082,6 +20082,21 @@
             "type": "string",
             "nullable": true
           },
+          "dailyLateFeePercentage": {
+            "type": "string",
+            "nullable": true,
+            "example": "0.50",
+            "description": "Null = sin punitorio por defecto: cada contrato fija el suyo"
+          },
+          "paymentGraceDays": {
+            "type": "number",
+            "example": 10
+          },
+          "lateFeeStartDay": {
+            "type": "number",
+            "example": 11,
+            "description": "Día del mes desde el que corre el punitorio (gracia + 1)"
+          },
           "receiptSequence": {
             "type": "number",
             "description": "Último número de recibo emitido"
@@ -20104,6 +20119,9 @@
           "bankCbu",
           "bankAlias",
           "documentFooter",
+          "dailyLateFeePercentage",
+          "paymentGraceDays",
+          "lateFeeStartDay",
           "receiptSequence"
         ]
       },
@@ -20182,6 +20200,16 @@
             "nullable": true,
             "description": "Leyenda al pie de los PDFs",
             "maxLength": 500
+          },
+          "dailyLateFeePercentage": {
+            "type": "string",
+            "example": "0.50",
+            "description": "Punitorio diario por defecto, en %. Lo heredan los contratos que no fijan el suyo; no puede quedar vacío una vez fijado (0 = sin punitorio)."
+          },
+          "paymentGraceDays": {
+            "type": "number",
+            "example": 10,
+            "description": "Días del mes sin punitorio por defecto (el punitorio corre desde el día siguiente)."
           }
         }
       },
@@ -22563,6 +22591,11 @@
             "format": "date-time",
             "type": "string"
           },
+          "lateFeeStartDay": {
+            "type": "number",
+            "example": 11,
+            "description": "Día del mes desde el que corre el punitorio (gracia + 1)"
+          },
           "inheritedLateFeePercentage": {
             "type": "boolean",
             "description": "El % de punitorio es el de la inmobiliaria"
@@ -22584,6 +22617,7 @@
           "notes",
           "changedBy",
           "createdAt",
+          "lateFeeStartDay",
           "inheritedLateFeePercentage",
           "inheritedLateFeeGraceDays"
         ]
@@ -22787,6 +22821,16 @@
             "type": "string",
             "nullable": true
           },
+          "adjustmentReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Ajuste manual: por qué se hizo (D-230)"
+          },
+          "authorizedBy": {
+            "type": "string",
+            "nullable": true,
+            "description": "Ajuste manual: quién lo autorizó (D-230)"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -22805,6 +22849,8 @@
           "indexToValue",
           "fixedPercentage",
           "appliedById",
+          "adjustmentReason",
+          "authorizedBy",
           "createdAt"
         ]
       },
@@ -23284,13 +23330,19 @@
             "type": "string",
             "nullable": true,
             "example": "5.00",
-            "description": "Punitorio diario en %. Si no viene, el de la inmobiliaria."
+            "description": "Punitorio diario en %. Si no viene, el de la inmobiliaria; si la inmobiliaria no fijó uno, es obligatorio (422)."
           },
           "lateFeeGraceDays": {
             "type": "number",
             "nullable": true,
             "example": 10,
             "description": "Días del mes sin punitorio. Si no viene, los de la inmobiliaria."
+          },
+          "lateFeeStartDay": {
+            "type": "number",
+            "nullable": true,
+            "example": 11,
+            "description": "Día del mes desde el que corre el punitorio (1 a 31). Es la gracia dicha al revés (inicio = gracia + 1): no se combina con lateFeeGraceDays."
           }
         },
         "required": [
@@ -23336,13 +23388,19 @@
             "type": "string",
             "nullable": true,
             "example": "5.00",
-            "description": "Punitorio diario en %. Si no viene, el de la inmobiliaria."
+            "description": "Punitorio diario en %. Si no viene, el de la inmobiliaria; si la inmobiliaria no fijó uno, es obligatorio (422)."
           },
           "lateFeeGraceDays": {
             "type": "number",
             "nullable": true,
             "example": 10,
             "description": "Días del mes sin punitorio. Si no viene, los de la inmobiliaria."
+          },
+          "lateFeeStartDay": {
+            "type": "number",
+            "nullable": true,
+            "example": 11,
+            "description": "Día del mes desde el que corre el punitorio (1 a 31). Es la gracia dicha al revés (inicio = gracia + 1): no se combina con lateFeeGraceDays."
           },
           "effectiveFrom": {
             "type": "string",
@@ -23430,6 +23488,18 @@
             "type": "string",
             "example": "120000.00",
             "description": "El nuevo alquiler a mano. Obligatorio en FIXED sin % fijo y en OTHER. Opcional en FIXED con % fijo (si no viene se calcula) y en ICL/IPC (ajuste manual autorizado; si no viene, sale del índice)."
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "example": "Acuerdo con el inquilino por refacciones a su cargo",
+            "description": "Obligatorio cuando viene newRent (ajuste manual): por qué se ajusta a mano."
+          },
+          "authorizedBy": {
+            "type": "string",
+            "maxLength": 150,
+            "example": "Juan Pérez (propietario)",
+            "description": "Obligatorio cuando viene newRent (ajuste manual): quién lo autorizó."
           }
         }
       },
@@ -23611,13 +23681,19 @@
             "type": "string",
             "nullable": true,
             "example": "5.00",
-            "description": "Punitorio diario en %. Si no viene, el de la inmobiliaria."
+            "description": "Punitorio diario en %. Si no viene, el de la inmobiliaria; si la inmobiliaria no fijó uno, es obligatorio (422)."
           },
           "lateFeeGraceDays": {
             "type": "number",
             "nullable": true,
             "example": 10,
             "description": "Días del mes sin punitorio. Si no viene, los de la inmobiliaria."
+          },
+          "lateFeeStartDay": {
+            "type": "number",
+            "nullable": true,
+            "example": 11,
+            "description": "Día del mes desde el que corre el punitorio (1 a 31). Es la gracia dicha al revés (inicio = gracia + 1): no se combina con lateFeeGraceDays."
           },
           "renterId": {
             "type": "string",
@@ -25476,6 +25552,19 @@
             "type": "string",
             "nullable": true
           },
+          "amount": {
+            "type": "string",
+            "nullable": true,
+            "description": "Importe informativo de los movimientos del depósito; no entra en el saldo"
+          },
+          "amountCurrency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ],
+            "nullable": true
+          },
           "balance": {
             "type": "string",
             "description": "Saldo acumulado (deuda positiva)"
@@ -25495,6 +25584,8 @@
           "description",
           "debit",
           "credit",
+          "amount",
+          "amountCurrency",
           "balance",
           "installmentId",
           "paymentId"
@@ -25561,6 +25652,17 @@
               "USD"
             ]
           },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "FOLLOWS_RENT",
+              "MANUAL"
+            ]
+          },
+          "referenceAmount": {
+            "type": "string"
+          },
           "returnedAmount": {
             "type": "string"
           },
@@ -25604,6 +25706,8 @@
           "returnedAt",
           "depositAmount",
           "depositCurrency",
+          "mode",
+          "referenceAmount",
           "returnedAmount",
           "method",
           "notes",
@@ -25729,10 +25833,15 @@
             "format": "date",
             "example": "2026-10-31"
           },
+          "referenceAmount": {
+            "type": "string",
+            "example": "260000.00",
+            "description": "Monto del que se descuentan las deducciones. FIXED: lo recibido; FOLLOWS_RENT: el alquiler vigente (misma moneda que el depósito). Obligatorio en MANUAL o si el alquiler está en otra moneda; en los automáticos, si viene, tiene que coincidir."
+          },
           "returnedAmount": {
             "type": "string",
             "example": "80000.00",
-            "description": "Lo que se le devuelve al inquilino; puede ser 0."
+            "description": "Lo que se le devuelve al inquilino (puede ser 0). Se calcula como referencia menos deducciones; si se manda, tiene que coincidir."
           },
           "method": {
             "type": "string",
@@ -25757,7 +25866,6 @@
         },
         "required": [
           "returnedAt",
-          "returnedAmount",
           "method",
           "deductions"
         ]

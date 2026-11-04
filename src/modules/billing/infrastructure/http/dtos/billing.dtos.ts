@@ -358,21 +358,39 @@ export class DepositDeductionInputDto {
   installmentId?: string
 }
 
-/** Fase 12, 2.2: `returnedAmount + Σ deducciones` tiene que ser el depósito. */
+/**
+ * Fase 12, 2.2 + D-227: lo devuelto es el monto de referencia que fija el modo
+ * del contrato menos las deducciones justificadas. El depósito recibido no
+ * es el tope ni la referencia salvo en modo FIXED.
+ */
 export class RegisterDepositReturnDto {
   @ApiProperty({ format: 'date', example: '2026-10-31' })
   @Matches(ISO_DATE, { message: 'returnedAt tiene que ser AAAA-MM-DD' })
   returnedAt: string
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    type: String,
+    example: '260000.00',
+    description:
+      'Monto del que se descuentan las deducciones. FIXED: lo recibido; FOLLOWS_RENT: el alquiler vigente (misma moneda que el depósito). Obligatorio en MANUAL o si el alquiler está en otra moneda; en los automáticos, si viene, tiene que coincidir.',
+  })
+  @IsOptional()
+  @Matches(MONEY_AMOUNT_PATTERN, {
+    message: 'referenceAmount debe ser un monto con hasta 2 decimales',
+  })
+  referenceAmount?: string
+
+  @ApiPropertyOptional({
     type: String,
     example: '80000.00',
-    description: 'Lo que se le devuelve al inquilino; puede ser 0.',
+    description:
+      'Lo que se le devuelve al inquilino (puede ser 0). Se calcula como referencia menos deducciones; si se manda, tiene que coincidir.',
   })
+  @IsOptional()
   @Matches(MONEY_AMOUNT_PATTERN, {
     message: 'returnedAmount debe ser un monto con hasta 2 decimales',
   })
-  returnedAmount: string
+  returnedAmount?: string
 
   @ApiProperty({ enum: PaymentMethod })
   @IsEnum(PaymentMethod, { message: 'El medio no es válido' })
@@ -743,6 +761,15 @@ export class ContractAccountMovementDto {
   @ApiProperty({ type: String, nullable: true }) credit: string | null
   @ApiProperty({
     type: String,
+    nullable: true,
+    description:
+      'Importe informativo de los movimientos del depósito; no entra en el saldo',
+  })
+  amount: string | null
+  @ApiProperty({ enum: Currency, nullable: true })
+  amountCurrency: Currency | null
+  @ApiProperty({
+    type: String,
     description: 'Saldo acumulado (deuda positiva)',
   })
   balance: string
@@ -766,6 +793,8 @@ export class DepositReturnDto {
   @ApiProperty({ format: 'date' }) returnedAt: string
   @ApiProperty({ type: String }) depositAmount: string
   @ApiProperty({ enum: Currency }) depositCurrency: Currency
+  @ApiProperty({ enum: DepositReturnMode }) mode: DepositReturnMode
+  @ApiProperty({ type: String }) referenceAmount: string
   @ApiProperty({ type: String }) returnedAmount: string
   @ApiProperty({ enum: PaymentMethod }) method: PaymentMethod
   @ApiProperty({ type: String, nullable: true }) notes: string | null

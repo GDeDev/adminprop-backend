@@ -918,6 +918,10 @@ describe('Liquidaciones (e2e, Postgres)', () => {
         ownerId,
         period,
         sendMode: 'SUMMARY',
+        // D-229: las liquidaciones del consolidado viajan en el evento.
+        settlements: [
+          expect.objectContaining({ settlementId: firstId, ownerId }),
+        ],
       })
 
       // Cerrado: congelado. Una transferencia nueva no lo cambia.

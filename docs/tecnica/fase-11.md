@@ -102,3 +102,7 @@ Totales: 365 unitarios (38 nuevos: `contract.policy.spec.ts`, `installment.polic
 - La multa de rescisión no se carga automáticamente como cargo `TERMINATION_PENALTY`: la agrega el usuario.
 - `GET /renters` sigue con `paymentStatus: null` (D-46): el frontend lo reemplaza por `GET /billing/arrears`.
 - Un `ExchangeRateProvider` (BCRA) que precargue la cotización, si Micaela lo pide (A-9).
+
+## Ajustes posteriores a la verificación de las respuestas de Micaela
+
+- **Punitorio (D-228)**: `tenants.daily_late_fee_percentage` sin default y nullable (migración `20261107130000_tenant_late_fee_no_default`, conserva los valores). `ContractPolicy.assertLateFeeSource` (alta, renovación y cambio de términos), `resolveGraceInput` (`lateFeeStartDay` ↔ gracia, sin columna nueva) y `LateFeeDefaults.dailyLateFeePercentage: string | null`. `PATCH /tenants/current/settings` edita `dailyLateFeePercentage` y `paymentGraceDays`. `provisionTenant` y `tenant:create --late-fee-percentage` lo fijan al crear. El helper `createTenant` de los e2e fija 5 explícito. Tests: `contract.policy.spec.ts`, `test/contracts.e2e-spec.ts`, `test/tenants.e2e-spec.ts`, `test/tenant-provisioning.e2e-spec.ts`.

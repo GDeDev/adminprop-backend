@@ -687,7 +687,11 @@ describe('Automatizaciones (e2e, Postgres)', () => {
 
       await api(adminToken)
         .post(`/contracts/${contract.id}/rent-updates`)
-        .send({ newRent: '105000' })
+        .send({
+          newRent: '105000',
+          reason: 'Acuerdo por refacciones',
+          authorizedBy: 'Juan Pérez (propietario)',
+        })
         .expect(201)
 
       // Falta aplicar el del mes en curso; con uno solo, las cuotas ≥ prev1 cambian.

@@ -60,8 +60,10 @@ model Tenant {
   reducedFeeThreshold      Int      @default(3) @map("reduced_fee_threshold")
   /// Días del mes sin punitorio (del 1 al N).
   paymentGraceDays         Int      @default(10) @map("payment_grace_days")
-  /// Punitorio diario, en %, a partir del día siguiente a la gracia.
-  dailyLateFeePercentage   Decimal  @default(5) @map("daily_late_fee_percentage") @db.Decimal(5, 2)
+  /// Punitorio diario por defecto, en %, a partir del día siguiente a la gracia.
+  /// Sin default de esquema (D-228): null = la inmobiliaria no fijó uno y cada
+  /// contrato tiene que indicar el suyo.
+  dailyLateFeePercentage   Decimal? @map("daily_late_fee_percentage") @db.Decimal(5, 2)
   /// Día del mes en que se generan las cuotas del mes siguiente.
   installmentGenerationDay Int      @default(28) @map("installment_generation_day")
   /// Día del mes en que sale el recordatorio de pago.
@@ -982,6 +984,12 @@ model ContractRentUpdate {
   /// Usuario que lo aplicó. Null si lo aplicó el cron (Fase 13).
   appliedById String? @map("applied_by_id") @db.Uuid
 
+  /// Ajuste manual (D-230, Micaela #8): por qué se hizo y quién lo autorizó
+  /// (texto libre: puede ser el propietario). Null en los aumentos automáticos
+  /// y en los anteriores a D-230.
+  adjustmentReason String? @map("adjustment_reason") @db.VarChar(500)
+  authorizedBy     String? @map("authorized_by") @db.VarChar(150)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([tenantId, contractId, effectiveFrom])
@@ -1362,14 +1370,19 @@ model DepositReturn {
 
   contractId String @map("contract_id") @db.Uuid
 
-  returnedAt      DateTime      @map("returned_at") @db.Date
+  returnedAt      DateTime          @map("returned_at") @db.Date
   /// Copiados del contrato al devolver.
-  depositAmount   Decimal       @map("deposit_amount") @db.Decimal(14, 2)
-  depositCurrency Currency      @map("deposit_currency")
-  returnedAmount  Decimal       @map("returned_amount") @db.Decimal(14, 2)
+  depositAmount   Decimal           @map("deposit_amount") @db.Decimal(14, 2)
+  depositCurrency Currency          @map("deposit_currency")
+  /// Modo del contrato al devolver (D-227): decide el monto de referencia.
+  mode            DepositReturnMode @default(FIXED)
+  /// Monto del que se descuentan las deducciones (según `mode`); no tiene
+  /// por qué ser el depósito recibido.
+  referenceAmount Decimal           @default(0) @map("reference_amount") @db.Decimal(14, 2)
+  returnedAmount  Decimal           @map("returned_amount") @db.Decimal(14, 2)
   method          PaymentMethod
-  notes           String?       @db.Text
-  registeredById  String        @map("registered_by_id") @db.Uuid
+  notes           String?           @db.Text
+  registeredById  String            @map("registered_by_id") @db.Uuid
 
   deductions DepositReturnDeduction[]
 

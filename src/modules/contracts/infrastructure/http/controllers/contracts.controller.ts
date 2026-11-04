@@ -96,6 +96,7 @@ function toBillingInput(dto: ContractBillingTermsInputDto) {
     feeAmount: dto.feeAmount ?? null,
     lateFeePercentage: dto.lateFeePercentage ?? null,
     lateFeeGraceDays: dto.lateFeeGraceDays ?? null,
+    lateFeeStartDay: dto.lateFeeStartDay ?? null,
   }
 }
 
@@ -110,6 +111,8 @@ function toPartialBilling(dto: Partial<ContractBillingTermsInputDto>) {
     result.lateFeePercentage = dto.lateFeePercentage
   if (dto.lateFeeGraceDays !== undefined)
     result.lateFeeGraceDays = dto.lateFeeGraceDays
+  if (dto.lateFeeStartDay !== undefined)
+    result.lateFeeStartDay = dto.lateFeeStartDay
   return result
 }
 
@@ -314,6 +317,7 @@ export class ContractsController {
         feeAmount: dto.feeAmount,
         lateFeePercentage: dto.lateFeePercentage,
         lateFeeGraceDays: dto.lateFeeGraceDays,
+        lateFeeStartDay: dto.lateFeeStartDay,
         notes: dto.notes,
       }),
     )
@@ -426,7 +430,7 @@ export class ContractsController {
     const contract = await this.commandBus.execute<
       ApplyRentUpdateCommand,
       ContractDetailView
-    >(new ApplyRentUpdateCommand(id, dto.newRent))
+    >(new ApplyRentUpdateCommand(id, dto.newRent, dto.reason, dto.authorizedBy))
     return { success: true, message: 'Aumento aplicado', data: contract }
   }
 

@@ -228,6 +228,13 @@ export interface RenterCredit {
   createdAt: Date
 }
 
+/** Espejo del enum del contrato (el dominio de billing no importa el de contracts). */
+export enum DepositReturnMode {
+  FIXED = 'FIXED',
+  FOLLOWS_RENT = 'FOLLOWS_RENT',
+  MANUAL = 'MANUAL',
+}
+
 /** Una deducción del depósito, justificada. */
 export interface DepositReturnDeduction {
   id: string
@@ -242,7 +249,8 @@ export interface DepositReturnDeduction {
 
 /**
  * Devolución del depósito en garantía (Fase 12, 2.2; A-13 cerrado): una por
- * contrato, con `returnedAmount + Σ deducciones = depositAmount`.
+ * contrato, con `returnedAmount + Σ deducciones = referenceAmount` (D-227;
+ * el monto de referencia depende del modo del contrato, no del depósito).
  */
 export interface DepositReturn {
   id: string
@@ -250,6 +258,10 @@ export interface DepositReturn {
   returnedAt: IsoDate
   depositAmount: string
   depositCurrency: Currency
+  /** Modo del contrato al devolver (D-227). */
+  mode: DepositReturnMode
+  /** Monto del que se descuentan las deducciones; depende del modo. */
+  referenceAmount: string
   returnedAmount: string
   method: PaymentMethod
   notes: string | null
