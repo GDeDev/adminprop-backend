@@ -442,6 +442,51 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       )
     })
 
+    it('dos réplicas del cron a la vez encolan cada corrida una sola vez', async () => {
+      // Antes la única barrera era la singletonKey de pg-boss, que en una cola
+      // estándar no deduplica: ambas réplicas leían "0 corridas hoy" y cada job
+      // de cada inmobiliaria corría dos veces.
+      const at = new Date('2026-10-31T13:00:00Z')
+      const scheduler = app.get(JobScheduler)
+
+      const [a, b] = await Promise.all([
+        scheduler.enqueueDue(at),
+        scheduler.enqueueDue(at),
+      ])
+
+      expect(a + b).toBe(2 * 10 + 1)
+      const rows = await prisma.db.jobExecution.findMany({
+        where: { triggeredBy: 'SCHEDULE' },
+      })
+      expect(rows).toHaveLength(2 * 10 + 1)
+      // Que la cola termine de correr antes de cerrar el test.
+      await waitFor(async () => {
+        const pending = await prisma.db.jobExecution.count({
+          where: { status: 'RUNNING' },
+        })
+        return pending === 0
+      })
+    })
+
+    it('reservar dos veces la misma corrida programada devuelve null la segunda', async () => {
+      const executions = app.get(JobExecutionRepository)
+      const data = {
+        job: 'installments.generate',
+        tenantId: tenantA.id,
+        scheduledFor: '2026-10-31',
+        triggeredBy: JobTrigger.SCHEDULE,
+        triggeredByUserId: null,
+      }
+
+      expect(await executions.createScheduled(data, 0)).not.toBeNull()
+      expect(await executions.createScheduled(data, 0)).toBeNull()
+      expect(await executions.createScheduled(data, 1)).not.toBeNull()
+      // Un job global (tenant NULL) también se deduplica.
+      const global = { ...data, job: 'indices.fetch', tenantId: null }
+      expect(await executions.createScheduled(global, 0)).not.toBeNull()
+      expect(await executions.createScheduled(global, 0)).toBeNull()
+    })
+
     it('antes de las 00:10 no hay nada que encolar', async () => {
       expect(
         await app

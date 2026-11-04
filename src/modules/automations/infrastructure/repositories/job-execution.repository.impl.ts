@@ -43,6 +43,30 @@ export class JobExecutionRepositoryImpl extends JobExecutionRepository {
     return toDomain(row)
   }
 
+  async createScheduled(
+    data: NewJobExecution,
+    slot: number,
+  ): Promise<JobExecution | null> {
+    // Prisma no expresa ON CONFLICT DO NOTHING: va en SQL. Sin objetivo de
+    // conflicto, cualquier violación del único parcial cuenta como "ya existe".
+    const rows = await this.prisma.db.$queryRaw<{ id: string }[]>`
+      INSERT INTO job_executions
+        (id, job, tenant_id, scheduled_for, triggered_by, triggered_by_user_id, slot)
+      VALUES (
+        gen_random_uuid(),
+        ${data.job},
+        ${data.tenantId}::uuid,
+        ${toDateColumn(data.scheduledFor)}::date,
+        ${data.triggeredBy}::"JobTrigger",
+        ${data.triggeredByUserId}::uuid,
+        ${slot}
+      )
+      ON CONFLICT DO NOTHING
+      RETURNING id`
+    if (rows.length === 0) return null
+    return this.findById(rows[0].id)
+  }
+
   async findById(id: string): Promise<JobExecution | null> {
     const row = await this.prisma.db.jobExecution.findUnique({ where: { id } })
     return row ? toDomain(row) : null
