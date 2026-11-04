@@ -11,12 +11,12 @@ import {
   periodOf,
 } from '@/shared/dates/calendar-date'
 import {
-  addMoney,
   compareMoney,
   Money,
   percentageOf,
   roundMoney,
   subtractMoney,
+  sumMoney,
   toDecimal,
   toMoneyString,
 } from '@/shared/money'
@@ -80,10 +80,6 @@ export interface ChargesByConcept {
 export interface FeeAccrual {
   feeOnBase: string
   feeOnCollected: string
-}
-
-function sum(values: string[]): string {
-  return toMoneyString(addMoney(ZERO, ...values))
 }
 
 function nonNegative(value: string): string {
@@ -156,7 +152,7 @@ export const InstallmentPolicy = {
       .filter((p) => p.paidAt < day)
       .map((p) => p.rentApplied)
     return nonNegative(
-      subtractMoney(installment.baseAmount, sum(paidBefore)).toString(),
+      subtractMoney(installment.baseAmount, sumMoney(paidBefore)).toString(),
     )
   },
 
@@ -199,18 +195,18 @@ export const InstallmentPolicy = {
     const days = this.lateFeeDays(installment, asOf)
 
     const baseAmount = toMoneyString(installment.baseAmount)
-    const chargesTotal = sum(charges.map((c) => c.amount))
-    const rentPaid = sum(payments.map((p) => p.rentApplied))
-    const chargesPaid = sum(payments.map((p) => p.chargesApplied))
-    const lateFeePaid = sum(payments.map((p) => p.lateFeeApplied))
-    const lateFeeAccrued = sum(days.map((d) => d.amount))
-    const lateFeeAdjusted = sum(
+    const chargesTotal = sumMoney(charges.map((c) => c.amount))
+    const rentPaid = sumMoney(payments.map((p) => p.rentApplied))
+    const chargesPaid = sumMoney(payments.map((p) => p.chargesApplied))
+    const lateFeePaid = sumMoney(payments.map((p) => p.lateFeeApplied))
+    const lateFeeAccrued = sumMoney(days.map((d) => d.amount))
+    const lateFeeAdjusted = sumMoney(
       installment.adjustments
         .filter((a) => a.kind === LateFeeAdjustmentKind.REDUCE)
         .map((a) => a.amount),
     )
     const applied = (p: Payment) =>
-      sum([p.lateFeeApplied, p.rentApplied, p.chargesApplied])
+      sumMoney([p.lateFeeApplied, p.rentApplied, p.chargesApplied])
 
     const rentBalance = nonNegative(
       subtractMoney(baseAmount, rentPaid).toString(),
@@ -234,8 +230,8 @@ export const InstallmentPolicy = {
       rentPaid,
       chargesPaid,
       lateFeePaid,
-      paidTotal: sum(payments.map(applied)),
-      pendingConfirmationTotal: sum(
+      paidTotal: sumMoney(payments.map(applied)),
+      pendingConfirmationTotal: sumMoney(
         payments
           .filter((p) => p.status === PaymentStatus.PENDING_CONFIRMATION)
           .map(applied),
@@ -247,7 +243,7 @@ export const InstallmentPolicy = {
       rentBalance,
       chargesBalance,
       lateFeeBalance,
-      totalDue: sum([rentBalance, chargesBalance, lateFeeBalance]),
+      totalDue: sumMoney([rentBalance, chargesBalance, lateFeeBalance]),
       days,
     }
   },
@@ -320,7 +316,7 @@ export const InstallmentPolicy = {
    * entero en cuanto se cobró algo de alquiler.
    */
   feeAccrual(installment: Installment): FeeAccrual {
-    const collectedRent = sum(
+    const collectedRent = sumMoney(
       installment.payments
         .filter((p) => p.status === PaymentStatus.CONFIRMED)
         .map((p) => p.rentApplied),

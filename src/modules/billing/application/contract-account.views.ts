@@ -5,7 +5,12 @@ import {
   localDateOf,
   Period,
 } from '@/shared/dates/calendar-date'
-import { compareMoney, subtractMoney, toMoneyString } from '@/shared/money'
+import {
+  compareMoney,
+  subtractMoney,
+  sumMoney,
+  toMoneyString,
+} from '@/shared/money'
 import {
   CollectionMode,
   CreditStatus,
@@ -23,7 +28,6 @@ import {
 import { InstallmentPolicy } from '../domain/installment.policy'
 import { AccountMovementType } from './account-movement-type'
 import { DepositReturnView } from './deposit-return.views'
-import { sumMoney } from './installment.views'
 
 export { AccountMovementType }
 
