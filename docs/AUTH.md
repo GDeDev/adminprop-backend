@@ -222,6 +222,21 @@ Con `JWT_VALIDATE_USER_ON_REQUEST=false` el access token vuelve a ser
 stateless: más barato, pero desactivar a alguien tarda hasta 15 minutos en
 hacer efecto (los refresh se revocan al instante igual).
 
+### Qué NO revoca el logout (aceptado, B-3 de la auditoría)
+
+`POST /logout` y `/logout-all` revocan los **refresh tokens**, no el access
+token que el cliente ya tiene: ese sigue sirviendo hasta que vence (15 min) en
+el endpoint donde se use, salvo que el usuario se desactive o cambie su
+contraseña, casos en que la validación contra la base lo corta al instante.
+No hay lista de `jti` revocados a propósito: sumaría una consulta o un
+almacén compartido por request para cerrar una ventana corta, y el robo de un
+access token ya exige acceso al dispositivo o al tráfico. Si el riesgo cambia,
+la opción es esa lista (con TTL igual al del access token).
+
+Los endpoints `@IsPublic()` que reciben un token opcional también lo validan
+contra la base (B-7): el de un usuario desactivado se ignora y el pedido sigue
+como anónimo.
+
 ---
 
 ## Crear el primer administrador

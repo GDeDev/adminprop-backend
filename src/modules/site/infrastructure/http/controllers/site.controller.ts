@@ -53,6 +53,7 @@ import {
   SubdomainAvailabilityDto,
   UpdateSiteSettingsDto,
 } from '../dtos/site.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 /** Mi sitio web: configuración, publicación e imágenes. Solo el administrador. */
 @ApiTags('Site')
@@ -166,7 +167,7 @@ export class SiteController {
   @Post('assets')
   @Throttle({ medium: { limit: 30, ttl: 60_000 } })
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_SITE_ASSET_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_SITE_ASSET_BYTES) }),
   )
   @ApiOperation({
     summary: 'Subir una imagen',

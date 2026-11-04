@@ -56,6 +56,7 @@ import {
   PropertySummaryDto,
   UpdatePropertyDto,
 } from '../dtos/property.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 /** 10 MB por foto: alcanza para una foto de celular y frena abusos. */
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024
@@ -219,7 +220,7 @@ export class PropertiesController {
   @Post(':id/photos')
   @UseInterceptors(
     FilesInterceptor('files', MAX_PHOTOS_PER_PROPERTY, {
-      limits: { fileSize: MAX_PHOTO_BYTES },
+      limits: uploadLimits(MAX_PHOTO_BYTES, MAX_PHOTOS_PER_PROPERTY),
     }),
   )
   @ApiOperation({

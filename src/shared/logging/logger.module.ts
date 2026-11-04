@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { LoggerModule } from 'nestjs-pino'
 
+import { serializeRequest } from './redact-url'
 import { getRootLogger } from './root-logger'
 
 /** Endpoints que no se loguean: las probes los pegan cada pocos segundos. */
@@ -30,6 +31,9 @@ const SILENT_PATHS = ['/health', '/swagger']
     LoggerModule.forRoot({
       pinoHttp: {
         logger: getRootLogger(),
+
+        // Sin esto la URL completa (con `?preview=<token>`) queda en el log.
+        serializers: { req: serializeRequest },
 
         autoLogging: {
           ignore: (req) => {
