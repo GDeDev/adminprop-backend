@@ -49,6 +49,13 @@ export interface QueueDefinition {
   retryDelaySeconds?: number
   /** Duplica la espera en cada reintento. Default: true. */
   retryBackoff?: boolean
+  /**
+   * Hace que la `singletonKey` deduplique de verdad mientras el trabajo siga
+   * en cola (pg-boss `policy: 'short'`). Sólo para colas donde TODO mensaje
+   * lleva clave: sin clave, dos mensajes de la cola chocarían entre sí.
+   * Sólo rige al crear la cola; una ya existente conserva su política.
+   */
+  dedupeBySingletonKey?: boolean
 }
 
 export interface PublishOptions {

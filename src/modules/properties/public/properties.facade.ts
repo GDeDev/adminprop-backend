@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
-import { IsoDate, toIsoDate } from '@/shared/dates/calendar-date'
+import { IsoDate, localDateOf } from '@/shared/dates/calendar-date'
 import { PropertyTypeNames } from '../application/property-type-names'
 import {
   ListingCurrency,
@@ -158,7 +158,7 @@ export class PropertiesFacade {
       address: property.address,
       status: property.status,
       ownerId: property.ownerId,
-      createdAt: toIsoDate(property.createdAt),
+      createdAt: localDateOf(property.createdAt),
     }))
   }
 

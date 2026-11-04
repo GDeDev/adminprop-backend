@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
-import { PgBossQueueAdapter } from '../src/platform/queue/adapters/pg-boss.queue-adapter'
+import {
+  DuplicateJobError,
+  PgBossQueueAdapter,
+} from '../src/platform/queue/adapters/pg-boss.queue-adapter'
 import { deadLetterOf, QueueDefinition } from '../src/platform/queue/queue.port'
 import { RequestContext } from '../src/shared/context/request-context'
 import { TEST_DATABASE_URL } from './utils/test-database-url'
@@ -30,6 +33,24 @@ describe('QueuePort con pg-boss (e2e, Postgres)', () => {
 
   afterAll(async () => {
     await queue.stop()
+  })
+
+  it('dedupeBySingletonKey rechaza la segunda publicación con la misma clave; una cola estándar no', async () => {
+    // Medido con pg-boss 10: en una cola con la política por defecto la misma
+    // singletonKey se encola dos veces.
+    const deduped = { ...unique('dedupe'), dedupeBySingletonKey: true }
+    await queue.publish(deduped, { n: 1 }, { singletonKey: 'k' })
+    await expect(
+      queue.publish(deduped, { n: 2 }, { singletonKey: 'k' }),
+    ).rejects.toThrow(DuplicateJobError)
+    // Otra clave sí entra.
+    await queue.publish(deduped, { n: 3 }, { singletonKey: 'otra' })
+
+    const standard = unique('no-dedupe')
+    await queue.publish(standard, { n: 1 }, { singletonKey: 'k' })
+    await expect(
+      queue.publish(standard, { n: 2 }, { singletonKey: 'k' }),
+    ).resolves.toEqual(expect.any(String))
   })
 
   it('entrega el mensaje dentro del tenant en el que se publicó', async () => {

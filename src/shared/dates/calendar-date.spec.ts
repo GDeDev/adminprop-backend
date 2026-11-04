@@ -9,7 +9,10 @@ import {
   lastDayOfPeriod,
   nextPeriod,
   previousPeriod,
+  localDateOf,
   periodOf,
+  todayIso,
+  toIsoDate,
 } from './calendar-date'
 
 describe('calendar-date', () => {
@@ -68,5 +71,27 @@ describe('calendar-date', () => {
     expect(nextPeriod('2026-01')).toBe('2026-02')
     expect(previousPeriod('2027-01')).toBe('2026-12')
     expect(previousPeriod('2026-03')).toBe('2026-02')
+  })
+})
+
+describe('fecha de negocio (Argentina)', () => {
+  // 01:00 UTC del 4 son las 22:00 del día 3 en Argentina: la ventana en la
+  // que todayIso() devolvía la fecha UTC (mañana) y el sistema iba un día
+  // adelantado.
+  const lateEvening = new Date('2026-11-04T01:00:00Z')
+
+  it('todayIso devuelve el día argentino y no el UTC', () => {
+    expect(todayIso(lateEvening)).toBe('2026-11-03')
+    expect(toIsoDate(lateEvening)).toBe('2026-11-04')
+  })
+
+  it('cambia de día a las 03:00 UTC, no a las 00:00', () => {
+    expect(todayIso(new Date('2026-11-04T02:59:59Z'))).toBe('2026-11-03')
+    expect(todayIso(new Date('2026-11-04T03:00:00Z'))).toBe('2026-11-04')
+  })
+
+  it('localDateOf ubica un instante en el calendario de negocio', () => {
+    expect(localDateOf(new Date('2026-12-31T23:30:00Z'))).toBe('2026-12-31')
+    expect(localDateOf(new Date('2027-01-01T02:00:00Z'))).toBe('2026-12-31')
   })
 })

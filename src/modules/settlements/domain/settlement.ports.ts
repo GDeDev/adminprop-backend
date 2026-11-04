@@ -127,6 +127,16 @@ export abstract class SettlementRepository {
 
   abstract update(id: string, changes: SettlementChanges): Promise<Settlement>
 
+  /**
+   * Como `update`, pero sólo si la liquidación sigue pendiente; `null` si no.
+   * La condición va en el UPDATE: confirmar y cancelar (o dos confirmaciones)
+   * a la vez ya no pasan las dos.
+   */
+  abstract updateWhilePending(
+    id: string,
+    changes: SettlementChanges,
+  ): Promise<Settlement | null>
+
   /** Reemplaza pagos y gastos incluidos (recálculo); vacíos los borra (cancelación). */
   abstract replaceLines(
     id: string,
