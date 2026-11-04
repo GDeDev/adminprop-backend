@@ -9,6 +9,7 @@ import {
 } from '../domain/migration.exceptions'
 import { ImportEntity } from '../domain/migration.types'
 import { SheetRow } from '../domain/row-validators'
+import { assertSafeZip } from '../domain/zip-guard'
 import {
   MAX_FILE_BYTES,
   MAX_ROWS_PER_FILE,
@@ -62,6 +63,9 @@ export class ExcelReader {
       )
     }
 
+    // Antes de inflar nada en memoria (zip bombs).
+    assertSafeZip(buffer)
+
     const workbook = new ExcelJS.Workbook()
     try {
       await workbook.xlsx.load(buffer as unknown as ArrayBuffer)
@@ -108,9 +112,11 @@ export class ExcelReader {
       }
 
       const rows: SheetRow[] = []
+      // Sólo las filas que existen: con `rowCount` una celda suelta en la fila
+      // 1.048.576 obligaba a recorrer (y crear) un millón de filas vacías.
       // La fila 2 es el ejemplo de la plantilla: se ignora.
-      for (let rowNumber = 3; rowNumber <= worksheet.rowCount; rowNumber += 1) {
-        const row = worksheet.getRow(rowNumber)
+      worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        if (rowNumber < 3) return
         const cells: Record<string, CellValue> = {}
         let hasData = false
         for (const column of columns) {
@@ -119,13 +125,13 @@ export class ExcelReader {
           cells[column.key] = value
           if (value !== null && String(value).trim() !== '') hasData = true
         }
-        if (!hasData) continue
+        if (!hasData) return
         rows.push({ rowNumber, cells })
         totalRows += 1
         if (totalRows > MAX_ROWS_PER_FILE) {
           throw new TooManyRowsException(MAX_ROWS_PER_FILE)
         }
-      }
+      })
       sheets.set(definition.entity, rows)
     }
 

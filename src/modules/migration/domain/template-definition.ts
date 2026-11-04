@@ -9,6 +9,13 @@ export const TEMPLATE_VERSION = '1'
 /** Límites del archivo (A-78). */
 export const MAX_ROWS_PER_FILE = 5000
 export const MAX_FILE_BYTES = 10 * 1024 * 1024
+/**
+ * Tope del archivo ya descomprimido. Una plantilla con 5.000 filas completas
+ * pesa muy por debajo; esto sólo frena a las zip bombs.
+ */
+export const MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
+/** Un .xlsx real trae decenas de partes, no cientos. */
+export const MAX_ZIP_ENTRIES = 500
 
 export const INSTRUCTIONS_SHEET = 'Instrucciones'
 export const LISTS_SHEET = 'Listas'

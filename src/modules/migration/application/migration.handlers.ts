@@ -78,6 +78,35 @@ async function requireBatch(
   return batch
 }
 
+/**
+ * El lote se creó pero no llegó a encolarse (falló el storage, el AsyncJob o
+ * la cola): sin esto quedaba `ANALYZING` para siempre, sin salida, y con el
+ * archivo huérfano en el storage. Se cierra como `FAILED` y se borra el archivo.
+ */
+async function abandonBatch(
+  deps: {
+    batches: ImportBatchRepository
+    jobs: AsyncJobsFacade
+    storage?: StoragePort
+  },
+  batchId: string,
+  jobId: string | null,
+  fileKey: string | null,
+): Promise<void> {
+  const message = 'No se pudo iniciar el análisis: probá de nuevo en un rato'
+  try {
+    await deps.batches.update(batchId, {
+      status: ImportBatchStatus.FAILED,
+      errorMessage: message,
+      fileKey: null,
+    })
+    if (jobId) await deps.jobs.fail(jobId, message)
+    if (fileKey) await deps.storage?.delete(fileKey)
+  } catch {
+    // Ya hay un error original para devolver; este es sólo la limpieza.
+  }
+}
+
 /** Nombre del archivo para mostrar: sin carpetas y de largo acotado. */
 function displayName(name: string): string {
   const base = name.split(/[\\/]/).pop() ?? name
@@ -114,26 +143,43 @@ export class StartExcelAnalysisHandler implements ICommandHandler<
       fileKey: null,
       options: {},
     })
-    const stored = await this.storage.upload(
-      file.buffer,
-      `migrations/${batch.id}.xlsx`,
-      {
-        contentType:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        access: 'private',
-      },
-    )
-    const jobId = await this.jobs.start(ANALYZE_JOB_TYPE)
-    await this.batches.update(batch.id, {
-      fileKey: stored.key,
-      options: { fileUrl: stored.url },
-      analysisJobId: jobId,
-    })
-    await this.queue.publish(MIGRATION_ANALYZE_QUEUE, {
-      batchId: batch.id,
-      jobId,
-    })
-    return { batchId: batch.id, jobId }
+    let fileKey: string | null = null
+    let jobId: string | null = null
+    try {
+      const stored = await this.storage.upload(
+        file.buffer,
+        `migrations/${batch.id}.xlsx`,
+        {
+          contentType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          access: 'private',
+        },
+      )
+      fileKey = stored.key
+      jobId = await this.jobs.start(ANALYZE_JOB_TYPE)
+      await this.batches.update(batch.id, {
+        fileKey: stored.key,
+        options: { fileUrl: stored.url },
+        analysisJobId: jobId,
+      })
+      await this.queue.publish(MIGRATION_ANALYZE_QUEUE, {
+        batchId: batch.id,
+        jobId,
+      })
+      return { batchId: batch.id, jobId }
+    } catch (error) {
+      await abandonBatch(
+        {
+          batches: this.batches,
+          jobs: this.jobs,
+          storage: this.storage,
+        },
+        batch.id,
+        jobId,
+        fileKey,
+      )
+      throw error
+    }
   }
 }
 
@@ -163,13 +209,24 @@ export class StartTokkoAnalysisHandler implements ICommandHandler<
         includeAssets: options.includeAssets,
       },
     })
-    const jobId = await this.jobs.start(ANALYZE_JOB_TYPE)
-    await this.batches.update(batch.id, { analysisJobId: jobId })
-    await this.queue.publish(MIGRATION_ANALYZE_QUEUE, {
-      batchId: batch.id,
-      jobId,
-    })
-    return { batchId: batch.id, jobId }
+    let jobId: string | null = null
+    try {
+      jobId = await this.jobs.start(ANALYZE_JOB_TYPE)
+      await this.batches.update(batch.id, { analysisJobId: jobId })
+      await this.queue.publish(MIGRATION_ANALYZE_QUEUE, {
+        batchId: batch.id,
+        jobId,
+      })
+      return { batchId: batch.id, jobId }
+    } catch (error) {
+      await abandonBatch(
+        { batches: this.batches, jobs: this.jobs },
+        batch.id,
+        jobId,
+        null,
+      )
+      throw error
+    }
   }
 }
 

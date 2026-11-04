@@ -150,13 +150,30 @@ const personLabel = (data: PersonRowData): string =>
   data.nationalId ||
   '(sin nombre)'
 
-export function validateOwner(row: SheetRow): Validated<OwnerRowData> {
+/**
+ * `isValidCbu` es la regla del módulo de propietarios (los dígitos
+ * verificadores, `OwnersFacade.isValidCbu`): la migración no la copia, la
+ * recibe. Sin ella, una fila con un CBU mal tipeado salía `VALID` en el
+ * preview y recién fallaba al confirmar.
+ */
+export function validateOwner(
+  row: SheetRow,
+  isValidCbu: (cbu: string) => boolean = () => true,
+): Validated<OwnerRowData> {
   const errors: RowError[] = []
   const base = person(row.cells, errors)
   const cbu = cellText(row.cells.cbu)?.replace(/[\s-]/g, '') ?? null
   if (cbu !== null && !/^\d{22}$/.test(cbu)) {
     errors.push(
       error('cbu', 'INVALID_CBU', 'El CBU tiene que tener 22 dígitos'),
+    )
+  } else if (cbu !== null && !isValidCbu(cbu)) {
+    errors.push(
+      error(
+        'cbu',
+        'INVALID_CBU',
+        'El CBU no es válido: revisá que no tenga un dígito mal tipeado',
+      ),
     )
   }
   const data: OwnerRowData = {

@@ -181,7 +181,7 @@ export class ImportAnalyzer {
     }
 
     for (const row of sheet(ImportEntity.OWNER)) {
-      const v = validateOwner(row)
+      const v = validateOwner(row, (cbu) => this.owners.isValidCbu(cbu))
       add(ImportEntity.OWNER, row, v, v.data.nationalId)
     }
     for (const row of sheet(ImportEntity.GUARANTOR)) {

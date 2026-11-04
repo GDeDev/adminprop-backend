@@ -1,4 +1,4 @@
-import { HttpImageDownloader } from './http-image-downloader'
+import { HttpImageDownloader, isInternalAddress } from './http-image-downloader'
 import { TokkoFixtureSource } from './tokko-fixture.source'
 import { TokkoHttpSource } from './tokko-http.source'
 import { mapTokkoProperty } from './tokko-mapper'
@@ -110,6 +110,31 @@ describe('TokkoHttpSource', () => {
     expect(urls[0]).toContain('key=secreta')
   })
 
+  // Qué fallaba: el recorrido sólo terminaba con una página vacía; si Tokko
+  // ignora `offset` y repite siempre la misma página, no terminaba nunca.
+  it('corta cuando la API repite la misma página en vez de avanzar', async () => {
+    const fetchImpl = jest
+      .fn()
+      .mockImplementation(async () => json({ objects: [{ id: 1 }, { id: 2 }] }))
+
+    const properties = await collect(source(fetchImpl).properties())
+
+    expect(properties.map((p) => p.id)).toEqual(['1', '2'])
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('falla con un mensaje claro si pasa el tope de páginas', async () => {
+    let id = 0
+    const fetchImpl = jest
+      .fn()
+      .mockImplementation(async () => json({ objects: [{ id: (id += 1) }] }))
+
+    await expect(collect(source(fetchImpl).properties())).rejects.toThrow(
+      'Tokko devolvió más de 40000 propiedades',
+    )
+    expect(fetchImpl).toHaveBeenCalledTimes(2000)
+  })
+
   it('reintenta ante 429/5xx y termina bien', async () => {
     const fetchImpl = jest
       .fn()
@@ -159,20 +184,38 @@ describe('TokkoHttpSource', () => {
 
 describe('HttpImageDownloader', () => {
   const sleep = jest.fn().mockResolvedValue(undefined)
-  const image = (type = 'image/jpeg', bytes = 10, status = 200) =>
-    new Response(Buffer.alloc(bytes, 1), {
+  const SIGNATURES: Record<string, Buffer> = {
+    'image/jpeg': Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+    'image/png': Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    'image/webp': Buffer.concat([
+      Buffer.from('RIFF'),
+      Buffer.alloc(4),
+      Buffer.from('WEBP'),
+    ]),
+  }
+  /** Una "imagen" con la firma real de su tipo y el resto de relleno. */
+  const bodyOf = (type: string, bytes: number): Uint8Array<ArrayBuffer> => {
+    const body = Buffer.alloc(bytes, 1)
+    ;(SIGNATURES[type] ?? Buffer.alloc(0)).copy(body)
+    const out = new Uint8Array(new ArrayBuffer(bytes))
+    out.set(body)
+    return out
+  }
+  const image = (type = 'image/jpeg', bytes = 16, status = 200) =>
+    new Response(bodyOf(type, bytes), {
       status,
       headers: { 'content-type': type },
     })
-  const downloader = (fetchImpl: jest.Mock) =>
-    new HttpImageDownloader({ fetchImpl, sleep })
+  const publicDns = jest.fn().mockResolvedValue(['93.184.216.34'])
+  const downloader = (fetchImpl: jest.Mock, resolveHost = publicDns) =>
+    new HttpImageDownloader({ fetchImpl, sleep, resolveHost })
 
   it('baja una imagen permitida', async () => {
     const result = await downloader(
       jest.fn().mockResolvedValue(image('image/webp')),
     ).download('https://cdn.example.com/a.webp')
     expect(result.mimeType).toBe('image/webp')
-    expect(result.buffer).toHaveLength(10)
+    expect(result.buffer).toHaveLength(16)
   })
 
   it('rechaza lo que no es jpg/png/webp, lo que pesa de más y los 404 sin reintentar', async () => {
@@ -217,5 +260,135 @@ describe('HttpImageDownloader', () => {
       )
     }
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  // Qué fallaba: el Content-Type lo manda el sitio remoto y nunca se miraban
+  // los bytes: un HTML o un SVG declarado como image/jpeg se guardaba como foto.
+  it('rechaza un archivo que dice ser imagen pero no lo es, y usa el tipo real', async () => {
+    const html = new Response('<html><script>alert(1)</script></html>', {
+      status: 200,
+      headers: { 'content-type': 'image/jpeg' },
+    })
+    await expect(
+      downloader(jest.fn().mockResolvedValue(html)).download(
+        'https://cdn.example.com/a.jpg',
+      ),
+    ).rejects.toThrow('no es una imagen')
+
+    const pngSaidJpeg = new Response(bodyOf('image/png', 32), {
+      status: 200,
+      headers: { 'content-type': 'image/jpeg' },
+    })
+    const result = await downloader(
+      jest.fn().mockResolvedValue(pngSaidJpeg),
+    ).download('https://cdn.example.com/a.jpg')
+    expect(result.mimeType).toBe('image/png')
+  })
+
+  it('corta la lectura al pasar los 10 MB aunque no haya content-length', async () => {
+    let pulled = 0
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1
+        controller.enqueue(new Uint8Array(1024 * 1024))
+        if (pulled > 200) controller.close()
+      },
+    })
+    const response = new Response(endless, {
+      status: 200,
+      headers: { 'content-type': 'image/png' },
+    })
+    await expect(
+      downloader(jest.fn().mockResolvedValue(response)).download(
+        'https://cdn.example.com/a.png',
+      ),
+    ).rejects.toThrow('más de 10 MB')
+    // No bajó el flujo entero: se detuvo cerca del tope.
+    expect(pulled).toBeLessThan(30)
+  })
+
+  // Qué fallaba: el host se validaba solo para la URL inicial y el fetch
+  // seguía las redirecciones solo, así que un host público con un 302 hacia
+  // la red interna salteaba el chequeo.
+  it('no sigue una redirección hacia la red interna', async () => {
+    const redirect = (location: string) =>
+      new Response(null, { status: 302, headers: { location } })
+    for (const target of [
+      'http://169.254.169.254/latest/meta-data/',
+      'http://localhost:6379/',
+      'http://[::ffff:127.0.0.1]/a.png',
+      'ftp://cdn.example.com/a.jpg',
+    ]) {
+      const fetchImpl = jest.fn().mockResolvedValueOnce(redirect(target))
+      await expect(
+        downloader(fetchImpl).download('https://cdn.example.com/a.jpg'),
+      ).rejects.toThrow(/no es pública|no es válida/)
+      expect(fetchImpl).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('sigue una redirección pública (y la revalida) hasta un tope', async () => {
+    const hop = () =>
+      new Response(null, {
+        status: 301,
+        headers: { location: 'https://cdn2.example.com/b.jpg' },
+      })
+    const ok = jest
+      .fn()
+      .mockResolvedValueOnce(hop())
+      .mockResolvedValueOnce(image('image/jpeg'))
+    const result = await downloader(ok).download('https://cdn.example.com/a')
+    expect(result.mimeType).toBe('image/jpeg')
+    expect(publicDns).toHaveBeenCalledWith('cdn2.example.com')
+
+    const loop = jest.fn().mockImplementation(async () => hop())
+    await expect(
+      downloader(loop).download('https://cdn.example.com/a'),
+    ).rejects.toThrow('demasiadas veces')
+    expect(loop).toHaveBeenCalledTimes(4)
+  })
+
+  it('rechaza un nombre público que resuelve a una dirección interna', async () => {
+    const fetchImpl = jest.fn()
+    const rebinding = jest
+      .fn()
+      .mockResolvedValue(['93.184.216.34', '127.0.0.1'])
+    await expect(
+      downloader(fetchImpl, rebinding).download('https://evil.example.com/a'),
+    ).rejects.toThrow('no es pública')
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})
+
+describe('isInternalAddress', () => {
+  it.each([
+    '127.0.0.1',
+    '10.1.2.3',
+    '172.31.0.1',
+    '192.168.1.1',
+    '169.254.169.254',
+    '100.64.0.1',
+    '0.0.0.0',
+    '224.0.0.1',
+    '::',
+    '::1',
+    '::ffff:7f00:1',
+    '::ffff:127.0.0.1',
+    '::ffff:10.0.0.1',
+    'fe80::1',
+    'fd12:3456::1',
+    'ff02::1',
+  ])('%s es interna', (address) => {
+    expect(isInternalAddress(address)).toBe(true)
+  })
+
+  it.each([
+    '93.184.216.34',
+    '8.8.8.8',
+    '172.32.0.1',
+    '2606:2800:220:1:248:1893:25c8:1946',
+    '::ffff:8.8.8.8',
+  ])('%s es pública', (address) => {
+    expect(isInternalAddress(address)).toBe(false)
   })
 })
