@@ -26,6 +26,24 @@ const REPORTED = new Set([
   ImportRowStatus.FAILED,
 ])
 
+/**
+ * Neutraliza una celda que Excel leería como fórmula (D-199). El reporte copia
+ * texto del archivo que subió el usuario (identificaciones, mensajes con el
+ * valor): una celda `=HYPERLINK(...)` se ejecutaría al abrirlo. El apóstrofo
+ * previo la fuerza a texto.
+ */
+const FORMULA_START = /^[=+\-@\t\r]/
+
+export function neutralizeFormula<T>(value: T): T | string {
+  return typeof value === 'string' && FORMULA_START.test(value)
+    ? `'${value}`
+    : value
+}
+
+function addSafeRow(sheet: ExcelJS.Worksheet, values: unknown[]): void {
+  sheet.addRow(values.map(neutralizeFormula))
+}
+
 /** El reporte `.xlsx` del lote: errores y conflictos por fila, y las fotos por propiedad. */
 @Injectable()
 export class ImportReportService {
@@ -40,7 +58,7 @@ export class ImportReportService {
     workbook.creator = 'Adminprop'
 
     const sheet = workbook.addWorksheet('Errores y conflictos')
-    sheet.addRow([
+    addSafeRow(sheet, [
       'Hoja',
       'Fila',
       'Identificación',
@@ -67,7 +85,7 @@ export class ImportReportService {
       if (row.errors.length > 0) {
         for (const error of row.errors) {
           const header = columns.find((c) => c.key === error.field)?.header
-          sheet.addRow([
+          addSafeRow(sheet, [
             ...base,
             header ?? error.field,
             error.code,
@@ -75,7 +93,7 @@ export class ImportReportService {
           ])
         }
       } else if (row.conflict) {
-        sheet.addRow([
+        addSafeRow(sheet, [
           ...base,
           row.conflict.differingFields
             .map((f) => columns.find((c) => c.key === f)?.header ?? f)
@@ -89,14 +107,14 @@ export class ImportReportService {
     const byProperty = await this.assets.countByProperty(batch.id)
     if (byProperty.size > 0) {
       const photos = workbook.addWorksheet('Fotos')
-      photos.addRow(['Propiedad', 'Fotos migradas', 'Fotos fallidas'])
+      addSafeRow(photos, ['Propiedad', 'Fotos migradas', 'Fotos fallidas'])
       photos.getRow(1).font = { bold: true }
       ;[50, 16, 16].forEach((width, i) => {
         photos.getColumn(i + 1).width = width
       })
       const names = await this.properties.describe([...byProperty.keys()])
       for (const [propertyId, counts] of byProperty) {
-        photos.addRow([
+        addSafeRow(photos, [
           names.get(propertyId)?.address ?? propertyId,
           counts.migrated,
           counts.failed,
