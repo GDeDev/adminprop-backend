@@ -233,12 +233,15 @@ describe('Liquidaciones (e2e, Postgres)', () => {
   /** Espera a que el listener de `installment-paid` deje la pendiente del contrato. */
   const waitForDraft = async (contractId: string) => {
     let found: { id: string } | undefined
-    await waitFor(async () => {
-      found = (await settlementsOf(contractId)).find(
-        (s) => s.status === 'PENDING',
-      )
-      return found !== undefined
-    })
+    await waitFor(
+      async () => {
+        found = (await settlementsOf(contractId)).find(
+          (s) => s.status === 'PENDING',
+        )
+        return found !== undefined
+      },
+      { what: `liquidación pendiente del contrato ${contractId}` },
+    )
     if (!found) throw new Error('sin pendiente')
     return found.id
   }
@@ -487,7 +490,9 @@ describe('Liquidaciones (e2e, Postgres)', () => {
         [expenseId],
       )
       expect(expenses.body.data.items[0].settlementId).toBe(id)
-      await waitFor(() => confirmedEvents.some((e) => e.settlementId === id))
+      await waitFor(() => confirmedEvents.some((e) => e.settlementId === id), {
+        what: `evento settlement-confirmed de la liquidación ${id}`,
+      })
       expect(confirmedEvents.find((e) => e.settlementId === id)).toEqual({
         settlementId: id,
         ownerId: contract.ownerId,
@@ -905,7 +910,9 @@ describe('Liquidaciones (e2e, Postgres)', () => {
         id: firstId,
         transferredTotal: '20000.00',
       })
-      await waitFor(() => closedEvents.some((e) => e.statementId === id))
+      await waitFor(() => closedEvents.some((e) => e.statementId === id), {
+        what: `evento statement-closed del consolidado ${id}`,
+      })
       expect(closedEvents.find((e) => e.statementId === id)).toEqual({
         statementId: id,
         ownerId,
