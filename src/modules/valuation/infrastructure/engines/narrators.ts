@@ -44,7 +44,7 @@ const SYSTEM_PROMPT =
   'Sos un redactor de una inmobiliaria argentina. Recibís los resultados ya calculados de una estimación de alquiler y los explicás en 2 a 4 oraciones en español rioplatense. ' +
   'Usá únicamente los números que te damos, escritos tal cual (por ejemplo 450.000 o 12). No calcules, no redondees, no agregues cifras ni recomendaciones, no uses listas, enlaces, HTML ni markdown.'
 
-/** El pedido para el modelo: sólo los hechos calculados, jamás datos de la ficha (A-70). */
+/** El pedido para el modelo: sólo los hechos calculados, jamás datos de la ficha (D-178). */
 export function buildPrompt(facts: ValuationFacts): {
   system: string
   user: string

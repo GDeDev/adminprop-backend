@@ -5,7 +5,7 @@ import { PriceBasis } from './valuation-policy'
 /**
  * Los hechos de una tasación, ya calculados. Es lo único que ve el redactor,
  * sea la plantilla o un modelo de lenguaje: nunca la dirección, el propietario
- * ni nada de la ficha (A-70). Los importes van como string decimal.
+ * ni nada de la ficha (D-178). Los importes van como string decimal.
  */
 export interface ValuationFacts {
   /** Ej. "Palermo, CABA": nombre de la zona usada, no de la propiedad. */
