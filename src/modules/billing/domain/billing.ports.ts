@@ -6,6 +6,7 @@ import {
   Currency,
   DepositDeductionConcept,
   DepositReturn,
+  DepositReturnMode,
   ExchangeRateSource,
   FeeMode,
   Installment,
@@ -241,6 +242,8 @@ export interface NewDepositReturn {
   returnedAt: IsoDate
   depositAmount: string
   depositCurrency: Currency
+  mode: DepositReturnMode
+  referenceAmount: string
   returnedAmount: string
   method: PaymentMethod
   notes: string | null

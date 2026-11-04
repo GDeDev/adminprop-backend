@@ -1362,14 +1362,19 @@ model DepositReturn {
 
   contractId String @map("contract_id") @db.Uuid
 
-  returnedAt      DateTime      @map("returned_at") @db.Date
+  returnedAt      DateTime          @map("returned_at") @db.Date
   /// Copiados del contrato al devolver.
-  depositAmount   Decimal       @map("deposit_amount") @db.Decimal(14, 2)
-  depositCurrency Currency      @map("deposit_currency")
-  returnedAmount  Decimal       @map("returned_amount") @db.Decimal(14, 2)
+  depositAmount   Decimal           @map("deposit_amount") @db.Decimal(14, 2)
+  depositCurrency Currency          @map("deposit_currency")
+  /// Modo del contrato al devolver (D-226): decide el monto de referencia.
+  mode            DepositReturnMode @default(FIXED)
+  /// Monto del que se descuentan las deducciones (según `mode`); no tiene
+  /// por qué ser el depósito recibido.
+  referenceAmount Decimal           @default(0) @map("reference_amount") @db.Decimal(14, 2)
+  returnedAmount  Decimal           @map("returned_amount") @db.Decimal(14, 2)
   method          PaymentMethod
-  notes           String?       @db.Text
-  registeredById  String        @map("registered_by_id") @db.Uuid
+  notes           String?           @db.Text
+  registeredById  String            @map("registered_by_id") @db.Uuid
 
   deductions DepositReturnDeduction[]
 
