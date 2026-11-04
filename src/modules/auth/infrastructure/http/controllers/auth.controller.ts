@@ -32,6 +32,7 @@ import {
 } from '@/modules/auth/application/results/auth-result'
 import { PublicUser } from '@/modules/auth/domain/entities/user.entity'
 import { ApiErrorDto, ApiSuccessDto } from '@/shared/dtos/api-response.dto'
+import { ApiSuccessResponse } from '@/shared/dtos/api-success-response.decorator'
 import { ThrottleAuth } from '@/shared/infra/throttler/throttle-auth.decorator'
 import { CurrentUser } from '../../decorators/current-user.decorator'
 import { AnyRole } from '../../decorators/any-role.decorator'
@@ -82,11 +83,7 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Iniciar sesión' })
-  @ApiResponse({
-    status: 200,
-    description: 'Sesión iniciada',
-    type: AuthResultDto,
-  })
+  @ApiSuccessResponse(AuthResultDto, 'Sesión iniciada')
   @ApiResponse({
     status: 401,
     description:
@@ -119,11 +116,7 @@ export class AuthController {
       'El email de un propietario o inquilino es único dentro de su inmobiliaria, ' +
       'no en todo el sistema: por eso se manda también el slug de la inmobiliaria.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Sesión iniciada',
-    type: AuthResultDto,
-  })
+  @ApiSuccessResponse(AuthResultDto, 'Sesión iniciada')
   @ApiResponse({
     status: 401,
     description: 'Credenciales inválidas',
@@ -158,11 +151,7 @@ export class AuthController {
       'Devuelve un par nuevo de tokens. El refresh token enviado queda invalidado: ' +
       'guardá siempre el último. Reusar uno viejo cierra todas las sesiones.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Tokens renovados',
-    type: AuthTokensDto,
-  })
+  @ApiSuccessResponse(AuthTokensDto, 'Tokens renovados')
   @ApiResponse({
     status: 401,
     description: 'Refresh token inválido, vencido o reusado',
@@ -206,11 +195,7 @@ export class AuthController {
     summary: 'Cerrar sesión en todos los dispositivos',
     description: 'Revoca todos los refresh tokens del usuario autenticado.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Sesiones cerradas',
-    type: RevokedSessionsDto,
-  })
+  @ApiSuccessResponse(RevokedSessionsDto, 'Sesiones cerradas')
   async logoutAll(
     @CurrentUser('id') userId: string,
   ): Promise<ApiSuccessDto<LogoutAllResult>> {
@@ -236,11 +221,7 @@ export class AuthController {
     description:
       'Cierra todas las sesiones, incluida la actual. Hay que volver a iniciar sesión.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Contraseña actualizada',
-    type: RevokedSessionsDto,
-  })
+  @ApiSuccessResponse(RevokedSessionsDto, 'Contraseña actualizada')
   @ApiResponse({
     status: 400,
     description:
@@ -267,11 +248,7 @@ export class AuthController {
   @AnyRole()
   @Get('me')
   @ApiOperation({ summary: 'Datos del usuario autenticado' })
-  @ApiResponse({
-    status: 200,
-    description: 'Perfil del usuario',
-    type: PublicUserDto,
-  })
+  @ApiSuccessResponse(PublicUserDto, 'Perfil del usuario')
   @ApiResponse({
     status: 401,
     description: 'No autenticado',
