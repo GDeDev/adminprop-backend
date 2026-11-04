@@ -11,7 +11,11 @@ import {
   TenantNotFoundException,
 } from '../../domain/tenant.exceptions'
 import { TenantRepository } from '../../domain/tenant.repository'
-import { detectLogoFormat, MAX_LOGO_BYTES } from '../tenant-logo'
+import {
+  detectLogoFormat,
+  findUnsafeSvgReason,
+  MAX_LOGO_BYTES,
+} from '../tenant-logo'
 import {
   TenantSettingsView,
   toTenantSettingsView,
@@ -77,6 +81,10 @@ export class UploadTenantLogoHandler implements ICommandHandler<
     const format = detectLogoFormat(file)
     if (!format) {
       throw new InvalidTenantLogoException('tiene que ser PNG, JPG, WebP o SVG')
+    }
+    if (format.extension === 'svg') {
+      const unsafe = findUnsafeSvgReason(file)
+      if (unsafe) throw new InvalidTenantLogoException(unsafe)
     }
     const current = await this.tenants.findById(command.tenantId)
     if (!current) throw new TenantNotFoundException()
