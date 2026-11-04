@@ -441,6 +441,16 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       expect(await scheduler.enqueueDue(new Date('2026-10-31T15:10:00Z'))).toBe(
         3,
       )
+      // Esperar a que esas tres corridas terminen antes de salir: si el
+      // `beforeEach` del test siguiente trunca la tabla mientras la cola aún las
+      // tiene, el worker no encuentra su fila y crea una de reemplazo (sin slot)
+      // que se cuela en el conteo del test de las réplicas (29 en vez de 28).
+      await waitFor(async () => {
+        const running = await prisma.db.jobExecution.count({
+          where: { status: 'RUNNING' },
+        })
+        return running === 0
+      })
     })
 
     it('dos réplicas del cron a la vez encolan cada corrida una sola vez', async () => {
