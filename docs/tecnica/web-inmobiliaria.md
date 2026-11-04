@@ -67,3 +67,11 @@ El resto de la API pública (`/properties/:id`, `/filters`, `/contact`) no cambi
 - Unitarios (57 nuevos): política de contenido (HTML/scripts, límites, claves de más, redes, imágenes, publicación, contraste), subdominios y dominios, templates y contenido inicial, lectura de imágenes, resolución por host con caché.
 - e2e `test/site.e2e-spec.ts` (37 casos contra Postgres, con DNS y aviso a sitios simulados): 401/403 en todas las rutas, creación al primer GET, guardado parcial y errores por campo, XSS, subida de imágenes (SVG, HTML disfrazado, > 5 MB, imagen de otra inmobiliaria), unicidad global, borrador vs publicado, despublicar, publicar incompleto o sin contraste, destacadas ajenas, auditoría, host, vista previa (token ajeno, vencido o access token) y **aislamiento entre dos inmobiliarias** (sitio, propiedades y consultas).
 - `test/public.e2e-spec.ts` suma los campos de propiedad y los filtros nuevos.
+
+## v1.1 (rama `feature/web-inmobiliaria-v1-1-api`)
+
+Decisiones D-201 y D-202.
+
+- **Orden del listado público**: `GET /public/:slug/properties?sort=recent|price_asc|price_desc` (por defecto `recent`; otro valor es 400). `PublicListingQueryDto.sort` (`@IsIn`) llega a `PublicPropertyFilter.sort` y `property.repository.impl.ts` arma el `orderBy` (`publicOrderBy`): precio `Decimal` con nulos al final, luego `createdAt` desc y `id`. Tests en `test/public.e2e-spec.ts` ("orden (sort)").
+- **Template `LUXURY`**: enum de Prisma + migración `20261104120000_add_site_template_luxury`; entrada en `site-templates.ts` (tema, fuentes, info) y `SITE_TEMPLATE_KEYS`. `GET /site/templates` ya lo devuelve; el catálogo no necesitó endpoint nuevo.
+- `openapi.json` regenerado (enum de templates y parámetro `sort`).

@@ -1224,3 +1224,19 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 ### D-200 · El caché de hosts es por instancia (hasta 30 s de diferencia entre instancias)
 
 `SiteHostResolver` cachea en memoria de cada proceso (30 s los aciertos, 10 s los fallos). Con **varias instancias** de la API, publicar, despublicar, cambiar o verificar un dominio vacía solo la caché de la instancia que atendió ese request: las demás pueden seguir resolviendo la dirección anterior (o no resolviendo la nueva) **hasta 30 s**. Es aceptable para el caso de uso (un cambio de dirección no es urgente al segundo), pero conviene saberlo: no es un bug cuando dos pedidos seguidos dan resultados distintos. Si molesta, las salidas son un TTL menor, una caché compartida (Redis) o invalidar por evento entre instancias. `apps/sites` tiene además su propia caché de hosts (30 s) y la vacía con `POST /api/revalidate`.
+
+## Sitio web v1.1
+
+### D-201 · Orden del listado público: `sort` con `recent`, `price_asc` y `price_desc`
+
+- **Contrato**: `GET /public/:slug/properties?sort=` acepta exactamente `recent` (por defecto), `price_asc` y `price_desc`; cualquier otro valor, incluso vacío o en mayúsculas, es 400. Cambio aditivo: sin `sort` el orden es el de siempre.
+- **Dinero**: se ordena en la base sobre `listing_price` (`Decimal(14,2)`), nunca en memoria ni con `number`. Las propiedades sin precio ("Consultar") van **siempre al final**, en ambos sentidos (`nulls: last`).
+- **Desempate**: precio, luego `createdAt` desc y por último `id`. Sin un orden total, la paginación puede repetir u omitir filas entre páginas. `recent` sigue siendo `createdAt desc, id`.
+- **Límite conocido**: el orden compara montos nominales; mezclar ARS y USD no tiene sentido. El front debe combinar el orden por precio con `currency` (si hay `priceFrom`/`priceTo` sin moneda, ya se toma la de la inmobiliaria). No se convierte moneda en el backend: es una regla de negocio (cotización) que no está definida.
+
+### D-202 · Tercer template `LUXURY`
+
+- **Contrato**: `SiteTemplateKey` suma `LUXURY` (mayúsculas, como `CLASSIC` y `MODERN`). Tema por defecto: fondo `#0B0B0C`, superficie `#1C1A17`, texto `#F5F1E8`, primario dorado `#C9A961`, secundario `#8C8577`, fuente `serif`, esquinas 0. Fuentes disponibles: `serif`, `system`, `humanist`. Mismas secciones que los otros dos; el contenido inicial es el mismo.
+- **Migración**: aditiva (`ALTER TYPE "SiteTemplateKey" ADD VALUE 'LUXURY'`); no toca filas existentes. No se puede revertir un valor de enum en Postgres sin recrear el tipo; es aceptable porque nada lo usa hasta que alguien elige el template.
+- **Catálogo**: `GET /site/templates` (ya existía) lista ahora tres elementos; no hace falta un endpoint nuevo. El frontend debe tolerar claves desconocidas en `PublicSite.template` (un sitio publicado con `LUXURY` visto por un front viejo).
+- **Código**: la validación y el fallback de tipografías usan `SITE_TEMPLATE_KEYS` en vez de un `=== 'MODERN'` fijo, para que un template nuevo no quede validado con las fuentes de CLASSIC.

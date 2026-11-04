@@ -36,4 +36,9 @@ Al cargar o editar una propiedad hay campos nuevos, todos opcionales: **operaci�
 
 ## Qué no incluye (por ahora)
 
-Editor visual de arrastrar y soltar, blog, más de dos templates, mapa interactivo, varios idiomas y estadísticas propias. El certificado y el DNS de un dominio propio no son automáticos.
+Editor visual de arrastrar y soltar, blog, más de tres templates, mapa interactivo, varios idiomas y estadísticas propias. El certificado y el DNS de un dominio propio no son automáticos.
+
+## Novedades v1.1
+
+- **Ordenar las propiedades**: en el listado del sitio se puede elegir "más recientes", "menor precio" o "mayor precio". Las propiedades sin precio ("Consultar") quedan siempre al final. Conviene filtrar por moneda al ordenar por precio, porque no se convierte entre pesos y dólares.
+- **Template "Lujo"**: negro profundo con detalles dorados y tipografía serif. Se elige en el editor igual que los otros dos y conserva todo el contenido al cambiar.
