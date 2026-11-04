@@ -69,7 +69,7 @@ Escenario: se sube el mismo Excel dos veces antes de confirmar (o se corre dos v
 
 - `:67` `workbook.xlsx.load(buffer)` infla todo el zip en memoria sin límite. El tope de 10 MB es del archivo comprimido; un `.xlsx` de 10 MB puede traer gigas de XML. Corre en el request (`migration.handlers.ts:109`, para validar) **y otra vez** en la cola (`analysis-runner.ts:604`), bloqueando el event loop de la API.
 - `:112` `for (rowNumber = 3; rowNumber <= worksheet.rowCount; ...)` con `worksheet.getRow(n)`: una hoja con una celda suelta en la fila 1.048.576 hace ~1M iteraciones y `getRow` **crea** cada fila vacía (memoria y CPU), antes de que corte el tope de 5.000 filas con datos (que cuenta solo filas con datos).
-  **Arreglo (hecho, F3)**: inspeccionar el directorio central del zip antes de cargarlo (cantidad de entradas, tamaño descomprimido total y por entrada, y rechazar zip64/valores incoherentes) y recorrer solo las filas que existen (`eachRow`). Límite elegido: 50 MB descomprimidos (una plantilla llena de 5.000 filas ocupa bien por debajo). Sigue pendiente (C3) pasar a lectura en streaming y no parsear dos veces.
+  **Arreglo (hecho, F3)**: inflar cada entrada del zip con un tope (`zlib.inflateRawSync` con `maxOutputLength`) _antes_ de pasarle el archivo a exceljs, y rechazar zip64, más de 500 entradas o estructura rota; no alcanza con sumar los tamaños declarados porque se pueden falsear (JSZip recién compara el tamaño real al terminar de inflar, `jszip/lib/compressedObject.js:37`). Además se recorren solo las filas que existen (`eachRow`). Límite elegido: 50 MB descomprimidos (una plantilla llena de 5.000 filas ocupa bien por debajo). Sigue pendiente (C3) pasar a lectura en streaming y no parsear dos veces.
 
 ### Media
 
@@ -178,4 +178,19 @@ Pendientes (grandes, tocan schema o necesitan decisión de producto):
 
 ## Qué se corrió de verdad
 
-Ver la sección final "Resultados de ejecución", que se completa al terminar los arreglos.
+Todo en el worktree `review/fase-21`, con Postgres local (`adminprop_test`) y sin Doppler.
+
+| Qué                                                                     | Resultado                                                                                                       |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `npx tsc --noEmit`                                                      | limpio (corrido antes de cada commit y al final)                                                                |
+| `npm run lint:check`                                                    | limpio (corrido antes de cada commit)                                                                           |
+| `npx jest` (todos los unitarios)                                        | 78 suites, 724 tests, todos verdes                                                                              |
+| `test/migration.e2e-spec.ts` completo                                   | 32 de 32 verdes, **después** de F1 a F8; más el e2e nuevo (33 de 33 en total al sumarlo, corrido solo con `-t`) |
+| e2e nuevo "dos lotes del mismo archivo" contra el executor **anterior** | **falla** (recreaba todo): confirma que B1 era un bug real y que F1 lo corrige                                  |
+
+Lo que **no** se corrió:
+
+- Los demás e2e (`settlements`, `audit`, `automations`, etc.): no se tocó nada de esos módulos y el pedido era un e2e por vez; el de `automations` cuenta el job de limpieza de lotes, que no cambió.
+- Contra la API real de Tokko, Cloudinary ni DNS real: la descarga de fotos se probó con `fetch` y resolución de DNS simulados. El `dns.lookup` real y el comportamiento de `redirect: 'manual'` en el `fetch` de Node (undici) se leyeron, no se ejecutaron contra la red.
+- Que los tests nuevos de F3 (zip bomb y fila 1.048.576) fallen contra el código anterior: se verificó solo para B1. Para F2/F4 el comportamiento viejo se desprende del código leído.
+- Nada del frontend (ni los tests ni la pantalla de migración).
