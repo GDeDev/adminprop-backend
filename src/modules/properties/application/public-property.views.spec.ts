@@ -175,6 +175,38 @@ describe('PublicPropertyViews', () => {
     expect(detail.features.map((f) => f.label)).toEqual(['Tipo', 'Ubicación'])
   })
 
+  describe('coordenadas de la ficha', () => {
+    it('salen con 3 decimales (~100 m), nunca la puerta exacta', async () => {
+      const detail = await build().detail({
+        ...PROPERTY,
+        latitude: -34.603722,
+        longitude: -58.381592,
+      })
+
+      expect(detail.latitude).toBe(-34.604)
+      expect(detail.longitude).toBe(-58.382)
+      expect(JSON.stringify(detail)).not.toContain('34.603722')
+    })
+
+    it('sin coordenadas, o con una sola, salen null las dos', async () => {
+      const none = await build().detail(PROPERTY)
+      const half = await build().detail({ ...PROPERTY, latitude: -34.6 })
+
+      expect(none.latitude).toBeNull()
+      expect(none.longitude).toBeNull()
+      expect(half.latitude).toBeNull()
+      expect(half.longitude).toBeNull()
+    })
+
+    it('el listado no las incluye', async () => {
+      const [summary] = await build().summaries([
+        { ...PROPERTY, latitude: -34.6, longitude: -58.3 },
+      ])
+
+      expect(summary).not.toHaveProperty('latitude')
+    })
+  })
+
   it('los filtros salen ordenados por nombre', async () => {
     const masterData = {
       describeCatalog: jest.fn().mockResolvedValue(

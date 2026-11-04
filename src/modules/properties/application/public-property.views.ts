@@ -39,6 +39,27 @@ export interface PublicPropertyDetailView extends PublicPropertySummaryView {
   /** "Barrio, ciudad". */
   location: string
   features: { label: string; value: string }[]
+  /** Aproximadas (3 decimales, ~100 m): nunca la puerta exacta. Null si falta alguna. */
+  latitude: number | null
+  longitude: number | null
+}
+
+const COORDINATE_FACTOR = 1000
+
+/**
+ * El mapa público muestra la zona, no el domicilio: se publica con 3 decimales
+ * (~100 m). Sólo sale el par completo; con una sola coordenada no hay punto.
+ */
+export function approximateCoordinates(
+  property: Pick<Property, 'latitude' | 'longitude'>,
+): { latitude: number | null; longitude: number | null } {
+  const { latitude, longitude } = property
+  if (latitude === null || longitude === null) {
+    return { latitude: null, longitude: null }
+  }
+  const round = (value: number) =>
+    Math.round(value * COORDINATE_FACTOR) / COORDINATE_FACTOR
+  return { latitude: round(latitude), longitude: round(longitude) }
 }
 
 export interface PublicFiltersView {
@@ -79,6 +100,7 @@ export class PublicPropertyViews {
       publicDescription: property.publicDescription,
       photos: property.photos.map(({ id, url }) => ({ id, url })),
       location: place,
+      ...approximateCoordinates(property),
       features: [
         ...(type ? [{ label: 'Tipo', value: type.name }] : []),
         ...(place ? [{ label: 'Ubicación', value: place }] : []),
