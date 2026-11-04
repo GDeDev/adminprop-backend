@@ -1251,7 +1251,7 @@ Sale de `adminprop-repo-files/docs/REDISENO_FASE_23.md` (que numera sus supuesto
 
 ### D-198 · Logos SVG: se rechaza, no se sanea
 
-- **Decisión**: `POST /tenants/current/logo` sigue aceptando SVG (lo usan los PDFs) pero responde 422 `TENANT_INVALID_LOGO` si trae `<script>`, `<foreignObject>`, `<set>`/`<animate>`, handlers `on*=`, `javascript:`, `href` que no sea `#id` o imagen `data:`, `@import`/`url()` externos, entidades declaradas o numéricas.
+- **Decisión**: `POST /tenants/current/logo` sigue aceptando SVG (lo usan los PDFs) pero rechaza con `TENANT_INVALID_LOGO` si trae `<script>`, `<foreignObject>`, `<set>`/`<animate>`, handlers `on*=`, `javascript:`, `href` que no sea `#id` o imagen `data:`, `@import`/`url()` externos, entidades declaradas o numéricas.
 - **Por qué no sanear**: sanear obliga a parsear XML adversarial y a mantener una lista de permitidos; ningún logo legítimo necesita nada de lo rechazado.
 
 ### D-199 · Inyección de fórmulas en el reporte de migración
