@@ -683,7 +683,10 @@ export class ListingService {
         title: `Falló la conexión con ${channelLabel(channel)}`,
         body: message,
         dedupeKey: `LISTING_CHANNEL_ERROR:${channel}:${todayIso()}`,
-        entity: { type: 'ListingChannel', id: channel },
+        // Sin `entity`: `notification_log.entity_id` es un UUID y el canal se
+        // identifica por su nombre (`MERCADOLIBRE`), así que guardarlo hacía
+        // fallar el INSERT y el aviso nunca se creaba. El `dedupeKey` ya lo
+        // distingue por canal y día.
         link: '/configuracion/canales',
       })
     } catch (error) {
