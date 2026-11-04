@@ -60,8 +60,10 @@ model Tenant {
   reducedFeeThreshold      Int      @default(3) @map("reduced_fee_threshold")
   /// Días del mes sin punitorio (del 1 al N).
   paymentGraceDays         Int      @default(10) @map("payment_grace_days")
-  /// Punitorio diario, en %, a partir del día siguiente a la gracia.
-  dailyLateFeePercentage   Decimal  @default(5) @map("daily_late_fee_percentage") @db.Decimal(5, 2)
+  /// Punitorio diario por defecto, en %, a partir del día siguiente a la gracia.
+  /// Sin default de esquema (D-227): null = la inmobiliaria no fijó uno y cada
+  /// contrato tiene que indicar el suyo.
+  dailyLateFeePercentage   Decimal? @map("daily_late_fee_percentage") @db.Decimal(5, 2)
   /// Día del mes en que se generan las cuotas del mes siguiente.
   installmentGenerationDay Int      @default(28) @map("installment_generation_day")
   /// Día del mes en que sale el recordatorio de pago.

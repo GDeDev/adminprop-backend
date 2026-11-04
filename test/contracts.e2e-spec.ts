@@ -1299,6 +1299,114 @@ describe('Contratos (e2e, Postgres)', () => {
     })
   })
 
+  describe('punitorio sin 5 % por defecto y fecha de inicio (D-227, Micaela #3)', () => {
+    const clearTenantDefault = () =>
+      prisma.tenant.update({
+        where: { id: tenantA.id },
+        data: { dailyLateFeePercentage: null },
+      })
+
+    it('sin punitorio propio ni de la inmobiliaria el alta se rechaza; con uno propio entra', async () => {
+      await clearTenantDefault()
+      const [propertyId, renterId] = await partyIds()
+      const rejected = await api(adminToken)
+        .post('/contracts')
+        .send(contractBody(propertyId, renterId))
+        .expect(400)
+      expect(rejected.body.code).toBe('CONTRACT_LATE_FEE_PERCENTAGE_REQUIRED')
+
+      const ok = await api(adminToken)
+        .post('/contracts')
+        .send(
+          contractBody(propertyId, renterId, {
+            lateFeePercentage: '0.50',
+          }),
+        )
+        .expect(201)
+      expect(ok.body.data.billingTerms).toMatchObject({
+        lateFeePercentage: '0.50',
+        inheritedLateFeePercentage: false,
+      })
+    })
+
+    it('si la inmobiliaria fija uno por defecto, el contrato lo hereda', async () => {
+      await prisma.tenant.update({
+        where: { id: tenantA.id },
+        data: { dailyLateFeePercentage: '0.75' },
+      })
+      const { id } = await createContract()
+      const detail = await api(adminToken).get(`/contracts/${id}`).expect(200)
+      expect(detail.body.data.billingTerms).toMatchObject({
+        lateFeePercentage: '0.75',
+        inheritedLateFeePercentage: true,
+      })
+    })
+
+    it('cambiar los términos a "el de la inmobiliaria" también exige que exista', async () => {
+      const { id } = await createContract({
+        lateFeePercentage: '2.00',
+      })
+      await clearTenantDefault()
+      const rejected = await api(adminToken)
+        .post(`/contracts/${id}/billing-terms`)
+        .send({ lateFeePercentage: null })
+        .expect(400)
+      expect(rejected.body.code).toBe('CONTRACT_LATE_FEE_PERCENTAGE_REQUIRED')
+    })
+
+    it('"desde cuándo corre": el día de inicio equivale a la gracia, no se combina con ella y no toca los contratos existentes', async () => {
+      const existing = await createContract()
+      const { id } = await createContract({
+        lateFeeStartDay: 16,
+      })
+      const detail = await api(adminToken).get(`/contracts/${id}`).expect(200)
+      expect(detail.body.data.billingTerms).toMatchObject({
+        lateFeeGraceDays: 15,
+        lateFeeStartDay: 16,
+        inheritedLateFeeGraceDays: false,
+      })
+      expect(detail.body.data.billingTermsHistory[0].lateFeeGraceDays).toBe(15)
+
+      // El contrato anterior sigue como estaba: gracia 10, inicio el día 11.
+      const before = await api(adminToken)
+        .get(`/contracts/${existing.id}`)
+        .expect(200)
+      expect(before.body.data.billingTerms).toMatchObject({
+        lateFeeGraceDays: 10,
+        lateFeeStartDay: 11,
+      })
+
+      const [propertyId, renterId] = await partyIds()
+      const both = await api(adminToken)
+        .post('/contracts')
+        .send(
+          contractBody(propertyId, renterId, {
+            lateFeeStartDay: 5,
+            lateFeeGraceDays: 3,
+          }),
+        )
+        .expect(400)
+      expect(both.body.code).toBe('CONTRACT_INVALID_BILLING_TERMS')
+      await api(adminToken)
+        .post('/contracts')
+        .send(
+          contractBody(propertyId, renterId, {
+            lateFeeStartDay: 0,
+          }),
+        )
+        .expect(400)
+
+      const changed = await api(adminToken)
+        .post(`/contracts/${id}/billing-terms`)
+        .send({ lateFeeStartDay: 6 })
+        .expect(201)
+      expect(changed.body.data.billingTerms).toMatchObject({
+        lateFeeGraceDays: 5,
+        lateFeeStartDay: 6,
+      })
+    })
+  })
+
   describe('aislamiento entre inmobiliarias', () => {
     it('otra inmobiliaria no ve ni opera el contrato', async () => {
       const { id } = await createContract()

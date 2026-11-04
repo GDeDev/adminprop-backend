@@ -75,6 +75,8 @@ async function main() {
   } else {
     const provisioned = await provisionTenant(prisma, {
       ...DEMO_TENANT,
+      // Dato de demo, no un default del sistema (D-227).
+      dailyLateFeePercentage: '5',
       bcryptSaltRounds: saltRounds,
     })
     tenant = await prisma.tenant.findUniqueOrThrow({

@@ -241,3 +241,18 @@ export class InvalidBillingTermsException extends DomainException {
     )
   }
 }
+
+/**
+ * Ni el contrato ni la inmobiliaria definen un punitorio diario (D-227). No
+ * hay un valor por defecto del sistema: tiene que decidirlo la inmobiliaria.
+ */
+export class LateFeePercentageRequiredException extends DomainException {
+  constructor() {
+    super(
+      'CONTRACT_LATE_FEE_PERCENTAGE_REQUIRED',
+      'Indicá el punitorio diario del contrato o configurá el de la inmobiliaria',
+      DomainErrorKind.InvalidInput,
+      { field: 'lateFeePercentage' },
+    )
+  }
+}

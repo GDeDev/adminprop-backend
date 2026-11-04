@@ -53,9 +53,18 @@ export async function resetDatabase(prisma: PrismaClient): Promise<void> {
   }
 }
 
-/** Crea un tenant con los defaults del PRD. Va por el cliente base: no tiene tenant. */
+/**
+ * Crea un tenant con los defaults del PRD y un punitorio del 5 % explícito
+ * (D-227: el esquema ya no lo trae). Va por el cliente base: no tiene tenant.
+ */
 export function createTenant(prisma: PrismaService, slug: string) {
-  return prisma.tenant.create({ data: { name: `Inmobiliaria ${slug}`, slug } })
+  return prisma.tenant.create({
+    data: {
+      name: `Inmobiliaria ${slug}`,
+      slug,
+      dailyLateFeePercentage: 5,
+    },
+  })
 }
 
 /**

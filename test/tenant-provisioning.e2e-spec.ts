@@ -46,6 +46,8 @@ describe('Alta de inmobiliarias (e2e, Postgres)', () => {
     // Los parámetros de negocio arrancan con los defaults del PRD.
     expect(tenant).toMatchObject({ name: 'Inmobiliaria Norte', isActive: true })
     expect(tenant?.paymentGraceDays).toBe(10)
+    // D-227: sin punitorio por defecto; lo fija quien da el alta o el admin.
+    expect(tenant?.dailyLateFeePercentage).toBeNull()
 
     const login = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
@@ -55,6 +57,27 @@ describe('Alta de inmobiliarias (e2e, Postgres)', () => {
       role: 'ADMIN',
       tenantId: result.tenantId,
     })
+  })
+
+  it('el alta puede fijar el punitorio por defecto y rechaza un valor inválido', async () => {
+    await provision({ dailyLateFeePercentage: '0.50' })
+    const tenant = await prisma.tenant.findUnique({ where: { slug: 'norte' } })
+    expect(tenant?.dailyLateFeePercentage?.toFixed(2)).toBe('0.50')
+
+    await expect(
+      provision({
+        slug: 'sur',
+        adminEmail: 'admin@sur.com',
+        dailyLateFeePercentage: '150',
+      }),
+    ).rejects.toThrow(ProvisioningError)
+    await expect(
+      provision({
+        slug: 'sur',
+        adminEmail: 'admin@sur.com',
+        dailyLateFeePercentage: 'cinco',
+      }),
+    ).rejects.toThrow(ProvisioningError)
   })
 
   it('la contraseña nunca queda en claro en la base', async () => {

@@ -17,6 +17,12 @@ export interface ProvisionTenantInput {
   /** Sin contraseña se genera una temporal, que se devuelve una sola vez. */
   adminPassword?: string
   adminFirstName?: string
+  /**
+   * Punitorio diario por defecto, en % ("0.50"). Sin valor la inmobiliaria
+   * nace sin uno (D-227: no hay un 5 % del sistema) y cada contrato tiene que
+   * indicar el suyo hasta que lo configure.
+   */
+  dailyLateFeePercentage?: string
   bcryptSaltRounds?: number
 }
 
@@ -74,6 +80,18 @@ export async function provisionTenant(
     )
   }
 
+  const lateFee = input.dailyLateFeePercentage?.trim()
+  if (lateFee !== undefined && !/^\d{1,3}(\.\d{1,2})?$/.test(lateFee)) {
+    throw new ProvisioningError(
+      `Punitorio inválido: "${lateFee}". Un porcentaje entre 0 y 100 con hasta 2 decimales.`,
+    )
+  }
+  if (lateFee !== undefined && Number(lateFee) > 100) {
+    throw new ProvisioningError(
+      `Punitorio inválido: "${lateFee}". Tiene que estar entre 0 y 100.`,
+    )
+  }
+
   if (await prisma.tenant.findUnique({ where: { slug } })) {
     throw new ProvisioningError(
       `Ya existe una inmobiliaria con slug "${slug}".`,
@@ -97,7 +115,9 @@ export async function provisionTenant(
   )
 
   const { tenant, admin } = await prisma.$transaction(async (tx) => {
-    const tenant = await tx.tenant.create({ data: { name, slug } })
+    const tenant = await tx.tenant.create({
+      data: { name, slug, dailyLateFeePercentage: lateFee ?? null },
+    })
     const admin = await tx.user.create({
       data: {
         tenantId: tenant.id,
