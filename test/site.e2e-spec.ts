@@ -831,6 +831,44 @@ describe('Sitio web (e2e, Postgres)', () => {
       expect(elapsed).toBeLessThan(2_000)
     })
 
+    it('cambiar el subdominio o el dominio de un sitio publicado avisa, y la dirección vieja deja de resolver al instante', async () => {
+      await settingsOf(adminA)
+      await save(adminA, { subdomain: 'vieja' }).expect(200)
+      await as(adminA).post('/site/publish').expect(200)
+      await pub('/public/site-by-host?host=vieja.sites.test').expect(200)
+      revalidation.slugs = []
+
+      await save(adminA, { subdomain: 'nueva' }).expect(200)
+
+      expect(revalidation.slugs).toEqual(['tenant-a'])
+      // Sin esperar a que venza la caché de 30 s.
+      await pub('/public/site-by-host?host=vieja.sites.test').expect(404)
+      await pub('/public/site-by-host?host=nueva.sites.test').expect(200)
+
+      await save(adminA, { customDomain: 'www.nueva.com.ar' }).expect(200)
+      expect(revalidation.slugs).toEqual(['tenant-a', 'tenant-a'])
+      await save(adminA, { subdomain: null }).expect(200)
+      expect(revalidation.slugs).toHaveLength(3)
+    })
+
+    it('si el sitio no está publicado, cambiar la dirección o el borrador no avisa', async () => {
+      await settingsOf(adminA)
+      await save(adminA, { subdomain: 'borrador' }).expect(200)
+      await save(adminA, { customDomain: 'www.borrador.com.ar' }).expect(200)
+      await save(adminA, { content: { hero: hero('Solo borrador') } }).expect(
+        200,
+      )
+      expect(revalidation.slugs).toEqual([])
+
+      // Publicado, un cambio de contenido del borrador tampoco avisa (no es lo que ve el público).
+      await as(adminA).post('/site/publish').expect(200)
+      revalidation.slugs = []
+      await save(adminA, { content: { hero: hero('Otro borrador') } }).expect(
+        200,
+      )
+      expect(revalidation.slugs).toEqual([])
+    })
+
     it('dos pedidos simultáneos del primer acceso crean una sola configuración (sin 500)', async () => {
       const responses = await Promise.all(
         Array.from({ length: 4 }, () => as(adminA).get('/site/settings')),

@@ -76,6 +76,7 @@ export class UpdateSiteSettingsHandler implements ICommandHandler<
     private readonly views: SiteViews,
     private readonly verification: SiteDomainVerification,
     private readonly audit: AuditFacade,
+    private readonly notifier: SiteChangeNotifier,
   ) {}
 
   async execute({
@@ -180,7 +181,11 @@ export class UpdateSiteSettingsHandler implements ICommandHandler<
         changes.subdomain !== undefined ||
         changes.customDomain !== undefined
       ) {
+        // La dirección cambia al instante (no pasa por el borrador): se olvida lo
+        // cacheado de esta instancia y, si el sitio está publicado, se avisa a
+        // `apps/sites` para que su caché de hosts deje de resolver la anterior.
         this.resolver.invalidate()
+        if (current.enabled) await this.notifier.notify()
       }
       return this.views.settings(updated)
     } catch (error) {
