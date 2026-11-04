@@ -130,4 +130,31 @@ describe('validateEnv', () => {
       ).toThrow(/STORAGE_PROVIDER/)
     })
   })
+
+  // Antes sólo se advertía con un log al arrancar y la API quedaba abierta.
+  it('rechaza CORS_ORIGINS con * fuera de desarrollo y test', () => {
+    const preview = { SITES_PREVIEW_SECRET: 'p'.repeat(40) }
+    for (const NODE_ENV of ['production', 'qa']) {
+      expect(() =>
+        validateEnv({ ...VALID_ENV, ...preview, NODE_ENV, CORS_ORIGINS: '*' }),
+      ).toThrow(/CORS_ORIGINS/)
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          ...preview,
+          NODE_ENV,
+          CORS_ORIGINS: 'https://a.com, *',
+        }),
+      ).toThrow(/CORS_ORIGINS/)
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          ...preview,
+          NODE_ENV,
+          CORS_ORIGINS: 'https://a.com,https://b.com',
+        }),
+      ).not.toThrow()
+    }
+    expect(() => validateEnv({ ...VALID_ENV, CORS_ORIGINS: '*' })).not.toThrow()
+  })
 })

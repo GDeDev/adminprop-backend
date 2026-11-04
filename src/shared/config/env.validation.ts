@@ -20,6 +20,11 @@ export enum Environment {
   Production = 'production',
 }
 
+/** Desarrollo y tests: los únicos entornos donde se toleran los valores laxos. */
+export function isLocalEnvironment(env: Environment): boolean {
+  return env === Environment.Development || env === Environment.Test
+}
+
 export enum QueueProvider {
   /** Cola real sobre Postgres. El default. */
   PgBoss = 'pgboss',
@@ -551,6 +556,20 @@ export function validateEnv(
           'rotarla invalida los dominios que están pendientes de verificar (los ya verificados no se pierden).\n',
       )
     }
+  }
+
+  // Antes `*` en producción sólo emitía un warning al arrancar. Con `*` cualquier
+  // sitio puede llamar a la API desde el navegador de un usuario.
+  if (
+    !isLocalEnvironment(validated.NODE_ENV) &&
+    (validated.CORS_ORIGINS ?? '')
+      .split(',')
+      .some((origin) => origin.trim() === '*')
+  ) {
+    throw new Error(
+      `\n❌ CORS_ORIGINS="*" no está permitido con NODE_ENV=${validated.NODE_ENV}.\n` +
+        'Listá los orígenes permitidos separados por comas.\n',
+    )
   }
 
   if (validated.JWT_ACCESS_SECRET === validated.JWT_REFRESH_SECRET) {
