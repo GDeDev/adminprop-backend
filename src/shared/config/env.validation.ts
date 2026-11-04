@@ -20,6 +20,11 @@ export enum Environment {
   Production = 'production',
 }
 
+/** Desarrollo y tests: los únicos entornos donde se toleran los valores laxos. */
+export function isLocalEnvironment(env: Environment): boolean {
+  return env === Environment.Development || env === Environment.Test
+}
+
 export enum QueueProvider {
   /** Cola real sobre Postgres. El default. */
   PgBoss = 'pgboss',
@@ -688,17 +693,32 @@ export function validateEnv(
   assertComparableSources(validated)
 
   // El secreto de la vista previa también firma la prueba de propiedad de los
-  // dominios (TXT): sin uno propio y largo en producción, quien conozca el
-  // secreto de otra cosa podría fabricar tokens y valores de verificación.
-  if (validated.NODE_ENV === Environment.Production) {
+  // dominios (TXT): sin uno propio y largo fuera de desarrollo y test (qa
+  // incluido), quien lea el valor fijo del repo podría fabricar tokens de vista
+  // previa y valores de verificación para cualquier inmobiliaria.
+  if (!isLocalEnvironment(validated.NODE_ENV)) {
     const preview = validated.SITES_PREVIEW_SECRET ?? ''
     if (preview.length < 32) {
       throw new Error(
-        '\n❌ SITES_PREVIEW_SECRET es obligatoria en producción (32 caracteres o más).\n' +
+        `\n❌ SITES_PREVIEW_SECRET es obligatoria con NODE_ENV=${validated.NODE_ENV} (32 caracteres o más).\n` +
           'Firma los tokens de vista previa del sitio web y los TXT de verificación de dominios: ' +
           'rotarla invalida los dominios que están pendientes de verificar (los ya verificados no se pierden).\n',
       )
     }
+  }
+
+  // Antes `*` en producción sólo emitía un warning al arrancar. Con `*` cualquier
+  // sitio puede llamar a la API desde el navegador de un usuario.
+  if (
+    !isLocalEnvironment(validated.NODE_ENV) &&
+    (validated.CORS_ORIGINS ?? '')
+      .split(',')
+      .some((origin) => origin.trim() === '*')
+  ) {
+    throw new Error(
+      `\n❌ CORS_ORIGINS="*" no está permitido con NODE_ENV=${validated.NODE_ENV}.\n` +
+        'Listá los orígenes permitidos separados por comas.\n',
+    )
   }
 
   if (validated.JWT_ACCESS_SECRET === validated.JWT_REFRESH_SECRET) {

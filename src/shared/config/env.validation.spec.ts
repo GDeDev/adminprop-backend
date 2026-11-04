@@ -42,7 +42,11 @@ describe('validateEnv', () => {
     expect(() =>
       validateEnv({ ...production, SITES_PREVIEW_SECRET: 'p'.repeat(40) }),
     ).not.toThrow()
-    // Fuera de producción alcanza con el valor de desarrollo.
+    // Antes qa quedaba con el valor fijo del repo, que es público.
+    expect(() => validateEnv({ ...VALID_ENV, NODE_ENV: 'qa' })).toThrow(
+      /SITES_PREVIEW_SECRET/,
+    )
+    // En desarrollo y test alcanza con el valor de desarrollo.
     expect(() => validateEnv(VALID_ENV)).not.toThrow()
   })
 
@@ -156,5 +160,32 @@ describe('validateEnv', () => {
         }),
       ).toThrow(/fake/)
     })
+  })
+
+  // Antes sólo se advertía con un log al arrancar y la API quedaba abierta.
+  it('rechaza CORS_ORIGINS con * fuera de desarrollo y test', () => {
+    const preview = { SITES_PREVIEW_SECRET: 'p'.repeat(40) }
+    for (const NODE_ENV of ['production', 'qa']) {
+      expect(() =>
+        validateEnv({ ...VALID_ENV, ...preview, NODE_ENV, CORS_ORIGINS: '*' }),
+      ).toThrow(/CORS_ORIGINS/)
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          ...preview,
+          NODE_ENV,
+          CORS_ORIGINS: 'https://a.com, *',
+        }),
+      ).toThrow(/CORS_ORIGINS/)
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          ...preview,
+          NODE_ENV,
+          CORS_ORIGINS: 'https://a.com,https://b.com',
+        }),
+      ).not.toThrow()
+    }
+    expect(() => validateEnv({ ...VALID_ENV, CORS_ORIGINS: '*' })).not.toThrow()
   })
 })

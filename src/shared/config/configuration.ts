@@ -251,8 +251,12 @@ export function configuration(): Configuration {
       isProduction,
       isDevelopment,
       logLevel: str(process.env.LOG_LEVEL, isProduction ? 'info' : 'debug'),
-      // En producción el Swagger queda apagado salvo que lo pidas explícitamente.
-      swaggerEnabled: bool(process.env.SWAGGER_ENABLED, !isProduction),
+      // Swagger sólo arranca solo en desarrollo y test. En cualquier otro entorno
+      // (qa incluido) queda apagado salvo que lo pidas con SWAGGER_ENABLED.
+      swaggerEnabled: bool(
+        process.env.SWAGGER_ENABLED,
+        env === Environment.Development || env === Environment.Test,
+      ),
       bodyLimit: str(process.env.BODY_LIMIT, '1mb'),
       trustProxy: bool(process.env.TRUST_PROXY, isProduction),
     },
@@ -422,8 +426,8 @@ export function configuration(): Configuration {
               secret: process.env.SITES_REVALIDATE_SECRET,
             }
           : null,
-      // En producción `validateEnv` ya exigió un secreto propio y largo. Fuera de
-      // producción hay un valor fijo de desarrollo: NO se deriva de
+      // Fuera de desarrollo y test `validateEnv` ya exigió un secreto propio y
+      // largo. En desarrollo y test hay un valor fijo: NO se deriva de
       // JWT_ACCESS_SECRET (un secreto distinto para una cosa distinta).
       previewSecret: str(
         process.env.SITES_PREVIEW_SECRET,

@@ -55,8 +55,13 @@ const DEMO_USERS = [
 ] as const
 
 async function main() {
-  if (process.env.NODE_ENV === 'production') {
-    console.error('❌ El seed de demo no corre con NODE_ENV=production.')
+  // Sólo en desarrollo (o sin NODE_ENV): en qa u otro ambiente compartido las
+  // credenciales publicadas del demo serían una puerta abierta.
+  const nodeEnv = process.env.NODE_ENV
+  if (nodeEnv && nodeEnv !== 'development') {
+    console.error(
+      `❌ El seed de demo sólo corre en desarrollo (NODE_ENV=${nodeEnv}).`,
+    )
     process.exit(1)
   }
 
