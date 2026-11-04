@@ -167,6 +167,9 @@ model Tenant {
   feePayments           FeePayment[]
   feePaymentAllocations FeePaymentAllocation[]
 
+  siteSettings SiteSettings?
+  siteAssets   SiteAsset[]
+
   @@map("tenants")
 }
 
@@ -532,35 +535,52 @@ enum PropertyStatus {
 /// Ubicación, tipo y amenities son ids de los maestros, **sin FK** a propósito:
 /// los módulos no comparten tablas (se validan con MasterDataFacade al guardar).
 /// Lo mismo el propietario (Fase 7).
+/// Operación con la que se publica una propiedad en el sitio web.
+enum ListingOperation {
+  SALE
+  RENT
+}
+
 model Property {
   id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId String @map("tenant_id") @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  address           String         @db.VarChar(200)
-  locationId        String         @map("location_id") @db.Uuid
-  propertyTypeId    String         @map("property_type_id") @db.Uuid
-  status            PropertyStatus @default(AVAILABLE)
+  address           String           @db.VarChar(200)
+  locationId        String           @map("location_id") @db.Uuid
+  propertyTypeId    String           @map("property_type_id") @db.Uuid
+  status            PropertyStatus   @default(AVAILABLE)
   /// Nullable: la propiedad se puede cargar antes que su propietario.
-  ownerId           String?        @map("owner_id") @db.Uuid
-  amenityIds        String[]       @default([]) @map("amenity_ids") @db.Uuid
+  ownerId           String?          @map("owner_id") @db.Uuid
+  amenityIds        String[]         @default([]) @map("amenity_ids") @db.Uuid
   /// Notas internas: nunca se exponen en el portal público.
-  notes             String?        @db.Text
+  notes             String?          @db.Text
   /// Contrato activo (módulo de contratos, sin FK). Lo fija y lo limpia el
   /// módulo de contratos por `PropertiesFacade`; acá sólo se lee (D-51).
-  activeContractId  String?        @map("active_contract_id") @db.Uuid
+  activeContractId  String?          @map("active_contract_id") @db.Uuid
   /// Último contrato que tuvo, activo o no. Nunca se limpia: es el "historial
   /// de contratos" que bloquea el borrado (spec Fase 6, 3.8).
-  lastContractId    String?        @map("last_contract_id") @db.Uuid
+  lastContractId    String?          @map("last_contract_id") @db.Uuid
   /// Precio de publicación en el portal público (Fase 22). Null = "Consultar".
-  listingPrice      Decimal?       @map("listing_price") @db.Decimal(14, 2)
+  listingPrice      Decimal?         @map("listing_price") @db.Decimal(14, 2)
   /// Moneda del precio de publicación; sin precio no se muestra.
-  listingCurrency   Currency       @default(ARS) @map("listing_currency")
+  listingCurrency   Currency         @default(ARS) @map("listing_currency")
   /// Texto que ve el público (máx. 2000). Distinto de las notas internas.
-  publicDescription String?        @map("public_description") @db.VarChar(2000)
+  publicDescription String?          @map("public_description") @db.VarChar(2000)
+  /// Datos de la ficha pública (sitio web de la inmobiliaria). Todos opcionales.
+  listingOperation  ListingOperation @default(RENT) @map("listing_operation")
+  bedrooms          Int?
+  bathrooms         Int?
+  rooms             Int?
+  totalAreaM2       Decimal?         @map("total_area_m2") @db.Decimal(10, 2)
+  coveredAreaM2     Decimal?         @map("covered_area_m2") @db.Decimal(10, 2)
+  ageYears          Int?             @map("age_years")
+  /// Sin uso en la v1 del sitio; se guardan para el mapa futuro.
+  latitude          Decimal?         @db.Decimal(9, 6)
+  longitude         Decimal?         @db.Decimal(9, 6)
   /// Marca de la migración (Fase 21, A-77): cargada con datos dudosos (p. ej. sin
   /// ubicación) y a la espera de que alguien la revise. Se limpia a mano.
-  needsReview       Boolean        @default(false) @map("needs_review")
+  needsReview       Boolean          @default(false) @map("needs_review")
 
   photos PropertyPhoto[]
 
@@ -657,6 +677,7 @@ model Owner {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, bankCbu])
   @@index([tenantId, deletedAt])
+  @@index([portalUserId])
   @@map("owners")
 }
 
@@ -755,6 +776,7 @@ model Renter {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, guarantorId])
   @@index([tenantId, deletedAt])
+  @@index([portalUserId])
   @@map("renters")
 }
 
@@ -1907,8 +1929,16 @@ model JobExecution {
   triggeredBy       JobTrigger @default(SCHEDULE) @map("triggered_by")
   triggeredByUserId String?    @map("triggered_by_user_id") @db.Uuid
 
+  /// Número de corrida del día (0, 1, ...) de las programadas. Junto con job,
+  /// tenant y día es único (índice parcial `job_executions_scheduled_slot_key`,
+  /// que vive sólo en SQL): así dos réplicas no encolan la misma corrida.
+  slot Int?
+
   @@index([tenantId, job, scheduledFor])
   @@index([job, startedAt])
+  /// `countScheduled` filtra sólo por día: sin esto recorre toda la tabla
+  /// cada 10 minutos en cada instancia.
+  @@index([scheduledFor])
   @@map("job_executions")
 }
 
@@ -2744,4 +2774,80 @@ model ValuationRequest {
   @@index([tenantId, createdAt])
   @@index([tenantId, propertyId, inputHash, createdAt])
   @@map("valuation_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Sitio web de la inmobiliaria (generador de sitios)
+// ---------------------------------------------------------------------------
+
+enum SiteTemplateKey {
+  CLASSIC
+  MODERN
+  LUXURY
+}
+
+/// Configuración del sitio web de una inmobiliaria (una fila por tenant). El
+/// editor escribe `draft`; el sitio público lee `published`, que se copia del
+/// borrador al publicar. Ambos son el `SiteSettingsDraft` del contrato.
+///
+/// ⚠️ ÍNDICE PARCIAL QUE VIVE SOLO EN SQL: `site_settings_custom_domain_verified_key`
+/// (`UNIQUE (custom_domain) WHERE custom_domain_verified_at IS NOT NULL`, creado a
+/// mano en la migración `add_site_domain_verification`). Prisma no puede declarar
+/// índices parciales, así que NO aparece en este schema, y `prisma migrate dev`
+/// podría proponer borrarlo como "deriva". No lo "arregles": sin ese índice dos
+/// inmobiliarias podrían verificar el mismo dominio. Si una migración generada lo
+/// elimina, hay que sacar esa línea del SQL antes de aplicarla. Las migraciones de
+/// este repo se generan con `migrate diff` y se aplican con `migrate deploy`.
+model SiteSettings {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @unique @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  enabled                Boolean         @default(false)
+  /// Espejo de `draft.template`; lo mantiene la aplicación.
+  templateKey            SiteTemplateKey @default(CLASSIC) @map("template_key")
+  /// Único global: minúsculas, [a-z0-9-], sin reservados.
+  subdomain              String?         @unique @db.VarChar(63)
+  /// Único solo entre los dominios VERIFICADOS (ver el aviso del modelo: es un
+  /// índice parcial que existe únicamente en SQL; la migración
+  /// `add_site_domain_verification`): reservar un dominio sin demostrar que es
+  /// tuyo no bloquea a nadie.
+  customDomain           String?         @map("custom_domain") @db.VarChar(253)
+  /// Cuándo se comprobó el registro TXT del dominio; solo un dominio verificado
+  /// resuelve el sitio.
+  customDomainVerifiedAt DateTime?       @map("custom_domain_verified_at") @db.Timestamptz(3)
+
+  draft         Json
+  published     Json?
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(3)
+  publishedById String?   @map("published_by_id") @db.Uuid
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([customDomain])
+  @@map("site_settings")
+}
+
+/// Imagen subida desde el editor del sitio. Sirve para saber qué URLs son
+/// nuestras al validar el contenido.
+model SiteAsset {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  storageKey  String @map("storage_key") @db.VarChar(500)
+  url         String @db.VarChar(1000)
+  contentType String @map("content_type") @db.VarChar(100)
+  sizeBytes   Int    @map("size_bytes")
+  width       Int?
+  height      Int?
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+
+  @@index([tenantId, url])
+  @@map("site_assets")
 }

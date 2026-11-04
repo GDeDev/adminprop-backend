@@ -14,5 +14,7 @@ export function queueOf(job: JobName | string): QueueDefinition {
     retryLimit: JOB_RETRY_LIMIT,
     retryDelaySeconds: 60,
     retryBackoff: false,
+    // Todos los mensajes de estas colas llevan singletonKey (job-scheduler).
+    dedupeBySingletonKey: true,
   }
 }

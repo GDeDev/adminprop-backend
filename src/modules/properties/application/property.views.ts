@@ -8,7 +8,12 @@ import {
   MasterDataRef,
 } from '@/modules/master-data/public'
 import { OwnerRef, OwnersFacade } from '@/modules/owners/public/owners.facade'
-import { ListingCurrency, Property, PropertyStatus } from '../domain/property'
+import {
+  ListingCurrency,
+  ListingOperation,
+  Property,
+  PropertyStatus,
+} from '../domain/property'
 
 export interface PropertyPhotoView {
   id: string
@@ -36,6 +41,8 @@ export interface PropertySummaryView {
   publicDescription: string | null
   /** Marcada por una migración para que alguien la revise. */
   needsReview: boolean
+  /** Venta o alquiler: cómo se publica en el sitio web. */
+  listingOperation: ListingOperation
   createdAt: Date
   updatedAt: Date
 }
@@ -48,6 +55,15 @@ export interface PropertyDetailView extends PropertySummaryView {
   amenities: AmenityRef[]
   notes: string | null
   photos: PropertyPhotoView[]
+  /** Datos de la ficha pública; todos opcionales. */
+  bedrooms: number | null
+  bathrooms: number | null
+  rooms: number | null
+  totalAreaM2: number | null
+  coveredAreaM2: number | null
+  ageYears: number | null
+  latitude: number | null
+  longitude: number | null
 }
 
 /**
@@ -95,6 +111,14 @@ export class PropertyViews {
         .map((id) => amenities.get(id))
         .filter((a): a is AmenityRef => a !== undefined),
       notes: property.notes,
+      bedrooms: property.bedrooms,
+      bathrooms: property.bathrooms,
+      rooms: property.rooms,
+      totalAreaM2: property.totalAreaM2,
+      coveredAreaM2: property.coveredAreaM2,
+      ageYears: property.ageYears,
+      latitude: property.latitude,
+      longitude: property.longitude,
       photos: property.photos.map((photo) => ({
         id: photo.id,
         url: photo.url,
@@ -132,6 +156,7 @@ function toSummary(
     listingCurrency: property.listingCurrency,
     publicDescription: property.publicDescription,
     needsReview: property.needsReview,
+    listingOperation: property.listingOperation,
     createdAt: property.createdAt,
     updatedAt: property.updatedAt,
   }

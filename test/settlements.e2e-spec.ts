@@ -233,12 +233,15 @@ describe('Liquidaciones (e2e, Postgres)', () => {
   /** Espera a que el listener de `installment-paid` deje la pendiente del contrato. */
   const waitForDraft = async (contractId: string) => {
     let found: { id: string } | undefined
-    await waitFor(async () => {
-      found = (await settlementsOf(contractId)).find(
-        (s) => s.status === 'PENDING',
-      )
-      return found !== undefined
-    })
+    await waitFor(
+      async () => {
+        found = (await settlementsOf(contractId)).find(
+          (s) => s.status === 'PENDING',
+        )
+        return found !== undefined
+      },
+      { what: `liquidación pendiente del contrato ${contractId}` },
+    )
     if (!found) throw new Error('sin pendiente')
     return found.id
   }
@@ -273,20 +276,22 @@ describe('Liquidaciones (e2e, Postgres)', () => {
   beforeAll(async () => {
     await prisma.$connect()
     app = await createTestApp()
-    // Nadie consume `settlement-confirmed` todavía (Fases 14 y 15): el test
-    // se suscribe para ver que el evento llegó por pg-boss.
-    await app
-      .get(QueuePort)
-      .consume<SettlementConfirmedPayload>(
-        SETTLEMENT_CONFIRMED_QUEUE,
-        async (m) => {
-          confirmedEvents.push(m.payload)
-        },
-      )
-    await app
-      .get(QueuePort)
-      .consume<StatementClosedPayload>(STATEMENT_CLOSED_QUEUE, async (m) => {
-        closedEvents.push(m.payload)
+    // Los eventos se observan espiando `publish` y no con un `consume` propio:
+    // `notifications` ya consume estas dos colas en la misma app y, en pg-boss,
+    // cada mensaje lo toma UN solo worker. Un segundo consumidor competiría con
+    // el real y el test se quedaba esperando un evento que nunca le llegaba.
+    const queue = app.get(QueuePort)
+    const realPublish = queue.publish.bind(queue)
+    jest
+      .spyOn(queue, 'publish')
+      .mockImplementation(async (definition, payload, options) => {
+        if (definition.name === SETTLEMENT_CONFIRMED_QUEUE.name) {
+          confirmedEvents.push(payload as SettlementConfirmedPayload)
+        }
+        if (definition.name === STATEMENT_CLOSED_QUEUE.name) {
+          closedEvents.push(payload as StatementClosedPayload)
+        }
+        return realPublish(definition, payload, options)
       })
   })
 
@@ -485,7 +490,9 @@ describe('Liquidaciones (e2e, Postgres)', () => {
         [expenseId],
       )
       expect(expenses.body.data.items[0].settlementId).toBe(id)
-      await waitFor(() => confirmedEvents.some((e) => e.settlementId === id))
+      await waitFor(() => confirmedEvents.some((e) => e.settlementId === id), {
+        what: `evento settlement-confirmed de la liquidación ${id}`,
+      })
       expect(confirmedEvents.find((e) => e.settlementId === id)).toEqual({
         settlementId: id,
         ownerId: contract.ownerId,
@@ -611,6 +618,31 @@ describe('Liquidaciones (e2e, Postgres)', () => {
       // Darle tiempo al listener: no debe crear nada.
       await new Promise((resolve) => setTimeout(resolve, 1500))
       expect(await settlementsOf(direct.id)).toEqual([])
+
+      // Confirmar y cancelar a la vez: gana una sola. Antes el estado se
+      // chequeaba fuera de la transacción y el UPDATE final no lo miraba, y la
+      // liquidación podía quedar CONFIRMED con las líneas ya soltadas.
+      const racing = await createContract()
+      await payInstallment(racing.id, previous)
+      const racingId = await waitForDraft(racing.id)
+      const [confirmRace, cancelRace] = await Promise.all([
+        api(adminToken).post(`/settlements/${racingId}/confirm`),
+        api(adminToken)
+          .post(`/settlements/${racingId}/cancel`)
+          .send({ reason: 'a la vez' }),
+      ])
+      expect([confirmRace.status, cancelRace.status].sort()).toEqual([200, 409])
+      const loser = confirmRace.status === 409 ? confirmRace : cancelRace
+      expect(loser.body.code).toBe('SETTLEMENT_NOT_PENDING')
+      const raced = await api(adminToken)
+        .get(`/settlements/${racingId}`)
+        .expect(200)
+      expect(raced.body.data.status).toBe(
+        confirmRace.status === 200 ? 'CONFIRMED' : 'CANCELLED',
+      )
+      if (confirmRace.status === 200) {
+        expect(raced.body.data.payments.length).toBeGreaterThan(0)
+      }
 
       // Cancelar libera los pagos para una liquidación nueva (secuencia 2).
       const contract = await createContract()
@@ -878,7 +910,9 @@ describe('Liquidaciones (e2e, Postgres)', () => {
         id: firstId,
         transferredTotal: '20000.00',
       })
-      await waitFor(() => closedEvents.some((e) => e.statementId === id))
+      await waitFor(() => closedEvents.some((e) => e.statementId === id), {
+        what: `evento statement-closed del consolidado ${id}`,
+      })
       expect(closedEvents.find((e) => e.statementId === id)).toEqual({
         statementId: id,
         ownerId,

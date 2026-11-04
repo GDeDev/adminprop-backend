@@ -70,6 +70,7 @@ import {
   TerminationResultDto,
   UpdateContractDto,
 } from '../dtos/contract.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 function toSurety(dto: {
   hasSurety: boolean
@@ -352,7 +353,7 @@ export class ContractsController {
 
   @Post(':id/documents/contract')
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_DOCUMENT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_DOCUMENT_BYTES) }),
   )
   @ApiOperation({
     summary: 'Subir el PDF del contrato firmado (reemplaza al anterior)',
@@ -374,7 +375,7 @@ export class ContractsController {
 
   @Post(':id/documents/policy')
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_DOCUMENT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_DOCUMENT_BYTES) }),
   )
   @ApiOperation({
     summary: 'Subir el PDF de la póliza de caución (reemplaza al anterior)',

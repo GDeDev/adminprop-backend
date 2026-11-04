@@ -97,13 +97,20 @@ export class JobScheduler {
     tenantId: string | null,
     options: EnqueueOptions,
   ): Promise<JobExecution | null> {
-    const execution = await this.executions.create({
+    const data = {
       job: definition.name,
       tenantId,
       scheduledFor: options.scheduledFor,
       triggeredBy: options.triggeredBy,
       triggeredByUserId: options.triggeredByUserId ?? null,
-    })
+    }
+    // Las programadas reservan su lugar en la base antes de publicar: si otra
+    // réplica ya lo tomó, no hay nada que encolar.
+    const execution =
+      options.triggeredBy === JobTrigger.MANUAL
+        ? await this.executions.create(data)
+        : await this.executions.createScheduled(data, Number(options.slot))
+    if (!execution) return null
     const message: JobMessage = {
       job: definition.name,
       executionId: execution.id,

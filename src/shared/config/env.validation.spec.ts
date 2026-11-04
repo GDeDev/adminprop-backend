@@ -17,6 +17,39 @@ describe('validateEnv', () => {
     expect(result.NODE_ENV).toBe(Environment.Development)
   })
 
+  it('acepta las variables de los sitios web, con el booleano como texto', () => {
+    // Doppler y los .env entregan siempre strings: "false" tiene que ser false.
+    // Antes SITES_DOMAIN_VERIFICATION=false se rechazaba (faltaba @toBool).
+    const result = validateEnv({
+      ...VALID_ENV,
+      SITES_DOMAIN_VERIFICATION: 'false',
+      SITES_BASE_DOMAIN: 'sitios.test',
+      SITES_REVALIDATE_URL: 'http://localhost:3003',
+      SITES_REVALIDATE_SECRET: 'secreto',
+    })
+
+    expect(result.SITES_DOMAIN_VERIFICATION).toBe(false)
+    expect(validateEnv(VALID_ENV).SITES_DOMAIN_VERIFICATION).toBeUndefined()
+  })
+
+  it('SITES_PREVIEW_SECRET es obligatoria y larga en producción, y opcional afuera', () => {
+    const production = { ...VALID_ENV, NODE_ENV: 'production' }
+
+    expect(() => validateEnv(production)).toThrow(/SITES_PREVIEW_SECRET/)
+    expect(() =>
+      validateEnv({ ...production, SITES_PREVIEW_SECRET: 'corta' }),
+    ).toThrow(/SITES_PREVIEW_SECRET/)
+    expect(() =>
+      validateEnv({ ...production, SITES_PREVIEW_SECRET: 'p'.repeat(40) }),
+    ).not.toThrow()
+    // Antes qa quedaba con el valor fijo del repo, que es público.
+    expect(() => validateEnv({ ...VALID_ENV, NODE_ENV: 'qa' })).toThrow(
+      /SITES_PREVIEW_SECRET/,
+    )
+    // En desarrollo y test alcanza con el valor de desarrollo.
+    expect(() => validateEnv(VALID_ENV)).not.toThrow()
+  })
+
   it('falla si falta DATABASE_URL', () => {
     const { DATABASE_URL: _omitted, ...withoutDb } = VALID_ENV
 
@@ -127,5 +160,32 @@ describe('validateEnv', () => {
         }),
       ).toThrow(/fake/)
     })
+  })
+
+  // Antes sólo se advertía con un log al arrancar y la API quedaba abierta.
+  it('rechaza CORS_ORIGINS con * fuera de desarrollo y test', () => {
+    const preview = { SITES_PREVIEW_SECRET: 'p'.repeat(40) }
+    for (const NODE_ENV of ['production', 'qa']) {
+      expect(() =>
+        validateEnv({ ...VALID_ENV, ...preview, NODE_ENV, CORS_ORIGINS: '*' }),
+      ).toThrow(/CORS_ORIGINS/)
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          ...preview,
+          NODE_ENV,
+          CORS_ORIGINS: 'https://a.com, *',
+        }),
+      ).toThrow(/CORS_ORIGINS/)
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          ...preview,
+          NODE_ENV,
+          CORS_ORIGINS: 'https://a.com,https://b.com',
+        }),
+      ).not.toThrow()
+    }
+    expect(() => validateEnv({ ...VALID_ENV, CORS_ORIGINS: '*' })).not.toThrow()
   })
 })

@@ -49,6 +49,7 @@ import {
   OwnerFeeAccountDto,
   RegisterFeePaymentDto,
 } from '../dtos/statement.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 /**
  * Cuenta de honorarios de la inmobiliaria (4.8, Micaela #9B y #10). Admin y
@@ -121,7 +122,7 @@ export class FeesController {
   @Post('fee-payments')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_RECEIPT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_RECEIPT_BYTES) }),
   )
   @ApiOperation({
     summary: 'Registrar un pago de honorarios',

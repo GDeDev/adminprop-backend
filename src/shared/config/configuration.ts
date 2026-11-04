@@ -151,6 +151,28 @@ export interface ListingsConfig {
   }
 }
 
+export interface SitesConfig {
+  /** Dominio de los subdominios de sitios, en minúsculas; null si no hay. */
+  baseDomain: string | null
+  protocol: 'http' | 'https'
+  /** Base del acceso por slug (`/_s/<slug>`); null en producción. */
+  devUrl: string | null
+  /** Hosts https permitidos para imágenes además de nuestro storage. */
+  allowedImageHosts: string[]
+  /** Secreto del token de vista previa. */
+  previewSecret: string
+  /** Exige verificar con un TXT el dominio propio (default true). */
+  domainVerification: boolean
+  /**
+   * Secreto compartido con `apps/sites` (el mismo de la revalidación): quien lo
+   * manda en `X-Sites-Secret` no cuenta contra el tope por IP de las lecturas
+   * públicas del sitio. Null = nadie se saltea el tope.
+   */
+  serverSecret: string | null
+  /** Aviso a `apps/sites` al publicar; sin URL o secreto no se avisa. */
+  revalidate: { url: string; secret: string } | null
+}
+
 export interface Configuration {
   app: AppConfig
   database: DatabaseConfig
@@ -169,6 +191,7 @@ export interface Configuration {
   valuation: ValuationConfig
   security: SecurityConfig
   listings: ListingsConfig
+  sites: SitesConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -228,8 +251,12 @@ export function configuration(): Configuration {
       isProduction,
       isDevelopment,
       logLevel: str(process.env.LOG_LEVEL, isProduction ? 'info' : 'debug'),
-      // En producción el Swagger queda apagado salvo que lo pidas explícitamente.
-      swaggerEnabled: bool(process.env.SWAGGER_ENABLED, !isProduction),
+      // Swagger sólo arranca solo en desarrollo y test. En cualquier otro entorno
+      // (qa incluido) queda apagado salvo que lo pidas con SWAGGER_ENABLED.
+      swaggerEnabled: bool(
+        process.env.SWAGGER_ENABLED,
+        env === Environment.Development || env === Environment.Test,
+      ),
       bodyLimit: str(process.env.BODY_LIMIT, '1mb'),
       trustProxy: bool(process.env.TRUST_PROXY, isProduction),
     },
@@ -375,6 +402,44 @@ export function configuration(): Configuration {
         TokkoSourceProvider.Fixture,
       ) as TokkoSourceProvider,
       apiKey: process.env.TOKKO_API_KEY || null,
+    },
+    sites: {
+      baseDomain:
+        str(process.env.SITES_BASE_DOMAIN, '').trim().toLowerCase() || null,
+      protocol:
+        str(process.env.SITES_PROTOCOL, 'https') === 'http' ? 'http' : 'https',
+      devUrl: process.env.SITES_DEV_URL
+        ? process.env.SITES_DEV_URL.replace(/\/+$/, '')
+        : isProduction
+          ? null
+          : 'http://localhost:3003',
+      allowedImageHosts: str(process.env.SITES_ALLOWED_IMAGE_HOSTS, '')
+        .split(',')
+        .map((h) => h.trim().toLowerCase())
+        .filter(Boolean),
+      domainVerification: bool(process.env.SITES_DOMAIN_VERIFICATION, true),
+      // Secreto propio del throttle. Si no está definido se cae a
+      // SITES_REVALIDATE_SECRET para no romper despliegues existentes, pero
+      // conviene separarlos: quien conozca el de revalidar no debería poder
+      // saltearse el límite de lectura (y viceversa).
+      serverSecret:
+        process.env.SITES_SERVER_SECRET ||
+        process.env.SITES_REVALIDATE_SECRET ||
+        null,
+      revalidate:
+        process.env.SITES_REVALIDATE_URL && process.env.SITES_REVALIDATE_SECRET
+          ? {
+              url: process.env.SITES_REVALIDATE_URL.replace(/\/+$/, ''),
+              secret: process.env.SITES_REVALIDATE_SECRET,
+            }
+          : null,
+      // Fuera de desarrollo y test `validateEnv` ya exigió un secreto propio y
+      // largo. En desarrollo y test hay un valor fijo: NO se deriva de
+      // JWT_ACCESS_SECRET (un secreto distinto para una cosa distinta).
+      previewSecret: str(
+        process.env.SITES_PREVIEW_SECRET,
+        'desarrollo-solo-secreto-de-vista-previa-no-usar-en-produccion',
+      ),
     },
     automations: {
       enabled: bool(process.env.AUTOMATIONS_ENABLED, true),

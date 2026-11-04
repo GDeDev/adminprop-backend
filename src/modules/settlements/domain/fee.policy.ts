@@ -1,10 +1,11 @@
-import { IsoDate } from '@/shared/dates/calendar-date'
+import { IsoDate, localDateOf } from '@/shared/dates/calendar-date'
 import {
   addMoney,
   compareMoney,
   percentageOf,
   roundMoney,
   subtractMoney,
+  sumMoney,
   toDecimal,
   toMoneyString,
 } from '@/shared/money'
@@ -21,10 +22,6 @@ import {
 import { InvalidFeePaymentAmountException } from './settlement.exceptions'
 
 const ZERO = toMoneyString('0')
-
-function sum(values: string[]): string {
-  return toMoneyString(addMoney(ZERO, ...values))
-}
 
 /** Lo cobrado de una cuota que puede entrar en la base del honorario. */
 export interface CollectedForFee {
@@ -115,7 +112,7 @@ export const FeePolicy = {
     collected: CollectedForFee,
     rules: OwnerFeeRules,
   ): FeeComputation {
-    const base = sum([
+    const base = sumMoney([
       collected.rentApplied,
       rules.feeIncludesLateFees ? collected.lateFeeApplied : ZERO,
       rules.feeIncludesCharges ? collected.ownerChargesApplied : ZERO,
@@ -213,14 +210,14 @@ export const FeePolicy = {
         (r) =>
           r.currency === currency && r.status !== FeeReceivableStatus.VOIDED,
       )
-      const accrued = sum(active.map((r) => r.amount))
-      const collected = sum(active.map((r) => r.paidAmount))
+      const accrued = sumMoney(active.map((r) => r.amount))
+      const collected = sumMoney(active.map((r) => r.paidAmount))
       return {
         currency,
         accrued,
         collected,
         pending: toMoneyString(subtractMoney(accrued, collected)),
-        unallocated: sum(
+        unallocated: sumMoney(
           payments
             .filter((p) => p.currency === currency && p.voidedAt === null)
             .map((p) => p.unallocatedAmount),
@@ -244,7 +241,7 @@ export const FeePolicy = {
   ): FeeMovement[] {
     type Draft = Omit<FeeMovement, 'balance'> & { order: number; stamp: number }
     const drafts: Draft[] = []
-    const day = (d: Date) => d.toISOString().slice(0, 10)
+    const day = (d: Date) => localDateOf(d)
     for (const r of receivables) {
       drafts.push({
         date: day(r.createdAt),
