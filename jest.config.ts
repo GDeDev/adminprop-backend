@@ -19,15 +19,16 @@ const config: Config = {
   ],
   coverageDirectory: '../coverage',
 
-  // Umbral bajo a propósito: es un piso para que la cobertura no caiga sin que
-  // nadie se entere, no una meta. Subilo a medida que crezca el dominio; poner
-  // un número alto de entrada sólo lleva a escribir tests de relleno.
+  // Un piso para que la cobertura no caiga sin que nadie se entere, no una
+  // meta. Está apenas por debajo de lo medido con los unitarios solos
+  // (47,96 / 35,35 / 32,49 / 47,43); subilo cuando el número real suba, y no
+  // antes: poner uno alto de entrada sólo lleva a escribir tests de relleno.
   coverageThreshold: {
     global: {
-      statements: 28,
-      branches: 20,
-      functions: 20,
-      lines: 28,
+      statements: 47,
+      branches: 35,
+      functions: 32,
+      lines: 47,
     },
   },
 
