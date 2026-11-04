@@ -89,9 +89,12 @@ Notas: el ítem 5 también marca las tres lecturas del portal público (`propert
 ## Cómo se probó
 
 - `tsc`, lint y formato limpios.
-- **690 unitarios** (74 suites), 59 de ellos del módulo `site`.
-- **e2e completa corrida archivo por archivo contra Postgres real: 28 suites, 478 tests.** Todas en verde **salvo `settlements`**, que falla de forma intermitente (1 o 2 de 9 tests, siempre por `waitFor: la condición no se cumplió en 15000ms` en el cierre asíncrono por cola) **también en la rama base `feature/fase-14-notificaciones`, sin ningún cambio mío** (3 de 3 corridas con fallas): es una intermitencia previa de este entorno de pruebas, no de este PR. En la primera ronda había pasado 9/9 corriéndolo solo. Hay que mirarlo en el CI real. Los e2e se corren de a un archivo porque pg-boss puede dar un `deadlock detected` al crear colas cuando dos aplicaciones arrancan seguidas en la misma base (ya ocurría antes).
-- `test/site.e2e-spec.ts` (37 casos): 401/403 en todas las rutas, creación al primer GET, borrador vs publicado, despublicar, publicar incompleto o ilegible, XSS en cada campo, imágenes (SVG, HTML disfrazado, > 5 MB, imagen de otra inmobiliaria), unicidad global de subdominio/dominio, auditoría, host, vista previa (token ajeno, vencido, access token) y **aislamiento entre dos inmobiliarias** (sitio, propiedades y consultas).
+- **700 unitarios** (77 suites), todos en verde.
+- **e2e completa corrida archivo por archivo contra Postgres real: 28 suites, 486 tests. 26 suites en verde; 2 archivos con 1 falla cada uno, ambos previos y ajenos a este PR** (los dos fallan también en la rama base `feature/fase-14-notificaciones` sin ningún cambio mío, comprobado):
+  - `settlements`: intermitente, `waitFor: la condición no se cumplió en 15000ms` en el cierre asíncrono por cola (3 de 3 corridas con fallas en la base).
+  - `audit` («filtra por fechas y por texto»): **depende de la hora**. Arma `from=<fecha UTC de hoy>` y la API lo interpreta como un día argentino (UTC-3): entre las 00:00 y las 03:00 UTC los eventos de «hoy» caen antes de ese inicio y el test da 0. Falló a las 00:22 UTC en la rama base y en esta; pasa fuera de esa franja.
+    Los e2e se corren de a un archivo porque pg-boss puede dar un `deadlock detected` al crear colas cuando dos aplicaciones arrancan seguidas en la misma base (ya ocurría antes).
+- `test/site.e2e-spec.ts` (44 casos): 401/403 en todas las rutas, creación al primer GET, borrador vs publicado, despublicar, publicar incompleto o ilegible, XSS en cada campo, imágenes (SVG, HTML disfrazado, > 5 MB, imagen de otra inmobiliaria), unicidad global de subdominio/dominio, auditoría, host, vista previa (token ajeno, vencido, access token) y **aislamiento entre dos inmobiliarias** (sitio, propiedades y consultas).
 - Las migraciones se generaron con `migrate diff` y se aplicaron con `migrate deploy` sobre bases descartables; el diff contra el schema da vacío. Nunca `migrate dev` ni `reset`.
 
 ## Después de mergear
