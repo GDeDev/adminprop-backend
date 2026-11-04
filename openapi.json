@@ -27859,6 +27859,33 @@
           "provider"
         ]
       },
+      "ImportEntityCountsDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number"
+          },
+          "valid": {
+            "type": "number"
+          },
+          "errors": {
+            "type": "number"
+          },
+          "conflicts": {
+            "type": "number"
+          },
+          "imported": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "total",
+          "valid",
+          "errors",
+          "conflicts",
+          "imported"
+        ]
+      },
       "StartMigrationResultDto": {
         "type": "object",
         "properties": {
