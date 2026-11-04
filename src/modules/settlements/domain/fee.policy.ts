@@ -1,4 +1,4 @@
-import { IsoDate } from '@/shared/dates/calendar-date'
+import { IsoDate, localDateOf } from '@/shared/dates/calendar-date'
 import {
   addMoney,
   compareMoney,
@@ -244,7 +244,7 @@ export const FeePolicy = {
   ): FeeMovement[] {
     type Draft = Omit<FeeMovement, 'balance'> & { order: number; stamp: number }
     const drafts: Draft[] = []
-    const day = (d: Date) => d.toISOString().slice(0, 10)
+    const day = (d: Date) => localDateOf(d)
     for (const r of receivables) {
       drafts.push({
         date: day(r.createdAt),

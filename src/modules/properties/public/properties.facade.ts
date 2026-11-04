@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { CommandBus, EventBus } from '@nestjs/cqrs'
 
 import { fillEmptyFields } from '@/shared/core/fill-empty-fields'
-import { IsoDate, toIsoDate } from '@/shared/dates/calendar-date'
+import { IsoDate, localDateOf } from '@/shared/dates/calendar-date'
 import {
   AddPropertyPhotosCommand,
   CreatePropertyCommand,
@@ -358,7 +358,7 @@ export class PropertiesFacade {
       address: property.address,
       status: property.status,
       ownerId: property.ownerId,
-      createdAt: toIsoDate(property.createdAt),
+      createdAt: localDateOf(property.createdAt),
     }))
   }
 

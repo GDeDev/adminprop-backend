@@ -677,6 +677,7 @@ model Owner {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, bankCbu])
   @@index([tenantId, deletedAt])
+  @@index([portalUserId])
   @@map("owners")
 }
 
@@ -775,6 +776,7 @@ model Renter {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, guarantorId])
   @@index([tenantId, deletedAt])
+  @@index([portalUserId])
   @@map("renters")
 }
 
@@ -1927,8 +1929,16 @@ model JobExecution {
   triggeredBy       JobTrigger @default(SCHEDULE) @map("triggered_by")
   triggeredByUserId String?    @map("triggered_by_user_id") @db.Uuid
 
+  /// Número de corrida del día (0, 1, ...) de las programadas. Junto con job,
+  /// tenant y día es único (índice parcial `job_executions_scheduled_slot_key`,
+  /// que vive sólo en SQL): así dos réplicas no encolan la misma corrida.
+  slot Int?
+
   @@index([tenantId, job, scheduledFor])
   @@index([job, startedAt])
+  /// `countScheduled` filtra sólo por día: sin esto recorre toda la tabla
+  /// cada 10 minutos en cada instancia.
+  @@index([scheduledFor])
   @@map("job_executions")
 }
 

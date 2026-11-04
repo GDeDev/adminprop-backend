@@ -56,6 +56,15 @@ export interface PageArgs {
 export abstract class JobExecutionRepository {
   abstract create(data: NewJobExecution): Promise<JobExecution>
 
+  /**
+   * Reserva la corrida programada `slot` del día. `null` si otra instancia ya
+   * la reservó (el índice único lo decide en la base, sin carrera).
+   */
+  abstract createScheduled(
+    data: NewJobExecution,
+    slot: number,
+  ): Promise<JobExecution | null>
+
   abstract findById(id: string): Promise<JobExecution | null>
 
   /** Vuelve a `RUNNING` (reintento de la cola) sin tocar el resto. */

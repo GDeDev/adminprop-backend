@@ -121,6 +121,7 @@ export class PgBossQueueAdapter extends QueuePort {
         definition.retryDelaySeconds ?? QUEUE_DEFAULTS.retryDelaySeconds,
       retryBackoff: definition.retryBackoff ?? QUEUE_DEFAULTS.retryBackoff,
       deadLetter,
+      ...(definition.dedupeBySingletonKey ? { policy: 'short' as const } : {}),
     })
   }
 }

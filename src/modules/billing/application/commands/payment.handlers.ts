@@ -415,6 +415,13 @@ export class ConfirmPaymentHandler implements ICommandHandler<
       confirmedById: requireUser(),
       confirmedAt: new Date(),
     })
+    if (!confirmed) {
+      // Entre la lectura y el UPDATE lo confirmó o lo anuló otro request.
+      const current = await this.payments.findById(payment.id)
+      throw current?.status === PaymentStatus.VOIDED
+        ? new PaymentAlreadyVoidedException(payment.id)
+        : new PaymentAlreadyConfirmedException(payment.id)
+    }
     const installment = await this.installments.findById(payment.installmentId)
     if (installment) publishConfirmed(this.eventBus, installment, [confirmed])
     const detail = installment ? await this.views.detail(installment) : null
@@ -467,6 +474,16 @@ export class VoidPaymentHandler implements ICommandHandler<
     }
 
     const updated = await this.prisma.transaction(async () => {
+      // Primero se reserva la anulación: si dos requests anulan el mismo pago,
+      // el segundo espera el lock de la fila, ve que ya está anulado y falla
+      // sin tocar el crédito (una aplicación de crédito devolvía el saldo dos
+      // veces).
+      const voided = await this.payments.void(payment.id, {
+        voidedById,
+        voidedAt: new Date(),
+        voidReason: reason,
+      })
+      if (!voided) throw new PaymentAlreadyVoidedException(payment.id)
       if (generated) {
         await this.credits.update(generated.id, {
           remaining: toMoneyString('0'),
@@ -487,11 +504,6 @@ export class VoidPaymentHandler implements ICommandHandler<
           })
         }
       }
-      const voided = await this.payments.void(payment.id, {
-        voidedById,
-        voidedAt: new Date(),
-        voidReason: reason,
-      })
       return {
         voided,
         installment: await this.recalculator.recalculate(payment.installmentId),

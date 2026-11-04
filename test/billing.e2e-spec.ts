@@ -790,6 +790,10 @@ describe('Cobros (e2e, Postgres)', () => {
         .get('/billing/payments?status=PENDING_CONFIRMATION&receivedBy=OWNER')
         .expect(200)
       expect(pending.body.data.pagination.total).toBe(1)
+      // El número del dashboard sale de un count, no de traer los pagos.
+      expect(
+        await inTenantA(() => app.get(BillingFacade).countPaymentsToConfirm()),
+      ).toBe(1)
       expect(pending.body.data.data[0]).toMatchObject({
         id: paymentId,
         renter: { id: contract.renterId },
@@ -806,6 +810,9 @@ describe('Cobros (e2e, Postgres)', () => {
         confirmedBy: { fullName: 'emp@a.com' },
       })
       expect(confirmed.body.data.confirmedAt).not.toBeNull()
+      expect(
+        await inTenantA(() => app.get(BillingFacade).countPaymentsToConfirm()),
+      ).toBe(0)
       const twice = await api(adminToken)
         .post(`/billing/payments/${paymentId}/confirm`)
         .expect(409)
@@ -829,6 +836,56 @@ describe('Cobros (e2e, Postgres)', () => {
         feeOnCollected: '5000.00',
         collectionMode: 'OWNER_DIRECT',
       })
+    })
+
+    it('dos confirmaciones simultáneas del mismo pago: una gana y la otra recibe 409', async () => {
+      // Antes las dos leían "pendiente" y las dos actualizaban: la condición
+      // de estado no estaba en el UPDATE.
+      const contract = await createContract({
+        collectionMode: 'OWNER_DIRECT',
+        lateFeeGraceDays: 31,
+      })
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+      const informed = await pay(id, {
+        paidAt: day(5),
+        amount: '100000',
+      }).expect(201)
+      const paymentId = informed.body.data.payment.id as string
+
+      const responses = await Promise.all([
+        api(adminToken).post(`/billing/payments/${paymentId}/confirm`),
+        api(employeeToken).post(`/billing/payments/${paymentId}/confirm`),
+      ])
+
+      expect(responses.map((r) => r.status).sort()).toEqual([200, 409])
+      expect(responses.find((r) => r.status === 409)?.body.code).toBe(
+        'PAYMENT_ALREADY_CONFIRMED',
+      )
+    })
+
+    it('dos anulaciones simultáneas del mismo pago: una gana y la otra recibe 409', async () => {
+      const contract = await createContract()
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+      const paid = await pay(id, { paidAt: day(2), amount: '110000' }).expect(
+        201,
+      )
+      const paymentId = paid.body.data.payment.id as string
+
+      const responses = await Promise.all([
+        api(adminToken)
+          .post(`/billing/payments/${paymentId}/void`)
+          .send({ reason: 'primera' }),
+        api(adminToken)
+          .post(`/billing/payments/${paymentId}/void`)
+          .send({ reason: 'segunda' }),
+      ])
+
+      expect(responses.map((r) => r.status).sort()).toEqual([200, 409])
+      expect(responses.find((r) => r.status === 409)?.body.code).toBe(
+        'PAYMENT_ALREADY_VOIDED',
+      )
     })
 
     it('anular un pago (sólo admin) reabre la cuota y vuelve a calcular el punitorio en vivo', async () => {
