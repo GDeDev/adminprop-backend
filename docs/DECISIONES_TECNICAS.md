@@ -1436,3 +1436,65 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Migración**: aditiva (`ALTER TYPE "SiteTemplateKey" ADD VALUE 'LUXURY'`); no toca filas existentes. No se puede revertir un valor de enum en Postgres sin recrear el tipo; es aceptable porque nada lo usa hasta que alguien elige el template.
 - **Catálogo**: `GET /site/templates` (ya existía) lista ahora tres elementos; no hace falta un endpoint nuevo. El frontend debe tolerar claves desconocidas en `PublicSite.template` (un sitio publicado con `LUXURY` visto por un front viejo).
 - **Código**: la validación y el fallback de tipografías usan `SITE_TEMPLATE_KEYS` en vez de un `=== 'MODERN'` fijo, para que un template nuevo no quede validado con las fuentes de CLASSIC.
+
+## Brechas de las respuestas de Micaela (rama `feat/micaela-brechas-backend`)
+
+> Salen de `docs/VERIFICACION_RESPUESTAS_MICAELA.md` (repo `adminprop-repo-files`): cuatro puntos donde el código no cumplía lo que Micaela había pedido. Cada decisión lista sus **supuestos**; los que no son obvios son los que hay que confirmar con ella o con el dueño.
+
+### D-226 · Devolución del depósito: el monto de referencia depende del modo del contrato (Micaela #1)
+
+- **Antes**: `DepositReturnPolicy.assertBalanced` exigía `devuelto + deducciones = depósito recibido`. Con el modo "sigue al alquiler" y un alquiler que subió (depósito 200.000, alquiler 260.000, devolver 260.000) daba 400 `DEPOSIT_RETURN_UNBALANCED`; el modo era un dato que no gobernaba nada.
+- **Regla ahora**: el depósito se registra por lo recibido y su moneda y **no se actualiza solo** (sin cambios). Al devolverlo, el modo del contrato fija el **monto de referencia**:
+  - `FIXED`: lo recibido.
+  - `FOLLOWS_RENT`: el alquiler vigente al cerrar (el "último mes"), si el alquiler y el depósito están en la misma moneda.
+  - `MANUAL`: el que se indique al cerrar las cuentas (`referenceAmount`, obligatorio, mayor que cero; puede superar lo recibido).
+
+  Las **deducciones justificadas** (deuda, daño u otro; descripción obligatoria, ya lo era) se descuentan de esa referencia y lo que queda es lo que se devuelve: `returnedAmount = referenceAmount - Σ deducciones`. Si las deducciones superan la referencia, 400 `DEPOSIT_RETURN_DEDUCTIONS_EXCEED`.
+
+- **Contrato HTTP** (`POST /contracts/:id/deposit-return`): `returnedAmount` pasa a **opcional** (se calcula; si viene tiene que coincidir, si no 400 `DEPOSIT_RETURN_UNBALANCED`, que sigue existiendo con otro significado) y se suma `referenceAmount` opcional. En los modos automáticos, un `referenceAmount` que no coincide con el calculado es 400 `DEPOSIT_RETURN_INVALID_REFERENCE` (pantalla desactualizada, no una decisión). Los clientes que ya mandaban `returnedAmount` con el contrato en `FIXED` siguen funcionando igual.
+- **Persistencia**: `deposit_returns.mode` y `reference_amount`; la migración rellena las devoluciones existentes con `FIXED` y `reference_amount = deposit_amount` (así cerraron).
+- **Cuenta corriente**: los movimientos `DEPOSIT_RECEIVED`, `DEPOSIT_RETURNED` y `DEPOSIT_DEDUCTION` traen ahora `amount` y `amountCurrency` (antes iban sin importe). Siguen sin tocar el `balance` (el depósito no es deuda ni pago de alquiler). La deuda cubierta con el depósito sigue siendo un pago `DEPOSIT` sobre la cuota, que sí mueve el saldo. `suggestedReturn` devuelve `null` para `FOLLOWS_RENT` en otra moneda.
+- **Supuestos**:
+  1. **Alquiler en otra moneda que el depósito** (modo `FOLLOWS_RENT`): no se convierte (no hay cotización en una devolución, igual que las deudas D-83); hay que indicar el monto a mano. Se pidió coherencia con "no hay cotización" antes que inventar una.
+  2. **Una sola devolución por contrato** (sin cambios): no hay devoluciones en partes ni diferidas.
+  3. El modo que vale es el que tiene el contrato **al momento de devolver** (se puede cambiar con `PATCH /contracts/:id` antes); queda guardado en la devolución.
+  4. Una deducción por daño/otro no genera deuda ni movimiento de saldo; sólo reduce lo devuelto.
+  5. El ejemplo de Micaela (200.000 recibidos, alquiler 260.000) con `FOLLOWS_RENT` devuelve 260.000 aunque se hayan recibido 200.000: la diferencia sale de la inmobiliaria o del propietario, el sistema no dice de dónde (fuera de alcance).
+
+### D-227 · Punitorio sin 5 % por defecto y "desde cuándo corre" configurable (Micaela #3)
+
+- **Antes**: `Tenant.dailyLateFeePercentage @default(5)`; todo contrato sin % propio corría al 5 % diario y la inmobiliaria no tenía forma de cambiarlo. El "desde cuándo" era sólo `lateFeeGraceDays`.
+- **Porcentaje**: la columna deja de tener default y pasa a **nullable** (`NULL` = "la inmobiliaria no fijó uno"). La migración **conserva los valores existentes** (todas las inmobiliarias actuales siguen con el que tenían, 5 si nunca lo tocaron).
+  - **Al crear la inmobiliaria** (`npm run tenant:create`): `--late-fee-percentage` opcional; sin él nace sin punitorio por defecto (el script avisa). El seed de demo lo fija en 5 explícito.
+  - **Al crear, renovar o cambiar los términos de un contrato**: si ni el contrato ni la inmobiliaria tienen un %, 400 `CONTRACT_LATE_FEE_PERCENTAGE_REQUIRED`.
+  - **Editarlo**: `PATCH /tenants/current/settings` (admin) acepta `dailyLateFeePercentage` (0 a 100, 2 decimales; `0` = sin punitorio) y `paymentGraceDays` (0 a 60). `GET` los devuelve junto con `lateFeeStartDay`. Una vez fijado el %, **no se puede quitar** (`null` es 400 `TENANT_INVALID_BILLING_SETTING`): si no, los contratos que lo heredan quedarían sin valor. Cambiarlo afecta a las cuotas que se generen de ahí en más; las ya generadas conservan su snapshot (D-71).
+- **"Desde cuándo corre"**: el contrato (alta y cambio de términos, también la renovación) acepta `lateFeeStartDay` (día del mes, 1 a 31) **en vez de** `lateFeeGraceDays`. Es lo mismo dicho al revés (inicio = gracia + 1: gracia 10 ↔ inicio el día 11), así que se guarda como gracia: **no hay columna nueva ni cambia ningún contrato existente** (default migrado = valor actual). Los dos juntos son 400 `CONTRACT_INVALID_BILLING_TERMS`. Los términos resueltos y la ficha exponen `lateFeeStartDay`.
+- **Supuestos**:
+  1. "Fecha desde la que comienza a aplicarse" se interpretó como **día del mes** (el alquiler es mensual), no como una fecha de calendario única. Una fecha absoluta (por ejemplo "el punitorio rige desde el 01/12/2026 para todo el contrato") no está construida: confirmar con Micaela si la quería así.
+  2. El día de inicio no se guarda: se convierte a gracia al escribir. Un contrato cargado con `lateFeeStartDay: 16` se ve con `lateFeeGraceDays: 15`.
+  3. Si falta el % en ambos lados en la **lectura** (no debería pasar: las altas lo exigen y el % del tenant no se puede borrar) la resolución cae en `0.00` en vez de fallar: sin punitorio antes que uno inventado. Los contratos **importados ya finalizados** (Fase 21) no pasan por la validación (son históricos).
+  4. La migración de datos (Fase 21) de contratos **activos** hacia una inmobiliaria sin % por defecto falla por fila con ese error; hay que fijar el % antes.
+  5. No se tocó "subir o fijar un monto / deshacer una condonación" (hallazgo 19, baja prioridad).
+
+### D-228 · El modo de envío del consolidado lo leen los avisos (Micaela #7)
+
+- **Antes**: `Owner.statementSendMode` y `OwnerStatement.sendMode` se guardaban pero **nadie los leía**: el mail de cada liquidación salía siempre y el del consolidado también.
+- **Ahora**:
+  - `SETTLEMENT_CONFIRMED` (aviso de cada liquidación) lee el `statementSendMode` **vigente del propietario**: con `SUMMARY` no sale.
+  - `OWNER_STATEMENT_CLOSED` (aviso del consolidado) lee el `sendMode` del consolidado (el que se eligió al cerrar, por defecto el del propietario al abrirlo): con `RECEIPTS` no sale.
+  - Al cerrar con `RECEIPTS` o `BOTH`, el consumidor **reenvía los comprobantes individuales que quedaron retenidos** (si el propietario estaba en `SUMMARY` al confirmar y al cerrar se eligió otra cosa). El evento `statement-closed` trae ahora la lista `settlements` (cambio aditivo del contrato de la cola; los mensajes viejos sin la lista se procesan igual). El `dedupeKey` de cada comprobante (`SETTLEMENT_CONFIRMED:<id>`) evita duplicar los que ya salieron.
+- **Supuestos / límites**:
+  1. El aviso individual sale **al confirmar** la liquidación, antes de que exista el consolidado; por eso se decide con el modo del **propietario**, no con el del consolidado. Consecuencia: si el propietario está en `BOTH`/`RECEIPTS` al confirmar y al cerrar se elige `SUMMARY`, los comprobantes **ya salieron y no se pueden retirar**. Para garantizar "sólo el resumen" hay que dejar al propietario en `SUMMARY`.
+  2. Se omiten sólo los **emails** de estos dos avisos. Los PDF (Fase 15) se siguen generando y están disponibles en el portal del propietario; el modo no controla su descarga.
+  3. Los dos avisos siguen siendo `critical` (no los frena el opt-out del destinatario); el modo es una elección de la inmobiliaria sobre lo que se envía, no una preferencia del propietario.
+  4. Un propietario inexistente o borrado no bloquea el aviso (se trata como `BOTH`).
+
+### D-229 · Ajuste manual del alquiler con motivo y autorizante obligatorios (Micaela #8)
+
+- **Antes**: `POST /contracts/:id/rent-updates` con `newRent` guardaba el aumento como `MANUAL` y el usuario que lo aplicó, sin motivo ni quién lo autorizó.
+- **Ahora**: todo monto a mano (los contratos `FIXED` sin %, `OTHER`, o un ajuste manual sobre `ICL`/`IPC`/`FIXED` con %) exige `reason` (hasta 500 caracteres) y `authorizedBy` (hasta 150): faltan o están en blanco → 400 `CONTRACT_MANUAL_ADJUSTMENT_JUSTIFICATION_REQUIRED` (con `metadata.field`) y no cambia nada. Se guardan en `contract_rent_updates.adjustment_reason` y `authorized_by` (nullable: los aumentos por índice, por % fijo, los del cron y los anteriores no los tienen) y salen en `rentUpdates[]` de la ficha.
+- **Orden de validación**: primero que el contrato esté activo y que el aumento esté al día (409, D-60), después el monto y por último la justificación.
+- **Supuestos**:
+  1. `authorizedBy` es **texto libre** (puede ser el propietario, que no es usuario del sistema), no un id de usuario; el usuario que aplicó el cambio sigue en `appliedById`.
+  2. Quién puede hacerlo no cambió: ADMIN y EMPLOYEE. El hallazgo 13 pedía "definir si el empleado puede": **no se restringió** (decisión de negocio pendiente).
+  3. El aumento por `%` fijo automático no es "ajuste manual" y no pide motivo (el % ya está pactado en el contrato).
