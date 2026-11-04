@@ -27,6 +27,14 @@ export interface PropertyData {
   longitude: number | null
 }
 
+/** Orden del listado público. */
+export const PUBLIC_PROPERTY_SORTS = [
+  'recent',
+  'price_asc',
+  'price_desc',
+] as const
+export type PublicPropertySort = (typeof PUBLIC_PROPERTY_SORTS)[number]
+
 /** Filtros del portal público (Fase 22). Siempre sobre propiedades disponibles. */
 export interface PublicPropertyFilter {
   locationId?: string
@@ -42,6 +50,8 @@ export interface PublicPropertyFilter {
   bathroomsMin?: number
   /** Sólo estas (destacadas a mano del sitio web); las no disponibles no vuelven. */
   ids?: string[]
+  /** Por defecto `recent`. */
+  sort?: PublicPropertySort
 }
 
 export interface PropertyFilter {

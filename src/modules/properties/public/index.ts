@@ -9,6 +9,7 @@ export {
   ListingOperation,
   PropertiesFacade,
   PropertyStatus,
+  PUBLIC_PROPERTY_SORTS,
 } from './properties.facade'
 export type {
   OwnerPortfolio,
@@ -19,5 +20,6 @@ export type {
   PublicFiltersView,
   PublicPropertyDetailView,
   PublicPropertyFilter,
+  PublicPropertySort,
   PublicPropertySummaryView,
 } from './properties.facade'

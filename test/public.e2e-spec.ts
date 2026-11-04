@@ -384,6 +384,90 @@ describe('Portal público (e2e, Postgres)', () => {
       })
     })
 
+    describe('orden (sort)', () => {
+      const titles = async (query: string) =>
+        (
+          (await pub.get(`/public/tenant-a/properties?${query}`).expect(200))
+            .body.data.data as { title: string }[]
+        ).map((p) => p.title)
+
+      const seed = async () => {
+        await createProperty({ address: 'Sin precio 1' })
+        await createProperty({ address: 'Media', listingPrice: '200000' })
+        await createProperty({ address: 'Cara', listingPrice: '900000' })
+        await createProperty({ address: 'Barata', listingPrice: '50000' })
+        await createProperty({ address: 'Sin precio 2' })
+      }
+
+      it('sin sort es recent: más nuevas primero', async () => {
+        await seed()
+        const recent = await titles('')
+        expect(recent).toEqual([
+          'Sin precio 2',
+          'Barata',
+          'Cara',
+          'Media',
+          'Sin precio 1',
+        ])
+        expect(await titles('sort=recent')).toEqual(recent)
+      })
+
+      it('price_asc y price_desc ordenan por monto y dejan las sin precio al final', async () => {
+        await seed()
+        // Entre las sin precio manda createdAt desc y después id: determinista.
+        expect(await titles('sort=price_asc')).toEqual([
+          'Barata',
+          'Media',
+          'Cara',
+          'Sin precio 2',
+          'Sin precio 1',
+        ])
+        expect(await titles('sort=price_desc')).toEqual([
+          'Cara',
+          'Media',
+          'Barata',
+          'Sin precio 2',
+          'Sin precio 1',
+        ])
+      })
+
+      it('compara montos como Decimal, no como texto ni float', async () => {
+        await createProperty({ address: 'Nueve', listingPrice: '9' })
+        await createProperty({ address: 'Diez', listingPrice: '10' })
+        await createProperty({ address: 'Centavos', listingPrice: '9.99' })
+        expect(await titles('sort=price_asc')).toEqual([
+          'Nueve',
+          'Centavos',
+          'Diez',
+        ])
+      })
+
+      it('pagina sin repetir ni omitir filas, incluso con precios iguales', async () => {
+        for (const n of [1, 2, 3, 4, 5]) {
+          await createProperty({ address: `Igual ${n}`, listingPrice: '1000' })
+        }
+        await createProperty({ address: 'Sin precio' })
+        for (const sort of ['price_asc', 'price_desc']) {
+          const seen: string[] = []
+          for (const page of [1, 2, 3]) {
+            seen.push(...(await titles(`sort=${sort}&page=${page}&limit=2`)))
+          }
+          expect(new Set(seen).size).toBe(6)
+          expect(seen[5]).toBe('Sin precio')
+        }
+      })
+
+      it('se combina con los filtros y rechaza valores inválidos', async () => {
+        await seed()
+        expect(
+          await titles('sort=price_desc&priceFrom=100000&currency=ARS'),
+        ).toEqual(['Cara', 'Media'])
+        await pub.get('/public/tenant-a/properties?sort=price').expect(400)
+        await pub.get('/public/tenant-a/properties?sort=PRICE_ASC').expect(400)
+        await pub.get('/public/tenant-a/properties?sort=').expect(400)
+      })
+    })
+
     it('rechaza filtros mal formados', async () => {
       await pub.get('/public/tenant-a/properties?priceFrom=abc').expect(400)
       await pub.get('/public/tenant-a/properties?currency=EUR').expect(400)

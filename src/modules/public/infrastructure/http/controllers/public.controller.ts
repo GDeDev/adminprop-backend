@@ -100,6 +100,7 @@ export class PublicController {
           bedroomsMin: query.bedrooms,
           bathroomsMin: query.bathrooms,
           ids: query.ids,
+          sort: query.sort,
         },
         { page: query.page, limit: query.limit },
       ),

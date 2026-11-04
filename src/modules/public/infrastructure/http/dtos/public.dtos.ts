@@ -5,6 +5,7 @@ import {
   IsArray,
   IsEmail,
   IsEnum,
+  IsIn,
   IsInt,
   Max,
   Min,
@@ -16,7 +17,12 @@ import {
   MaxLength,
 } from 'class-validator'
 
-import { ListingCurrency, ListingOperation } from '@/modules/properties/public'
+import {
+  ListingCurrency,
+  ListingOperation,
+  PUBLIC_PROPERTY_SORTS,
+  PublicPropertySort,
+} from '@/modules/properties/public'
 import { PaginationQueryDto } from '@/shared/pagination'
 import {
   PublicInquirySource,
@@ -103,6 +109,18 @@ export class PublicListingQueryDto extends PaginationQueryDto {
   @ArrayMaxSize(12)
   @IsUUID('all', { each: true })
   ids?: string[]
+
+  @ApiPropertyOptional({
+    enum: PUBLIC_PROPERTY_SORTS,
+    default: 'recent',
+    description:
+      'Orden: `recent` (más nuevas primero), `price_asc` (menor precio primero) o `price_desc` (mayor primero). Las que no tienen precio ("Consultar") van siempre al final. El orden por precio compara montos nominales: combinarlo con `currency` para no mezclar ARS y USD.',
+  })
+  @IsOptional()
+  @IsIn(PUBLIC_PROPERTY_SORTS, {
+    message: 'El orden tiene que ser recent, price_asc o price_desc',
+  })
+  sort?: PublicPropertySort
 }
 
 /** `PublicContactRequest` del contrato del portal. */
