@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { TenantBrandingData, TenantsFacade } from '@/modules/tenants/public'
 import { createLogger } from '@/shared/logging/root-logger'
+import { isSafeSvg } from '@/shared/security/svg-safety'
 import { DEFAULT_PRIMARY_COLOR, DocumentBranding } from './templates/layout'
 
 const LOGO_TIMEOUT_MS = 5_000
@@ -25,6 +26,9 @@ function dataUriOf(file: Buffer): string | null {
       file.subarray(0, 1024).toString('utf8'),
     )
   ) {
+    // Logos subidos antes del chequeo pueden ser inseguros: sin logo es mejor
+    // que un SVG con referencias externas dentro del generador de PDFs.
+    if (!isSafeSvg(file)) return null
     return `data:image/svg+xml;base64,${encoded}`
   }
   return null
