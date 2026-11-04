@@ -14,6 +14,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common'
 import { CommandBus, QueryBus } from '@nestjs/cqrs'
+import { Throttle } from '@nestjs/throttler'
 import { FileInterceptor } from '@nestjs/platform-express'
 import {
   ApiBearerAuth,
@@ -67,6 +68,13 @@ import {
 
 const XLSX_MIME = EXPORT_CONTENT_TYPES.xlsx
 
+/**
+ * Lo pesado (subir y analizar un Excel de 10 MB, llamar a Tokko, importar,
+ * traer fotos) se limita más que el resto: 10 por minuto por usuario. Pisa sólo
+ * el perfil `medium`; las ráfagas ya las frena `short`.
+ */
+export const HEAVY_LIMIT = { medium: { limit: 10, ttl: 60_000 } }
+
 const ok = <T>(data: T, message: string | null = null): ApiSuccessDto<T> => ({
   success: true,
   message,
@@ -116,6 +124,7 @@ export class MigrationController {
   }
 
   @Post('excel/analyze')
+  @Throttle(HEAVY_LIMIT)
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(
     FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES } }),
@@ -159,6 +168,7 @@ export class MigrationController {
   // ------------------------------------------------------------------ Tokko
 
   @Post('tokko/analyze')
+  @Throttle(HEAVY_LIMIT)
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: 'Analizar el stock de Tokko (dry-run)',
@@ -269,6 +279,7 @@ export class MigrationController {
   }
 
   @Post('batches/:id/confirm')
+  @Throttle(HEAVY_LIMIT)
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: 'Confirmar el lote revisado',
@@ -320,6 +331,7 @@ export class MigrationController {
   }
 
   @Post('batches/:id/assets/retry')
+  @Throttle(HEAVY_LIMIT)
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Reintentar sólo las fotos que fallaron' })
   @ApiResponse({ status: 202, type: RetryAssetsResultDto })
