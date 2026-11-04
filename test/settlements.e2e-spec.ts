@@ -273,20 +273,22 @@ describe('Liquidaciones (e2e, Postgres)', () => {
   beforeAll(async () => {
     await prisma.$connect()
     app = await createTestApp()
-    // Nadie consume `settlement-confirmed` todavía (Fases 14 y 15): el test
-    // se suscribe para ver que el evento llegó por pg-boss.
-    await app
-      .get(QueuePort)
-      .consume<SettlementConfirmedPayload>(
-        SETTLEMENT_CONFIRMED_QUEUE,
-        async (m) => {
-          confirmedEvents.push(m.payload)
-        },
-      )
-    await app
-      .get(QueuePort)
-      .consume<StatementClosedPayload>(STATEMENT_CLOSED_QUEUE, async (m) => {
-        closedEvents.push(m.payload)
+    // Los eventos se observan espiando `publish` y no con un `consume` propio:
+    // `notifications` ya consume estas dos colas en la misma app y, en pg-boss,
+    // cada mensaje lo toma UN solo worker. Un segundo consumidor competiría con
+    // el real y el test se quedaba esperando un evento que nunca le llegaba.
+    const queue = app.get(QueuePort)
+    const realPublish = queue.publish.bind(queue)
+    jest
+      .spyOn(queue, 'publish')
+      .mockImplementation(async (definition, payload, options) => {
+        if (definition.name === SETTLEMENT_CONFIRMED_QUEUE.name) {
+          confirmedEvents.push(payload as SettlementConfirmedPayload)
+        }
+        if (definition.name === STATEMENT_CLOSED_QUEUE.name) {
+          closedEvents.push(payload as StatementClosedPayload)
+        }
+        return realPublish(definition, payload, options)
       })
   })
 
