@@ -7,9 +7,11 @@ export { PropertiesModule } from '../infrastructure/modules/properties.module'
 export {
   ListingCurrency,
   PropertiesFacade,
+  PropertyRentedEvent,
   PropertyStatus,
 } from './properties.facade'
 export type {
+  PropertyListingInfo,
   OwnerPortfolio,
   OwnerPropertySummary,
   PropertyContractInfo,

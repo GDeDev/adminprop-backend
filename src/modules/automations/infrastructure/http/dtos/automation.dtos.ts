@@ -136,6 +136,9 @@ export class InternalAlertDto {
       'NOTIFICATION_FAILED',
       'EMAIL_BOUNCED',
       'COMPARABLES_SOURCE_STALE',
+      'INQUIRY_FOLLOW_UP',
+      'INQUIRY_ASSIGNED',
+      'LISTING_CHANNEL_ERROR',
     ],
   })
   type: string

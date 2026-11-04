@@ -11,6 +11,7 @@ import {
   StorageProvider,
   TokkoSourceProvider,
   ValuationNarratorProvider,
+  ListingPublisherProvider,
 } from './env.validation'
 
 export interface AppConfig {
@@ -134,6 +135,22 @@ export interface ValuationConfig {
   scraperContact: string
 }
 
+export interface SecurityConfig {
+  /** 32 bytes en hex o base64; cifra los tokens de los portales (A-84). */
+  encryptionKey: string | null
+}
+
+export interface ListingsConfig {
+  provider: ListingPublisherProvider
+  /** Base del backoffice, para volver del OAuth de un portal. */
+  backofficeBaseUrl: string | null
+  mercadolibre: {
+    appId: string | null
+    clientSecret: string | null
+    redirectUri: string | null
+  }
+}
+
 export interface Configuration {
   app: AppConfig
   database: DatabaseConfig
@@ -150,6 +167,8 @@ export interface Configuration {
   pdf: PdfConfig
   tokko: TokkoConfig
   valuation: ValuationConfig
+  security: SecurityConfig
+  listings: ListingsConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -363,6 +382,21 @@ export function configuration(): Configuration {
         process.env.INDEX_SOURCE_PROVIDER,
         IndexSourceProvider.BcraIndec,
       ) as IndexSourceProvider,
+    },
+    security: {
+      encryptionKey: process.env.APP_ENCRYPTION_KEY || null,
+    },
+    listings: {
+      provider: str(
+        process.env.LISTING_PUBLISHER_PROVIDER,
+        ListingPublisherProvider.Fake,
+      ) as ListingPublisherProvider,
+      backofficeBaseUrl: process.env.BACKOFFICE_BASE_URL || null,
+      mercadolibre: {
+        appId: process.env.MERCADOLIBRE_APP_ID || null,
+        clientSecret: process.env.MERCADOLIBRE_CLIENT_SECRET || null,
+        redirectUri: process.env.MERCADOLIBRE_REDIRECT_URI || null,
+      },
     },
     valuation: {
       sources: str(process.env.COMPARABLES_SOURCES, 'fake')

@@ -324,7 +324,7 @@ describe('Notificaciones (e2e, Postgres)', () => {
         channels: string[]
         audience: string
       }[]
-      expect(items).toHaveLength(20)
+      expect(items).toHaveLength(23)
       expect(items.find((i) => i.type === 'PAYMENT_RECEIVED')).toMatchObject({
         enabled: false,
       })
@@ -461,7 +461,7 @@ describe('Notificaciones (e2e, Postgres)', () => {
       const mine = await api(employeeToken)
         .get('/notifications/me/preferences')
         .expect(200)
-      expect(mine.body.data.items).toHaveLength(20)
+      expect(mine.body.data.items).toHaveLength(23)
       await api(employeeToken)
         .put('/notifications/me/preferences')
         .send({

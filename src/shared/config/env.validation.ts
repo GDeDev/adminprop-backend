@@ -90,6 +90,14 @@ export enum TokkoSourceProvider {
   Http = 'http',
 }
 
+/** Con qué se publica en los portales (Fase 23, 6.1). */
+export enum ListingPublisherProvider {
+  /** Adapter simulado: OAuth con código fijo, sin red ni cuentas. El default. */
+  Fake = 'fake',
+  /** Mercado Libre real; necesita MERCADOLIBRE_APP_ID, MERCADOLIBRE_CLIENT_SECRET y MERCADOLIBRE_REDIRECT_URI. */
+  MercadoLibre = 'mercadolibre',
+}
+
 export enum SecretsProvider {
   /** Lee todo de `process.env`, que llena Doppler. */
   Env = 'env',
@@ -477,6 +485,35 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   VALUATION_SCRAPER_CONTACT?: string
+
+  // ------------------------------------------------------ CRM y multipublicación
+  /** Clave de 32 bytes (64 hex o base64) que cifra los tokens de los portales; vive en Doppler. */
+  @IsOptional()
+  @IsString()
+  APP_ENCRYPTION_KEY?: string
+
+  @IsOptional()
+  @IsEnum(ListingPublisherProvider, {
+    message: `LISTING_PUBLISHER_PROVIDER debe ser uno de: ${Object.values(ListingPublisherProvider).join(', ')}`,
+  })
+  LISTING_PUBLISHER_PROVIDER?: ListingPublisherProvider
+
+  /** Base del backoffice (sin barra final) a la que vuelve el OAuth. */
+  @IsOptional()
+  @IsString()
+  BACKOFFICE_BASE_URL?: string
+
+  @IsOptional()
+  @IsString()
+  MERCADOLIBRE_APP_ID?: string
+
+  @IsOptional()
+  @IsString()
+  MERCADOLIBRE_CLIENT_SECRET?: string
+
+  @IsOptional()
+  @IsString()
+  MERCADOLIBRE_REDIRECT_URI?: string
 
   // -------------------------------------------------------------------------- CORS
   /** Lista separada por comas. `*` permite cualquier origen (sólo para desarrollo). */

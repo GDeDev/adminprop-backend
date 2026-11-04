@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { CommandBus } from '@nestjs/cqrs'
+import { CommandBus, EventBus } from '@nestjs/cqrs'
 
 import { fillEmptyFields } from '@/shared/core/fill-empty-fields'
 import { IsoDate, toIsoDate } from '@/shared/dates/calendar-date'
@@ -22,6 +22,32 @@ import {
   PropertyRepository,
   PublicPropertyFilter,
 } from '../domain/property.ports'
+
+/** La propiedad pasó a alquilada (la publica `attachContract`). Lo escucha el CRM para cerrar sus publicaciones (Fase 23, A-87). */
+export class PropertyRentedEvent {
+  constructor(
+    public readonly propertyId: string,
+    public readonly contractId: string,
+  ) {}
+}
+
+/** Lo que un portal de publicación necesita de una propiedad (Fase 23). */
+export interface PropertyListingInfo {
+  id: string
+  title: string
+  address: string
+  location: string
+  neighborhood: string | null
+  propertyType: string
+  status: PropertyStatus
+  price: string | null
+  currency: ListingCurrency
+  description: string | null
+  photoUrls: string[]
+  amenities: string[]
+  /** Cambia con cada edición de la ficha. */
+  updatedAt: Date
+}
 
 export { ListingCurrency, PropertyStatus }
 export type {
@@ -128,6 +154,7 @@ export class PropertiesFacade {
     private readonly typeNamesOf: PropertyTypeNames,
     private readonly publicViews: PublicPropertyViews,
     private readonly commands: CommandBus,
+    private readonly events: EventBus,
   ) {}
 
   // ---------------------------------------------------- Portal público (Fase 22)
@@ -169,6 +196,30 @@ export class PropertiesFacade {
     return this.typeNamesOf.of(
       await this.properties.findByIds([...new Set(ids)]),
     )
+  }
+
+  // ------------------------------------------------------ Multipublicación (Fase 23)
+
+  /** La ficha armada para un portal, o null si no existe en esta inmobiliaria. */
+  async getForListing(id: string): Promise<PropertyListingInfo | null> {
+    const property = await this.properties.findById(id)
+    if (!property) return null
+    const detail = await this.publicViews.detail(property)
+    return {
+      id: property.id,
+      title: detail.title,
+      address: property.address,
+      location: detail.location,
+      neighborhood: detail.neighborhood,
+      propertyType: detail.propertyType,
+      status: property.status,
+      price: property.listingPrice,
+      currency: property.listingCurrency,
+      description: property.publicDescription,
+      photoUrls: property.photos.map((photo) => photo.url),
+      amenities: detail.amenities,
+      updatedAt: property.updatedAt,
+    }
   }
 
   // ------------------------------------------------------------ Tasación (Fase 24)
@@ -313,6 +364,7 @@ export class PropertiesFacade {
   /** La propiedad pasa a alquilada con ese contrato como activo. */
   async attachContract(propertyId: string, contractId: string): Promise<void> {
     await this.properties.attachContract(propertyId, contractId)
+    this.events.publish(new PropertyRentedEvent(propertyId, contractId))
   }
 
   /** La propiedad vuelve a disponible, sin contrato activo. */

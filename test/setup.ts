@@ -42,3 +42,7 @@ process.env.INDEX_SOURCE_PROVIDER = 'manual'
 process.env.QUEUE_POLLING_INTERVAL_SECONDS = '0.5'
 process.env.STORAGE_PROVIDER = 'local'
 process.env.STORAGE_LOCAL_DIR = join(tmpdir(), 'adminprop-test-storage')
+
+// Fase 23: clave fija (32 bytes en base64) para cifrar tokens de portales en los tests.
+process.env.APP_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64')
+process.env.LISTING_PUBLISHER_PROVIDER = 'fake'

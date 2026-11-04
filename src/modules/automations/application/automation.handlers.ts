@@ -64,6 +64,10 @@ export const ALERT_TYPES = [
   'EMAIL_BOUNCED',
   // Fase 24: una fuente de comparables dejó de traer datos.
   'COMPARABLES_SOURCE_STALE',
+  // Fase 23: seguimiento y asignación de consultas, y fallas de portales.
+  'INQUIRY_FOLLOW_UP',
+  'INQUIRY_ASSIGNED',
+  'LISTING_CHANNEL_ERROR',
 ]
 
 /** Cuánto atrás llega la lista de avisos (Fase 13, 5). */
