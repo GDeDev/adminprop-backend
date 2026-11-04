@@ -71,6 +71,15 @@ export function addMoney(...values: MoneyInput[]): Money {
   return roundMoney(total)
 }
 
+/**
+ * Suma una lista de montos y la devuelve como string canónico. Una lista vacía
+ * suma `"0.00"`. Es el único camino de "sumar montos" de la app: nadie arma su
+ * propio `reduce`, para que el redondeo sea el mismo en todos lados.
+ */
+export function sumMoney(values: MoneyInput[]): string {
+  return toMoneyString(addMoney(...values))
+}
+
 export function subtractMoney(
   minuend: MoneyInput,
   subtrahend: MoneyInput,
@@ -99,6 +108,14 @@ export function percentageOf(
 /** -1, 0 o 1, comparando por valor (no por representación: "1.50" == "1.5"). */
 export function compareMoney(a: MoneyInput, b: MoneyInput): -1 | 0 | 1 {
   return toDecimal(a).comparedTo(toDecimal(b)) as -1 | 0 | 1
+}
+
+/**
+ * ¿Es mayor que cero? Para decidir si queda saldo, sin pasar por `Number`: un
+ * `number` no distingue `99999999999999.99` de `99999999999999.98`.
+ */
+export function isPositiveMoney(value: MoneyInput): boolean {
+  return toDecimal(value).greaterThan(0)
 }
 
 /** Forma canónica para DTOs y para persistir: siempre 2 decimales, sin separadores. */

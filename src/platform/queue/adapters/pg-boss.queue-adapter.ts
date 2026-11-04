@@ -27,6 +27,14 @@ export class PgBossQueueAdapter extends QueuePort {
   private readonly boss: PgBoss
   private readonly declared = new Map<string, Promise<void>>()
   private started?: Promise<void>
+  /**
+   * Cola de declaraciones: una a la vez. `pgboss.create_queue` hace un
+   * `ALTER TABLE ... ATTACH PARTITION` sobre la tabla madre, y dos de esas en
+   * paralelo se dan deadlock en Postgres (`40P01`). Pasa de verdad: varios
+   * módulos llaman a `consume()` desde su `onModuleInit` al mismo tiempo, y el
+   * primer arranque sobre una base sin colas tumbaba la app.
+   */
+  private declareChain: Promise<void> = Promise.resolve()
 
   constructor(
     connectionString: string,
@@ -57,15 +65,13 @@ export class PgBossQueueAdapter extends QueuePort {
   declare(definition: QueueDefinition): Promise<void> {
     let pending = this.declared.get(definition.name)
     if (!pending) {
-      // De a una: createQueue concurrente produce deadlocks en Postgres.
-      pending = this.queueSetup.then(() => this.createQueues(definition))
-      this.queueSetup = pending.catch(() => undefined)
+      pending = this.declareChain.then(() => this.createQueues(definition))
+      // Si una declaración falla, la siguiente igual tiene que poder correr.
+      this.declareChain = pending.catch(() => undefined)
       this.declared.set(definition.name, pending)
     }
     return pending
   }
-
-  private queueSetup: Promise<unknown> = Promise.resolve()
 
   async publish<T extends object>(
     definition: QueueDefinition,
