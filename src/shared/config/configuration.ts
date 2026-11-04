@@ -368,7 +368,14 @@ export function configuration(): Configuration {
         .map((h) => h.trim().toLowerCase())
         .filter(Boolean),
       domainVerification: bool(process.env.SITES_DOMAIN_VERIFICATION, true),
-      serverSecret: process.env.SITES_REVALIDATE_SECRET || null,
+      // Secreto propio del throttle. Si no está definido se cae a
+      // SITES_REVALIDATE_SECRET para no romper despliegues existentes, pero
+      // conviene separarlos: quien conozca el de revalidar no debería poder
+      // saltearse el límite de lectura (y viceversa).
+      serverSecret:
+        process.env.SITES_SERVER_SECRET ||
+        process.env.SITES_REVALIDATE_SECRET ||
+        null,
       revalidate:
         process.env.SITES_REVALIDATE_URL && process.env.SITES_REVALIDATE_SECRET
           ? {

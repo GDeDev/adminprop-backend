@@ -422,13 +422,22 @@ export class EnvironmentVariables {
   SITES_REVALIDATE_URL?: string
 
   /**
-   * Secreto compartido con `apps/sites`: sirve para el aviso de publicación y
-   * para que ese servidor no cuente contra el tope por IP de las lecturas
-   * públicas (header `X-Sites-Secret`).
+   * Secreto compartido con `apps/sites` para el aviso de publicación. Si no
+   * se define `SITES_SERVER_SECRET`, también hace de secreto del throttle
+   * (compatibilidad con despliegues anteriores).
    */
   @IsOptional()
   @IsString()
   SITES_REVALIDATE_SECRET?: string
+
+  /**
+   * Secreto con el que `apps/sites` se identifica (header `X-Sites-Secret`)
+   * para no contar contra el tope por IP de las lecturas públicas. Distinto del
+   * de revalidación; si falta, se usa `SITES_REVALIDATE_SECRET`.
+   */
+  @IsOptional()
+  @IsString()
+  SITES_SERVER_SECRET?: string
 
   /**
    * Secreto de la vista previa del sitio y de la verificación de dominios.
