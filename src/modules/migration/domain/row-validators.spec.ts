@@ -58,6 +58,39 @@ describe('validateOwner', () => {
   })
 })
 
+describe('validateOwner: dígitos verificadores del CBU', () => {
+  const base = { firstName: 'Ana', lastName: 'Pérez', nationalId: '20111111' }
+  const wellFormed = '0170099220000067797371'
+
+  // Qué fallaba: solo se pedían 22 dígitos; con un dígito mal tipeado la fila
+  // salía VALID en el preview y recién fallaba al confirmar.
+  it('marca como error un CBU de 22 dígitos que la regla de propietarios rechaza', () => {
+    const isValidCbu = jest.fn().mockReturnValue(false)
+
+    const { errors } = validateOwner(
+      row({ ...base, cbu: wellFormed }),
+      isValidCbu,
+    )
+
+    expect(isValidCbu).toHaveBeenCalledWith(wellFormed)
+    expect(errors).toEqual([
+      expect.objectContaining({ field: 'cbu', code: 'INVALID_CBU' }),
+    ])
+  })
+
+  it('acepta el CBU que la regla aprueba y no la consulta si falta o tiene otro largo', () => {
+    const isValidCbu = jest.fn().mockReturnValue(true)
+
+    expect(
+      validateOwner(row({ ...base, cbu: wellFormed }), isValidCbu).errors,
+    ).toEqual([])
+    validateOwner(row({ ...base }), isValidCbu)
+    validateOwner(row({ ...base, cbu: '123' }), isValidCbu)
+
+    expect(isValidCbu).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('validateRenter y validateGuarantor', () => {
   it('el inquilino admite un garante por DNI', () => {
     const { data, errors } = validateRenter(
