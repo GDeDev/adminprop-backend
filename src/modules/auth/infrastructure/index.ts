@@ -4,6 +4,7 @@
  */
 export { AuthModule } from './modules/auth.module'
 export { IsPublic, IS_PUBLIC_KEY } from './decorators/is-public.decorator'
+export { AnyRole, ANY_ROLE_KEY } from './decorators/any-role.decorator'
 export { Roles, ROLES_KEY } from './decorators/roles.decorator'
 export { CurrentUser } from './decorators/current-user.decorator'
 export { JwtAuthGuard } from './guards/jwt-auth.guard'
