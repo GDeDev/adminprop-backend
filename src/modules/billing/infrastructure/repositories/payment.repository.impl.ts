@@ -63,23 +63,29 @@ export class PaymentRepositoryImpl extends PaymentRepository {
   async confirm(
     id: string,
     data: { confirmedById: string; confirmedAt: Date },
-  ): Promise<Payment> {
-    const row = await this.prisma.db.payment.update({
-      where: { id },
-      data: { ...data, status: 'CONFIRMED' },
-    })
-    return paymentToDomain(row)
+  ): Promise<Payment | null> {
+    // La condición de estado va en el UPDATE y no en una lectura previa: dos
+    // confirmaciones a la vez leían las dos "pendiente" y las dos pasaban.
+    const row = await updateOrNull(() =>
+      this.prisma.db.payment.update({
+        where: { id, status: 'PENDING_CONFIRMATION' },
+        data: { ...data, status: 'CONFIRMED' },
+      }),
+    )
+    return row ? paymentToDomain(row) : null
   }
 
   async void(
     id: string,
     data: { voidedById: string; voidedAt: Date; voidReason: string },
-  ): Promise<Payment> {
-    const row = await this.prisma.db.payment.update({
-      where: { id },
-      data: { ...data, status: 'VOIDED' },
-    })
-    return paymentToDomain(row)
+  ): Promise<Payment | null> {
+    const row = await updateOrNull(() =>
+      this.prisma.db.payment.update({
+        where: { id, status: { not: 'VOIDED' } },
+        data: { ...data, status: 'VOIDED' },
+      }),
+    )
+    return row ? paymentToDomain(row) : null
   }
 
   async listSettleable(contractId: string): Promise<Payment[]> {
@@ -148,5 +154,20 @@ function toWhere(filter: PaymentFilter): Prisma.PaymentWhereInput {
           },
         }
       : {}),
+  }
+}
+
+/** `null` cuando el `where` (con la condición de estado) no encontró fila. */
+async function updateOrNull<T>(run: () => Promise<T>): Promise<T | null> {
+  try {
+    return await run()
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2025'
+    ) {
+      return null
+    }
+    throw error
   }
 }

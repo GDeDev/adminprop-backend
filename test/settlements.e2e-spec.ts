@@ -612,6 +612,31 @@ describe('Liquidaciones (e2e, Postgres)', () => {
       await new Promise((resolve) => setTimeout(resolve, 1500))
       expect(await settlementsOf(direct.id)).toEqual([])
 
+      // Confirmar y cancelar a la vez: gana una sola. Antes el estado se
+      // chequeaba fuera de la transacción y el UPDATE final no lo miraba, y la
+      // liquidación podía quedar CONFIRMED con las líneas ya soltadas.
+      const racing = await createContract()
+      await payInstallment(racing.id, previous)
+      const racingId = await waitForDraft(racing.id)
+      const [confirmRace, cancelRace] = await Promise.all([
+        api(adminToken).post(`/settlements/${racingId}/confirm`),
+        api(adminToken)
+          .post(`/settlements/${racingId}/cancel`)
+          .send({ reason: 'a la vez' }),
+      ])
+      expect([confirmRace.status, cancelRace.status].sort()).toEqual([200, 409])
+      const loser = confirmRace.status === 409 ? confirmRace : cancelRace
+      expect(loser.body.code).toBe('SETTLEMENT_NOT_PENDING')
+      const raced = await api(adminToken)
+        .get(`/settlements/${racingId}`)
+        .expect(200)
+      expect(raced.body.data.status).toBe(
+        confirmRace.status === 200 ? 'CONFIRMED' : 'CANCELLED',
+      )
+      if (confirmRace.status === 200) {
+        expect(raced.body.data.payments.length).toBeGreaterThan(0)
+      }
+
       // Cancelar libera los pagos para una liquidación nueva (secuencia 2).
       const contract = await createContract()
       await payInstallment(contract.id, previous)

@@ -831,6 +831,56 @@ describe('Cobros (e2e, Postgres)', () => {
       })
     })
 
+    it('dos confirmaciones simultáneas del mismo pago: una gana y la otra recibe 409', async () => {
+      // Antes las dos leían "pendiente" y las dos actualizaban: la condición
+      // de estado no estaba en el UPDATE.
+      const contract = await createContract({
+        collectionMode: 'OWNER_DIRECT',
+        lateFeeGraceDays: 31,
+      })
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+      const informed = await pay(id, {
+        paidAt: day(5),
+        amount: '100000',
+      }).expect(201)
+      const paymentId = informed.body.data.payment.id as string
+
+      const responses = await Promise.all([
+        api(adminToken).post(`/billing/payments/${paymentId}/confirm`),
+        api(employeeToken).post(`/billing/payments/${paymentId}/confirm`),
+      ])
+
+      expect(responses.map((r) => r.status).sort()).toEqual([200, 409])
+      expect(responses.find((r) => r.status === 409)?.body.code).toBe(
+        'PAYMENT_ALREADY_CONFIRMED',
+      )
+    })
+
+    it('dos anulaciones simultáneas del mismo pago: una gana y la otra recibe 409', async () => {
+      const contract = await createContract()
+      await generate(previous)
+      const { id } = await installmentOf(contract.id, previous)
+      const paid = await pay(id, { paidAt: day(2), amount: '110000' }).expect(
+        201,
+      )
+      const paymentId = paid.body.data.payment.id as string
+
+      const responses = await Promise.all([
+        api(adminToken)
+          .post(`/billing/payments/${paymentId}/void`)
+          .send({ reason: 'primera' }),
+        api(adminToken)
+          .post(`/billing/payments/${paymentId}/void`)
+          .send({ reason: 'segunda' }),
+      ])
+
+      expect(responses.map((r) => r.status).sort()).toEqual([200, 409])
+      expect(responses.find((r) => r.status === 409)?.body.code).toBe(
+        'PAYMENT_ALREADY_VOIDED',
+      )
+    })
+
     it('anular un pago (sólo admin) reabre la cuota y vuelve a calcular el punitorio en vivo', async () => {
       const contract = await createContract()
       await generate(previous)
