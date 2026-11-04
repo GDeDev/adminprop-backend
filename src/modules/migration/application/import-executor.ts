@@ -234,9 +234,32 @@ export class ImportExecutor {
       return true
     }
 
+    // Entre el análisis y la confirmación puede haberse confirmado otro lote
+    // con la misma fila (el mismo Excel subido dos veces): si ya hay un
+    // vínculo, no se vuelve a crear. Las propiedades no tienen unicidad en
+    // base, así que sin esto se duplicarían.
+    const key = this.linkKey(state, row)
+    const linked = (
+      await this.links.findTargets(state.batch.source, row.entity, [key])
+    ).get(key)
+    if (linked) {
+      await this.rows.update(row.id, {
+        status: ImportRowStatus.ALREADY_IMPORTED,
+        targetId: linked,
+      })
+      this.remember(state, row, linked)
+      return false
+    }
+
     const id = await this.create(state, row)
     await this.complete(state, row, id)
     return true
+  }
+
+  private linkKey(state: RunState, row: ImportRow): string {
+    return state.batch.source === ImportSource.TOKKO
+      ? (row.externalId as string)
+      : row.naturalKey
   }
 
   /** Deja el vínculo (idempotencia), marca la fila y la deja a mano de las siguientes. */
@@ -248,10 +271,7 @@ export class ImportExecutor {
     await this.links.link({
       source: state.batch.source,
       entity: row.entity,
-      externalKey:
-        state.batch.source === ImportSource.TOKKO
-          ? (row.externalId as string)
-          : row.naturalKey,
+      externalKey: this.linkKey(state, row),
       targetId,
       batchId: state.batch.id,
     })
