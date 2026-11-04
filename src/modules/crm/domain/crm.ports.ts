@@ -220,6 +220,12 @@ export abstract class PropertyListingRepository {
     patch: ListingPatch,
   ): Promise<PropertyListingData>
 
+  /** La publicación que en el portal tiene ese id (consultas entrantes). */
+  abstract findByExternalId(
+    channel: ListingChannel,
+    externalId: string,
+  ): Promise<PropertyListingData | null>
+
   /** Publicaciones `PUBLISHED` o `PAUSED` de una propiedad (cierre automático). */
   abstract listActiveForProperty(
     propertyId: string,

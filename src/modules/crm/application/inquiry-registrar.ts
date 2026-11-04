@@ -11,6 +11,7 @@ import {
   InquiryRepository,
 } from '../domain/crm.ports'
 import {
+  EXTERNAL_SOURCES,
   Inquiry,
   InquiryActivityType,
   InquirySource,
@@ -52,7 +53,10 @@ export class InquiryRegistrar {
   ): Promise<{ inquiry: Inquiry; created: boolean }> {
     const email = input.email?.trim().toLowerCase() || null
     const phone = input.phone ? oneLine(input.phone) || null : null
-    if (!InquiryPolicy.hasContact(email, phone)) {
+    if (
+      !InquiryPolicy.hasContact(email, phone) &&
+      !EXTERNAL_SOURCES.includes(input.source)
+    ) {
       throw new InquiryContactRequiredException()
     }
 

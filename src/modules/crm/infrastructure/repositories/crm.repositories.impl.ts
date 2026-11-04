@@ -240,6 +240,16 @@ export class PropertyListingRepositoryImpl extends PropertyListingRepository {
     return row ? toListing(row) : null
   }
 
+  async findByExternalId(
+    channel: ListingChannel,
+    externalId: string,
+  ): Promise<PropertyListingData | null> {
+    const row = await this.prisma.db.propertyListing.findFirst({
+      where: { channel, externalId },
+    })
+    return row ? toListing(row) : null
+  }
+
   async listForProperty(propertyId: string): Promise<PropertyListingData[]> {
     const rows = await this.prisma.db.propertyListing.findMany({
       where: { propertyId },

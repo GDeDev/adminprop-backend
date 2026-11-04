@@ -57,14 +57,15 @@ FROM (
 ) ranked
 WHERE ranked."id" = i."id";
 
--- Email y teléfono pasan a ser opcionales (al menos uno).
+-- Email y teléfono pasan a ser opcionales: al menos uno, salvo las consultas que
+-- llegan de un portal, que se contestan dentro del portal (A-153).
 ALTER TABLE "public_inquiries"
     ALTER COLUMN "email" DROP NOT NULL,
     ALTER COLUMN "phone" DROP NOT NULL,
     ALTER COLUMN "message" SET DEFAULT '';
 UPDATE "public_inquiries" SET "phone" = NULL WHERE "phone" = '';
 ALTER TABLE "public_inquiries"
-    ADD CONSTRAINT "public_inquiries_contact_check" CHECK ("email" IS NOT NULL OR "phone" IS NOT NULL);
+    ADD CONSTRAINT "public_inquiries_contact_check" CHECK ("email" IS NOT NULL OR "phone" IS NOT NULL OR "source"::text IN ('MERCADOLIBRE', 'ZONAPROP', 'ARGENPROP'));
 
 -- Se retira el estado de la Fase 22.
 DROP INDEX "public_inquiries_tenant_id_status_created_at_idx";

@@ -2164,7 +2164,7 @@ enum InquiryActivityType {
 /// `public_inquiries` (A-80). `property_id` y `contract_id` son ids planos (sin
 /// FK): la propiedad o el contrato pueden borrarse después. `ip` sólo sirve
 /// para frenar el spam y nunca sale por la API. Al menos uno entre `email` y
-/// `phone` (CHECK en la migración).
+/// `phone`, salvo en las consultas de un portal (CHECK en la migración, A-153).
 model PublicInquiry {
   id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId String @map("tenant_id") @db.Uuid

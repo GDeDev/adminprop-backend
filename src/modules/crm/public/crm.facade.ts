@@ -4,12 +4,14 @@ import {
   FollowUpReminderService,
   FollowUpSummary,
 } from '../application/follow-up-reminder.service'
+import { ListingService } from '../application/listing.service'
+import type { PullSummary } from '../application/listing.views'
 import { InquiryRegistrar } from '../application/inquiry-registrar'
 import { PropertyViewsRecorder } from '../application/property-views-recorder'
 import { InquiryRepository } from '../domain/crm.ports'
 import { InquirySource } from '../domain/inquiry'
 
-export type { FollowUpSummary }
+export type { FollowUpSummary, PullSummary }
 
 export interface NewPortalInquiry {
   name: string
@@ -39,7 +41,13 @@ export class CrmFacade {
     private readonly inquiries: InquiryRepository,
     private readonly views: PropertyViewsRecorder,
     private readonly followUps: FollowUpReminderService,
+    private readonly listings: ListingService,
   ) {}
+
+  /** El job `crm.pull-channel-inquiries`: dentro del tenant del job. */
+  pullChannelInquiries(): Promise<PullSummary> {
+    return this.listings.pullInquiries()
+  }
 
   /** El job `crm.follow-up-reminder`: dentro del tenant del job. */
   sendFollowUpReminders(today: string): Promise<FollowUpSummary> {

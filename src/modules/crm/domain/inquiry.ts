@@ -35,6 +35,13 @@ export enum InquirySource {
 export const INQUIRY_SOURCES: readonly InquirySource[] =
   Object.values(InquirySource)
 
+/** Orígenes que llegan de un portal: se contestan allá y pueden no traer contacto (A-153). */
+export const EXTERNAL_SOURCES: readonly InquirySource[] = [
+  InquirySource.MERCADOLIBRE,
+  InquirySource.ZONAPROP,
+  InquirySource.ARGENPROP,
+]
+
 /** Orígenes que se pueden cargar a mano (`POST /crm/inquiries`). */
 export const MANUAL_SOURCES: readonly InquirySource[] = [
   InquirySource.WHATSAPP,

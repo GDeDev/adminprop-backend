@@ -19,6 +19,8 @@ export enum ErrorCode {
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
   /** Se alcanzó el máximo de tasaciones por día de la inmobiliaria (Fase 24). */
   VALUATION_DAILY_LIMIT = 'VALUATION_DAILY_LIMIT',
+  /** La propiedad no cumple lo mínimo para publicarse en un portal; `errors` lista lo que falta (Fase 23). */
+  LISTING_NOT_READY = 'LISTING_NOT_READY',
   SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
   REQUEST_TIMEOUT = 'REQUEST_TIMEOUT',
 

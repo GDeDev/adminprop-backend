@@ -14,6 +14,7 @@ export enum JobName {
   MIGRATION_DISCARD_STALE = 'migration.discard-stale-batches',
   VALUATION_REFRESH_COMPARABLES = 'valuation.refresh-comparables',
   CRM_FOLLOW_UP_REMINDER = 'crm.follow-up-reminder',
+  CRM_PULL_CHANNEL_INQUIRIES = 'crm.pull-channel-inquiries',
 }
 
 /** Coinciden con los enums de Prisma. */
@@ -166,6 +167,14 @@ export const JOB_CATALOG: JobDefinition[] = [
       'Avisa las consultas abiertas cuya fecha de seguimiento ya llegó, una sola vez por fecha, a quien la tiene asignada o a todo el personal si no tiene responsable.',
     scope: JobScope.TENANT,
     times: ['09:15'],
+  },
+  {
+    name: JobName.CRM_PULL_CHANNEL_INQUIRIES,
+    title: 'Consultas de portales',
+    description:
+      'Trae las consultas recibidas en los portales conectados (Mercado Libre) y las deja en el CRM como nuevas, sin duplicar las que ya trajo. El planificador es diario: corre cuatro veces por día.',
+    scope: JobScope.TENANT,
+    times: ['08:00', '12:00', '16:00', '20:00'],
   },
 ]
 

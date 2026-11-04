@@ -14,6 +14,7 @@ import { JobRegistry } from '@/modules/automations/application/job-registry'
 import { JobRunner } from '@/modules/automations/application/job-runner'
 import { JobScheduler } from '@/modules/automations/application/job-scheduler'
 import { CrmFollowUpReminderJob } from '@/modules/automations/application/jobs/crm-follow-up-reminder.job'
+import { CrmPullChannelInquiriesJob } from '@/modules/automations/application/jobs/crm-pull-channel-inquiries.job'
 import { CrmModule } from '@/modules/crm/public'
 import { ArrearsNoticeJob } from '@/modules/automations/application/jobs/arrears-notice.job'
 import { ContractExpiryNoticeJob } from '@/modules/automations/application/jobs/contract-expiry-notice.job'
@@ -101,6 +102,7 @@ import { CronSchedulerTask } from '../tasks/cron-scheduler.task'
     DiscardStaleImportBatchesJob,
     RefreshComparablesJob,
     CrmFollowUpReminderJob,
+    CrmPullChannelInquiriesJob,
     JobsConsumer,
     CronSchedulerTask,
     ListJobsHandler,

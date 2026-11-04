@@ -28,6 +28,7 @@ import {
   InquiryRepository,
 } from '../domain/crm.ports'
 import {
+  EXTERNAL_SOURCES,
   Inquiry,
   InquiryActivityType,
   InquiryStage,
@@ -148,7 +149,10 @@ export class UpdateInquiryHandler implements ICommandHandler<
       patch.phone !== undefined
         ? patch.phone.replace(/\s+/g, ' ').trim() || null
         : current.phone
-    if (!InquiryPolicy.hasContact(email, phone)) {
+    if (
+      !InquiryPolicy.hasContact(email, phone) &&
+      !EXTERNAL_SOURCES.includes(current.source)
+    ) {
       throw new InquiryContactRequiredException()
     }
     if (patch.propertyId) {

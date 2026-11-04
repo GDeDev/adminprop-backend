@@ -126,8 +126,9 @@ export class DisconnectChannelCommand {
 export class CompleteChannelOAuthCommand {
   constructor(
     public readonly channel: ListingChannel,
-    public readonly code: string,
+    public readonly code: string | undefined,
     public readonly state: string,
+    public readonly error?: string,
   ) {}
 }
 
