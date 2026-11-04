@@ -1,6 +1,7 @@
 import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
 
+import { detectFileKind } from '@/shared/files/file-signature'
 import {
   ALLOWED_IMAGE_TYPES,
   DownloadedImage,
@@ -247,19 +248,46 @@ export class HttpImageDownloader extends ImageDownloaderPort {
       throw new ImageDownloadError('La foto pesa más de 10 MB')
     }
 
-    let buffer: Buffer
-    try {
-      buffer = Buffer.from(await response.arrayBuffer())
-    } catch {
-      throw new TransientImageError('Se cortó la descarga de la foto')
-    }
-    if (buffer.length > MAX_IMAGE_BYTES) {
-      throw new ImageDownloadError('La foto pesa más de 10 MB')
-    }
+    const buffer = await this.readCapped(response)
     if (buffer.length === 0) {
       throw new ImageDownloadError('La foto está vacía')
     }
-    return { buffer, mimeType: mimeType as DownloadedImage['mimeType'] }
+    // El Content-Type lo manda el sitio remoto: lo que cuenta son los primeros
+    // bytes (un HTML o un SVG con tipo image/jpeg no es una foto).
+    const kind = detectFileKind(buffer)
+    if (!kind || kind.extension === 'pdf') {
+      throw new ImageDownloadError(
+        'El archivo no es una imagen JPG, PNG o WEBP',
+      )
+    }
+    return { buffer, mimeType: kind.contentType as DownloadedImage['mimeType'] }
+  }
+
+  /**
+   * Lee el cuerpo por partes y corta al pasar el tope: sin `content-length`
+   * (o con uno falso) `arrayBuffer()` bajaría todo lo que el sitio mande.
+   */
+  private async readCapped(response: Response): Promise<Buffer> {
+    if (!response.body) return Buffer.alloc(0)
+    const reader = response.body.getReader()
+    const chunks: Uint8Array[] = []
+    let total = 0
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        total += value.byteLength
+        if (total > MAX_IMAGE_BYTES) {
+          await reader.cancel().catch(() => undefined)
+          throw new ImageDownloadError('La foto pesa más de 10 MB')
+        }
+        chunks.push(value)
+      }
+    } catch (error) {
+      if (error instanceof ImageDownloadError) throw error
+      throw new TransientImageError('Se cortó la descarga de la foto')
+    }
+    return Buffer.concat(chunks)
   }
 }
 

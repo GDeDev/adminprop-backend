@@ -159,8 +159,25 @@ describe('TokkoHttpSource', () => {
 
 describe('HttpImageDownloader', () => {
   const sleep = jest.fn().mockResolvedValue(undefined)
-  const image = (type = 'image/jpeg', bytes = 10, status = 200) =>
-    new Response(Buffer.alloc(bytes, 1), {
+  const SIGNATURES: Record<string, Buffer> = {
+    'image/jpeg': Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+    'image/png': Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    'image/webp': Buffer.concat([
+      Buffer.from('RIFF'),
+      Buffer.alloc(4),
+      Buffer.from('WEBP'),
+    ]),
+  }
+  /** Una "imagen" con la firma real de su tipo y el resto de relleno. */
+  const bodyOf = (type: string, bytes: number): Uint8Array<ArrayBuffer> => {
+    const body = Buffer.alloc(bytes, 1)
+    ;(SIGNATURES[type] ?? Buffer.alloc(0)).copy(body)
+    const out = new Uint8Array(new ArrayBuffer(bytes))
+    out.set(body)
+    return out
+  }
+  const image = (type = 'image/jpeg', bytes = 16, status = 200) =>
+    new Response(bodyOf(type, bytes), {
       status,
       headers: { 'content-type': type },
     })
@@ -173,7 +190,7 @@ describe('HttpImageDownloader', () => {
       jest.fn().mockResolvedValue(image('image/webp')),
     ).download('https://cdn.example.com/a.webp')
     expect(result.mimeType).toBe('image/webp')
-    expect(result.buffer).toHaveLength(10)
+    expect(result.buffer).toHaveLength(16)
   })
 
   it('rechaza lo que no es jpg/png/webp, lo que pesa de más y los 404 sin reintentar', async () => {
@@ -218,6 +235,51 @@ describe('HttpImageDownloader', () => {
       )
     }
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  // Qué fallaba: el Content-Type lo manda el sitio remoto y nunca se miraban
+  // los bytes: un HTML o un SVG declarado como image/jpeg se guardaba como foto.
+  it('rechaza un archivo que dice ser imagen pero no lo es, y usa el tipo real', async () => {
+    const html = new Response('<html><script>alert(1)</script></html>', {
+      status: 200,
+      headers: { 'content-type': 'image/jpeg' },
+    })
+    await expect(
+      downloader(jest.fn().mockResolvedValue(html)).download(
+        'https://cdn.example.com/a.jpg',
+      ),
+    ).rejects.toThrow('no es una imagen')
+
+    const pngSaidJpeg = new Response(bodyOf('image/png', 32), {
+      status: 200,
+      headers: { 'content-type': 'image/jpeg' },
+    })
+    const result = await downloader(
+      jest.fn().mockResolvedValue(pngSaidJpeg),
+    ).download('https://cdn.example.com/a.jpg')
+    expect(result.mimeType).toBe('image/png')
+  })
+
+  it('corta la lectura al pasar los 10 MB aunque no haya content-length', async () => {
+    let pulled = 0
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1
+        controller.enqueue(new Uint8Array(1024 * 1024))
+        if (pulled > 200) controller.close()
+      },
+    })
+    const response = new Response(endless, {
+      status: 200,
+      headers: { 'content-type': 'image/png' },
+    })
+    await expect(
+      downloader(jest.fn().mockResolvedValue(response)).download(
+        'https://cdn.example.com/a.png',
+      ),
+    ).rejects.toThrow('más de 10 MB')
+    // No bajó el flujo entero: se detuvo cerca del tope.
+    expect(pulled).toBeLessThan(30)
   })
 
   // Qué fallaba: el host se validaba solo para la URL inicial y el fetch
