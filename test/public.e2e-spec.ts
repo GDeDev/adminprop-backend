@@ -311,6 +311,35 @@ describe('Portal público (e2e, Postgres)', () => {
       })
     })
 
+    it('la ficha publica las coordenadas aproximadas (3 decimales) y null si no hay', async () => {
+      const located = await createProperty({
+        address: 'Con mapa',
+        latitude: -34.603722,
+        longitude: -58.381592,
+      })
+      const bare = await createProperty({ address: 'Sin mapa' })
+
+      const withMap = await pub
+        .get(`/public/tenant-a/properties/${located.id}`)
+        .expect(200)
+      const withoutMap = await pub
+        .get(`/public/tenant-a/properties/${bare.id}`)
+        .expect(200)
+      const list = await pub.get('/public/tenant-a/properties').expect(200)
+
+      expect(withMap.body.data).toMatchObject({
+        latitude: -34.604,
+        longitude: -58.382,
+      })
+      expect(withoutMap.body.data).toMatchObject({
+        latitude: null,
+        longitude: null,
+      })
+      // El valor exacto no sale por ningún lado, ni en el listado.
+      expect(JSON.stringify(list.body)).not.toContain('34.603722')
+      expect(JSON.stringify(withMap.body)).not.toContain('34.603722')
+    })
+
     it('una propiedad borrada o inexistente es el mismo 404', async () => {
       const property = await createProperty({})
       await api(adminToken).delete(`/properties/${property.id}`).expect(204)
@@ -748,7 +777,11 @@ describe('Portal público (e2e, Postgres)', () => {
         coveredAreaM2: 70,
         ageYears: 12,
       })
-      expect(JSON.stringify(detail.body)).not.toContain('latitude')
+      // Sin coordenadas cargadas la ficha las trae en null (D-226).
+      expect(detail.body.data).toMatchObject({
+        latitude: null,
+        longitude: null,
+      })
 
       // Una propiedad vieja (sin datos) se publica en alquiler y con null.
       const old = await pub
