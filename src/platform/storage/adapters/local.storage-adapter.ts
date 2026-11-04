@@ -48,6 +48,11 @@ export class LocalStorageAdapter extends StoragePort {
     return readFile(join(this.root, key))
   }
 
+  /** El disco local es sólo para desarrollo: no distingue privado de público. */
+  signUrl(url: string): string {
+    return url
+  }
+
   async delete(key: string): Promise<void> {
     assertKeyInTenant(key)
     await rm(join(this.root, key), { force: true })

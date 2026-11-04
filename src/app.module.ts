@@ -1,10 +1,11 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
-import { APP_GUARD } from '@nestjs/core'
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { ScheduleModule } from '@nestjs/schedule'
 
 import { AppController } from './app.controller'
 import { AuthModule } from '@/modules/auth/infrastructure/modules/auth.module'
 import { JwtAuthGuard } from '@/modules/auth/infrastructure/guards/jwt-auth.guard'
+import { SignedUrlsInterceptor } from '@/platform/storage/signed-urls.interceptor'
 import { RolesGuard } from '@/modules/auth/infrastructure/guards/roles.guard'
 import { HealthModule } from '@/modules/health/infrastructure/modules/health.module'
 import { JobsModule } from '@/modules/jobs/public'
@@ -113,6 +114,8 @@ import { SharedModule } from './shared/shared.module'
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    // Firma las URLs de archivos privados (PDFs, comprobantes) al responder.
+    { provide: APP_INTERCEPTOR, useClass: SignedUrlsInterceptor },
   ],
 })
 export class AppModule implements NestModule {

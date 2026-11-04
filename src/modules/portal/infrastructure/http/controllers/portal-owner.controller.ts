@@ -44,6 +44,7 @@ import {
   SettlementDetailView,
   SettlementSummaryView,
 } from '@/modules/settlements/public'
+import { StoragePort } from '@/platform/storage/storage.port'
 import { ApiErrorDto, ApiSuccessDto } from '@/shared/dtos/api-response.dto'
 import { PaginatedResult, PaginationQueryDto } from '@/shared/pagination'
 import {
@@ -76,6 +77,7 @@ export class PortalOwnerController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    private readonly storage: StoragePort,
   ) {}
 
   @Get('me')
@@ -217,7 +219,7 @@ export class PortalOwnerController {
       GetOwnerSettlementPdfUrlQuery,
       string
     >(new GetOwnerSettlementPdfUrlQuery(userId, id))
-    sendPdf(response, url, query.format)
+    sendPdf(response, this.storage.signUrl(url), query.format)
   }
 
   @Post('settlements/:id/acknowledge')
@@ -296,6 +298,6 @@ export class PortalOwnerController {
       GetOwnerStatementPdfUrlQuery,
       string
     >(new GetOwnerStatementPdfUrlQuery(userId, id))
-    sendPdf(response, url, query.format)
+    sendPdf(response, this.storage.signUrl(url), query.format)
   }
 }

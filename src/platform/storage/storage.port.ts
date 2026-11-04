@@ -29,11 +29,28 @@ export abstract class StoragePort {
    * url. Falla si el archivo no existe o no es del tenant del contexto.
    */
   abstract download(key: string, url: string): Promise<Buffer>
+
+  /**
+   * Devuelve una URL con la que se puede abrir el archivo ahora. Para un
+   * archivo `private` es una URL firmada que vence a los `ttlSeconds`; para uno
+   * público (o en disco local) devuelve la misma URL. Es síncrona y no falla:
+   * una URL ajena o ya pública pasa sin cambios.
+   */
+  abstract signUrl(url: string, ttlSeconds?: number): string
 }
 
 export interface UploadOptions {
   contentType?: string
+  /**
+   * `private`: sólo se llega al archivo con una URL firmada de corta vida
+   * (`signUrl`). Para PDFs de liquidaciones y comprobantes, que llevan montos y
+   * datos bancarios (D-196). Por defecto `public` (fotos, logo).
+   */
+  access?: 'public' | 'private'
 }
+
+/** Vida de una URL firmada: alcanza para abrirla, no para reenviarla. */
+export const SIGNED_URL_TTL_SECONDS = 600
 
 export interface StoredFile {
   /** URL pública para mostrar o descargar el archivo. */

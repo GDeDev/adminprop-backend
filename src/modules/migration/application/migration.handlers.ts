@@ -120,6 +120,7 @@ export class StartExcelAnalysisHandler implements ICommandHandler<
       {
         contentType:
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        access: 'private',
       },
     )
     const jobId = await this.jobs.start(ANALYZE_JOB_TYPE)

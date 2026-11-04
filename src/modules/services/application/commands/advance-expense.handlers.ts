@@ -73,7 +73,7 @@ export class CreateAdvanceExpenseHandler implements ICommandHandler<
     const stored = await this.storage.upload(
       command.receipt,
       `advance-expenses/${contract.id}/${randomUUID()}.${receipt.extension}`,
-      { contentType: receipt.contentType },
+      { contentType: receipt.contentType, access: 'private' },
     )
     try {
       const created = await this.expenses.create({

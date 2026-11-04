@@ -116,7 +116,7 @@ export class DocumentGenerator {
     const stored = await this.storage.upload(
       buffer,
       `documents/${STORAGE_FOLDER[request.kind]}/${request.entityId}-${document.version}.pdf`,
-      { contentType: 'application/pdf' },
+      { contentType: 'application/pdf', access: 'private' },
     )
 
     return this.prisma.transaction(async () => {

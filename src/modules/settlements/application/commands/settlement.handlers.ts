@@ -363,7 +363,7 @@ export class RegisterSettlementTransferHandler implements ICommandHandler<
       ? await this.storage.upload(
           command.receipt,
           `settlements/${settlement.id}/${randomUUID()}.${receipt.extension}`,
-          { contentType: receipt.contentType },
+          { contentType: receipt.contentType, access: 'private' },
         )
       : null
     try {

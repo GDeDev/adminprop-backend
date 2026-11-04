@@ -34,6 +34,7 @@ import {
   PortalRenterContractView,
   PortalRenterMeView,
 } from '@/modules/portal/application/portal.views'
+import { StoragePort } from '@/platform/storage/storage.port'
 import { ApiErrorDto, ApiSuccessDto } from '@/shared/dtos/api-response.dto'
 import { PaginatedResult, PaginationQueryDto } from '@/shared/pagination'
 import {
@@ -63,7 +64,10 @@ import { sendPdf } from './pdf-response'
   type: ApiErrorDto,
 })
 export class PortalRenterController {
-  constructor(private readonly queryBus: QueryBus) {}
+  constructor(
+    private readonly queryBus: QueryBus,
+    private readonly storage: StoragePort,
+  ) {}
 
   @Get('me')
   @ApiOperation({
@@ -177,6 +181,6 @@ export class PortalRenterController {
     const url = await this.queryBus.execute<GetRenterReceiptUrlQuery, string>(
       new GetRenterReceiptUrlQuery(userId, id),
     )
-    sendPdf(response, url, query.format)
+    sendPdf(response, this.storage.signUrl(url), query.format)
   }
 }

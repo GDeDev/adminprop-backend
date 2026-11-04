@@ -353,7 +353,7 @@ export class UploadContractDocumentHandler implements ICommandHandler<
     const stored = await this.storage.upload(
       command.file,
       `contracts/${contract.id}/${command.kind}-${randomUUID()}.pdf`,
-      { contentType: 'application/pdf' },
+      { contentType: 'application/pdf', access: 'private' },
     )
     const previousKey =
       command.kind === 'contract'

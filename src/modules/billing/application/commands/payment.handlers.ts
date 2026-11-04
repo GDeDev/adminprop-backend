@@ -219,7 +219,7 @@ export class RegisterPaymentHandler implements ICommandHandler<
       ? await this.storage.upload(
           command.receipt,
           `payments/${installment.contractId}/${randomUUID()}.${receipt.extension}`,
-          { contentType: receipt.contentType },
+          { contentType: receipt.contentType, access: 'private' },
         )
       : null
 
