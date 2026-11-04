@@ -1162,3 +1162,71 @@ Sale de `adminprop-repo-files/docs/REDISENO_FASE_21.md` (que numera sus supuesto
 - **A-129** · La muestra de Tokko (`src/platform/tokko/fixtures`) está armada a mano con la forma de `property/search` que usa el mapper: el repo no trae las muestras que genera `tokko_scraper.js`. **Confirmar el mapeo en la primera corrida con la key de prueba** (`tokko-mapper.ts` es el único lugar a corregir).
 - **A-130** · Pasada la cantidad máxima de fotos por propiedad (20), las que sobran fallan con el mensaje de la regla y se pueden ver en el reporte.
 - **A-131** · Un lote `IMPORTING` interrumpido no se recupera solo; se vuelve a analizar el mismo archivo y sólo se importa lo que falta.
+
+---
+
+## Fase 23 — CRM y multipublicación (sin supervisión, rediseño)
+
+Sale de `adminprop-repo-files/docs/REDISENO_FASE_23.md` (que numera sus supuestos A-80 a A-89 y se implementaron tal cual) y del contrato `shared-types/crm.ts` y `listings.ts`. Acá van las decisiones de implementación (D-183 a D-194) y los supuestos que el rediseño no definía (A-150 a A-157). Detalle en `docs/tecnica/fase-23.md`. **Los tests (unitarios y e2e) están escritos pero no se corrieron**, y el adapter de Mercado Libre no se probó contra el servicio real (A-86).
+
+### D-183 · El módulo `crm` es dueño de las consultas (A-80)
+
+- **Decisión**: la tabla sigue llamándose `public_inquiries` y el modelo de Prisma `PublicInquiry`, pero la entidad (`Inquiry`) vive en `src/modules/crm`. El portal público crea la consulta con `CrmFacade.registerPortalInquiry` y cuenta el límite de spam con `countRecentInquiries`; conserva su evento `PublicInquiryCreatedEvent` y los avisos de la Fase 22. Se retiran `GET /inquiries` y `PATCH /inquiries/:id/status` (y `PublicInquiryRepository`, `PublicInquiryViews`, el `InquiriesController`).
+- **Migración** `add_crm_and_listings`: `status` se reemplaza por `stage` (`CLOSED` pasa a `CLOSED_LOST` con «Migrado de la Fase 22», A-81), se agregan los campos del CRM, `email` y `phone` pasan a ser opcionales con un `CHECK` (al menos uno, salvo las consultas de un portal, A-153) y se agrega `deleted_at` (borrado lógico; `externalId` se muta al borrar para liberar el único).
+
+### D-184 · Orden del tablero entre vecinos
+
+- **Decisión**: `board_position` es un `double precision`. Mover una tarjeta manda `beforeId` (queda arriba) y/o `afterId` (queda abajo); la posición es el punto medio. Sin vecinos, una tarjeta que cambia de columna va **arriba**, igual que las nuevas (`min - 1000`). Con la diferencia por debajo de `2e-6` se renumera la columna (1000, 2000…) y se recalcula (A-82). Un vecino que no es de la columna de destino es 422 `INVALID_BOARD_NEIGHBOUR`. No hay control de versión: gana la última escritura y la UI recarga la columna.
+
+### D-185 · Línea de tiempo inmutable
+
+- **Decisión**: `inquiry_activities` no se audita (es su propia traza), no se edita ni se borra y no tiene endpoints de cambio; las notas son actividades `NOTE`. Cada cambio de columna, asignación, seguimiento y edición de datos deja su actividad. `PropertyView` no se audita y `ListingChannelAccount` excluye los tokens del diff.
+
+### D-186 · Tipos de aviso nuevos
+
+- **Decisión**: `INQUIRY_FOLLOW_UP`, `INQUIRY_ASSIGNED` y `LISTING_CHANNEL_ERROR` entran al catálogo (solo `IN_APP`), a `ALERT_TYPES` y al enum del DTO de avisos. El catálogo pasa de 20 a 23 tipos (`test/notifications.e2e-spec.ts` ajustado). `NotificationsFacade.renderWhatsApp(key, valores)` resuelve la plantilla (override de la inmobiliaria o la de código) para el CRM.
+
+### D-187 · `SecretBoxPort` (cifrado en reposo)
+
+- **Decisión**: puerto en `src/platform/secrets` con un adapter AES-256-GCM (IV aleatorio, formato `v1.<iv>.<tag>.<cifrado>`). La clave es `APP_ENCRYPTION_KEY` (32 bytes en hex o base64, Doppler). Sin clave la app arranca y falla recién al cifrar o descifrar. Los tests usan una fija (`test/setup.ts`). Rotarla obliga a reconectar los canales (A-84).
+
+### D-188 · Puerto de publicación, adapters y selección
+
+- **Decisión**: `ListingPublisherPort` (dominio) con errores tipados `TokenExpiredError`, `ListingRejectedError { reasons }` y `ChannelUnavailableError`. `LISTING_PUBLISHER_PROVIDER=fake|mercadolibre` (default `fake`) elige el adapter del único canal con adapter (Mercado Libre). El simulado (`FakeListingPublisher`) se puede inyectar en los tests (`failNext('TOKEN_EXPIRED' | 'TOKEN_REJECTED' | 'REJECTED' | 'UNAVAILABLE')`, `simulateInquiry`). Zonaprop y Argenprop no tienen adapter: `GET /crm/channels` los devuelve `UNAVAILABLE` con el motivo y operar sobre ellos es 422 `CHANNEL_UNAVAILABLE`.
+- Variables nuevas: `APP_ENCRYPTION_KEY`, `LISTING_PUBLISHER_PROVIDER`, `BACKOFFICE_BASE_URL` (a dónde vuelve el navegador) y, solo con ML, `MERCADOLIBRE_APP_ID`, `MERCADOLIBRE_CLIENT_SECRET`, `MERCADOLIBRE_REDIRECT_URI`. Todas opcionales.
+
+### D-189 · OAuth con `state` firmado
+
+- **Decisión**: `POST /crm/channels/mercadolibre/connect` (admin) firma `{ tenantId, userId, channel, exp: +10 min }` con HMAC-SHA256 (clave derivada del secreto del JWT, comparación en tiempo constante). El callback es público (`@IsPublic`), verifica el `state`, entra al tenant del `state`, canjea el código y redirige a `<BACKOFFICE_BASE_URL>/configuracion/canales?connected=mercadolibre`. Un `state` vencido, manipulado o de otro canal es 400 `OAUTH_STATE_INVALID`; un canje fallido o un acceso denegado redirige con `?error=connect_failed` o `?error=denied`.
+
+### D-190 · Publicar es un trabajo asíncrono
+
+- **Decisión**: `POST …/publish` valida (422 `LISTING_NOT_READY` con la lista en `errors[]`, antes que 409 `CHANNEL_NOT_CONNECTED`), crea un `AsyncJob` `listing-publish`, deja la publicación en `PUBLISHING` (si ya estaba publicada o pausada es una _actualización_ y el estado no cambia) y encola en `crm-listing-publish` (`retryLimit: 0`: un fallo queda en la publicación y se reintenta a mano). El consumidor refresca el token si está por vencer (o si el portal lo rechaza, una vez); si no se puede renovar, el canal pasa a `ERROR` y se avisa (`LISTING_CHANNEL_ERROR`, una vez por canal y día). Pausar, reanudar y cerrar son síncronos. Un aviso cerrado no se reabre: publicar de nuevo crea uno nuevo.
+- **Cierre al alquilarse (A-87)**: `PropertiesFacade.attachContract` publica `PropertyRentedEvent`; `crm` lo escucha y **encola** el cierre (`crm-listing-close`, 2 reintentos) para que un portal caído no frene el contrato.
+
+### D-191 · Jobs del CRM en el catálogo
+
+- **Decisión**: `crm.follow-up-reminder` (TENANT, 09:15) y `crm.pull-channel-inquiries` (TENANT, 08:00, 12:00, 16:00 y 20:00). El catálogo pasa de 13 a 15 jobs y el e2e del scheduler cuenta 13 jobs por inmobiliaria.
+
+### D-192 · Vistas de la ficha
+
+- **Decisión**: `PropertyViewsRecorder` cuenta en `property_views` (upsert con incremento por tenant, propiedad y día). Ignora `User-Agent` de bots y no cuenta dos veces la misma IP en la misma propiedad dentro de 30 minutos, con un hash (tenant, propiedad, IP) **solo en memoria** (se pierde al reiniciar y no se comparte entre instancias). La cuenta está dentro del handler de la ficha, ya en el tenant del slug, y nunca rompe la respuesta.
+
+### D-193 · Errores nuevos
+
+- **Decisión**: `ErrorCode.LISTING_NOT_READY`. Los demás son `DomainException`: `INQUIRY_NOT_FOUND` (404, también para una de otro tenant), `ASSIGNEE_INVALID`, `LOST_REASON_REQUIRED`, `INQUIRY_CONTACT_REQUIRED`, `INVALID_BOARD_NEIGHBOUR`, `ANALYTICS_RANGE_INVALID` (422), `CHANNEL_NOT_CONNECTED`, `LISTING_STATE_INVALID` (409), `LISTING_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `PROPERTY_NOT_FOUND` (404), `CHANNEL_UNAVAILABLE` (422) y `OAUTH_STATE_INVALID` (400).
+
+### D-194 · Contrato
+
+- **Decisión**: los DTOs siguen `shared-types/crm.ts` y `listings.ts`. Las fechas-hora salen como `string` ISO (se serializan `Date`) y `PropertyListingDto.canPublish` exige además que la cuenta esté conectada (A-155). `ConnectChannelResult` es `{ authorizeUrl }`.
+
+### Supuestos a confirmar (Fase 23)
+
+- **A-150** · Las consultas generales (sin propiedad) usan «nuestras propiedades» en `{{propertyAddress}}` del mensaje de WhatsApp; la variable `{{name}}` equivale a `{{recipientName}}`. _Si prefieren otro texto_: cambiarlo en `GetWhatsAppLinkHandler`.
+- **A-151** · Los avisos `INQUIRY_ASSIGNED` e `INQUIRY_FOLLOW_UP` van a la campana compartida del personal (hoy el aviso interno es una sola fila para todos y el estado «leído» es común); el texto nombra a la persona. Un aviso por persona exigiría lectura por usuario.
+- **A-152** · El recordatorio de seguimiento avisa **una vez por consulta y fecha de seguimiento** (clave `INQUIRY_FOLLOW_UP:<consulta>:<fecha>`), no cada día de atraso. Si se reprograma el seguimiento, avisa de nuevo.
+- **A-153** · Las consultas que llegan de un portal (Mercado Libre, Zonaprop, Argenprop) pueden no traer email ni teléfono (ML solo entrega preguntas) y se contestan en el portal; para ellas no rige «al menos un contacto». La tarjeta muestra `hasWhatsApp: false`.
+- **A-154** · El planificador es de granularidad diaria (`cronOf` arma una hora por día), así que `crm.pull-channel-inquiries` corre cuatro veces por día en lugar de cada 15 minutos. _Si hace falta más frecuencia_: extender el catálogo con un cron propio.
+- **A-155** · `PropertyListingDto.canPublish` es verdadero solo si el canal tiene adapter, la cuenta está conectada y la propiedad está lista; `missingForPublish` lista solo lo de la propiedad.
+- **A-156** · La publicación se cierra automáticamente solo cuando la propiedad se alquila por un contrato (`attachContract`). Un cambio manual del estado a «Mantenimiento» no la cierra. _Si lo quieren_: emitir el mismo evento desde el cambio de estado de propiedades.
+- **A-157** · Una _actualización_ fallida de una publicación viva no la pasa a `ERROR` (sigue activa en el portal): conserva su estado y guarda `last_error`; el botón «Actualizar» sigue disponible. `ERROR` queda para publicaciones que nunca llegaron a estar vivas y para el cierre automático fallido.
