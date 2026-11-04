@@ -151,6 +151,28 @@ export interface ListingsConfig {
   }
 }
 
+export interface SitesConfig {
+  /** Dominio de los subdominios de sitios, en minúsculas; null si no hay. */
+  baseDomain: string | null
+  protocol: 'http' | 'https'
+  /** Base del acceso por slug (`/_s/<slug>`); null en producción. */
+  devUrl: string | null
+  /** Hosts https permitidos para imágenes además de nuestro storage. */
+  allowedImageHosts: string[]
+  /** Secreto del token de vista previa. */
+  previewSecret: string
+  /** Exige verificar con un TXT el dominio propio (default true). */
+  domainVerification: boolean
+  /**
+   * Secreto compartido con `apps/sites` (el mismo de la revalidación): quien lo
+   * manda en `X-Sites-Secret` no cuenta contra el tope por IP de las lecturas
+   * públicas del sitio. Null = nadie se saltea el tope.
+   */
+  serverSecret: string | null
+  /** Aviso a `apps/sites` al publicar; sin URL o secreto no se avisa. */
+  revalidate: { url: string; secret: string } | null
+}
+
 export interface Configuration {
   app: AppConfig
   database: DatabaseConfig
@@ -169,6 +191,7 @@ export interface Configuration {
   valuation: ValuationConfig
   security: SecurityConfig
   listings: ListingsConfig
+  sites: SitesConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -375,6 +398,37 @@ export function configuration(): Configuration {
         TokkoSourceProvider.Fixture,
       ) as TokkoSourceProvider,
       apiKey: process.env.TOKKO_API_KEY || null,
+    },
+    sites: {
+      baseDomain:
+        str(process.env.SITES_BASE_DOMAIN, '').trim().toLowerCase() || null,
+      protocol:
+        str(process.env.SITES_PROTOCOL, 'https') === 'http' ? 'http' : 'https',
+      devUrl: process.env.SITES_DEV_URL
+        ? process.env.SITES_DEV_URL.replace(/\/+$/, '')
+        : isProduction
+          ? null
+          : 'http://localhost:3003',
+      allowedImageHosts: str(process.env.SITES_ALLOWED_IMAGE_HOSTS, '')
+        .split(',')
+        .map((h) => h.trim().toLowerCase())
+        .filter(Boolean),
+      domainVerification: bool(process.env.SITES_DOMAIN_VERIFICATION, true),
+      serverSecret: process.env.SITES_REVALIDATE_SECRET || null,
+      revalidate:
+        process.env.SITES_REVALIDATE_URL && process.env.SITES_REVALIDATE_SECRET
+          ? {
+              url: process.env.SITES_REVALIDATE_URL.replace(/\/+$/, ''),
+              secret: process.env.SITES_REVALIDATE_SECRET,
+            }
+          : null,
+      // En producción `validateEnv` ya exigió un secreto propio y largo. Fuera de
+      // producción hay un valor fijo de desarrollo: NO se deriva de
+      // JWT_ACCESS_SECRET (un secreto distinto para una cosa distinta).
+      previewSecret: str(
+        process.env.SITES_PREVIEW_SECRET,
+        'desarrollo-solo-secreto-de-vista-previa-no-usar-en-produccion',
+      ),
     },
     automations: {
       enabled: bool(process.env.AUTOMATIONS_ENABLED, true),

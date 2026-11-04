@@ -1,10 +1,17 @@
-import { ExecutionContext, Injectable } from '@nestjs/common'
+import { ExecutionContext, Inject, Injectable } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { ThrottlerGuard, ThrottlerLimitDetail } from '@nestjs/throttler'
 import { Request, Response } from 'express'
 
+import { Configuration } from '../../config/configuration'
 import { AppException } from '../../errors/app.exception'
 import { createLogger } from '@/shared/logging/root-logger'
 import { getCorrelationId } from '../../context/request-context.middleware'
+import {
+  isTrustedServerSecret,
+  SKIP_THROTTLE_FOR_TRUSTED_SERVER,
+  TRUSTED_SERVER_HEADER,
+} from './trusted-server'
 
 /**
  * Guard de rate limiting.
@@ -20,6 +27,33 @@ import { getCorrelationId } from '../../context/request-context.middleware'
 @Injectable()
 export class AppThrottlerGuard extends ThrottlerGuard {
   private readonly logger = createLogger('Throttler')
+
+  // Inyección por propiedad: el constructor de `ThrottlerGuard` ya tiene sus
+  // propios parámetros y no hace falta repetirlos acá.
+  @Inject(ConfigService)
+  private readonly config!: ConfigService<Configuration, true>
+
+  /**
+   * Los endpoints marcados con `@SkipThrottleForTrustedServer()` no cuentan si
+   * el pedido trae el secreto compartido del servidor de `apps/sites` (ver
+   * `trusted-server.ts`). Cualquier otro pedido se limita como siempre.
+   */
+  protected override async shouldSkip(
+    context: ExecutionContext,
+  ): Promise<boolean> {
+    const marked = this.reflector.getAllAndOverride<boolean | undefined>(
+      SKIP_THROTTLE_FOR_TRUSTED_SERVER,
+      [context.getHandler(), context.getClass()],
+    )
+    if (!marked) return false
+
+    const request = context.switchToHttp().getRequest<Request>()
+    const header = request.headers[TRUSTED_SERVER_HEADER]
+    return isTrustedServerSecret(
+      Array.isArray(header) ? header[0] : header,
+      this.config.get('sites', { infer: true }).serverSecret,
+    )
+  }
 
   protected override async getTracker(req: Request): Promise<string> {
     // `req.user` lo completa JwtAuthGuard, que corre *después* de este guard,

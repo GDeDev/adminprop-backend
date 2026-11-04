@@ -111,6 +111,19 @@ export class TenantsFacade {
     }
   }
 
+  /** Igual que `findActiveBySlug` pero por id (resolución de sitios por host). */
+  async findActiveById(id: string): Promise<PublicTenantRef | null> {
+    const tenant = await this.tenants.findById(id)
+    if (!tenant?.isActive) return null
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      email: tenant.email,
+      defaultCurrency: tenant.defaultCurrency,
+    }
+  }
+
   /** Moneda por defecto de la inmobiliaria del contexto (precio de publicación, Fase 22). */
   async defaultCurrency(): Promise<'ARS' | 'USD'> {
     const tenantId = RequestContext.tenantId

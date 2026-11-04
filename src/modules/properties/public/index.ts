@@ -6,9 +6,11 @@
 export { PropertiesModule } from '../infrastructure/modules/properties.module'
 export {
   ListingCurrency,
+  ListingOperation,
   PropertiesFacade,
   PropertyRentedEvent,
   PropertyStatus,
+  PUBLIC_PROPERTY_SORTS,
 } from './properties.facade'
 export type {
   PropertyListingInfo,
@@ -21,6 +23,7 @@ export type {
   PublicFiltersView,
   PublicPropertyDetailView,
   PublicPropertyFilter,
+  PublicPropertySort,
   PublicPropertySummaryView,
 } from './properties.facade'
 export type {
