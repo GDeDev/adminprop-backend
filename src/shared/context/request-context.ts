@@ -113,4 +113,19 @@ export const RequestContext = {
     store.userRole = user.role
     store.tenantId = user.tenantId
   },
+
+  /**
+   * Deshace `setUser`. Lo usa el guard cuando un token opcional (endpoint
+   * público) resulta ser de un usuario que ya no está habilitado: el pedido
+   * sigue como anónimo y no debe quedar con su tenant ni su id en el contexto.
+   */
+  clearUser(): void {
+    const store = storage.getStore()
+    if (!store) return
+
+    delete store.userId
+    delete store.userEmail
+    delete store.userRole
+    delete store.tenantId
+  },
 }

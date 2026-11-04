@@ -5,6 +5,7 @@ import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 import { StoragePort } from '@/platform/storage/storage.port'
 import { errorMessage } from '@/shared/core/error-message'
 import { createLogger } from '@/shared/logging/root-logger'
+import { isSafeSvg } from '@/shared/security/svg-safety'
 import { TenantSettingsPatch } from '../../domain/tenant.entity'
 import {
   InvalidTenantLogoException,
@@ -77,6 +78,13 @@ export class UploadTenantLogoHandler implements ICommandHandler<
     const format = detectLogoFormat(file)
     if (!format) {
       throw new InvalidTenantLogoException('tiene que ser PNG, JPG, WebP o SVG')
+    }
+    // Un SVG puede traer scripts o referencias externas: se acepta sólo si es
+    // un dibujo plano (ver `isSafeSvg`). Se rechaza en vez de sanear.
+    if (format.extension === 'svg' && !isSafeSvg(file)) {
+      throw new InvalidTenantLogoException(
+        'el SVG no puede incluir scripts, enlaces ni recursos externos; exportalo como dibujo simple o usá PNG',
+      )
     }
     const current = await this.tenants.findById(command.tenantId)
     if (!current) throw new TenantNotFoundException()
