@@ -48,6 +48,36 @@ Revisé el código del PR y corregí lo encontrado:
 
 **Para revisar de esta ronda:** D-190 (el cambio más grande: nueva migración con índice parcial y dominios existentes marcados como verificados, A-146), A-147 (variables nuevas a cargar en Doppler) y A-148 (el TXT puede tardar en verse por el caché del resolvedor DNS).
 
+## Revisión del PR (tercera ronda, D-177..D-200)
+
+Después de revisar el PR contra la spec, se aplicó cada arreglo en un commit propio:
+
+| #   | Arreglo                                                                                                                                                                  | Dónde                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| 1   | Decisiones renumeradas a **D-177..D-196** y **A-137..A-148** (la Fase 21 usa D-157..D-172 y A-125..A-131)                                                                | docs                                                            |
+| 2   | **Desvío de nombre**: la spec dice 422 con `details`; el cuerpo usa **`errors`** (convención de la API)                                                                  | PR                                                              |
+| 3   | **Host por coincidencia exacta**: `foo.com` ya no resuelve al tenant que verificó `www.foo.com` (ni al revés); cada nombre se verifica por separado                      | `site-host-resolver.ts`, tests unitarios y e2e (A-138 revisado) |
+| 4   | **El aviso a `apps/sites` no bloquea** el request (publicar, despublicar, verificar, cambiar dirección): `SiteChangeNotifier`, sin `await`, con log                      | D-191, test e2e con 3 s de demora                               |
+| 5   | **Las lecturas del servidor de sitios no cuentan contra el tope por IP** si traen el secreto compartido (`X-Sites-Secret`, tiempo constante); el contacto sigue limitado | **D-197**, tests e2e con throttling activo                      |
+| 6   | **`SITES_PREVIEW_SECRET` obligatoria en producción** (32+ caracteres), sin derivar de `JWT_ACCESS_SECRET`                                                                | **D-198**, test de `validateEnv`                                |
+| 7   | Comentario en `schema.prisma` sobre el índice parcial que vive solo en SQL, y un spec que falla si una migración posterior lo borra                                      | `custom-domain-index.spec.ts`                                   |
+| 8   | Cambiar subdominio o dominio de un sitio **publicado** vacía la caché y avisa a `apps/sites`                                                                             | tests e2e                                                       |
+| 9   | **Re-verificación periódica: NO implementada.** Queda como deuda con diseño propuesto                                                                                    | **D-199**                                                       |
+| 10  | **Caché de hosts por instancia** (hasta 30 s de diferencia entre instancias) documentada                                                                                 | **D-200**                                                       |
+
+Notas: el ítem 5 también marca las tres lecturas del portal público (`properties`, `properties/:id`, `filters`) que consume el sitio, porque tenían el mismo problema (60/min global); el ítem 4 se aplicó también a despublicar y verificar dominio, no solo a publicar.
+
+## Variables de entorno a cargar en Doppler (backend)
+
+| Variable                                                       | Obligatoria                            | Para qué                                                                                                                                                  |
+| -------------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SITES_PREVIEW_SECRET`                                         | **Sí, en producción** (32+ caracteres) | Firma la vista previa y el valor TXT de verificación de dominios. Rotarla cambia todos los TXT esperados (D-198)                                          |
+| `SITES_REVALIDATE_SECRET`                                      | Recomendada                            | Secreto compartido con `apps/sites`: revalidación al publicar **y** exención del tope por IP (D-191, D-197). Tiene que ser el mismo valor en `apps/sites` |
+| `SITES_REVALIDATE_URL`                                         | Recomendada                            | URL base de `apps/sites` para el aviso de publicación                                                                                                     |
+| `SITES_BASE_DOMAIN`                                            | Para usar subdominios                  | Dominio de los subdominios de sitios                                                                                                                      |
+| `SITES_DOMAIN_VERIFICATION`                                    | No (default `true`)                    | `false` solo en desarrollo                                                                                                                                |
+| `SITES_PROTOCOL`, `SITES_DEV_URL`, `SITES_ALLOWED_IMAGE_HOSTS` | No                                     | Ver A-141                                                                                                                                                 |
+
 ## Endpoints
 
 `GET /site/templates`, `GET|PUT /site/settings`, `POST /site/settings/reset-template`, `POST /site/publish`, `POST /site/unpublish`, `POST /site/assets`, `GET /site/preview-token`, `GET /site/subdomain-availability`, `GET /site/domain`, `POST /site/domain/verify` (todos **solo ADMIN**, empleado = 403) y, públicos, `GET /public/:slug/site[?preview=]` y `GET /public/site-by-host?host=`. Detalle y errores en `docs/tecnica/web-inmobiliaria.md`.

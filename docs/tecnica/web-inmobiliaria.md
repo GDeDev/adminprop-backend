@@ -1,6 +1,6 @@
 # Sitio web de la inmobiliaria — documentación técnica (backend)
 
-Spec: `adminprop-repo-files/specs/web-inmobiliaria.md` (el contrato es la sección 5). Rama `feature/web-inmobiliaria-api`, desde `feature/fase-14-notificaciones`. Decisiones D-177 a D-196 y supuestos A-137 a A-148 en `DECISIONES_TECNICAS.md`.
+Spec: `adminprop-repo-files/specs/web-inmobiliaria.md` (el contrato es la sección 5). Rama `feature/web-inmobiliaria-api`, desde `feature/fase-14-notificaciones`. Decisiones D-177 a D-200 y supuestos A-137 a A-148 en `DECISIONES_TECNICAS.md`.
 
 ## Qué se construyó
 

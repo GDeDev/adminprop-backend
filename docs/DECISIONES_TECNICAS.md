@@ -1208,3 +1208,19 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Antes**: sin la variable se usaba `site-preview:<JWT_ACCESS_SECRET>`. Un secreto distinto para una cosa distinta es la regla de este backend (los JWT de acceso y de refresh ya tienen secretos separados), y además este secreto firma la **prueba de propiedad de los dominios** (D-190).
 - **Ahora**: en producción `validateEnv` exige `SITES_PREVIEW_SECRET` de **32 caracteres o más** y la app no arranca sin ella. Fuera de producción hay un valor fijo de desarrollo (no derivado de nada).
 - **Qué pasa al rotarla**: se invalidan los tokens de vista previa en curso (duran 15 minutos) y **cambia el valor TXT esperado de todos los dominios**. Los dominios que ya estaban verificados siguen verificados (queda guardada la fecha), pero los TXT que cada inmobiliaria cargó en su DNS dejan de coincidir: una re-verificación (D-199) los marcaría como caídos hasta que carguen el valor nuevo. Rotarla es una operación que se avisa a las inmobiliarias con dominio propio.
+
+### D-199 · DEUDA: un dominio verificado no se vuelve a comprobar (revocación)
+
+- **Estado**: la verificación (D-190) se hace una vez. Si después el dueño del dominio borra el TXT, vende el dominio o lo deja vencer, el sitio sigue respondiendo ahí y el dominio sigue reservado para esa inmobiliaria. **No está implementado**: hay que decidirlo con el dueño del producto porque implica estado nuevo y una política.
+- **Diseño propuesto** (no construido):
+  1. Migración: `custom_domain_checked_at` y `custom_domain_failed_checks` en `site_settings`.
+  2. Un job diario (`@Cron`, como `refresh-token-cleanup.task.ts`; cada dominio con su propio try/catch y con tope de dominios por corrida) que consulta el TXT de cada dominio verificado con el mismo `DnsTxtPort`.
+  3. **Tolerancia a fallas**: un DNS que no responde un día no es una revocación. Se cuenta cada falla y se revoca (`custom_domain_verified_at = NULL`, aviso interno al administrador y a `apps/sites`) recién a las **3 fallas consecutivas**; una comprobación correcta pone el contador en cero.
+  4. Un endpoint de ADMIN (`POST /site/domain/recheck`) para comprobarlo a mano y, para el personal de Adminprop, una forma de revocar un dominio a pedido (soporte).
+  5. Auditoría de cada revocación (con el valor esperado, sin secretos).
+- **Interacción con D-198**: rotar `SITES_PREVIEW_SECRET` cambia el TXT esperado de todos los dominios; con revocación automática eso los revocaría a todos a los 3 días. Antes de rotarla hay que avisar a las inmobiliarias o aceptar ambos valores durante una ventana.
+- **Mitigación hoy**: la unicidad solo cuenta dominios verificados y un dominio no verificado no resuelve, así que el riesgo se limita a un dominio que quedó "huérfano" en una inmobiliaria; el soporte puede liberarlo quitando el dominio de esa fila.
+
+### D-200 · El caché de hosts es por instancia (hasta 30 s de diferencia entre instancias)
+
+`SiteHostResolver` cachea en memoria de cada proceso (30 s los aciertos, 10 s los fallos). Con **varias instancias** de la API, publicar, despublicar, cambiar o verificar un dominio vacía solo la caché de la instancia que atendió ese request: las demás pueden seguir resolviendo la dirección anterior (o no resolviendo la nueva) **hasta 30 s**. Es aceptable para el caso de uso (un cambio de dirección no es urgente al segundo), pero conviene saberlo: no es un bug cuando dos pedidos seguidos dan resultados distintos. Si molesta, las salidas son un TTL menor, una caché compartida (Redis) o invalidar por evento entre instancias. `apps/sites` tiene además su propia caché de hosts (30 s) y la vacía con `POST /api/revalidate`.
