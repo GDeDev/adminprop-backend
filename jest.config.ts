@@ -15,6 +15,7 @@ const config: Config = {
     '!**/*.dto.ts',
     '!**/index.ts',
     '!main.ts',
+    '!**/testing/**',
   ],
   coverageDirectory: '../coverage',
 
