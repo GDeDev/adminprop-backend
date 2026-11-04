@@ -18937,21 +18937,29 @@
           "path"
         ]
       },
-      "LoginDto": {
+      "ApiSuccessDto": {
         "type": "object",
         "properties": {
-          "email": {
-            "type": "string",
-            "example": "ana@ejemplo.com"
+          "success": {
+            "type": "boolean",
+            "description": "Indica si la operación fue exitosa",
+            "example": true
           },
-          "password": {
+          "message": {
             "type": "string",
-            "example": "UnaClaveSegura123"
+            "description": "Mensaje que describe el resultado de la operación",
+            "example": "Operación completada correctamente",
+            "nullable": true
+          },
+          "data": {
+            "type": "object",
+            "description": "Payload devuelto por la operación"
           }
         },
         "required": [
-          "email",
-          "password"
+          "success",
+          "message",
+          "data"
         ]
       },
       "PublicUserDto": {
@@ -19061,6 +19069,23 @@
           "tokens"
         ]
       },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "ana@ejemplo.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "UnaClaveSegura123"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
       "PortalLoginDto": {
         "type": "object",
         "properties": {
@@ -19137,31 +19162,6 @@
         "required": [
           "currentPassword",
           "newPassword"
-        ]
-      },
-      "ApiSuccessDto": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "description": "Indica si la operación fue exitosa",
-            "example": true
-          },
-          "message": {
-            "type": "string",
-            "description": "Mensaje que describe el resultado de la operación",
-            "example": "Operación completada correctamente",
-            "nullable": true
-          },
-          "data": {
-            "type": "object",
-            "description": "Payload devuelto por la operación"
-          }
-        },
-        "required": [
-          "success",
-          "message",
-          "data"
         ]
       },
       "PaginationMetaDto": {
