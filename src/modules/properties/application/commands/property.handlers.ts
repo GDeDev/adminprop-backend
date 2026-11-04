@@ -3,7 +3,11 @@ import { randomUUID } from 'node:crypto'
 
 import { TenantsFacade } from '@/modules/tenants/public'
 import { OwnersFacade } from '@/modules/owners/public/owners.facade'
-import { ListingCurrency, Property } from '@/modules/properties/domain/property'
+import {
+  ListingCurrency,
+  ListingOperation,
+  Property,
+} from '@/modules/properties/domain/property'
 import {
   InvalidOwnerReferenceException,
   PropertyNotFoundException,
@@ -82,6 +86,7 @@ export class CreatePropertyHandler implements ICommandHandler<
       publicDescription: PropertyPolicy.normalizePublicDescription(
         data.publicDescription,
       ),
+      listingOperation: data.listingOperation ?? ListingOperation.RENT,
     })
     return this.views.detail(property)
   }

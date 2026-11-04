@@ -1,5 +1,6 @@
 import {
   ListingCurrency,
+  ListingOperation,
   Property,
   PropertyPhoto,
   PropertyStatus,
@@ -15,6 +16,15 @@ export interface PropertyData {
   listingPrice: string | null
   listingCurrency: ListingCurrency
   publicDescription: string | null
+  listingOperation: ListingOperation
+  bedrooms: number | null
+  bathrooms: number | null
+  rooms: number | null
+  totalAreaM2: number | null
+  coveredAreaM2: number | null
+  ageYears: number | null
+  latitude: number | null
+  longitude: number | null
 }
 
 /** Filtros del portal público (Fase 22). Siempre sobre propiedades disponibles. */
@@ -25,6 +35,13 @@ export interface PublicPropertyFilter {
   priceFrom?: string
   priceTo?: string
   currency?: ListingCurrency
+  /** Venta o alquiler. */
+  operation?: ListingOperation
+  /** Mínimos: "2 o más". */
+  bedroomsMin?: number
+  bathroomsMin?: number
+  /** Sólo estas (destacadas a mano del sitio web); las no disponibles no vuelven. */
+  ids?: string[]
 }
 
 export interface PropertyFilter {

@@ -4,7 +4,11 @@ import {
   ArrayMaxSize,
   IsArray,
   IsEnum,
+  IsInt,
+  IsNumber,
   Matches,
+  Max,
+  Min,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -13,7 +17,9 @@ import {
 } from 'class-validator'
 
 import {
+  LISTING_LIMITS,
   ListingCurrency,
+  ListingOperation,
   MAX_PUBLIC_DESCRIPTION,
   PropertyStatus,
 } from '@/modules/properties/domain/property'
@@ -98,6 +104,76 @@ export class CreatePropertyDto {
   @IsString()
   @MaxLength(MAX_PUBLIC_DESCRIPTION)
   publicDescription?: string | null
+
+  @ApiPropertyOptional({
+    enum: ListingOperation,
+    description: 'Venta o alquiler. Por defecto, alquiler.',
+  })
+  @IsOptional()
+  @IsEnum(ListingOperation, { message: 'La operación no es válida' })
+  listingOperation?: ListingOperation
+
+  @ApiPropertyOptional({ type: Number, nullable: true, example: 3 })
+  @IsOptional()
+  @IsInt({ message: 'Los dormitorios tienen que ser un número entero' })
+  @Min(LISTING_LIMITS.count.min)
+  @Max(LISTING_LIMITS.count.max)
+  bedrooms?: number | null
+
+  @ApiPropertyOptional({ type: Number, nullable: true, example: 2 })
+  @IsOptional()
+  @IsInt({ message: 'Los baños tienen que ser un número entero' })
+  @Min(LISTING_LIMITS.count.min)
+  @Max(LISTING_LIMITS.count.max)
+  bathrooms?: number | null
+
+  @ApiPropertyOptional({ type: Number, nullable: true, example: 4 })
+  @IsOptional()
+  @IsInt({ message: 'Los ambientes tienen que ser un número entero' })
+  @Min(LISTING_LIMITS.count.min)
+  @Max(LISTING_LIMITS.count.max)
+  rooms?: number | null
+
+  @ApiPropertyOptional({ type: Number, nullable: true, example: 85.5 })
+  @IsOptional()
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'La superficie total no es válida' },
+  )
+  @Min(LISTING_LIMITS.area.min)
+  @Max(LISTING_LIMITS.area.max)
+  totalAreaM2?: number | null
+
+  @ApiPropertyOptional({ type: Number, nullable: true, example: 70 })
+  @IsOptional()
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'La superficie cubierta no es válida' },
+  )
+  @Min(LISTING_LIMITS.area.min)
+  @Max(LISTING_LIMITS.area.max)
+  coveredAreaM2?: number | null
+
+  @ApiPropertyOptional({ type: Number, nullable: true, example: 12 })
+  @IsOptional()
+  @IsInt({ message: 'La antigüedad tiene que ser un número entero de años' })
+  @Min(LISTING_LIMITS.ageYears.min)
+  @Max(LISTING_LIMITS.ageYears.max)
+  ageYears?: number | null
+
+  @ApiPropertyOptional({ type: Number, nullable: true, example: -34.6037 })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(-90)
+  @Max(90)
+  latitude?: number | null
+
+  @ApiPropertyOptional({ type: Number, nullable: true, example: -58.3816 })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(-180)
+  @Max(180)
+  longitude?: number | null
 }
 
 export class UpdatePropertyDto extends PartialType(CreatePropertyDto) {}
@@ -197,6 +273,7 @@ export class PropertySummaryDto {
   @ApiProperty({ enum: ListingCurrency }) listingCurrency: ListingCurrency
   @ApiProperty({ type: String, nullable: true })
   publicDescription: string | null
+  @ApiProperty({ enum: ListingOperation }) listingOperation: ListingOperation
   @ApiProperty() createdAt: Date
   @ApiProperty() updatedAt: Date
 }
@@ -208,4 +285,12 @@ export class PropertyDetailDto extends PropertySummaryDto {
   @ApiProperty({ type: [AmenityRefDto] }) amenities: AmenityRefDto[]
   @ApiProperty({ type: String, nullable: true }) notes: string | null
   @ApiProperty({ type: [PropertyPhotoDto] }) photos: PropertyPhotoDto[]
+  @ApiProperty({ type: Number, nullable: true }) bedrooms: number | null
+  @ApiProperty({ type: Number, nullable: true }) bathrooms: number | null
+  @ApiProperty({ type: Number, nullable: true }) rooms: number | null
+  @ApiProperty({ type: Number, nullable: true }) totalAreaM2: number | null
+  @ApiProperty({ type: Number, nullable: true }) coveredAreaM2: number | null
+  @ApiProperty({ type: Number, nullable: true }) ageYears: number | null
+  @ApiProperty({ type: Number, nullable: true }) latitude: number | null
+  @ApiProperty({ type: Number, nullable: true }) longitude: number | null
 }

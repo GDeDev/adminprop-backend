@@ -141,6 +141,15 @@ export class PropertiesController {
         listingPrice: dto.listingPrice ?? null,
         listingCurrency: dto.listingCurrency,
         publicDescription: dto.publicDescription ?? null,
+        listingOperation: dto.listingOperation,
+        bedrooms: dto.bedrooms ?? null,
+        bathrooms: dto.bathrooms ?? null,
+        rooms: dto.rooms ?? null,
+        totalAreaM2: dto.totalAreaM2 ?? null,
+        coveredAreaM2: dto.coveredAreaM2 ?? null,
+        ageYears: dto.ageYears ?? null,
+        latitude: dto.latitude ?? null,
+        longitude: dto.longitude ?? null,
       }),
     )
     return { success: true, message: 'Propiedad creada', data: property }
@@ -167,6 +176,15 @@ export class PropertiesController {
         listingPrice: dto.listingPrice,
         listingCurrency: dto.listingCurrency,
         publicDescription: dto.publicDescription,
+        listingOperation: dto.listingOperation,
+        bedrooms: dto.bedrooms,
+        bathrooms: dto.bathrooms,
+        rooms: dto.rooms,
+        totalAreaM2: dto.totalAreaM2,
+        coveredAreaM2: dto.coveredAreaM2,
+        ageYears: dto.ageYears,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
       }),
     )
     return { success: true, message: 'Propiedad actualizada', data: property }

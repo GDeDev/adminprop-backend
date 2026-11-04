@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common'
 
 import { IsoDate, toIsoDate } from '@/shared/dates/calendar-date'
 import { PropertyTypeNames } from '../application/property-type-names'
-import { ListingCurrency, PropertyStatus } from '../domain/property'
+import {
+  ListingCurrency,
+  ListingOperation,
+  PropertyStatus,
+} from '../domain/property'
 import { PaginatedResult, PaginationQueryDto } from '@/shared/pagination'
 import { paginateWith } from '@/shared/pagination/pagination'
 import {
@@ -16,7 +20,7 @@ import {
   PublicPropertyFilter,
 } from '../domain/property.ports'
 
-export { ListingCurrency, PropertyStatus }
+export { ListingCurrency, ListingOperation, PropertyStatus }
 export type {
   PublicFiltersView,
   PublicPropertyDetailView,

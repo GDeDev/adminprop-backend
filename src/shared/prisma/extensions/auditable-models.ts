@@ -127,6 +127,19 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   InventoryItem: { tenantScoped: true, audit: false, softDelete: false },
   InventoryPhoto: { tenantScoped: true, audit: false, softDelete: false },
 
+  // Sitio web de la inmobiliaria: los cambios de template, subdominio, dominio,
+  // publicar y despublicar quedan en el historial por sus columnas. El
+  // contenido (`draft`, `published`) es un JSON grande que cambia con cada
+  // guardado: se excluye del diff para no llenar el historial. Las imágenes
+  // subidas no se auditan (la fila misma es la traza).
+  SiteSettings: {
+    tenantScoped: true,
+    audit: true,
+    softDelete: false,
+    excludeFromDiff: ['draft', 'published'],
+  },
+  SiteAsset: { tenantScoped: true, audit: false, softDelete: false },
+
   // Consultas del portal público (Fase 22): las crea el público (sin usuario),
   // el personal cambia su estado y eso queda en el historial. La IP es sólo
   // para frenar spam: no va al historial.

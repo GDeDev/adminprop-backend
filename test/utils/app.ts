@@ -1,17 +1,21 @@
 import { INestApplication } from '@nestjs/common'
 import { NestExpressApplication } from '@nestjs/platform-express'
-import { Test } from '@nestjs/testing'
+import { Test, TestingModuleBuilder } from '@nestjs/testing'
 import request from 'supertest'
 
 import { AppModule } from '../../src/app.module'
 import { configureApp } from '../../src/app.setup'
 import { TEST_PASSWORD } from './database'
 
-/** Levanta la app completa, configurada igual que en `main.ts`. */
-export async function createTestApp(): Promise<INestApplication> {
-  const moduleRef = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile()
+/**
+ * Levanta la app completa, configurada igual que en `main.ts`. `customize`
+ * permite reemplazar providers (por ejemplo, el DNS o el aviso a `apps/sites`).
+ */
+export async function createTestApp(
+  customize?: (builder: TestingModuleBuilder) => TestingModuleBuilder,
+): Promise<INestApplication> {
+  const builder = Test.createTestingModule({ imports: [AppModule] })
+  const moduleRef = await (customize ? customize(builder) : builder).compile()
 
   const app = moduleRef.createNestApplication<NestExpressApplication>()
   configureApp(app as NestExpressApplication)

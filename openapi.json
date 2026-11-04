@@ -14591,6 +14591,49 @@
                 "USD"
               ]
             }
+          },
+          {
+            "name": "operation",
+            "required": false,
+            "in": "query",
+            "description": "Venta (SALE) o alquiler (RENT)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SALE",
+                "RENT"
+              ]
+            }
+          },
+          {
+            "name": "bedrooms",
+            "required": false,
+            "in": "query",
+            "description": "Dormitorios: este número o más",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "bathrooms",
+            "required": false,
+            "in": "query",
+            "description": "Baños: este número o más",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "ids",
+            "required": false,
+            "in": "query",
+            "description": "Sólo estas propiedades (hasta 12, separadas por coma). Las no disponibles no vuelven. Lo usa el sitio web para las destacadas a mano.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         ],
         "responses": {
@@ -15017,6 +15060,621 @@
         "summary": "Cambiar el estado de una consulta",
         "tags": [
           "Inquiries"
+        ]
+      }
+    },
+    "/api/v1/site/templates": {
+      "get": {
+        "operationId": "SiteController_templates_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SiteTemplateInfoDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Templates disponibles, con su tema por defecto",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
+    "/api/v1/site/settings": {
+      "get": {
+        "description": "La primera vez la crea con el template CLASSIC y los datos de la inmobiliaria, deshabilitada.",
+        "operationId": "SiteController_settings_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteSettingsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Configuración del sitio",
+        "tags": [
+          "Site"
+        ]
+      },
+      "put": {
+        "description": "Cambia el borrador, no el sitio publicado. `subdomain` y `customDomain` se aplican al instante.",
+        "operationId": "SiteController_update_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSiteSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteSettingsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SUBDOMAIN_TAKEN o DOMAIN_TAKEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Errores por campo en `errors`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Guardar el borrador (parcial)",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
+    "/api/v1/site/settings/reset-template": {
+      "post": {
+        "operationId": "SiteController_reset_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetSiteTemplateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteSettingsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Restaurar el tema (y opcionalmente el contenido) del template",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
+    "/api/v1/site/publish": {
+      "post": {
+        "description": "Valida el borrador completo, lo copia a lo publicado y prende el sitio.",
+        "operationId": "SiteController_publish_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteSettingsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "El borrador está incompleto o inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Publicar",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
+    "/api/v1/site/unpublish": {
+      "post": {
+        "description": "El sitio pasa a 404. No se pierde nada de lo configurado.",
+        "operationId": "SiteController_unpublish_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteSettingsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Despublicar",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
+    "/api/v1/site/assets": {
+      "post": {
+        "description": "JPG, PNG o WebP de hasta 5 MB, validada por contenido. No se admite SVG.",
+        "operationId": "SiteController_upload_api/v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteAssetDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No es una imagen válida o pesa más de 5 MB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Subir una imagen",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
+    "/api/v1/site/preview-token": {
+      "get": {
+        "description": "JWT de 15 minutos que abre el borrador en el sitio con `?preview=<token>`.",
+        "operationId": "SiteController_previewToken_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitePreviewTokenDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Token de vista previa",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
+    "/api/v1/site/domain": {
+      "get": {
+        "description": "Si está verificado y, si no, el registro TXT que hay que cargar en el DNS para demostrar que es tuyo.",
+        "operationId": "SiteController_domain_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteDomainDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Estado del dominio propio",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
+    "/api/v1/site/domain/verify": {
+      "post": {
+        "description": "Busca el registro TXT en el DNS. Hasta que se verifica, el dominio está reservado pero no resuelve el sitio.",
+        "operationId": "SiteController_verifyDomain_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteSettingsDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "DOMAIN_TAKEN: otra inmobiliaria lo verificó primero",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "DOMAIN_NOT_VERIFIED o NO_CUSTOM_DOMAIN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verificar el dominio propio",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
+    "/api/v1/site/subdomain-availability": {
+      "get": {
+        "operationId": "SiteController_subdomainAvailability_api/v1",
+        "parameters": [
+          {
+            "name": "value",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "mi-inmobiliaria"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubdomainAvailabilityDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No es administrador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Verifica si un subdominio es válido y está libre",
+        "tags": [
+          "Site"
+        ]
+      }
+    },
+    "/api/v1/public/site-by-host": {
+      "get": {
+        "description": "`<subdominio>.<SITES_BASE_DOMAIN>` o un dominio propio. Lo usa el middleware de apps/sites.",
+        "operationId": "PublicSiteController_byHost_api/v1",
+        "parameters": [
+          {
+            "name": "host",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "mi-inmobiliaria.adminprop.com"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteHostDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SITE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Resuelve el slug a partir del host",
+        "tags": [
+          "Public site"
+        ]
+      }
+    },
+    "/api/v1/public/{slug}/site": {
+      "get": {
+        "description": "Con `?preview=<token>` (de GET /site/preview-token) devuelve el borrador, sin caché.",
+        "operationId": "PublicSiteController_site_api/v1",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "oppido",
+              "type": "string"
+            }
+          },
+          {
+            "name": "preview",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSiteDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SITE_NOT_FOUND: no existe, no está publicado o el token no corresponde",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "El sitio publicado de una inmobiliaria",
+        "tags": [
+          "Public site"
         ]
       }
     },
@@ -17388,6 +18046,13 @@
             "type": "string",
             "nullable": true
           },
+          "listingOperation": {
+            "type": "string",
+            "enum": [
+              "SALE",
+              "RENT"
+            ]
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -17410,6 +18075,7 @@
           "listingPrice",
           "listingCurrency",
           "publicDescription",
+          "listingOperation",
           "createdAt",
           "updatedAt"
         ]
@@ -17533,6 +18199,13 @@
             "type": "string",
             "nullable": true
           },
+          "listingOperation": {
+            "type": "string",
+            "enum": [
+              "SALE",
+              "RENT"
+            ]
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -17568,6 +18241,38 @@
             "items": {
               "$ref": "#/components/schemas/PropertyPhotoDto"
             }
+          },
+          "bedrooms": {
+            "type": "number",
+            "nullable": true
+          },
+          "bathrooms": {
+            "type": "number",
+            "nullable": true
+          },
+          "rooms": {
+            "type": "number",
+            "nullable": true
+          },
+          "totalAreaM2": {
+            "type": "number",
+            "nullable": true
+          },
+          "coveredAreaM2": {
+            "type": "number",
+            "nullable": true
+          },
+          "ageYears": {
+            "type": "number",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "nullable": true
           }
         },
         "required": [
@@ -17583,6 +18288,7 @@
           "listingPrice",
           "listingCurrency",
           "publicDescription",
+          "listingOperation",
           "createdAt",
           "updatedAt",
           "locationId",
@@ -17590,7 +18296,15 @@
           "amenityIds",
           "amenities",
           "notes",
-          "photos"
+          "photos",
+          "bedrooms",
+          "bathrooms",
+          "rooms",
+          "totalAreaM2",
+          "coveredAreaM2",
+          "ageYears",
+          "latitude",
+          "longitude"
         ]
       },
       "CreatePropertyDto": {
@@ -17646,6 +18360,54 @@
             "nullable": true,
             "description": "Texto que ve el público en el portal.",
             "maxLength": 2000
+          },
+          "listingOperation": {
+            "type": "string",
+            "enum": [
+              "SALE",
+              "RENT"
+            ],
+            "description": "Venta o alquiler. Por defecto, alquiler."
+          },
+          "bedrooms": {
+            "type": "number",
+            "nullable": true,
+            "example": 3
+          },
+          "bathrooms": {
+            "type": "number",
+            "nullable": true,
+            "example": 2
+          },
+          "rooms": {
+            "type": "number",
+            "nullable": true,
+            "example": 4
+          },
+          "totalAreaM2": {
+            "type": "number",
+            "nullable": true,
+            "example": 85.5
+          },
+          "coveredAreaM2": {
+            "type": "number",
+            "nullable": true,
+            "example": 70
+          },
+          "ageYears": {
+            "type": "number",
+            "nullable": true,
+            "example": 12
+          },
+          "latitude": {
+            "type": "number",
+            "nullable": true,
+            "example": -34.6037
+          },
+          "longitude": {
+            "type": "number",
+            "nullable": true,
+            "example": -58.3816
           }
         },
         "required": [
@@ -17707,6 +18469,54 @@
             "nullable": true,
             "description": "Texto que ve el público en el portal.",
             "maxLength": 2000
+          },
+          "listingOperation": {
+            "type": "string",
+            "enum": [
+              "SALE",
+              "RENT"
+            ],
+            "description": "Venta o alquiler. Por defecto, alquiler."
+          },
+          "bedrooms": {
+            "type": "number",
+            "nullable": true,
+            "example": 3
+          },
+          "bathrooms": {
+            "type": "number",
+            "nullable": true,
+            "example": 2
+          },
+          "rooms": {
+            "type": "number",
+            "nullable": true,
+            "example": 4
+          },
+          "totalAreaM2": {
+            "type": "number",
+            "nullable": true,
+            "example": 85.5
+          },
+          "coveredAreaM2": {
+            "type": "number",
+            "nullable": true,
+            "example": 70
+          },
+          "ageYears": {
+            "type": "number",
+            "nullable": true,
+            "example": 12
+          },
+          "latitude": {
+            "type": "number",
+            "nullable": true,
+            "example": -34.6037
+          },
+          "longitude": {
+            "type": "number",
+            "nullable": true,
+            "example": -58.3816
           }
         }
       },
@@ -26612,6 +27422,26 @@
           },
           "areaM2": {
             "type": "number",
+            "nullable": true,
+            "description": "Superficie total"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "SALE",
+              "RENT"
+            ]
+          },
+          "rooms": {
+            "type": "number",
+            "nullable": true
+          },
+          "coveredAreaM2": {
+            "type": "number",
+            "nullable": true
+          },
+          "ageYears": {
+            "type": "number",
             "nullable": true
           },
           "price": {
@@ -26648,6 +27478,10 @@
           "bedrooms",
           "bathrooms",
           "areaM2",
+          "operation",
+          "rooms",
+          "coveredAreaM2",
+          "ageYears",
           "price",
           "currency",
           "coverPhotoUrl",
@@ -26714,6 +27548,26 @@
           },
           "areaM2": {
             "type": "number",
+            "nullable": true,
+            "description": "Superficie total"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "SALE",
+              "RENT"
+            ]
+          },
+          "rooms": {
+            "type": "number",
+            "nullable": true
+          },
+          "coveredAreaM2": {
+            "type": "number",
+            "nullable": true
+          },
+          "ageYears": {
+            "type": "number",
             "nullable": true
           },
           "price": {
@@ -26770,6 +27624,10 @@
           "bedrooms",
           "bathrooms",
           "areaM2",
+          "operation",
+          "rooms",
+          "coveredAreaM2",
+          "ageYears",
           "price",
           "currency",
           "coverPhotoUrl",
@@ -26956,6 +27814,832 @@
         },
         "required": [
           "status"
+        ]
+      },
+      "SiteThemeDto": {
+        "type": "object",
+        "properties": {
+          "primary": {
+            "type": "string",
+            "example": "#B6A28E"
+          },
+          "secondary": {
+            "type": "string"
+          },
+          "background": {
+            "type": "string"
+          },
+          "surface": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "fontKey": {
+            "type": "string",
+            "example": "system"
+          },
+          "radius": {
+            "type": "number",
+            "enum": [
+              0,
+              8,
+              16,
+              24
+            ]
+          }
+        },
+        "required": [
+          "primary",
+          "secondary",
+          "background",
+          "surface",
+          "text",
+          "fontKey",
+          "radius"
+        ]
+      },
+      "SiteFontOptionDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ]
+      },
+      "SiteTemplateInfoDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "CLASSIC",
+              "MODERN"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "previewImageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultTheme": {
+            "$ref": "#/components/schemas/SiteThemeDto"
+          },
+          "supportedSections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "hero",
+                "steps",
+                "featured",
+                "metrics",
+                "services",
+                "testimonials",
+                "faqs",
+                "about",
+                "contact"
+              ]
+            }
+          },
+          "fontOptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteFontOptionDto"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "description",
+          "previewImageUrl",
+          "defaultTheme",
+          "supportedSections",
+          "fontOptions"
+        ]
+      },
+      "SiteBrandDto": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "tagline": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120
+          },
+          "logoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "faviconUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "displayName",
+          "tagline",
+          "logoUrl",
+          "faviconUrl"
+        ]
+      },
+      "SiteSocialDto": {
+        "type": "object",
+        "properties": {
+          "network": {
+            "type": "string",
+            "enum": [
+              "FACEBOOK",
+              "INSTAGRAM",
+              "LINKEDIN",
+              "YOUTUBE",
+              "TIKTOK",
+              "X"
+            ]
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "network",
+          "url"
+        ]
+      },
+      "SiteContactDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "hours": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "whatsapp": {
+            "type": "string",
+            "nullable": true,
+            "description": "Solo dígitos con código de país"
+          },
+          "whatsappMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "socials": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteSocialDto"
+            }
+          }
+        },
+        "required": [
+          "address",
+          "hours",
+          "phone",
+          "whatsapp",
+          "whatsappMessage",
+          "email",
+          "socials"
+        ]
+      },
+      "SiteHeroDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "backgroundImageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "showSearch": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "title",
+          "subtitle",
+          "ctaLabel",
+          "backgroundImageUrl",
+          "showSearch"
+        ]
+      },
+      "SiteStepDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "search",
+              "home",
+              "key",
+              "handshake",
+              "file-text",
+              "calendar",
+              "phone",
+              "map-pin",
+              "shield",
+              "star",
+              "camera",
+              "smile"
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "icon"
+        ]
+      },
+      "SiteFeaturedDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "count": {
+            "type": "number",
+            "minimum": 3,
+            "maximum": 12
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "LATEST",
+              "MANUAL"
+            ]
+          },
+          "propertyIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "subtitle",
+          "count",
+          "mode",
+          "propertyIds"
+        ]
+      },
+      "SiteMetricDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ]
+      },
+      "SiteServiceDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "imageUrl"
+        ]
+      },
+      "SiteTestimonialDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "photoUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name",
+          "text",
+          "role",
+          "photoUrl"
+        ]
+      },
+      "SiteFaqDto": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "answer"
+        ]
+      },
+      "SiteAboutDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "title",
+          "body",
+          "imageUrl"
+        ]
+      },
+      "SiteSeoDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "ogImageUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "ogImageUrl"
+        ]
+      },
+      "SiteSectionDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "hero",
+              "steps",
+              "featured",
+              "metrics",
+              "services",
+              "testimonials",
+              "faqs",
+              "about",
+              "contact"
+            ]
+          },
+          "visible": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "visible"
+        ]
+      },
+      "SiteContentDto": {
+        "type": "object",
+        "properties": {
+          "brand": {
+            "$ref": "#/components/schemas/SiteBrandDto"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/SiteContactDto"
+          },
+          "hero": {
+            "$ref": "#/components/schemas/SiteHeroDto"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteStepDto"
+            }
+          },
+          "featured": {
+            "$ref": "#/components/schemas/SiteFeaturedDto"
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteMetricDto"
+            }
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteServiceDto"
+            }
+          },
+          "testimonials": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteTestimonialDto"
+            }
+          },
+          "faqs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteFaqDto"
+            }
+          },
+          "about": {
+            "$ref": "#/components/schemas/SiteAboutDto"
+          },
+          "seo": {
+            "$ref": "#/components/schemas/SiteSeoDto"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteSectionDto"
+            }
+          }
+        },
+        "required": [
+          "brand",
+          "contact",
+          "hero",
+          "steps",
+          "featured",
+          "metrics",
+          "services",
+          "testimonials",
+          "faqs",
+          "about",
+          "seo",
+          "sections"
+        ]
+      },
+      "SiteSettingsDraftDto": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "type": "string",
+            "enum": [
+              "CLASSIC",
+              "MODERN"
+            ]
+          },
+          "theme": {
+            "$ref": "#/components/schemas/SiteThemeDto"
+          },
+          "content": {
+            "$ref": "#/components/schemas/SiteContentDto"
+          }
+        },
+        "required": [
+          "template",
+          "theme",
+          "content"
+        ]
+      },
+      "SiteSettingsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "subdomain": {
+            "type": "string",
+            "nullable": true
+          },
+          "customDomain": {
+            "type": "string",
+            "nullable": true
+          },
+          "draft": {
+            "$ref": "#/components/schemas/SiteSettingsDraftDto"
+          },
+          "publishedAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "null = nunca publicado"
+          },
+          "hasUnpublishedChanges": {
+            "type": "boolean",
+            "description": "El borrador difiere de lo publicado (o nunca se publicó)"
+          },
+          "publicUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "enabled",
+          "subdomain",
+          "customDomain",
+          "draft",
+          "publishedAt",
+          "hasUnpublishedChanges",
+          "publicUrl"
+        ]
+      },
+      "UpdateSiteSettingsDto": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "type": "string",
+            "enum": [
+              "CLASSIC",
+              "MODERN"
+            ]
+          },
+          "theme": {
+            "description": "Parcial: solo los campos que se mandan cambian.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SiteThemeDto"
+              }
+            ]
+          },
+          "content": {
+            "description": "Parcial por bloque: cada bloque que se manda (brand, hero, steps…) reemplaza al anterior entero.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SiteContentDto"
+              }
+            ]
+          },
+          "subdomain": {
+            "type": "string",
+            "nullable": true,
+            "example": "mi-inmobiliaria",
+            "description": "Único en todo el sistema. `null` lo quita. Se aplica al instante."
+          },
+          "customDomain": {
+            "type": "string",
+            "nullable": true,
+            "example": "www.mi-inmobiliaria.com.ar",
+            "description": "Dominio propio, sin https://. Hay que apuntar el DNS a mano. `null` lo quita."
+          }
+        }
+      },
+      "ResetSiteTemplateDto": {
+        "type": "object",
+        "properties": {
+          "keepContent": {
+            "type": "boolean",
+            "description": "true: conserva textos e imágenes y restaura solo el tema."
+          }
+        },
+        "required": [
+          "keepContent"
+        ]
+      },
+      "SiteAssetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "width",
+          "height"
+        ]
+      },
+      "SitePreviewTokenDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "JWT corto; se manda como ?preview= al sitio"
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "expiresAt"
+        ]
+      },
+      "DomainRecordDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "TXT"
+            ]
+          },
+          "host": {
+            "type": "string",
+            "example": "_adminprop-verify.www.mi-inmobiliaria.com.ar"
+          },
+          "value": {
+            "type": "string",
+            "example": "adminprop-verify=0123456789abcdef0123456789abcdef"
+          }
+        },
+        "required": [
+          "type",
+          "host",
+          "value"
+        ]
+      },
+      "SiteDomainDto": {
+        "type": "object",
+        "properties": {
+          "customDomain": {
+            "type": "string",
+            "nullable": true
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "Solo un dominio verificado resuelve el sitio"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "verificationRequired": {
+            "type": "boolean",
+            "description": "false en desarrollo: el dominio se activa al cargarlo"
+          },
+          "record": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DomainRecordDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "customDomain",
+          "verified",
+          "verifiedAt",
+          "verificationRequired",
+          "record"
+        ]
+      },
+      "SubdomainAvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "value",
+          "available",
+          "reason"
+        ]
+      },
+      "SiteHostDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug"
+        ]
+      },
+      "PublicSiteTenantDto": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "logoUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "logoUrl"
+        ]
+      },
+      "PublicSiteDto": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "type": "string",
+            "enum": [
+              "CLASSIC",
+              "MODERN"
+            ]
+          },
+          "theme": {
+            "$ref": "#/components/schemas/SiteThemeDto"
+          },
+          "content": {
+            "$ref": "#/components/schemas/SiteContentDto"
+          },
+          "tenant": {
+            "$ref": "#/components/schemas/PublicSiteTenantDto"
+          },
+          "publishedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "theme",
+          "content",
+          "tenant",
+          "publishedAt"
         ]
       },
       "NotificationLogItemDto": {
