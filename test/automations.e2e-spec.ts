@@ -408,7 +408,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       const scheduler = app.get(JobScheduler)
 
       const first = await scheduler.enqueueDue(at)
-      expect(first).toBe(2 * 13 + 1)
+      expect(first).toBe(2 * 13 + 2)
       expect(await scheduler.enqueueDue(at)).toBe(0)
 
       const executions = app.get(JobExecutionRepository)
@@ -430,15 +430,16 @@ describe('Automatizaciones (e2e, Postgres)', () => {
         {},
         { skip: 0, take: 100 },
       )
-      expect(rowsA.filter((r) => r.tenantId === tenantA.id)).toHaveLength(12)
-      expect(rowsB.filter((r) => r.tenantId === tenantB.id)).toHaveLength(12)
+      expect(rowsA.filter((r) => r.tenantId === tenantA.id)).toHaveLength(13)
+      expect(rowsB.filter((r) => r.tenantId === tenantB.id)).toHaveLength(13)
       expect([...rowsA, ...rowsB].filter((r) => r.status === 'FAILED')).toEqual(
         [],
       )
 
-      // A las 12:10 corre la segunda de índices; los demás ya están.
+      // A las 12:10 corren la segunda de índices (1) y la segunda de
+      // `crm.pull-channel-inquiries` de cada inmobiliaria (2); los demás ya están.
       expect(await scheduler.enqueueDue(new Date('2026-10-31T15:10:00Z'))).toBe(
-        1,
+        3,
       )
     })
 
@@ -446,7 +447,10 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       // Antes la única barrera era la singletonKey de pg-boss, que en una cola
       // estándar no deduplica: ambas réplicas leían "0 corridas hoy" y cada job
       // de cada inmobiliaria corría dos veces.
-      const at = new Date('2026-10-31T13:00:00Z')
+      // Otro día que el test anterior: los jobs globales (sin tenant) comparten
+      // `singletonKey` entre tests y, si el mensaje del test anterior sigue en
+      // pgboss.job, se descartan como duplicados y el conteo baja.
+      const at = new Date('2026-10-30T13:00:00Z')
       const scheduler = app.get(JobScheduler)
 
       const [a, b] = await Promise.all([
@@ -454,11 +458,11 @@ describe('Automatizaciones (e2e, Postgres)', () => {
         scheduler.enqueueDue(at),
       ])
 
-      expect(a + b).toBe(2 * 10 + 1)
+      expect(a + b).toBe(2 * 13 + 2)
       const rows = await prisma.db.jobExecution.findMany({
         where: { triggeredBy: 'SCHEDULE' },
       })
-      expect(rows).toHaveLength(2 * 10 + 1)
+      expect(rows).toHaveLength(2 * 13 + 2)
       // Que la cola termine de correr antes de cerrar el test.
       await waitFor(async () => {
         const pending = await prisma.db.jobExecution.count({

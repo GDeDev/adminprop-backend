@@ -1147,8 +1147,8 @@ describe('Sitio web (e2e, Postgres)', () => {
           website: '',
         })
         .expect(201)
-      const mine = await as(adminA).get('/inquiries').expect(200)
-      const theirs = await as(adminB).get('/inquiries').expect(200)
+      const mine = await as(adminA).get('/crm/inquiries').expect(200)
+      const theirs = await as(adminB).get('/crm/inquiries').expect(200)
       expect(mine.body.data.data).toHaveLength(1)
       expect(theirs.body.data.data).toHaveLength(0)
     })
