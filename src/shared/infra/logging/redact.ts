@@ -1,5 +1,5 @@
 /**
- * Claves cuyo valor jamás debe llegar a un log.
+ * Claves cuyo valor jamás debe llegar a un log (secretos y datos personales).
  * La comparación es por substring, en minúsculas: `password` matchea
  * `password`, `newPassword`, `password_confirmation`, etc.
  */
@@ -28,6 +28,22 @@ const SENSITIVE_KEYS = [
   'pin',
   'otp',
   'signature',
+  // Datos personales (Ley 25.326): un 5xx en un alta de propietario o inquilino
+  // loguea el body, y los logs viajan a terceros (agregador, PaaS).
+  'dni',
+  'cuit',
+  'cuil',
+  'taxid',
+  'cbu',
+  'alias',
+  'phone',
+  'telefono',
+  'celular',
+  'email',
+  'mail',
+  'address',
+  'domicilio',
+  'direccion',
 ]
 
 export const REDACTED = '[REDACTED]'

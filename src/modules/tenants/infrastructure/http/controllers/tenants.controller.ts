@@ -21,7 +21,13 @@ import {
   ApiTags,
 } from '@nestjs/swagger'
 
-import { CurrentUser, IsPublic, Role, Roles } from '@/modules/auth/public'
+import {
+  AnyRole,
+  CurrentUser,
+  IsPublic,
+  Role,
+  Roles,
+} from '@/modules/auth/public'
 import {
   DeleteTenantLogoCommand,
   UpdateTenantSettingsCommand,
@@ -49,6 +55,7 @@ export class TenantsController {
     private readonly commandBus: CommandBus,
   ) {}
 
+  @AnyRole()
   @ApiBearerAuth()
   @Get('current')
   @ApiOperation({
