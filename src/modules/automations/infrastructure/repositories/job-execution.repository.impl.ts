@@ -134,10 +134,16 @@ export class JobExecutionRepositoryImpl extends JobExecutionRepository {
   }
 
   async lastByJob(tenantId: string): Promise<Map<string, JobExecution>> {
+    // `distinct` de Prisma 6 se resuelve en memoria (traía todo el historial,
+    // con summary y details, para quedarse con un registro por job). Los ids
+    // salen de un DISTINCT ON en la base y después se leen sólo esas filas.
+    const latest = await this.prisma.db.$queryRaw<{ id: string }[]>`
+      SELECT DISTINCT ON (job) id
+      FROM job_executions
+      WHERE tenant_id = ${tenantId}::uuid OR tenant_id IS NULL
+      ORDER BY job, started_at DESC, id DESC`
     const rows = await this.prisma.db.jobExecution.findMany({
-      where: { OR: [{ tenantId }, { tenantId: null }] },
-      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
-      distinct: ['job'],
+      where: { id: { in: latest.map((row) => row.id) } },
     })
     return new Map(rows.map((row) => [row.job, toDomain(row)]))
   }

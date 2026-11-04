@@ -192,6 +192,9 @@ export abstract class PaymentRepository {
 
   abstract listAll(filter: PaymentFilter): Promise<Payment[]>
 
+  /** Cuántos pagos cumplen el filtro, sin traerlos. */
+  abstract count(filter: PaymentFilter): Promise<number>
+
   /**
    * Confirma un pago que sigue pendiente de confirmación. `null` si ya no lo
    * está (otro request lo confirmó o lo anuló primero): la condición va en el

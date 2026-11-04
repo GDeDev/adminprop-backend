@@ -630,11 +630,7 @@ export class BillingFacade {
 
   /** Pagos informados que esperan confirmación (dashboard de la Fase 19). */
   async countPaymentsToConfirm(): Promise<number> {
-    return (
-      await this.payments.listAll({
-        status: PaymentStatus.PENDING_CONFIRMATION,
-      })
-    ).length
+    return this.payments.count({ status: PaymentStatus.PENDING_CONFIRMATION })
   }
 }
 

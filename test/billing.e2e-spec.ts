@@ -790,6 +790,10 @@ describe('Cobros (e2e, Postgres)', () => {
         .get('/billing/payments?status=PENDING_CONFIRMATION&receivedBy=OWNER')
         .expect(200)
       expect(pending.body.data.pagination.total).toBe(1)
+      // El número del dashboard sale de un count, no de traer los pagos.
+      expect(
+        await inTenantA(() => app.get(BillingFacade).countPaymentsToConfirm()),
+      ).toBe(1)
       expect(pending.body.data.data[0]).toMatchObject({
         id: paymentId,
         renter: { id: contract.renterId },
@@ -806,6 +810,9 @@ describe('Cobros (e2e, Postgres)', () => {
         confirmedBy: { fullName: 'emp@a.com' },
       })
       expect(confirmed.body.data.confirmedAt).not.toBeNull()
+      expect(
+        await inTenantA(() => app.get(BillingFacade).countPaymentsToConfirm()),
+      ).toBe(0)
       const twice = await api(adminToken)
         .post(`/billing/payments/${paymentId}/confirm`)
         .expect(409)

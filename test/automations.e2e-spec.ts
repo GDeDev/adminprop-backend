@@ -487,6 +487,46 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       expect(await executions.createScheduled(global, 0)).toBeNull()
     })
 
+    it('lastByJob devuelve la última corrida de cada job para el tenant y los globales, sin las de otro tenant', async () => {
+      // Se resuelve con DISTINCT ON en la base: el `distinct` de Prisma 6 traía
+      // todo el historial a memoria y filtraba ahí.
+      const executions = app.get(JobExecutionRepository)
+      const base = {
+        scheduledFor: '2026-10-31',
+        triggeredBy: JobTrigger.SCHEDULE,
+        triggeredByUserId: null,
+      }
+      await executions.create({
+        ...base,
+        job: 'installments.generate',
+        tenantId: tenantA.id,
+      })
+      const latestA = await executions.create({
+        ...base,
+        job: 'installments.generate',
+        tenantId: tenantA.id,
+      })
+      await executions.create({
+        ...base,
+        job: 'contracts.finish-expired',
+        tenantId: tenantB.id,
+      })
+      const globalRun = await executions.create({
+        ...base,
+        job: 'indices.fetch',
+        tenantId: null,
+      })
+
+      const last = await executions.lastByJob(tenantA.id)
+
+      expect([...last.keys()].sort()).toEqual([
+        'indices.fetch',
+        'installments.generate',
+      ])
+      expect(last.get('installments.generate')?.id).toBe(latestA.id)
+      expect(last.get('indices.fetch')?.id).toBe(globalRun.id)
+    })
+
     it('antes de las 00:10 no hay nada que encolar', async () => {
       expect(
         await app

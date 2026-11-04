@@ -60,6 +60,10 @@ export class PaymentRepositoryImpl extends PaymentRepository {
     return rows.map(paymentToDomain)
   }
 
+  async count(filter: PaymentFilter): Promise<number> {
+    return this.prisma.db.payment.count({ where: toWhere(filter) })
+  }
+
   async confirm(
     id: string,
     data: { confirmedById: string; confirmedAt: Date },
