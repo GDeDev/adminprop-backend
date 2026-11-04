@@ -33,6 +33,7 @@ import {
 import { PublicUser } from '@/modules/auth/domain/entities/user.entity'
 import { ApiErrorDto, ApiSuccessDto } from '@/shared/dtos/api-response.dto'
 import { ThrottleAuth } from '@/shared/infra/throttler/throttle-auth.decorator'
+import { AnyRole } from '../../decorators/any-role.decorator'
 import { CurrentUser } from '../../decorators/current-user.decorator'
 import { IsPublic } from '../../decorators/is-public.decorator'
 import { AuthenticatedUser } from '../../types/jwt-payload.type'
@@ -197,6 +198,7 @@ export class AuthController {
     )
   }
 
+  @AnyRole()
   @ApiBearerAuth()
   @Post('logout-all')
   @HttpCode(HttpStatus.OK)
@@ -224,6 +226,7 @@ export class AuthController {
     }
   }
 
+  @AnyRole()
   @ApiBearerAuth()
   @ThrottleAuth()
   @Post('change-password')
@@ -260,6 +263,7 @@ export class AuthController {
     }
   }
 
+  @AnyRole()
   @ApiBearerAuth()
   @Get('me')
   @ApiOperation({ summary: 'Datos del usuario autenticado' })
