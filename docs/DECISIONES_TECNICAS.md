@@ -1262,3 +1262,246 @@ Sale de `adminprop-repo-files/docs/REDISENO_FASE_23.md` (que numera sus supuesto
 
 - **A-158** · Default-deny estricto: un handler sin declarar da 403 incluso al ADMIN (no solo a propietarios e inquilinos). Elegido para que un olvido se note en el primer request y en el test de arquitectura, no en producción.
 - **A-159** · Los archivos subidos antes de D-196 siguen con su URL pública permanente; no hay script de migración (`cloudinary.uploader.rename(..., { type: 'authenticated' })` más reescribir las keys). _Si lo quieren_: un script que recorra `generated_documents` y los `*_key` y los renombre. La descarga firmada usa el endpoint de API de Cloudinary y no se probó contra el servicio real: confirmar que el navegador abre el PDF en la pestaña y no lo baja.
+
+## Sitio web de la inmobiliaria (generador de sitios)
+
+Sale de `adminprop-repo-files/specs/web-inmobiliaria.md` (el contrato es la sección 5). Rama `feature/web-inmobiliaria-api`, desde `feature/fase-14-notificaciones`. Numeración renumerada en la integración `integration/consolidado-2`: estas decisiones nacieron como D-177..D-202 y A-137..A-148 (a continuación de la Fase 14) y chocaban con las de las Fases 21 a 25 y la auditoría; ahora son **D-200..D-225** y **A-160..A-171** (original + 23). Las ramas de auditoría y deuda técnica que citan los números viejos fueron renumeradas igual.
+
+### D-200 · La validación del contenido es una política pura, no class-validator anidado
+
+- **Contexto**: la spec pide validar con class-validator. El contenido son ~12 bloques anidados con arrays, claves cerradas, límites por campo y reglas cruzadas (fuente según template, secciones soportadas, imágenes propias).
+- **Decisión**: el DTO solo exige que `theme` y `content` sean objetos; el detalle lo valida `validateSiteDraft` (`modules/site/domain/site-content.policy.ts`), una función pura que devuelve **errores por campo con ruta** (`content.faqs[2].answer`). Sale como 422 con `errors[]`, el mismo formato que el resto de la API. Las clases de `site.dtos.ts` existen para el OpenAPI.
+- **Por qué**: una sola fuente de verdad testeable sin Nest (57 unitarios), claves de más rechazadas en cualquier nivel (class-validator con `whitelist` no recorre objetos planos) y mensajes en español por campo.
+
+### D-201 · `PUT /site/settings` es parcial; dominios en el momento
+
+- `template` se reemplaza; `theme` se mezcla campo a campo; en `content` **cada bloque** (`brand`, `hero`, `steps`…) que se manda reemplaza al anterior entero. El resultado se valida completo antes de guardar.
+- `subdomain` y `customDomain` **no pasan por el borrador**: son de infraestructura y valen al instante (publicado o no). `null` los quita.
+- Cambiar de template **no pisa el tema** (hay un endpoint aparte para restaurarlo, como pide la spec); sí corrige `fontKey` si el template nuevo no la tiene.
+
+### D-202 · Dos niveles de validación: guardar y publicar
+
+- Guardar acepta un borrador a medias (secciones visibles vacías, SEO vacío, contraste bajo) pero nunca texto con HTML, links o imágenes inválidas.
+- **Publicar** exige además: SEO completo, ninguna sección visible sin contenido, destacadas a mano con al menos una propiedad existente y **contraste AA** (texto/fondo y texto/tarjeta ≥ 4,5:1; color principal/fondo ≥ 3:1). Reporta todos los problemas juntos.
+
+### D-203 · `hasUnpublishedChanges` es `true` si nunca se publicó
+
+- La spec dice "true si el borrador difiere de lo publicado". Sin publicación previa no hay con qué comparar: se informa `true` (hay todo por publicar) para que el botón Publicar nunca quede deshabilitado por error. La comparación ignora el orden de las claves.
+
+### D-204 · Imágenes: solo propias o de hosts permitidos; sin SVG
+
+- `POST /site/assets`: JPG, PNG o WebP detectados **por los primeros bytes** (no por extensión ni `Content-Type`), ≤ 5 MB, ≤ 12.000 px por lado, hasta 200 por inmobiliaria. **SVG se rechaza** (puede llevar scripts; el sitio no lo necesita). Se guardan en `site_assets` (tenant-scoped).
+- Una URL de imagen en el contenido vale si está en los `site_assets` **de esa inmobiliaria**, es el logo del tenant o es `https` de un host de `SITES_ALLOWED_IMAGE_HOSTS` (vacío por defecto). La imagen de otra inmobiliaria no sirve.
+- Las dimensiones se leen sin decodificar la imagen (`domain/image-info.ts`).
+
+### D-205 · Resolución por host: caché corta y solo sitios publicados
+
+- `GET /public/site-by-host?host=`: `<sub>.<SITES_BASE_DOMAIN>` (un solo nivel) o dominio propio, con **coincidencia exacta** (`www.foo.com` y `foo.com` son nombres distintos: el TXT solo prueba control de uno; si se quieren los dos, se cargan y verifican los dos). Solo resuelve sitios **habilitados y publicados** de inmobiliarias activas; todo lo demás es el mismo 404 `SITE_NOT_FOUND`.
+- Caché en memoria: 30 s los aciertos, 10 s los fallos, tope de 5.000 entradas; se vacía al publicar, despublicar o cambiar un dominio. Con varias instancias, un cambio tarda como mucho el TTL.
+- La consulta es la única de `site` sin tenant en el contexto (`prisma.unscoped`), igual que la de unicidad de subdominio/dominio, que cruza inmobiliarias a propósito.
+
+### D-206 · Token de vista previa
+
+- `GET /site/preview-token` devuelve `{ token, expiresAt }`. JWT HS256 de 15 min, con `typ: "site-preview"` y el `tid` de la inmobiliaria, firmado con **su propio secreto** (`SITES_PREVIEW_SECRET`, o derivado de `JWT_ACCESS_SECRET`). No sirve como access token ni al revés.
+- `GET /public/:slug/site?preview=<token>` devuelve el **borrador** (aunque el sitio no esté publicado) con `Cache-Control: no-store` y `X-Robots-Tag: noindex`. Un token vencido, inválido o de otra inmobiliaria es el mismo 404 de siempre.
+
+### D-207 · Auditoría por diff de columnas; el contenido no entra al historial
+
+- `SiteSettings` está auditada con `draft` y `published` en `excludeFromDiff` (son JSON grandes que cambian en cada guardado). Quedan en el historial, con usuario y antes/después: `enabled` (publicar/despublicar), `publishedAt`, `templateKey`, `subdomain` y `customDomain`. No se agregaron eventos explícitos aparte: duplicarían la fila.
+- `SiteAsset` no se audita (la fila es la traza).
+
+### D-208 · Tipografías: pilas del sistema
+
+- `fontOptions` son pilas de fuentes del sistema (`system`, `serif`, `humanist`, `rounded`), sin descargar fuentes: mejor Lighthouse, ninguna dependencia externa y nada que romper en el build. El sitio traduce cada `fontKey` a su pila de CSS.
+
+### D-209 · Contenido inicial genérico
+
+- Armado con nombre, color, teléfono, WhatsApp, dirección y email del tenant. El color de marca solo se usa si contrasta ≥ 3:1 con el fondo del template. Textos genéricos en voseo; **sin números inventados**: "números" y "testimonios" arrancan vacíos y ocultos; "nosotros" oculto; "contacto" visible solo si hay algún dato (si no, el sitio inicial no se podría publicar). Todas las imágenes en `null`: el sitio usa neutras propias.
+
+### D-210 · Ampliaciones aditivas al contrato
+
+- `GET /site/subdomain-availability?value=` (el editor verifica disponibilidad mientras se escribe).
+- Listado público: `ids` (hasta 12, para las destacadas a mano), `bedrooms` y `bathrooms` (mínimos) además de `operation`.
+- `PublicPropertySummary` suma `operation`, `rooms`, `coveredAreaM2` y `ageYears`; `areaM2` es la superficie total. `features` de la ficha suma ambientes, dormitorios, baños, superficies (incluida la descubierta, calculada) y antigüedad cuando están cargados.
+- Nada de lo anterior cambia una respuesta existente.
+
+### D-211 · Límites de tasa del sitio
+
+- Las lecturas públicas del sitio las hace el servidor de `apps/sites`, que llega con **una sola IP**: 300 por minuto para `/public/:slug/site` y 600 para `site-by-host` (el portal tiene 60). Ver A-165.
+
+### D-212 · Campos de propiedad (spec 4.3)
+
+- Migración `add_property_listing_extras`: `listing_operation` (`SALE|RENT`, default `RENT`, así que las propiedades existentes siguen en alquiler), `bedrooms`, `bathrooms`, `rooms`, `age_years`, `total_area_m2`, `covered_area_m2` (`Decimal(10,2)`), `latitude`, `longitude` (`Decimal(9,6)`). Todos opcionales.
+- Superficies y coordenadas son `number` en la API (no son dinero). Latitud y longitud se guardan y se devuelven en el backoffice, pero **no** salen en la API pública (no se usan en la v1).
+
+### Supuestos (sitio web)
+
+- **A-160** · Publicar **no exige** subdominio ni dominio propio. Sin ellos, `publicUrl` es la URL por slug (`<SITES_DEV_URL>/_s/<slug>`) en desarrollo y `null` en producción.
+- **A-161** · ~~`www.<dominio>` y `<dominio>` abren el mismo sitio~~ **Revisado**: la coincidencia del host es exacta (D-205); `www.foo.com` y `foo.com` son dominios distintos y cada uno se verifica por separado.
+- **A-162** · El dominio propio solo se **guarda** y se resuelve: el alta en el hosting y el DNS los hace una persona; no se verifica el DNS.
+- **A-163** · Una propiedad destacada a mano que se borra después de publicar queda en el JSON publicado; el sitio la omite (la API pública no devuelve las no disponibles).
+- **A-164** · Variables de entorno nuevas, todas opcionales: `SITES_BASE_DOMAIN`, `SITES_PROTOCOL` (`https` por defecto), `SITES_DEV_URL` (default `http://localhost:3003` fuera de producción), `SITES_ALLOWED_IMAGE_HOSTS`, `SITES_PREVIEW_SECRET` (**obligatoria en producción**, D-221). **Pendiente de Giuliano**: crearlas en Doppler (vacías) donde corresponda; sin `SITES_BASE_DOMAIN` solo funcionan dominios propios y el acceso por slug.
+- **A-165** · En producción `TRUST_PROXY=true` y, si el servidor de `apps/sites` comparte IP con muchos visitantes, los topes de D-211 pueden ser chicos: revisarlos con tráfico real.
+- **A-166** · Una inmobiliaria desactivada deja de resolver su sitio (404) aunque esté publicado.
+- **A-167** · Máximos de longitud de campos que la spec no fijó (títulos de sección 120, textos de pasos 300, servicios 500, testimonios 600, respuestas 1500, SEO 70/200) y límite de 200 imágenes por inmobiliaria: elegidos como razonables, fáciles de cambiar en `SITE_LIMITS`.
+
+### Segunda ronda de "Sitio web" (revisión del PR)
+
+### D-213 · El dominio propio se verifica con un registro TXT
+
+- **Problema**: cualquier ADMIN podía reservar el dominio de otro (`banco.com`) y bloquear a quien sí lo tenía con `DOMAIN_TAKEN`.
+- **Decisión**: un dominio nuevo arranca **sin verificar**. La prueba es un registro TXT en `_adminprop-verify.<dominio>` con el valor `adminprop-verify=<HMAC-SHA256(tenant, dominio)>` (32 hex), calculado con el secreto del servidor: solo esta inmobiliaria puede conocerlo, y cambia si cambia el dominio. `GET /site/domain` devuelve el estado y el registro; `POST /site/domain/verify` lo busca (`DnsTxtPort`, `NodeDnsTxt`) y, si está, activa el dominio (422 `DOMAIN_NOT_VERIFIED` si no; 422 `NO_CUSTOM_DOMAIN` sin dominio).
+- **Unicidad**: el índice único de `custom_domain` pasó a ser **parcial y solo sobre los verificados** (migración `add_site_domain_verification`, columna `custom_domain_verified_at`). Reservar sin verificar no bloquea a nadie; el que verifica primero se lo queda (409 `DOMAIN_TAKEN` al otro). Cambiar o quitar el dominio lo deja sin verificar.
+- **Efecto en el resto**: `site-by-host` solo resuelve dominios verificados; `publicUrl` usa el dominio solo si está verificado (si no, el subdominio o la URL por slug).
+- **Desarrollo**: `SITES_DOMAIN_VERIFICATION=false` da el dominio por verificado al cargarlo (default `true`). Los dominios que ya estaban cargados al migrar se marcan verificados (no hay cómo comprobarlos y cortar sitios publicados sería peor).
+- **No cambia `SiteSettings`** (5.1): el estado de verificación va en endpoints aparte (`/site/domain`).
+
+### D-214 · Aviso a `apps/sites` al publicar (`SiteRevalidationPort`)
+
+Publicar, despublicar y verificar un dominio llaman a `POST <SITES_REVALIDATE_URL>/api/revalidate` con `Authorization: Bearer <SITES_REVALIDATE_SECRET>` y `{ slug }` (3 s de timeout). **No se espera ni falla el request** (`SiteChangeNotifier`: se dispara sin `await`, con el error logueado; antes el administrador esperaba hasta 3 s). Aplica a publicar, despublicar, verificar dominio y cambiar subdominio o dominio.
+
+El puerto además **nunca lanza**: si la otra app no responde, se loguea y el sitio se actualiza solo al vencer su caché (60 s). Sin URL y secreto configurados no hace nada. Antes un cambio podía tardar hasta ~2 minutos en verse.
+
+### D-215 · Auditoría del borrador: qué se tocó, sin el contenido
+
+Guardar el borrador escribe un evento `UPDATE` («Sitio web: borrador guardado») con **los nombres** del template, los campos del tema y los bloques de contenido que cambiaron, nunca los textos. Complementa a D-207 (el JSON sigue fuera del historial automático).
+
+### D-216 · Primer acceso concurrente
+
+Dos pedidos simultáneos de `GET /site/settings` en una inmobiliaria sin configuración chocaban con el índice único de `tenant_id` y uno recibía un 500. `ensure()` ahora, si la creación falla, relee la fila (probado con 4 pedidos a la vez).
+
+### D-217 · Texto sin caracteres invisibles ni de dirección
+
+Se rechazan los espacios de ancho cero y las marcas/controles de dirección (`U+200B–200F`, `202A–202E`, `2060–2069`, `FEFF`) en todos los textos: sirven para disfrazar un texto o un link y nadie los escribe a propósito en un sitio.
+
+### D-218 · Topes por minuto en las rutas costosas
+
+`POST /site/assets`: 30 por minuto; `POST /site/domain/verify`: 20 por minuto (consulta DNS). Se suman al tope de 200 imágenes por inmobiliaria.
+
+### D-219 · `SITES_DOMAIN_VERIFICATION` es un booleano de entorno
+
+Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (siempre llega como texto desde Doppler o un `.env`) se rechazaba al arrancar. Hay un test en `env.validation.spec.ts`.
+
+### Supuestos (segunda ronda)
+
+- **A-168** · No hay verificación de **subdominios** (son de Adminprop y el primero que los pide se los queda; ver A-160).
+- **A-169** · Los dominios existentes al migrar se consideran verificados (D-213).
+- **A-170** · Nuevas variables, todas opcionales: `SITES_DOMAIN_VERIFICATION` (default `true`), `SITES_REVALIDATE_URL` y `SITES_REVALIDATE_SECRET`. **Pendiente de Giuliano**: cargarlas en Doppler junto con las de A-164; el secreto tiene que ser el mismo que `SITES_REVALIDATE_SECRET` de `apps/sites`.
+- **A-171** · La verificación consulta el DNS del servidor de la API (`dns.resolveTxt`): un TXT recién cargado puede tardar en verse por el caché del resolvedor.
+
+### Revisión del PR (tercera ronda)
+
+### D-220 · Las lecturas del sitio no cuentan contra el tope por IP cuando llega el secreto del servidor de sitios
+
+- **Problema**: `apps/sites` pide en nombre de todos los visitantes de todas las inmobiliarias desde una sola IP. Con un tope por IP (60/min en el portal, 300/min en el sitio, 600/min en el host), el tope era **global a todos los sitios**: un bot contra un sitio dejaba sin servicio a los demás.
+- **Decisión**: los endpoints marcados con `@SkipThrottleForTrustedServer()` se saltean el tope si el pedido trae el header `X-Sites-Secret` igual a `SITES_REVALIDATE_SECRET` (el mismo secreto compartido de la revalidación), comparado en tiempo constante (`sha256` + `timingSafeEqual`). Sin el header, o con un valor distinto, el endpoint se limita como cualquier lectura pública. Marcados: `GET /public/:slug/site`, `GET /public/site-by-host` y las tres lecturas del portal público que consume el sitio (`properties`, `properties/:id`, `filters`). **El contacto (`POST /contact`) no se marca**: sigue limitado (5 por hora por IP y por email contados en la base) y `apps/sites` le reenvía la IP real del visitante.
+- **Por qué no `x-site-slug`**: lo puede mandar cualquiera, así que no protege nada.
+- **Contra**: el secreto es una credencial más para rotar y quien lo tenga puede leer sin tope (solo lecturas públicas). Rotarlo requiere cambiarlo a la vez en la API y en `apps/sites`.
+- Supera la parte de A-165 que decía que había que revisar los topes con tráfico real para el servidor de sitios (los topes por IP siguen valiendo para el resto de los clientes).
+
+### D-221 · `SITES_PREVIEW_SECRET` obligatoria en producción y sin derivar de `JWT_ACCESS_SECRET`
+
+- **Antes**: sin la variable se usaba `site-preview:<JWT_ACCESS_SECRET>`. Un secreto distinto para una cosa distinta es la regla de este backend (los JWT de acceso y de refresh ya tienen secretos separados), y además este secreto firma la **prueba de propiedad de los dominios** (D-213).
+- **Ahora**: en producción `validateEnv` exige `SITES_PREVIEW_SECRET` de **32 caracteres o más** y la app no arranca sin ella. Fuera de producción hay un valor fijo de desarrollo (no derivado de nada).
+- **Qué pasa al rotarla**: se invalidan los tokens de vista previa en curso (duran 15 minutos) y **cambia el valor TXT esperado de todos los dominios**. Los dominios que ya estaban verificados siguen verificados (queda guardada la fecha), pero los TXT que cada inmobiliaria cargó en su DNS dejan de coincidir: una re-verificación (D-222) los marcaría como caídos hasta que carguen el valor nuevo. Rotarla es una operación que se avisa a las inmobiliarias con dominio propio.
+
+### D-222 · DEUDA: un dominio verificado no se vuelve a comprobar (revocación)
+
+- **Estado**: la verificación (D-213) se hace una vez. Si después el dueño del dominio borra el TXT, vende el dominio o lo deja vencer, el sitio sigue respondiendo ahí y el dominio sigue reservado para esa inmobiliaria. **No está implementado**: hay que decidirlo con el dueño del producto porque implica estado nuevo y una política.
+- **Diseño propuesto** (no construido):
+  1. Migración: `custom_domain_checked_at` y `custom_domain_failed_checks` en `site_settings`.
+  2. Un job diario (`@Cron`, como `refresh-token-cleanup.task.ts`; cada dominio con su propio try/catch y con tope de dominios por corrida) que consulta el TXT de cada dominio verificado con el mismo `DnsTxtPort`.
+  3. **Tolerancia a fallas**: un DNS que no responde un día no es una revocación. Se cuenta cada falla y se revoca (`custom_domain_verified_at = NULL`, aviso interno al administrador y a `apps/sites`) recién a las **3 fallas consecutivas**; una comprobación correcta pone el contador en cero.
+  4. Un endpoint de ADMIN (`POST /site/domain/recheck`) para comprobarlo a mano y, para el personal de Adminprop, una forma de revocar un dominio a pedido (soporte).
+  5. Auditoría de cada revocación (con el valor esperado, sin secretos).
+- **Interacción con D-221**: rotar `SITES_PREVIEW_SECRET` cambia el TXT esperado de todos los dominios; con revocación automática eso los revocaría a todos a los 3 días. Antes de rotarla hay que avisar a las inmobiliarias o aceptar ambos valores durante una ventana.
+- **Mitigación hoy**: la unicidad solo cuenta dominios verificados y un dominio no verificado no resuelve, así que el riesgo se limita a un dominio que quedó "huérfano" en una inmobiliaria; el soporte puede liberarlo quitando el dominio de esa fila.
+
+### D-223 · El caché de hosts es por instancia (hasta 30 s de diferencia entre instancias)
+
+`SiteHostResolver` cachea en memoria de cada proceso (30 s los aciertos, 10 s los fallos). Con **varias instancias** de la API, publicar, despublicar, cambiar o verificar un dominio vacía solo la caché de la instancia que atendió ese request: las demás pueden seguir resolviendo la dirección anterior (o no resolviendo la nueva) **hasta 30 s**. Es aceptable para el caso de uso (un cambio de dirección no es urgente al segundo), pero conviene saberlo: no es un bug cuando dos pedidos seguidos dan resultados distintos. Si molesta, las salidas son un TTL menor, una caché compartida (Redis) o invalidar por evento entre instancias. `apps/sites` tiene además su propia caché de hosts (30 s) y la vacía con `POST /api/revalidate`.
+
+## Sitio web v1.1
+
+### D-224 · Orden del listado público: `sort` con `recent`, `price_asc` y `price_desc`
+
+- **Contrato**: `GET /public/:slug/properties?sort=` acepta exactamente `recent` (por defecto), `price_asc` y `price_desc`; cualquier otro valor, incluso vacío o en mayúsculas, es 400. Cambio aditivo: sin `sort` el orden es el de siempre.
+- **Dinero**: se ordena en la base sobre `listing_price` (`Decimal(14,2)`), nunca en memoria ni con `number`. Las propiedades sin precio ("Consultar") van **siempre al final**, en ambos sentidos (`nulls: last`).
+- **Desempate**: precio, luego `createdAt` desc y por último `id`. Sin un orden total, la paginación puede repetir u omitir filas entre páginas. `recent` sigue siendo `createdAt desc, id`.
+- **Límite conocido**: el orden compara montos nominales; mezclar ARS y USD no tiene sentido. El front debe combinar el orden por precio con `currency` (si hay `priceFrom`/`priceTo` sin moneda, ya se toma la de la inmobiliaria). No se convierte moneda en el backend: es una regla de negocio (cotización) que no está definida.
+
+### D-225 · Tercer template `LUXURY`
+
+- **Contrato**: `SiteTemplateKey` suma `LUXURY` (mayúsculas, como `CLASSIC` y `MODERN`). Tema por defecto: fondo `#0B0B0C`, superficie `#1C1A17`, texto `#F5F1E8`, primario dorado `#C9A961`, secundario `#8C8577`, fuente `serif`, esquinas 0. Fuentes disponibles: `serif`, `system`, `humanist`. Mismas secciones que los otros dos; el contenido inicial es el mismo.
+- **Migración**: aditiva (`ALTER TYPE "SiteTemplateKey" ADD VALUE 'LUXURY'`); no toca filas existentes. No se puede revertir un valor de enum en Postgres sin recrear el tipo; es aceptable porque nada lo usa hasta que alguien elige el template.
+- **Catálogo**: `GET /site/templates` (ya existía) lista ahora tres elementos; no hace falta un endpoint nuevo. El frontend debe tolerar claves desconocidas en `PublicSite.template` (un sitio publicado con `LUXURY` visto por un front viejo).
+- **Código**: la validación y el fallback de tipografías usan `SITE_TEMPLATE_KEYS` en vez de un `=== 'MODERN'` fijo, para que un template nuevo no quede validado con las fuentes de CLASSIC.
+
+### D-226 · Coordenadas en la ficha pública, con precisión reducida
+
+- **Contexto**: `Property` ya guarda `latitude`/`longitude` (`Decimal(9,6)`, opcionales, se cargan por API en el alta y la edición). `apps/sites` las necesita para el mapa OpenStreetMap de la ficha. La spec `web-inmobiliaria.md` las menciona ("opcionales, no se usan en v1") pero **no dice qué precisión se publica**.
+- **Decisión (supuesto a confirmar)**: `GET /public/:slug/properties/:id` suma `latitude` y `longitude` con **3 decimales (~100 m)**: la zona, no la puerta. Cambio aditivo; son `null` si falta alguna de las dos. El listado no las incluye. El valor exacto de 6 decimales no sale por ninguna ruta pública.
+- **Por qué**: publicar el domicilio exacto de una propiedad ocupada por un inquilino es un dato personal del inquilino; la dirección ya se muestra, pero un pin exacto facilita ubicar la unidad. Si el dueño del producto quiere el punto exacto, se cambia `COORDINATE_FACTOR` en `public-property.views.ts`.
+- **Pendiente**: la UI del backoffice debe permitir cargar las coordenadas (hoy solo la API las acepta). No se agregó geocodificación externa.
+
+## Brechas de las respuestas de Micaela (rama `feat/micaela-brechas-backend`)
+
+> Salen de `docs/VERIFICACION_RESPUESTAS_MICAELA.md` (repo `adminprop-repo-files`): cuatro puntos donde el código no cumplía lo que Micaela había pedido. Cada decisión lista sus **supuestos**; los que no son obvios son los que hay que confirmar con ella o con el dueño.
+
+### D-227 · Devolución del depósito: el monto de referencia depende del modo del contrato (Micaela #1)
+
+- **Antes**: `DepositReturnPolicy.assertBalanced` exigía `devuelto + deducciones = depósito recibido`. Con el modo "sigue al alquiler" y un alquiler que subió (depósito 200.000, alquiler 260.000, devolver 260.000) daba 400 `DEPOSIT_RETURN_UNBALANCED`; el modo era un dato que no gobernaba nada.
+- **Regla ahora**: el depósito se registra por lo recibido y su moneda y **no se actualiza solo** (sin cambios). Al devolverlo, el modo del contrato fija el **monto de referencia**:
+  - `FIXED`: lo recibido.
+  - `FOLLOWS_RENT`: el alquiler vigente al cerrar (el "último mes"), si el alquiler y el depósito están en la misma moneda.
+  - `MANUAL`: el que se indique al cerrar las cuentas (`referenceAmount`, obligatorio, mayor que cero; puede superar lo recibido).
+
+  Las **deducciones justificadas** (deuda, daño u otro; descripción obligatoria, ya lo era) se descuentan de esa referencia y lo que queda es lo que se devuelve: `returnedAmount = referenceAmount - Σ deducciones`. Si las deducciones superan la referencia, 400 `DEPOSIT_RETURN_DEDUCTIONS_EXCEED`.
+
+- **Contrato HTTP** (`POST /contracts/:id/deposit-return`): `returnedAmount` pasa a **opcional** (se calcula; si viene tiene que coincidir, si no 400 `DEPOSIT_RETURN_UNBALANCED`, que sigue existiendo con otro significado) y se suma `referenceAmount` opcional. En los modos automáticos, un `referenceAmount` que no coincide con el calculado es 400 `DEPOSIT_RETURN_INVALID_REFERENCE` (pantalla desactualizada, no una decisión). Los clientes que ya mandaban `returnedAmount` con el contrato en `FIXED` siguen funcionando igual.
+- **Persistencia**: `deposit_returns.mode` y `reference_amount`; la migración rellena las devoluciones existentes con `FIXED` y `reference_amount = deposit_amount` (así cerraron).
+- **Cuenta corriente**: los movimientos `DEPOSIT_RECEIVED`, `DEPOSIT_RETURNED` y `DEPOSIT_DEDUCTION` traen ahora `amount` y `amountCurrency` (antes iban sin importe). Siguen sin tocar el `balance` (el depósito no es deuda ni pago de alquiler). La deuda cubierta con el depósito sigue siendo un pago `DEPOSIT` sobre la cuota, que sí mueve el saldo. `suggestedReturn` devuelve `null` para `FOLLOWS_RENT` en otra moneda.
+- **Supuestos**:
+  1. **Alquiler en otra moneda que el depósito** (modo `FOLLOWS_RENT`): no se convierte (no hay cotización en una devolución, igual que las deudas D-83); hay que indicar el monto a mano. Se pidió coherencia con "no hay cotización" antes que inventar una.
+  2. **Una sola devolución por contrato** (sin cambios): no hay devoluciones en partes ni diferidas.
+  3. El modo que vale es el que tiene el contrato **al momento de devolver** (se puede cambiar con `PATCH /contracts/:id` antes); queda guardado en la devolución.
+  4. Una deducción por daño/otro no genera deuda ni movimiento de saldo; sólo reduce lo devuelto.
+  5. El ejemplo de Micaela (200.000 recibidos, alquiler 260.000) con `FOLLOWS_RENT` devuelve 260.000 aunque se hayan recibido 200.000: la diferencia sale de la inmobiliaria o del propietario, el sistema no dice de dónde (fuera de alcance).
+
+### D-228 · Punitorio sin 5 % por defecto y "desde cuándo corre" configurable (Micaela #3)
+
+- **Antes**: `Tenant.dailyLateFeePercentage @default(5)`; todo contrato sin % propio corría al 5 % diario y la inmobiliaria no tenía forma de cambiarlo. El "desde cuándo" era sólo `lateFeeGraceDays`.
+- **Porcentaje**: la columna deja de tener default y pasa a **nullable** (`NULL` = "la inmobiliaria no fijó uno"). La migración **conserva los valores existentes** (todas las inmobiliarias actuales siguen con el que tenían, 5 si nunca lo tocaron).
+  - **Al crear la inmobiliaria** (`npm run tenant:create`): `--late-fee-percentage` opcional; sin él nace sin punitorio por defecto (el script avisa). El seed de demo lo fija en 5 explícito.
+  - **Al crear, renovar o cambiar los términos de un contrato**: si ni el contrato ni la inmobiliaria tienen un %, 400 `CONTRACT_LATE_FEE_PERCENTAGE_REQUIRED`.
+  - **Editarlo**: `PATCH /tenants/current/settings` (admin) acepta `dailyLateFeePercentage` (0 a 100, 2 decimales; `0` = sin punitorio) y `paymentGraceDays` (0 a 60). `GET` los devuelve junto con `lateFeeStartDay`. Una vez fijado el %, **no se puede quitar** (`null` es 400 `TENANT_INVALID_BILLING_SETTING`): si no, los contratos que lo heredan quedarían sin valor. Cambiarlo afecta a las cuotas que se generen de ahí en más; las ya generadas conservan su snapshot (D-71).
+- **"Desde cuándo corre"**: el contrato (alta y cambio de términos, también la renovación) acepta `lateFeeStartDay` (día del mes, 1 a 31) **en vez de** `lateFeeGraceDays`. Es lo mismo dicho al revés (inicio = gracia + 1: gracia 10 ↔ inicio el día 11), así que se guarda como gracia: **no hay columna nueva ni cambia ningún contrato existente** (default migrado = valor actual). Los dos juntos son 400 `CONTRACT_INVALID_BILLING_TERMS`. Los términos resueltos y la ficha exponen `lateFeeStartDay`.
+- **Supuestos**:
+  1. "Fecha desde la que comienza a aplicarse" se interpretó como **día del mes** (el alquiler es mensual), no como una fecha de calendario única. Una fecha absoluta (por ejemplo "el punitorio rige desde el 01/12/2026 para todo el contrato") no está construida: confirmar con Micaela si la quería así.
+  2. El día de inicio no se guarda: se convierte a gracia al escribir. Un contrato cargado con `lateFeeStartDay: 16` se ve con `lateFeeGraceDays: 15`.
+  3. Si falta el % en ambos lados en la **lectura** (no debería pasar: las altas lo exigen y el % del tenant no se puede borrar) la resolución cae en `0.00` en vez de fallar: sin punitorio antes que uno inventado. Los contratos **importados ya finalizados** (Fase 21) no pasan por la validación (son históricos).
+  4. La migración de datos (Fase 21) de contratos **activos** hacia una inmobiliaria sin % por defecto falla por fila con ese error; hay que fijar el % antes.
+  5. No se tocó "subir o fijar un monto / deshacer una condonación" (hallazgo 19, baja prioridad).
+
+### D-229 · El modo de envío del consolidado lo leen los avisos (Micaela #7)
+
+- **Antes**: `Owner.statementSendMode` y `OwnerStatement.sendMode` se guardaban pero **nadie los leía**: el mail de cada liquidación salía siempre y el del consolidado también.
+- **Ahora**:
+  - `SETTLEMENT_CONFIRMED` (aviso de cada liquidación) lee el `statementSendMode` **vigente del propietario**: con `SUMMARY` no sale.
+  - `OWNER_STATEMENT_CLOSED` (aviso del consolidado) lee el `sendMode` del consolidado (el que se eligió al cerrar, por defecto el del propietario al abrirlo): con `RECEIPTS` no sale.
+  - Al cerrar con `RECEIPTS` o `BOTH`, el consumidor **reenvía los comprobantes individuales que quedaron retenidos** (si el propietario estaba en `SUMMARY` al confirmar y al cerrar se eligió otra cosa). El evento `statement-closed` trae ahora la lista `settlements` (cambio aditivo del contrato de la cola; los mensajes viejos sin la lista se procesan igual). El `dedupeKey` de cada comprobante (`SETTLEMENT_CONFIRMED:<id>`) evita duplicar los que ya salieron.
+- **Supuestos / límites**:
+  1. El aviso individual sale **al confirmar** la liquidación, antes de que exista el consolidado; por eso se decide con el modo del **propietario**, no con el del consolidado. Consecuencia: si el propietario está en `BOTH`/`RECEIPTS` al confirmar y al cerrar se elige `SUMMARY`, los comprobantes **ya salieron y no se pueden retirar**. Para garantizar "sólo el resumen" hay que dejar al propietario en `SUMMARY`.
+  2. Se omiten sólo los **emails** de estos dos avisos. Los PDF (Fase 15) se siguen generando y están disponibles en el portal del propietario; el modo no controla su descarga.
+  3. Los dos avisos siguen siendo `critical` (no los frena el opt-out del destinatario); el modo es una elección de la inmobiliaria sobre lo que se envía, no una preferencia del propietario.
+  4. Un propietario inexistente o borrado no bloquea el aviso (se trata como `BOTH`).
+
+### D-230 · Ajuste manual del alquiler con motivo y autorizante obligatorios (Micaela #8)
+
+- **Antes**: `POST /contracts/:id/rent-updates` con `newRent` guardaba el aumento como `MANUAL` y el usuario que lo aplicó, sin motivo ni quién lo autorizó.
+- **Ahora**: todo monto a mano (los contratos `FIXED` sin %, `OTHER`, o un ajuste manual sobre `ICL`/`IPC`/`FIXED` con %) exige `reason` (hasta 500 caracteres) y `authorizedBy` (hasta 150): faltan o están en blanco → 400 `CONTRACT_MANUAL_ADJUSTMENT_JUSTIFICATION_REQUIRED` (con `metadata.field`) y no cambia nada. Se guardan en `contract_rent_updates.adjustment_reason` y `authorized_by` (nullable: los aumentos por índice, por % fijo, los del cron y los anteriores no los tienen) y salen en `rentUpdates[]` de la ficha.
+- **Orden de validación**: primero que el contrato esté activo y que el aumento esté al día (409, D-60), después el monto y por último la justificación.
+- **Supuestos**:
+  1. `authorizedBy` es **texto libre** (puede ser el propietario, que no es usuario del sistema), no un id de usuario; el usuario que aplicó el cambio sigue en `appliedById`.
+  2. Quién puede hacerlo no cambió: ADMIN y EMPLOYEE. El hallazgo 13 pedía "definir si el empleado puede": **no se restringió** (decisión de negocio pendiente).
+  3. El aumento por `%` fijo automático no es "ajuste manual" y no pide motivo (el % ya está pactado en el contrato).

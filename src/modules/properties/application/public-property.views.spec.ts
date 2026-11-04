@@ -1,5 +1,10 @@
 import { LocationLevel } from '@/modules/master-data/public'
-import { ListingCurrency, Property, PropertyStatus } from '../domain/property'
+import {
+  ListingCurrency,
+  ListingOperation,
+  Property,
+  PropertyStatus,
+} from '../domain/property'
 import { PublicPropertyViews } from './public-property.views'
 
 const PROPERTY: Property = {
@@ -17,6 +22,15 @@ const PROPERTY: Property = {
   listingCurrency: ListingCurrency.USD,
   publicDescription: 'Luminoso',
   needsReview: false,
+  listingOperation: ListingOperation.SALE,
+  bedrooms: 3,
+  bathrooms: 2,
+  rooms: 4,
+  totalAreaM2: 85.5,
+  coveredAreaM2: 70,
+  ageYears: 12,
+  latitude: null,
+  longitude: null,
   photos: [
     {
       id: 'ph1',
@@ -76,9 +90,13 @@ describe('PublicPropertyViews', () => {
       address: 'Av. Corrientes 1234, 5° B',
       propertyType: 'Departamento',
       neighborhood: 'Tolosa',
-      bedrooms: null,
-      bathrooms: null,
-      areaM2: null,
+      bedrooms: 3,
+      bathrooms: 2,
+      areaM2: 85.5,
+      operation: 'SALE',
+      rooms: 4,
+      coveredAreaM2: 70,
+      ageYears: 12,
       price: '150000.00',
       currency: 'USD',
       coverPhotoUrl: 'https://cdn/1.jpg',
@@ -130,7 +148,63 @@ describe('PublicPropertyViews', () => {
     expect(detail.features).toEqual([
       { label: 'Tipo', value: 'Departamento' },
       { label: 'Ubicación', value: 'Tolosa, La Plata' },
+      { label: 'Ambientes', value: '4' },
+      { label: 'Dormitorios', value: '3' },
+      { label: 'Baños', value: '2' },
+      { label: 'Superficie total', value: '85,5 m²' },
+      { label: 'Superficie cubierta', value: '70 m²' },
+      { label: 'Superficie descubierta', value: '15,5 m²' },
+      { label: 'Antigüedad', value: '12 años' },
     ])
+  })
+
+  it('una propiedad sin datos de ficha sigue saliendo con null, como antes', async () => {
+    const bare = {
+      ...PROPERTY,
+      bedrooms: null,
+      bathrooms: null,
+      rooms: null,
+      totalAreaM2: null,
+      coveredAreaM2: null,
+      ageYears: null,
+    }
+    const detail = await build().detail(bare)
+
+    expect(detail.bedrooms).toBeNull()
+    expect(detail.areaM2).toBeNull()
+    expect(detail.features.map((f) => f.label)).toEqual(['Tipo', 'Ubicación'])
+  })
+
+  describe('coordenadas de la ficha', () => {
+    it('salen con 3 decimales (~100 m), nunca la puerta exacta', async () => {
+      const detail = await build().detail({
+        ...PROPERTY,
+        latitude: -34.603722,
+        longitude: -58.381592,
+      })
+
+      expect(detail.latitude).toBe(-34.604)
+      expect(detail.longitude).toBe(-58.382)
+      expect(JSON.stringify(detail)).not.toContain('34.603722')
+    })
+
+    it('sin coordenadas, o con una sola, salen null las dos', async () => {
+      const none = await build().detail(PROPERTY)
+      const half = await build().detail({ ...PROPERTY, latitude: -34.6 })
+
+      expect(none.latitude).toBeNull()
+      expect(none.longitude).toBeNull()
+      expect(half.latitude).toBeNull()
+      expect(half.longitude).toBeNull()
+    })
+
+    it('el listado no las incluye', async () => {
+      const [summary] = await build().summaries([
+        { ...PROPERTY, latitude: -34.6, longitude: -58.3 },
+      ])
+
+      expect(summary).not.toHaveProperty('latitude')
+    })
   })
 
   it('los filtros salen ordenados por nombre', async () => {

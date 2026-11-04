@@ -239,7 +239,8 @@ export class InstallmentsController {
     >(
       new RegisterDepositReturnCommand(contractId, {
         returnedAt: dto.returnedAt,
-        returnedAmount: dto.returnedAmount,
+        referenceAmount: dto.referenceAmount ?? null,
+        returnedAmount: dto.returnedAmount ?? null,
         method: dto.method,
         notes: dto.notes ?? null,
         deductions: dto.deductions.map((d) => ({

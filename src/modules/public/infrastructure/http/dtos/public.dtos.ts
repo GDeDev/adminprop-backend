@@ -1,8 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
-import { Transform } from 'class-transformer'
+import { Transform, Type } from 'class-transformer'
 import {
+  ArrayMaxSize,
+  IsArray,
   IsEmail,
   IsEnum,
+  IsIn,
+  IsInt,
+  Max,
+  Min,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -11,7 +17,12 @@ import {
   MaxLength,
 } from 'class-validator'
 
-import { ListingCurrency } from '@/modules/properties/public'
+import {
+  ListingCurrency,
+  ListingOperation,
+  PUBLIC_PROPERTY_SORTS,
+  PublicPropertySort,
+} from '@/modules/properties/public'
 import { PaginationQueryDto } from '@/shared/pagination'
 
 const trimmed = ({ value }: { value: unknown }) =>
@@ -56,6 +67,56 @@ export class PublicListingQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsEnum(ListingCurrency, { message: 'La moneda no es válida' })
   currency?: ListingCurrency
+
+  @ApiPropertyOptional({
+    enum: ListingOperation,
+    description: 'Venta (SALE) o alquiler (RENT)',
+  })
+  @IsOptional()
+  @IsEnum(ListingOperation, { message: 'La operación no es válida' })
+  operation?: ListingOperation
+
+  @ApiPropertyOptional({ description: 'Dormitorios: este número o más' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(99)
+  bedrooms?: number
+
+  @ApiPropertyOptional({ description: 'Baños: este número o más' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(99)
+  bathrooms?: number
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Sólo estas propiedades (hasta 12, separadas por coma). Las no disponibles no vuelven. Lo usa el sitio web para las destacadas a mano.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.split(',').filter(Boolean) : value,
+  )
+  @IsArray()
+  @ArrayMaxSize(12)
+  @IsUUID('all', { each: true })
+  ids?: string[]
+
+  @ApiPropertyOptional({
+    enum: PUBLIC_PROPERTY_SORTS,
+    default: 'recent',
+    description:
+      'Orden: `recent` (más nuevas primero), `price_asc` (menor precio primero) o `price_desc` (mayor primero). Las que no tienen precio ("Consultar") van siempre al final. El orden por precio compara montos nominales: combinarlo con `currency` para no mezclar ARS y USD.',
+  })
+  @IsOptional()
+  @IsIn(PUBLIC_PROPERTY_SORTS, {
+    message: 'El orden tiene que ser recent, price_asc o price_desc',
+  })
+  sort?: PublicPropertySort
 }
 
 /** `PublicContactRequest` del contrato del portal. */
@@ -118,7 +179,16 @@ export class PublicPropertySummaryDto {
   @ApiProperty({ type: String, nullable: true }) neighborhood: string | null
   @ApiProperty({ type: Number, nullable: true }) bedrooms: number | null
   @ApiProperty({ type: Number, nullable: true }) bathrooms: number | null
-  @ApiProperty({ type: Number, nullable: true }) areaM2: number | null
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Superficie total',
+  })
+  areaM2: number | null
+  @ApiProperty({ enum: ListingOperation }) operation: ListingOperation
+  @ApiProperty({ type: Number, nullable: true }) rooms: number | null
+  @ApiProperty({ type: Number, nullable: true }) coveredAreaM2: number | null
+  @ApiProperty({ type: Number, nullable: true }) ageYears: number | null
   @ApiProperty({
     type: String,
     nullable: true,
@@ -148,6 +218,16 @@ export class PublicPropertyDetailDto extends PublicPropertySummaryDto {
   @ApiProperty({ type: [PublicPhotoDto] }) photos: PublicPhotoDto[]
   @ApiProperty({ description: 'Barrio, ciudad' }) location: string
   @ApiProperty({ type: [PublicFeatureDto] }) features: PublicFeatureDto[]
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: -34.604,
+    description:
+      'Aproximada (3 decimales, ~100 m) para mostrar la zona en un mapa. Null si la propiedad no tiene coordenadas.',
+  })
+  latitude: number | null
+  @ApiProperty({ type: Number, nullable: true, example: -58.382 })
+  longitude: number | null
 }
 
 class PublicFilterOptionDto {

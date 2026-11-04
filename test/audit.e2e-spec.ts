@@ -3,6 +3,7 @@ import { Role } from '@prisma/client'
 import request from 'supertest'
 
 import { seedBaseMasterData } from '../prisma/lib/master-data-seed'
+import { todayIso } from '../src/shared/dates/calendar-date'
 import { PrismaService } from '../src/shared/prisma/prisma.service'
 import { createTestApp, loginAs, loginToPortalAs } from './utils/app'
 import {
@@ -280,7 +281,7 @@ describe('Auditoría (e2e, Postgres)', () => {
 
       const today = await get(
         adminToken,
-        `/audit?from=${new Date().toISOString().slice(0, 10)}&search=admin@a.com`,
+        `/audit?from=${todayIso()}&search=admin@a.com`,
       ).expect(200)
       expect(today.body.data.pagination.total).toBeGreaterThan(0)
 

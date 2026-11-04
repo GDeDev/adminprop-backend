@@ -1,5 +1,6 @@
 import {
   ListingCurrency,
+  ListingOperation,
   Property,
   PropertyPhoto,
   PropertyStatus,
@@ -17,7 +18,24 @@ export interface PropertyData {
   publicDescription: string | null
   /** Sólo la migración lo manda; una alta manual nace en false. */
   needsReview?: boolean
+  listingOperation: ListingOperation
+  bedrooms: number | null
+  bathrooms: number | null
+  rooms: number | null
+  totalAreaM2: number | null
+  coveredAreaM2: number | null
+  ageYears: number | null
+  latitude: number | null
+  longitude: number | null
 }
+
+/** Orden del listado público. */
+export const PUBLIC_PROPERTY_SORTS = [
+  'recent',
+  'price_asc',
+  'price_desc',
+] as const
+export type PublicPropertySort = (typeof PUBLIC_PROPERTY_SORTS)[number]
 
 /** Filtros del portal público (Fase 22). Siempre sobre propiedades disponibles. */
 export interface PublicPropertyFilter {
@@ -27,6 +45,15 @@ export interface PublicPropertyFilter {
   priceFrom?: string
   priceTo?: string
   currency?: ListingCurrency
+  /** Venta o alquiler. */
+  operation?: ListingOperation
+  /** Mínimos: "2 o más". */
+  bedroomsMin?: number
+  bathroomsMin?: number
+  /** Sólo estas (destacadas a mano del sitio web); las no disponibles no vuelven. */
+  ids?: string[]
+  /** Por defecto `recent`. */
+  sort?: PublicPropertySort
 }
 
 export interface PropertyFilter {

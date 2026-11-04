@@ -1,4 +1,4 @@
-import { IsoDate } from './calendar-date'
+import type { IsoDate } from './calendar-date'
 
 /**
  * Zona horaria de todas las inmobiliarias (Fase 13, A-22). Argentina no usa

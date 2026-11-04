@@ -9,7 +9,7 @@ describe('redact', () => {
       apiKey: 'sk-123',
     }) as Record<string, unknown>
 
-    expect(result.email).toBe('ana@ejemplo.com')
+    expect(result.email).toBe(REDACTED)
     expect(result.password).toBe(REDACTED)
     expect(result.accessToken).toBe(REDACTED)
     expect(result.apiKey).toBe(REDACTED)
@@ -77,5 +77,29 @@ describe('redact', () => {
     const result = redact({ cause: new Error('boom') }) as any
 
     expect(result.cause).toEqual({ name: 'Error', message: 'boom' })
+  })
+
+  // Antes dni/cbu/teléfono/email pasaban tal cual al log de un 5xx.
+  it('tapa datos personales', () => {
+    const result = redact({
+      firstName: 'Ana',
+      dni: '30111222',
+      taxId: '20-30111222-3',
+      cuit: '20301112223',
+      bankCbu: '0170000000000000000000',
+      bankAlias: 'ana.alquileres',
+      phone: '1155550000',
+      telefono: '1155550000',
+      email: 'ana@ejemplo.com',
+      address: 'Calle 1',
+      page: 2,
+    }) as Record<string, unknown>
+
+    expect(result.firstName).toBe('Ana')
+    expect(result.page).toBe(2)
+    for (const key of Object.keys(result)) {
+      if (key === 'firstName' || key === 'page') continue
+      expect(result[key]).toBe(REDACTED)
+    }
   })
 })

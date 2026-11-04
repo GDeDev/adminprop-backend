@@ -4,6 +4,7 @@ import {
   Currency,
   DepositDeductionConcept,
   DepositReturn,
+  DepositReturnMode,
   PaymentMethod,
 } from '../domain/billing'
 
@@ -23,6 +24,9 @@ export interface DepositReturnView {
   returnedAt: IsoDate
   depositAmount: string
   depositCurrency: Currency
+  /** Modo del contrato al devolver y monto del que se descontó (D-227). */
+  mode: DepositReturnMode
+  referenceAmount: string
   returnedAmount: string
   method: PaymentMethod
   notes: string | null
@@ -41,6 +45,8 @@ export function toDepositReturnView(
     returnedAt: ret.returnedAt,
     depositAmount: ret.depositAmount,
     depositCurrency: ret.depositCurrency,
+    mode: ret.mode,
+    referenceAmount: ret.referenceAmount,
     returnedAmount: ret.returnedAmount,
     method: ret.method,
     notes: ret.notes,

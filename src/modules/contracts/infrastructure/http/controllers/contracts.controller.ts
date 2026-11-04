@@ -70,6 +70,7 @@ import {
   TerminationResultDto,
   UpdateContractDto,
 } from '../dtos/contract.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 function toSurety(dto: {
   hasSurety: boolean
@@ -95,6 +96,7 @@ function toBillingInput(dto: ContractBillingTermsInputDto) {
     feeAmount: dto.feeAmount ?? null,
     lateFeePercentage: dto.lateFeePercentage ?? null,
     lateFeeGraceDays: dto.lateFeeGraceDays ?? null,
+    lateFeeStartDay: dto.lateFeeStartDay ?? null,
   }
 }
 
@@ -109,6 +111,8 @@ function toPartialBilling(dto: Partial<ContractBillingTermsInputDto>) {
     result.lateFeePercentage = dto.lateFeePercentage
   if (dto.lateFeeGraceDays !== undefined)
     result.lateFeeGraceDays = dto.lateFeeGraceDays
+  if (dto.lateFeeStartDay !== undefined)
+    result.lateFeeStartDay = dto.lateFeeStartDay
   return result
 }
 
@@ -313,6 +317,7 @@ export class ContractsController {
         feeAmount: dto.feeAmount,
         lateFeePercentage: dto.lateFeePercentage,
         lateFeeGraceDays: dto.lateFeeGraceDays,
+        lateFeeStartDay: dto.lateFeeStartDay,
         notes: dto.notes,
       }),
     )
@@ -352,7 +357,7 @@ export class ContractsController {
 
   @Post(':id/documents/contract')
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_DOCUMENT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_DOCUMENT_BYTES) }),
   )
   @ApiOperation({
     summary: 'Subir el PDF del contrato firmado (reemplaza al anterior)',
@@ -374,7 +379,7 @@ export class ContractsController {
 
   @Post(':id/documents/policy')
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_DOCUMENT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_DOCUMENT_BYTES) }),
   )
   @ApiOperation({
     summary: 'Subir el PDF de la póliza de caución (reemplaza al anterior)',
@@ -425,7 +430,7 @@ export class ContractsController {
     const contract = await this.commandBus.execute<
       ApplyRentUpdateCommand,
       ContractDetailView
-    >(new ApplyRentUpdateCommand(id, dto.newRent))
+    >(new ApplyRentUpdateCommand(id, dto.newRent, dto.reason, dto.authorizedBy))
     return { success: true, message: 'Aumento aplicado', data: contract }
   }
 

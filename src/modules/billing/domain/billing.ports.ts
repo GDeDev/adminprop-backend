@@ -6,6 +6,7 @@ import {
   Currency,
   DepositDeductionConcept,
   DepositReturn,
+  DepositReturnMode,
   ExchangeRateSource,
   FeeMode,
   Installment,
@@ -192,15 +193,24 @@ export abstract class PaymentRepository {
 
   abstract listAll(filter: PaymentFilter): Promise<Payment[]>
 
+  /** Cuántos pagos cumplen el filtro, sin traerlos. */
+  abstract count(filter: PaymentFilter): Promise<number>
+
+  /**
+   * Confirma un pago que sigue pendiente de confirmación. `null` si ya no lo
+   * está (otro request lo confirmó o lo anuló primero): la condición va en el
+   * UPDATE, así que dos confirmaciones simultáneas no pasan las dos.
+   */
   abstract confirm(
     id: string,
     data: { confirmedById: string; confirmedAt: Date },
-  ): Promise<Payment>
+  ): Promise<Payment | null>
 
+  /** Anula un pago que no estaba anulado. `null` si ya lo estaba. */
   abstract void(
     id: string,
     data: { voidedById: string; voidedAt: Date; voidReason: string },
-  ): Promise<Payment>
+  ): Promise<Payment | null>
 
   /**
    * Los pagos de un contrato que una liquidación puede tomar (Fase 12):
@@ -232,6 +242,8 @@ export interface NewDepositReturn {
   returnedAt: IsoDate
   depositAmount: string
   depositCurrency: Currency
+  mode: DepositReturnMode
+  referenceAmount: string
   returnedAmount: string
   method: PaymentMethod
   notes: string | null

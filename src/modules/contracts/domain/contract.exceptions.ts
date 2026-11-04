@@ -241,3 +241,30 @@ export class InvalidBillingTermsException extends DomainException {
     )
   }
 }
+
+/**
+ * Ni el contrato ni la inmobiliaria definen un punitorio diario (D-228). No
+ * hay un valor por defecto del sistema: tiene que decidirlo la inmobiliaria.
+ */
+export class LateFeePercentageRequiredException extends DomainException {
+  constructor() {
+    super(
+      'CONTRACT_LATE_FEE_PERCENTAGE_REQUIRED',
+      'Indicá el punitorio diario del contrato o configurá el de la inmobiliaria',
+      DomainErrorKind.InvalidInput,
+      { field: 'lateFeePercentage' },
+    )
+  }
+}
+
+/** Un ajuste manual del alquiler sin motivo o sin quién lo autorizó (D-230). */
+export class ManualRentAdjustmentJustificationException extends DomainException {
+  constructor(field: 'reason' | 'authorizedBy', reason: string) {
+    super(
+      'CONTRACT_MANUAL_ADJUSTMENT_JUSTIFICATION_REQUIRED',
+      `Un ajuste manual del alquiler necesita motivo y autorizante: ${field} ${reason}`,
+      DomainErrorKind.InvalidInput,
+      { field },
+    )
+  }
+}

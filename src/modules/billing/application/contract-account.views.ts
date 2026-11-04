@@ -2,10 +2,15 @@ import { ContractRef, DepositReturnMode } from '@/modules/contracts/public'
 import {
   firstDayOfPeriod,
   IsoDate,
+  localDateOf,
   Period,
-  toIsoDate,
 } from '@/shared/dates/calendar-date'
-import { compareMoney, subtractMoney, toMoneyString } from '@/shared/money'
+import {
+  compareMoney,
+  subtractMoney,
+  sumMoney,
+  toMoneyString,
+} from '@/shared/money'
 import {
   CollectionMode,
   CreditStatus,
@@ -23,7 +28,6 @@ import {
 import { InstallmentPolicy } from '../domain/installment.policy'
 import { AccountMovementType } from './account-movement-type'
 import { DepositReturnView } from './deposit-return.views'
-import { sumMoney } from './installment.views'
 
 export { AccountMovementType }
 
@@ -35,6 +39,13 @@ export interface ContractAccountMovementView {
   debit: string | null
   /** Lo que el inquilino pagó o se le reconoció. */
   credit: string | null
+  /**
+   * Importe informativo de los movimientos del depósito (recibido,
+   * devuelto, deducción), en `amountCurrency`. No entra en el saldo: el
+   * depósito no es deuda ni pago de alquiler.
+   */
+  amount: string | null
+  amountCurrency: Currency | null
   /** Saldo acumulado después del movimiento (deuda positiva). */
   balance: string
   installmentId: string | null
@@ -97,7 +108,14 @@ export interface ContractAccountView {
   deposit: ContractAccountDepositView
 }
 
-type Draft = Omit<ContractAccountMovementView, 'balance'> & { order: number }
+type Draft = Omit<
+  ContractAccountMovementView,
+  'balance' | 'amount' | 'amountCurrency'
+> & {
+  order: number
+  amount?: string
+  amountCurrency?: Currency
+}
 
 const PERIOD_LABEL = (period: Period) => `Cuota ${period}`
 
@@ -125,6 +143,8 @@ export function buildContractAccount(
     date: contract.startDate,
     type: AccountMovementType.DEPOSIT_RECEIVED,
     description: `Depósito recibido: ${contract.deposit} ${contract.depositCurrency}`,
+    amount: contract.deposit,
+    amountCurrency: Currency[contract.depositCurrency],
     debit: null,
     credit: null,
     installmentId: null,
@@ -146,7 +166,7 @@ export function buildContractAccount(
     for (const charge of installment.charges) {
       if (charge.voidedAt !== null) continue
       drafts.push({
-        date: toIsoDate(charge.createdAt),
+        date: localDateOf(charge.createdAt),
         type: AccountMovementType.CHARGE,
         description: `${PERIOD_LABEL(installment.period)}: ${charge.description}`,
         debit: charge.amount,
@@ -172,7 +192,7 @@ export function buildContractAccount(
     for (const adjustment of installment.adjustments) {
       const reduce = adjustment.kind === LateFeeAdjustmentKind.REDUCE
       drafts.push({
-        date: toIsoDate(adjustment.createdAt),
+        date: localDateOf(adjustment.createdAt),
         type: AccountMovementType.LATE_FEE_ADJUSTMENT,
         description: `${PERIOD_LABEL(installment.period)}: ${
           reduce ? 'reducción' : 'condonación'
@@ -227,7 +247,7 @@ export function buildContractAccount(
       }
       if (payment.status === PaymentStatus.VOIDED && payment.voidedAt) {
         drafts.push({
-          date: toIsoDate(payment.voidedAt),
+          date: localDateOf(payment.voidedAt),
           type: AccountMovementType.PAYMENT_VOIDED,
           description: `${PERIOD_LABEL(installment.period)}: pago anulado (${payment.voidReason ?? ''})`,
           debit: applied,
@@ -247,7 +267,9 @@ export function buildContractAccount(
     drafts.push({
       date: ret.returnedAt,
       type: AccountMovementType.DEPOSIT_RETURNED,
-      description: `Depósito devuelto: ${ret.returnedAmount} ${ret.depositCurrency} de ${ret.depositAmount}`,
+      description: `Depósito devuelto: ${ret.returnedAmount} ${ret.depositCurrency} de ${ret.referenceAmount} a devolver (recibido: ${ret.depositAmount})`,
+      amount: ret.returnedAmount,
+      amountCurrency: ret.depositCurrency,
       debit: null,
       credit: null,
       installmentId: null,
@@ -259,6 +281,8 @@ export function buildContractAccount(
         date: ret.returnedAt,
         type: AccountMovementType.DEPOSIT_DEDUCTION,
         description: `Deducción del depósito (${deduction.concept}): ${deduction.description} — ${deduction.amount} ${ret.depositCurrency}`,
+        amount: deduction.amount,
+        amountCurrency: ret.depositCurrency,
         debit: null,
         credit: null,
         installmentId: deduction.installmentId,
@@ -291,7 +315,12 @@ export function buildContractAccount(
         draft.credit ?? '0',
       ),
     )
-    return { ...draft, balance: running }
+    return {
+      ...draft,
+      amount: draft.amount ?? null,
+      amountCurrency: draft.amountCurrency ?? null,
+      balance: running,
+    }
   })
 
   const collectedBy = (receiver: PaymentReceiver) =>
@@ -366,13 +395,16 @@ export function buildContractAccount(
   }
 }
 
-/** A-13: sólo el monto sugerido; la devolución con deducciones es de la Fase 12. */
+/** Monto de referencia que sugiere el modo (D-227); `null` si hay que indicarlo a mano. */
 export function suggestedDepositReturn(contract: ContractRef): string | null {
   switch (contract.depositReturnMode) {
     case DepositReturnMode.FIXED:
       return contract.deposit
     case DepositReturnMode.FOLLOWS_RENT:
-      return contract.currentRent
+      // Sin cotización en la devolución: en otra moneda no se sugiere nada.
+      return contract.currency === contract.depositCurrency
+        ? contract.currentRent
+        : null
     default:
       return null
   }

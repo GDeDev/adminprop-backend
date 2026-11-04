@@ -71,10 +71,13 @@ export class AuditLogRepositoryImpl extends AuditLogRepository {
   }
 
   async distinctEntities(): Promise<string[]> {
-    const rows = await this.prisma.auditLog.findMany({
+    // `distinct` de Prisma 6 se resuelve en memoria: traía todas las filas
+    // del tenant a Node (480 mil en la medición) para quedarse con seis
+    // valores. `groupBy` baja a GROUP BY en Postgres.
+    const rows = await this.prisma.auditLog.groupBy({
+      by: ['entity'],
       where: this.where({}),
-      distinct: ['entity'],
-      select: { entity: true },
+      orderBy: { entity: 'asc' },
     })
     return rows.map((row) => row.entity)
   }

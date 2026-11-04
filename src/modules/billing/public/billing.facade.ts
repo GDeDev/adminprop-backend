@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common'
 
 import {
   compareMoney,
+  isPositiveMoney,
   Money,
   subtractMoney,
+  sumMoney,
   toMoneyString,
 } from '@/shared/money'
 import { IsoDate, Period, todayIso } from '@/shared/dates/calendar-date'
@@ -26,7 +28,6 @@ import {
   MoneyByCurrency,
   RenterArrearsView,
   sumByCurrency,
-  sumMoney,
 } from '../application/installment.views'
 import {
   activePayments,
@@ -424,7 +425,7 @@ export class BillingFacade {
     })
     return installments.flatMap((i) => {
       const { rentBalance } = InstallmentPolicy.balances(i, today)
-      return Number(rentBalance) > 0 ? [toRentDue(i, rentBalance)] : []
+      return isPositiveMoney(rentBalance) ? [toRentDue(i, rentBalance)] : []
     })
   }
 
@@ -440,7 +441,7 @@ export class BillingFacade {
         installment,
         balances: InstallmentPolicy.balances(installment, today),
       }))
-      .filter((r) => Number(r.balances.totalDue) > 0)
+      .filter((r) => isPositiveMoney(r.balances.totalDue))
       .map(({ installment, balances }) => ({
         id: installment.id,
         contractId: installment.contractId,
@@ -630,11 +631,7 @@ export class BillingFacade {
 
   /** Pagos informados que esperan confirmación (dashboard de la Fase 19). */
   async countPaymentsToConfirm(): Promise<number> {
-    return (
-      await this.payments.listAll({
-        status: PaymentStatus.PENDING_CONFIRMATION,
-      })
-    ).length
+    return this.payments.count({ status: PaymentStatus.PENDING_CONFIRMATION })
   }
 }
 

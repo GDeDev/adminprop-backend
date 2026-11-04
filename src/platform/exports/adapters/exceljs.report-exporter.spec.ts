@@ -46,4 +46,18 @@ describe('ExceljsReportExporter', () => {
     expect(csv).toContain('"a;b";"say ""hi""";\'=SUM(A1)')
     expect(csv).toContain('x;y;-5.00')
   })
+
+  // Antes el prefijo sólo cubría = + @ -: un valor que arrancaba con tab o
+  // retorno de carro se evaluaba como fórmula en Excel.
+  it('neutraliza fórmulas que empiezan con tab o retorno de carro', () => {
+    const csv = exporter
+      .toCsv({
+        ...table,
+        rows: [['\t=1+1', '\r=1+1', 'normal']],
+        totalRows: [],
+      })
+      .toString('utf8')
+    expect(csv).toContain("'\t=1+1;")
+    expect(csv).toContain('"\'\r=1+1"')
+  })
 })

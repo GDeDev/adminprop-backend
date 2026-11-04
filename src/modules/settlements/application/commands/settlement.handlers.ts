@@ -18,6 +18,7 @@ import {
 import {
   SettlementAdjustmentAlreadyVoidedException,
   SettlementAdjustmentNotFoundException,
+  SettlementNotPendingException,
   SettlementTransferAlreadyVoidedException,
   SettlementTransferNotFoundException,
 } from '../../domain/settlement.exceptions'
@@ -221,6 +222,17 @@ export class ConfirmSettlementHandler implements ICommandHandler<
     const confirmedAt = new Date()
 
     const confirmed = await this.prisma.transaction(async () => {
+      // Primero se reserva el cambio de estado: el UPDATE toma el lock de la
+      // fila, así que un recálculo, una cancelación u otra confirmación
+      // simultáneos esperan, ven que ya no está pendiente y fallan. Antes se
+      // chequeaba "pendiente" fuera de la transacción y el UPDATE final no
+      // miraba el estado.
+      const claimed = await this.settlements.updateWhilePending(settlement.id, {
+        status: SettlementStatus.CONFIRMED,
+        confirmedAt,
+        confirmedById,
+      })
+      if (!claimed) await this.throwNotPending(settlement.id)
       const paymentIds = settlement.payments.map((p) => p.paymentId)
       const marked = await this.billing.markPaymentsSettled(
         paymentIds,
@@ -259,14 +271,16 @@ export class ConfirmSettlementHandler implements ICommandHandler<
           baseAmount: settlement.feeBase,
         })
       }
-      return this.settlements.update(settlement.id, {
-        status: SettlementStatus.CONFIRMED,
-        confirmedAt,
-        confirmedById,
-      })
+      return this.references.requireSettlement(settlement.id)
     })
     this.eventBus.publish(new SettlementConfirmedEvent(confirmed))
     return this.views.detail(confirmed)
+  }
+
+  private async throwNotPending(id: string): Promise<never> {
+    const current = await this.references.requireSettlement(id)
+    SettlementPolicy.assertPending(current)
+    throw new SettlementNotPendingException(id, current.status)
   }
 }
 
@@ -293,16 +307,23 @@ export class CancelSettlementHandler implements ICommandHandler<
     const cancelReason = SettlementPolicy.normalizeReason(command.reason)
     const cancelledById = this.references.requireUser()
     const cancelled = await this.prisma.transaction(async () => {
-      // Las líneas son únicas por pago y por gasto: se sueltan para que la
-      // próxima liquidación del contrato pueda tomarlos. Los totales quedan
-      // como registro de lo que se iba a liquidar.
-      await this.settlements.replaceLines(settlement.id, [], [])
-      return this.settlements.update(settlement.id, {
+      // Se reserva el cambio de estado antes de soltar las líneas (ver
+      // ConfirmSettlementHandler).
+      const claimed = await this.settlements.updateWhilePending(settlement.id, {
         status: SettlementStatus.CANCELLED,
         cancelledAt: new Date(),
         cancelledById,
         cancelReason,
       })
+      if (!claimed) {
+        const current = await this.references.requireSettlement(settlement.id)
+        throw new SettlementNotPendingException(current.id, current.status)
+      }
+      // Las líneas son únicas por pago y por gasto: se sueltan para que la
+      // próxima liquidación del contrato pueda tomarlos. Los totales quedan
+      // como registro de lo que se iba a liquidar.
+      await this.settlements.replaceLines(settlement.id, [], [])
+      return this.references.requireSettlement(settlement.id)
     })
     return this.views.detail(cancelled)
   }

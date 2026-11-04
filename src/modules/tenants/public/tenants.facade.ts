@@ -18,7 +18,8 @@ export interface TenantBillingSettings {
   /** Días del mes sin punitorio: del 1 al N. */
   paymentGraceDays: number
   /** Punitorio diario, en %, como string decimal ("5.00"). */
-  dailyLateFeePercentage: string
+  /** Null si la inmobiliaria no fijó un punitorio por defecto (D-228). */
+  dailyLateFeePercentage: string | null
   /** Día del mes en que se generan las cuotas del mes siguiente. */
   installmentGenerationDay: number
   /** Día del mes en que sale el recordatorio de pago. */
@@ -101,6 +102,19 @@ export class TenantsFacade {
    */
   async findActiveBySlug(slug: string): Promise<PublicTenantRef | null> {
     const tenant = await this.tenants.findBySlug(slug)
+    if (!tenant?.isActive) return null
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      email: tenant.email,
+      defaultCurrency: tenant.defaultCurrency,
+    }
+  }
+
+  /** Igual que `findActiveBySlug` pero por id (resolución de sitios por host). */
+  async findActiveById(id: string): Promise<PublicTenantRef | null> {
+    const tenant = await this.tenants.findById(id)
     if (!tenant?.isActive) return null
     return {
       id: tenant.id,

@@ -16,8 +16,11 @@ const CATCH_UP_DELAY_MS = 30_000
  * `JobScheduler` qué corridas de hoy faltan, y al arrancar el servidor hace
  * la misma pregunta una vez (recupera lo que se perdió estando apagado).
  *
- * ⚠️ Corre en cada instancia. Con varias réplicas todas encolan, y la
- * `singletonKey` de pg-boss deja pasar una sola corrida por clave.
+ * ⚠️ Corre en cada instancia. Con varias réplicas todas lo intentan, y la
+ * unicidad la da el índice `job_executions_scheduled_slot_key`: la fila de
+ * cada corrida se reserva con INSERT ... ON CONFLICT DO NOTHING y sólo quien
+ * la consigue publica. La `singletonKey` de pg-boss no alcanza por sí sola:
+ * en una cola estándar no deduplica (sólo con `policy: 'short'`).
  */
 @Injectable()
 export class CronSchedulerTask implements OnApplicationBootstrap {

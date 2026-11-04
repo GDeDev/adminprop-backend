@@ -5,10 +5,12 @@ import {
   addMoney,
   compareMoney,
   formatMoney,
+  isPositiveMoney,
   multiplyMoney,
   percentageOf,
   roundMoney,
   subtractMoney,
+  sumMoney,
   toDecimal,
   toMoneyString,
 } from './money'
@@ -86,7 +88,50 @@ describe('money', () => {
     )
   })
 
+  describe('sumMoney', () => {
+    it('suma strings, Decimal y Prisma.Decimal sin perder centavos', () => {
+      expect(
+        sumMoney(['0.10', new Decimal('0.20'), new Prisma.Decimal('0.30')]),
+      ).toBe('0.60')
+    })
+
+    it('una lista vacía suma cero con dos decimales', () => {
+      expect(sumMoney([])).toBe('0.00')
+    })
+
+    it('redondea el total half-up, como addMoney', () => {
+      expect(sumMoney(['1.004', '0.001'])).toBe('1.01')
+      expect(sumMoney(['1.004', '0.0009'])).toBe('1.00')
+    })
+
+    it('rechaza number', () => {
+      expect(() => sumMoney([1.5 as never])).toThrow(TypeError)
+    })
+
+    it('no pierde centavos con montos de 14 dígitos enteros', () => {
+      expect(sumMoney(['99999999999999.99', '0.01'])).toBe('100000000000000.00')
+    })
+  })
+
+  describe('isPositiveMoney', () => {
+    it.each([
+      ['0.01', true],
+      ['150000.00', true],
+      ['0.00', false],
+      ['0', false],
+      ['-0.01', false],
+    ])('%s -> %s', (value, expected) => {
+      expect(isPositiveMoney(value)).toBe(expected)
+    })
+  })
+
   describe('compareMoney', () => {
+    it('distingue montos que un number confunde (por eso no se usa Number)', () => {
+      // Con 14 dígitos enteros, un double ya no alcanza para los centavos.
+      expect(Number('99999999999999.99')).toBe(Number('99999999999999.98'))
+      expect(compareMoney('99999999999999.99', '99999999999999.98')).toBe(1)
+    })
+
     it('compara por valor, no por representación', () => {
       expect(compareMoney('1.50', '1.5')).toBe(0)
       expect(compareMoney('1.49', '1.5')).toBe(-1)

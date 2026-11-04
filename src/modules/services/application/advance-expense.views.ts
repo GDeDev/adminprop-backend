@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { UserRef, UsersFacade } from '@/modules/auth/public'
 import { IsoDate } from '@/shared/dates/calendar-date'
-import { addMoney, toMoneyString } from '@/shared/money'
+import { sumMoney } from '@/shared/money'
 import { AdvanceExpense, isSettled } from '../domain/advance-expense'
 import { Currency } from '../domain/property-service'
 
@@ -86,5 +86,5 @@ export class AdvanceExpenseViews {
  * copian al crearse (D-67).
  */
 export function sumOf(expenses: Pick<AdvanceExpense, 'amount'>[]): string {
-  return toMoneyString(addMoney(...expenses.map((e) => e.amount)))
+  return sumMoney(expenses.map((e) => e.amount))
 }

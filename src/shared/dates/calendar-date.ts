@@ -8,6 +8,8 @@
  * comparar dos fechas es comparar los strings.
  */
 
+import { localMoment } from './zoned-time'
+
 export type IsoDate = string
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -29,13 +31,29 @@ function toUtc(iso: IsoDate): Date {
   return new Date(`${iso}T00:00:00.000Z`)
 }
 
+/**
+ * La fecha UTC de un `Date`. Es la lectura correcta para una columna `DATE`
+ * (se guarda como medianoche UTC) y para la aritmética de este archivo. Para
+ * un instante (`createdAt`, `confirmedAt`) usar `localDateOf`: pasadas las
+ * 21:00 en Argentina la fecha UTC ya es la de mañana.
+ */
 export function toIsoDate(date: Date): IsoDate {
   return date.toISOString().slice(0, 10)
 }
 
-/** Hoy, en UTC. Para reglas de negocio que miran "la fecha de hoy". */
-export function todayIso(): IsoDate {
-  return toIsoDate(new Date())
+/** La fecha de calendario de negocio (Argentina) en la que cae un instante. */
+export function localDateOf(instant: Date): IsoDate {
+  return localMoment(instant).date
+}
+
+/**
+ * Hoy según el calendario de la inmobiliaria (Argentina, UTC-3). Con la fecha
+ * UTC, de 21:00 a 24:00 todo el sistema veía "mañana": punitorios de un día
+ * de más, períodos del mes siguiente, reportes de mora que no coincidían con
+ * los avisos (que ya usaban la hora argentina).
+ */
+export function todayIso(now: Date = new Date()): IsoDate {
+  return localDateOf(now)
 }
 
 /** `AAAA-MM` de una fecha: el período de un índice. */

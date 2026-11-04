@@ -330,20 +330,26 @@ describe('CRM (e2e, Postgres)', () => {
     const one = await create({ name: 'Privada' })
 
     expect((await pipeline(adminBToken))[0].total).toBe(0)
-    for (const request_ of [
-      api(adminBToken).get(`/crm/inquiries/${one.id}`),
-      api(adminBToken)
-        .patch(`/crm/inquiries/${one.id}/stage`)
-        .send({ stage: 'CONTACTED' }),
-      api(adminBToken)
-        .patch(`/crm/inquiries/${one.id}/assign`)
-        .send({ userId: null }),
-      api(adminBToken)
-        .post(`/crm/inquiries/${one.id}/notes`)
-        .send({ body: 'hola' }),
-      api(adminBToken).get(`/crm/inquiries/${one.id}/whatsapp-link`),
+    // Funciones y no requests ya armados: supertest levanta un servidor al crear
+    // cada request y lo cierra al terminar el primero, así que los demás, creados
+    // de antemano, fallaban con ECONNREFUSED.
+    for (const makeRequest of [
+      () => api(adminBToken).get(`/crm/inquiries/${one.id}`),
+      () =>
+        api(adminBToken)
+          .patch(`/crm/inquiries/${one.id}/stage`)
+          .send({ stage: 'CONTACTED' }),
+      () =>
+        api(adminBToken)
+          .patch(`/crm/inquiries/${one.id}/assign`)
+          .send({ userId: null }),
+      () =>
+        api(adminBToken)
+          .post(`/crm/inquiries/${one.id}/notes`)
+          .send({ body: 'hola' }),
+      () => api(adminBToken).get(`/crm/inquiries/${one.id}/whatsapp-link`),
     ]) {
-      const response = await request_
+      const response = await makeRequest()
       expect(response.status).toBe(404)
       expect(response.body.code).toBe('INQUIRY_NOT_FOUND')
     }
