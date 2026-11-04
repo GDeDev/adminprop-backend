@@ -38,6 +38,8 @@ export interface BillingTermsInput {
   feeAmount: string | null
   lateFeePercentage: string | null
   lateFeeGraceDays: number | null
+  /** Alternativa a la gracia: día del mes desde el que corre el punitorio (D-227). */
+  lateFeeStartDay?: number | null
 }
 
 export class CreateContractCommand {
@@ -77,6 +79,8 @@ export class ChangeBillingTermsCommand {
       /** `null` explícito vuelve al del tenant. */
       lateFeePercentage?: string | null
       lateFeeGraceDays?: number | null
+      /** Alternativa a la gracia (D-227); no se combinan. */
+      lateFeeStartDay?: number | null
       notes?: string | null
     },
   ) {}
@@ -99,6 +103,9 @@ export class ApplyRentUpdateCommand {
      * opcional en FIXED con % fijo y en ICL/IPC (ajuste manual autorizado).
      */
     public readonly newRent: string | undefined,
+    /** Con `newRent` (ajuste manual): motivo y quién lo autorizó, obligatorios (D-229). */
+    public readonly reason?: string | null,
+    public readonly authorizedBy?: string | null,
   ) {}
 }
 

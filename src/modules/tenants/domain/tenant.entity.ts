@@ -22,8 +22,11 @@ export interface Tenant {
   contractExpiryNoticeDays: number
   /** Días del mes sin punitorio: del 1 al N (PRD 5.0, RN-02). */
   paymentGraceDays: number
-  /** Punitorio diario, en % ("5.00"), desde el día siguiente a la gracia. */
-  dailyLateFeePercentage: string
+  /**
+   * Punitorio diario por defecto, en % ("5.00"), desde el día siguiente a la
+   * gracia. Null si la inmobiliaria no fijó uno (D-227).
+   */
+  dailyLateFeePercentage: string | null
   /** Día del mes en que se generan las cuotas del mes siguiente. */
   installmentGenerationDay: number
   /** Día del mes en que sale el recordatorio de pago. */
@@ -52,6 +55,9 @@ export interface Tenant {
 
 /** Los campos de `Tenant` que edita el admin desde Configuración (Fase 15). */
 export interface TenantSettingsPatch {
+  /** Parámetros de cobro (D-227). El punitorio no se puede quitar, sólo cambiar. */
+  dailyLateFeePercentage?: string
+  paymentGraceDays?: number
   primaryColor?: string | null
   legalName?: string | null
   taxId?: string | null

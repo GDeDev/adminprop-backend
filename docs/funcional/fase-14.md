@@ -41,3 +41,7 @@ Cada administrador o empleado elige, en **Perfil → Mis notificaciones**, qué 
 ## Qué todavía depende de cuentas externas
 
 El envío real necesita una cuenta de Resend con el dominio verificado; sin ella los mails se **muestran en el log del servidor** y todo el resto (historial, reintentos, plantillas) se prueba igual. Que los mails lleguen a la bandeja principal y no a spam depende de la configuración del dominio, que no se puede probar en local.
+
+## Modo de envío del consolidado (ver D-228)
+
+El mail de cada liquidación y el del consolidado respetan lo elegido para el propietario (sólo resumen, sólo comprobantes o ambos). Los comprobantes retenidos salen al cerrar el mes si se elige un modo que los incluye.

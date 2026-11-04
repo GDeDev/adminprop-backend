@@ -90,7 +90,10 @@ export class RegisterDepositReturnCommand {
     public readonly contractId: string,
     public readonly data: {
       returnedAt: string
-      returnedAmount: string
+      /** Monto de referencia: obligatorio en modo MANUAL (o alquiler en otra moneda). */
+      referenceAmount: string | null
+      /** Opcional: si viene tiene que coincidir con referencia - deducciones. */
+      returnedAmount: string | null
       method: PaymentMethod
       notes: string | null
       deductions: {

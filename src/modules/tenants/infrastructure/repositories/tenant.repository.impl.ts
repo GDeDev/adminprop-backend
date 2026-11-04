@@ -128,7 +128,7 @@ function toDomain(row: TenantRow): Tenant {
     reducedFeePercentage: row.reducedFeePercentage.toFixed(2),
     contractExpiryNoticeDays: row.contractExpiryNoticeDays,
     paymentGraceDays: row.paymentGraceDays,
-    dailyLateFeePercentage: row.dailyLateFeePercentage.toFixed(2),
+    dailyLateFeePercentage: row.dailyLateFeePercentage?.toFixed(2) ?? null,
     installmentGenerationDay: row.installmentGenerationDay,
     paymentReminderDay: row.paymentReminderDay,
     monthlyReportDay: row.monthlyReportDay,

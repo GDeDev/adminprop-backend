@@ -11,6 +11,7 @@ import {
   Currency,
   DepositDeductionConcept,
   DepositReturn,
+  DepositReturnMode as DepositReturnModeBilling,
   InstallmentStatus,
   LateFeeAdjustmentKind,
   PaymentKind,
@@ -58,6 +59,7 @@ function contract(overrides: Partial<ContractRef> = {}): ContractRef {
       feeAmount: null,
       lateFeePercentage: '5.00',
       lateFeeGraceDays: 10,
+      lateFeeStartDay: 11,
       inheritedLateFeePercentage: false,
       inheritedLateFeeGraceDays: false,
       notes: null,
@@ -441,6 +443,8 @@ describe('buildContractAccount', () => {
         returnedAt: '2028-09-05',
         depositAmount: '200000.00',
         depositCurrency: Currency.ARS,
+        mode: DepositReturnModeBilling.FIXED,
+        referenceAmount: '200000.00',
         returnedAmount: '150000.00',
         method: PaymentMethod.TRANSFER,
         notes: null,
@@ -469,11 +473,20 @@ describe('buildContractAccount', () => {
         (m) => m.type === AccountMovementType.DEPOSIT_DEDUCTION,
       )
       expect(returned?.description).toBe(
-        'Depósito devuelto: 150000.00 ARS de 200000.00',
+        'Depósito devuelto: 150000.00 ARS de 200000.00 a devolver (recibido: 200000.00)',
       )
       expect(deduction?.description).toContain('Pintura')
-      expect(returned).toMatchObject({ debit: null, credit: null })
-      expect(deduction).toMatchObject({ debit: null, credit: null })
+      expect(returned).toMatchObject({
+        debit: null,
+        credit: null,
+        amount: '150000.00',
+        amountCurrency: 'ARS',
+      })
+      expect(deduction).toMatchObject({
+        debit: null,
+        credit: null,
+        amount: '50000.00',
+      })
       expect(account.totals.balance).toBe('0.00')
       expect(account.deposit.returned).toBe(view)
     })
@@ -494,6 +507,14 @@ describe('buildContractAccount', () => {
           depositReturnMode: DepositReturnMode.FOLLOWS_RENT,
         }),
       ).toBe('230000.00')
+      expect(
+        suggestedDepositReturn({
+          ...base,
+          depositReturnMode: DepositReturnMode.FOLLOWS_RENT,
+          currency: Currency.USD,
+          depositCurrency: Currency.ARS,
+        }),
+      ).toBeNull()
       expect(
         suggestedDepositReturn({
           ...base,

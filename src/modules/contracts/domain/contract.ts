@@ -87,6 +87,9 @@ export interface RentUpdate {
   fixedPercentage: string | null
   /** Null si lo aplicó el cron. */
   appliedById: string | null
+  /** Ajuste manual (D-229): motivo y autorizante; null en los automáticos. */
+  adjustmentReason: string | null
+  authorizedBy: string | null
   createdAt: Date
 }
 
@@ -114,8 +117,8 @@ export interface BillingTerms {
 
 /** Lo que el contrato puede heredar de la inmobiliaria en los términos. */
 export interface LateFeeDefaults {
-  /** Punitorio diario, en %, como string decimal. */
-  dailyLateFeePercentage: string
+  /** Punitorio diario, en %, como string decimal. Null: la inmobiliaria no fijó uno (D-227). */
+  dailyLateFeePercentage: string | null
   /** Días del mes sin punitorio: del 1 al N. */
   paymentGraceDays: number
 }
@@ -130,6 +133,8 @@ export interface ResolvedBillingTerms {
   feeAmount: string | null
   lateFeePercentage: string
   lateFeeGraceDays: number
+  /** Día del mes desde el que corre el punitorio: gracia + 1 (D-227). */
+  lateFeeStartDay: number
   inheritedLateFeePercentage: boolean
   inheritedLateFeeGraceDays: boolean
   notes: string | null

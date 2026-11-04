@@ -181,7 +181,12 @@ describe('ApplyRentUpdateHandler', () => {
   it('con índice y monto, es un ajuste manual autorizado y queda como MANUAL', async () => {
     const { handler, applier } = setup()
     await handler.execute(
-      new ApplyRentUpdateCommand('contract-1', '123456.789'),
+      new ApplyRentUpdateCommand(
+        'contract-1',
+        '123456.789',
+        '  Acuerdo   con el inquilino ',
+        'Juan Pérez',
+      ),
     )
     expect(applier.applyIndex).not.toHaveBeenCalled()
     expect(applier.record).toHaveBeenCalledWith(
@@ -191,8 +196,28 @@ describe('ApplyRentUpdateHandler', () => {
         newRent: '123456.79',
         source: RentUpdateSource.MANUAL,
         fixedPercentage: null,
+        adjustmentReason: 'Acuerdo con el inquilino',
+        authorizedBy: 'Juan Pérez',
       }),
     )
+  })
+
+  it('un ajuste manual sin motivo o sin autorizante se rechaza antes de tocar nada (D-229)', async () => {
+    const { handler, applier } = setup()
+    await expect(
+      handler.execute(
+        new ApplyRentUpdateCommand('contract-1', '123456', null, 'Juan'),
+      ),
+    ).rejects.toMatchObject({
+      code: 'CONTRACT_MANUAL_ADJUSTMENT_JUSTIFICATION_REQUIRED',
+      metadata: { field: 'reason' },
+    })
+    await expect(
+      handler.execute(
+        new ApplyRentUpdateCommand('contract-1', '123456', 'Motivo', ' '),
+      ),
+    ).rejects.toMatchObject({ metadata: { field: 'authorizedBy' } })
+    expect(applier.record).not.toHaveBeenCalled()
   })
 
   it('con porcentaje fijo y sin monto lo calcula solo', async () => {

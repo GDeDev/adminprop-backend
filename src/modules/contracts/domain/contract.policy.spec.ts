@@ -11,6 +11,7 @@ import {
   ContractDatesInvalidException,
   InvalidBillingTermsException,
   InvalidContractDateException,
+  LateFeePercentageRequiredException,
   NewRentRequiredException,
   RenewalStartInvalidException,
   SuretyEmailRequiredException,
@@ -191,6 +192,7 @@ describe('ContractPolicy', () => {
       ).toMatchObject({
         lateFeePercentage: '5.00',
         lateFeeGraceDays: 10,
+        lateFeeStartDay: 11,
         inheritedLateFeePercentage: true,
         inheritedLateFeeGraceDays: true,
       })
@@ -205,9 +207,50 @@ describe('ContractPolicy', () => {
       ).toMatchObject({
         lateFeePercentage: '2.00',
         lateFeeGraceDays: 5,
+        lateFeeStartDay: 6,
         inheritedLateFeePercentage: false,
         inheritedLateFeeGraceDays: false,
       })
+    })
+
+    it('sin punitorio propio ni de la inmobiliaria no hay valor por defecto: se exige uno (D-227)', () => {
+      const noDefault = { ...DEFAULTS, dailyLateFeePercentage: null }
+      expect(() => ContractPolicy.assertLateFeeSource(null, noDefault)).toThrow(
+        LateFeePercentageRequiredException,
+      )
+      expect(() =>
+        ContractPolicy.assertLateFeeSource('0.00', noDefault),
+      ).not.toThrow()
+      expect(() =>
+        ContractPolicy.assertLateFeeSource(null, DEFAULTS),
+      ).not.toThrow()
+    })
+
+    it('el día de inicio es la gracia dicha al revés y no se combina con ella', () => {
+      expect(ContractPolicy.resolveGraceInput(undefined, 11)).toBe(10)
+      expect(ContractPolicy.resolveGraceInput(null, 1)).toBe(0)
+      expect(ContractPolicy.resolveGraceInput(7, undefined)).toBe(7)
+      expect(ContractPolicy.resolveGraceInput(undefined, undefined)).toBe(
+        undefined,
+      )
+      expect(() => ContractPolicy.resolveGraceInput(5, 11)).toThrow(
+        InvalidBillingTermsException,
+      )
+      expect(() => ContractPolicy.resolveGraceInput(null, 0)).toThrow(
+        InvalidBillingTermsException,
+      )
+      expect(() => ContractPolicy.resolveGraceInput(null, 32)).toThrow(
+        InvalidBillingTermsException,
+      )
+    })
+
+    it('si falta el punitorio en ambos lados, la resolución no inventa uno (0)', () => {
+      expect(
+        ContractPolicy.resolveBillingTerms(terms('2026-01-01'), {
+          ...DEFAULTS,
+          dailyLateFeePercentage: null,
+        }),
+      ).toMatchObject({ lateFeePercentage: '0.00' })
     })
   })
 

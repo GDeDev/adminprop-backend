@@ -106,6 +106,8 @@ export interface ContractRentUpdateView {
   indexToValue: string | null
   fixedPercentage: string | null
   appliedById: string | null
+  adjustmentReason: string | null
+  authorizedBy: string | null
   createdAt: Date
 }
 

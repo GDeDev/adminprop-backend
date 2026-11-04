@@ -5,6 +5,7 @@ import {
   Currency,
   DepositDeductionConcept,
   DepositReturn,
+  DepositReturnMode,
   PaymentMethod,
 } from '@/modules/billing/domain/billing'
 import {
@@ -68,6 +69,8 @@ function toDomain(row: Row): DepositReturn {
     returnedAt: fromDateColumn(row.returnedAt),
     depositAmount: money(row.depositAmount),
     depositCurrency: Currency[row.depositCurrency],
+    mode: DepositReturnMode[row.mode],
+    referenceAmount: money(row.referenceAmount),
     returnedAmount: money(row.returnedAmount),
     method: PaymentMethod[row.method],
     notes: row.notes,

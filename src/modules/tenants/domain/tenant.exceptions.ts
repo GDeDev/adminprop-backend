@@ -24,3 +24,15 @@ export class InvalidTenantLogoException extends DomainException {
     )
   }
 }
+
+/** Un parámetro de cobro de la inmobiliaria fuera de rango (D-227). */
+export class InvalidTenantBillingSettingException extends DomainException {
+  constructor(field: string, reason: string) {
+    super(
+      'TENANT_INVALID_BILLING_SETTING',
+      `${field}: ${reason}`,
+      DomainErrorKind.InvalidInput,
+      { field },
+    )
+  }
+}

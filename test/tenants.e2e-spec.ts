@@ -161,6 +161,50 @@ describe('Tenants (e2e, Postgres)', () => {
       expect(branding.body.data.whatsapp).toBe('5491122334455')
     })
 
+    it('el admin edita el punitorio y la gracia por defecto; no se pueden quitar ni salirse de rango (D-227)', async () => {
+      const token = await loginAs(app, 'admin@a.com')
+      const patch = (body: Record<string, unknown>) =>
+        request(app.getHttpServer())
+          .patch('/api/v1/tenants/current/settings')
+          .set('Authorization', `Bearer ${token}`)
+          .send(body)
+
+      const initial = await request(app.getHttpServer())
+        .get('/api/v1/tenants/current/settings')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200)
+      expect(initial.body.data).toMatchObject({
+        dailyLateFeePercentage: '5.00',
+        paymentGraceDays: 10,
+        lateFeeStartDay: 11,
+      })
+
+      const updated = await patch({
+        dailyLateFeePercentage: '0.5',
+        paymentGraceDays: 5,
+      }).expect(200)
+      expect(updated.body.data).toMatchObject({
+        dailyLateFeePercentage: '0.50',
+        paymentGraceDays: 5,
+        lateFeeStartDay: 6,
+      })
+
+      await patch({ dailyLateFeePercentage: '0' }).expect(200)
+      for (const body of [
+        { dailyLateFeePercentage: null },
+        { paymentGraceDays: null },
+        { dailyLateFeePercentage: '100.01' },
+        { dailyLateFeePercentage: 'cinco' },
+        { paymentGraceDays: -1 },
+        { paymentGraceDays: 61 },
+      ]) {
+        await patch(body).expect(400)
+      }
+      // Lo que no viene no se toca.
+      const kept = await patch({ legalName: 'Oppido' }).expect(200)
+      expect(kept.body.data.dailyLateFeePercentage).toBe('0.00')
+    })
+
     it('rechaza un color, un CBU o un WhatsApp con formato inválido', async () => {
       const token = await loginAs(app, 'admin@a.com')
 

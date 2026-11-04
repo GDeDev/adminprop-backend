@@ -32,6 +32,8 @@ export function makeRentUpdate(
     indexToValue: null,
     fixedPercentage: null,
     appliedById: null,
+    adjustmentReason: null,
+    authorizedBy: null,
     createdAt: at('2026-01-01'),
     ...overrides,
   }

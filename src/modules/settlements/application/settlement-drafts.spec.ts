@@ -48,6 +48,7 @@ function contract(overrides: Partial<ContractRef> = {}): ContractRef {
       feeAmount: null,
       lateFeePercentage: '5.00',
       lateFeeGraceDays: 10,
+      lateFeeStartDay: 11,
       inheritedLateFeePercentage: false,
       inheritedLateFeeGraceDays: false,
       notes: null,
