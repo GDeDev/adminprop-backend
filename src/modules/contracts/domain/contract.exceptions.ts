@@ -256,3 +256,15 @@ export class LateFeePercentageRequiredException extends DomainException {
     )
   }
 }
+
+/** Un ajuste manual del alquiler sin motivo o sin quién lo autorizó (D-229). */
+export class ManualRentAdjustmentJustificationException extends DomainException {
+  constructor(field: 'reason' | 'authorizedBy', reason: string) {
+    super(
+      'CONTRACT_MANUAL_ADJUSTMENT_JUSTIFICATION_REQUIRED',
+      `Un ajuste manual del alquiler necesita motivo y autorizante: ${field} ${reason}`,
+      DomainErrorKind.InvalidInput,
+      { field },
+    )
+  }
+}

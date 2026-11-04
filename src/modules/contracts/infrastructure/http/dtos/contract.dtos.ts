@@ -470,6 +470,28 @@ export class ApplyRentUpdateDto {
       'newRent debe ser un monto con hasta 2 decimales (ej. "120000.00")',
   })
   newRent?: string
+
+  @ApiPropertyOptional({
+    maxLength: 500,
+    example: 'Acuerdo con el inquilino por refacciones a su cargo',
+    description:
+      'Obligatorio cuando viene newRent (ajuste manual): por qué se ajusta a mano.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string
+
+  @ApiPropertyOptional({
+    maxLength: 150,
+    example: 'Juan Pérez (propietario)',
+    description:
+      'Obligatorio cuando viene newRent (ajuste manual): quién lo autorizó.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  authorizedBy?: string
 }
 
 export class TerminateContractDto {
@@ -653,6 +675,18 @@ export class ContractRentUpdateDto {
   })
   fixedPercentage: string | null
   @ApiProperty({ type: String, nullable: true }) appliedById: string | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Ajuste manual: por qué se hizo (D-229)',
+  })
+  adjustmentReason: string | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Ajuste manual: quién lo autorizó (D-229)',
+  })
+  authorizedBy: string | null
   @ApiProperty() createdAt: Date
 }
 

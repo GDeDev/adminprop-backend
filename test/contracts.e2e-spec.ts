@@ -698,7 +698,11 @@ describe('Contratos (e2e, Postgres)', () => {
 
       const applied = await api(employeeToken)
         .post(`/contracts/${id}/rent-updates`)
-        .send({ newRent: '120000' })
+        .send({
+          newRent: '120000',
+          reason: 'Acuerdo por refacciones',
+          authorizedBy: 'Juan Pérez (propietario)',
+        })
         .expect(201)
       expect(applied.body.data.currentRent).toBe('120000.00')
       expect(applied.body.data.rentUpdates).toHaveLength(2)
@@ -708,6 +712,8 @@ describe('Contratos (e2e, Postgres)', () => {
         newRent: '120000.00',
         source: 'MANUAL',
         indexType: null,
+        adjustmentReason: 'Acuerdo por refacciones',
+        authorizedBy: 'Juan Pérez (propietario)',
       })
 
       const notDue = await api(adminToken)
@@ -715,6 +721,48 @@ describe('Contratos (e2e, Postgres)', () => {
         .send({ newRent: '130000' })
         .expect(409)
       expect(notDue.body.code).toBe('CONTRACT_RENT_UPDATE_NOT_DUE')
+    })
+
+    it('un ajuste manual sin motivo o sin autorizante se rechaza y no cambia el alquiler (D-229)', async () => {
+      const startDate = addMonths(today, -3)
+      const { id } = await createContract({ startDate })
+      for (const body of [
+        { newRent: '120000' },
+        { newRent: '120000', reason: 'Refacciones' },
+        { newRent: '120000', authorizedBy: 'Juan Pérez' },
+        { newRent: '120000', reason: '   ', authorizedBy: 'Juan Pérez' },
+      ]) {
+        const rejected = await api(adminToken)
+          .post(`/contracts/${id}/rent-updates`)
+          .send(body)
+          .expect(400)
+        expect(rejected.body.code).toBe(
+          'CONTRACT_MANUAL_ADJUSTMENT_JUSTIFICATION_REQUIRED',
+        )
+      }
+      const detail = await api(adminToken).get(`/contracts/${id}`).expect(200)
+      expect(detail.body.data.currentRent).toBe('100000.00')
+      expect(detail.body.data.rentUpdates).toHaveLength(1)
+    })
+
+    it('el aumento por índice o por % fijo no pide motivo ni autorizante', async () => {
+      const startDate = addMonths(today, -2)
+      const { id } = await createContract({
+        startDate,
+        rentUpdateType: 'FIXED',
+        rentUpdateFrequency: 'MONTHLY',
+        fixedIncreasePercentage: '10',
+      })
+      const applied = await api(adminToken)
+        .post(`/contracts/${id}/rent-updates`)
+        .send({})
+        .expect(201)
+      expect(applied.body.data.rentUpdates[0]).toMatchObject({
+        newRent: '110000.00',
+        fixedPercentage: '10.00',
+        adjustmentReason: null,
+        authorizedBy: null,
+      })
     })
 
     it('ICL: usa los índices de los dos períodos; si falta uno, 422 con el período', async () => {
@@ -1241,7 +1289,11 @@ describe('Contratos (e2e, Postgres)', () => {
       })
       const manual = await api(adminToken)
         .post(`/contracts/${indexed.id}/rent-updates`)
-        .send({ newRent: '105000' })
+        .send({
+          newRent: '105000',
+          reason: 'Acuerdo por refacciones',
+          authorizedBy: 'Juan Pérez (propietario)',
+        })
         .expect(201)
       expect(manual.body.data.rentUpdates[0]).toMatchObject({
         newRent: '105000.00',

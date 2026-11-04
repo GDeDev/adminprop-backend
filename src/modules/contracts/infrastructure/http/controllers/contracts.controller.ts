@@ -430,7 +430,7 @@ export class ContractsController {
     const contract = await this.commandBus.execute<
       ApplyRentUpdateCommand,
       ContractDetailView
-    >(new ApplyRentUpdateCommand(id, dto.newRent))
+    >(new ApplyRentUpdateCommand(id, dto.newRent, dto.reason, dto.authorizedBy))
     return { success: true, message: 'Aumento aplicado', data: contract }
   }
 

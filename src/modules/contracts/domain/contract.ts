@@ -87,6 +87,9 @@ export interface RentUpdate {
   fixedPercentage: string | null
   /** Null si lo aplicó el cron. */
   appliedById: string | null
+  /** Ajuste manual (D-229): motivo y autorizante; null en los automáticos. */
+  adjustmentReason: string | null
+  authorizedBy: string | null
   createdAt: Date
 }
 

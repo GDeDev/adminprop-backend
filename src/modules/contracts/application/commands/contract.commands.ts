@@ -103,6 +103,9 @@ export class ApplyRentUpdateCommand {
      * opcional en FIXED con % fijo y en ICL/IPC (ajuste manual autorizado).
      */
     public readonly newRent: string | undefined,
+    /** Con `newRent` (ajuste manual): motivo y quién lo autorizó, obligatorios (D-229). */
+    public readonly reason?: string | null,
+    public readonly authorizedBy?: string | null,
   ) {}
 }
 

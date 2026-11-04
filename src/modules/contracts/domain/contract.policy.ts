@@ -25,6 +25,7 @@ import {
 import {
   BillingTermsNotAfterLatestException,
   LateFeePercentageRequiredException,
+  ManualRentAdjustmentJustificationException,
   BillingTermsOutOfRangeException,
   ContractDatesInvalidException,
   InvalidBillingTermsException,
@@ -274,6 +275,45 @@ export const ContractPolicy = {
       inheritedLateFeePercentage: terms.lateFeePercentage === null,
       inheritedLateFeeGraceDays: terms.lateFeeGraceDays === null,
     }
+  },
+
+  /**
+   * Un ajuste manual del alquiler (Micaela #8: "ajustes manuales autorizados")
+   * deja constancia de por qué se hizo y quién lo autorizó (D-229).
+   */
+  normalizeManualAdjustment(
+    reason: string | null | undefined,
+    authorizedBy: string | null | undefined,
+  ): { adjustmentReason: string; authorizedBy: string } {
+    const clean = (value: string | null | undefined) =>
+      (value ?? '').trim().replace(/\s+/g, ' ')
+    const adjustmentReason = clean(reason)
+    const authorizer = clean(authorizedBy)
+    if (adjustmentReason.length === 0) {
+      throw new ManualRentAdjustmentJustificationException(
+        'reason',
+        'es obligatorio',
+      )
+    }
+    if (authorizer.length === 0) {
+      throw new ManualRentAdjustmentJustificationException(
+        'authorizedBy',
+        'es obligatorio',
+      )
+    }
+    if (adjustmentReason.length > 500) {
+      throw new ManualRentAdjustmentJustificationException(
+        'reason',
+        'admite hasta 500 caracteres',
+      )
+    }
+    if (authorizer.length > 150) {
+      throw new ManualRentAdjustmentJustificationException(
+        'authorizedBy',
+        'admite hasta 150 caracteres',
+      )
+    }
+    return { adjustmentReason, authorizedBy: authorizer }
   },
 
   /** Un aumento a mano tiene que traer un monto mayor que cero. */

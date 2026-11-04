@@ -461,9 +461,16 @@ export class ApplyRentUpdateHandler implements ICommandHandler<
         fixedPercentage,
       )
     } else {
+      const newRent = ContractPolicy.normalizeNewRent(command.newRent)
+      // Todo monto a mano deja motivo y autorizante (D-229, Micaela #8).
+      const justification = ContractPolicy.normalizeManualAdjustment(
+        command.reason,
+        command.authorizedBy,
+      )
       updated = await this.applier.record(contract, {
         effectiveFrom,
-        newRent: ContractPolicy.normalizeNewRent(command.newRent),
+        newRent,
+        ...justification,
         source: RentUpdateSource.MANUAL,
         indexType: null,
         indexFromPeriod: null,

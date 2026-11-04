@@ -984,6 +984,12 @@ model ContractRentUpdate {
   /// Usuario que lo aplicó. Null si lo aplicó el cron (Fase 13).
   appliedById String? @map("applied_by_id") @db.Uuid
 
+  /// Ajuste manual (D-229, Micaela #8): por qué se hizo y quién lo autorizó
+  /// (texto libre: puede ser el propietario). Null en los aumentos automáticos
+  /// y en los anteriores a D-229.
+  adjustmentReason String? @map("adjustment_reason") @db.VarChar(500)
+  authorizedBy     String? @map("authorized_by") @db.VarChar(150)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([tenantId, contractId, effectiveFrom])
