@@ -110,6 +110,14 @@ export function compareMoney(a: MoneyInput, b: MoneyInput): -1 | 0 | 1 {
   return toDecimal(a).comparedTo(toDecimal(b)) as -1 | 0 | 1
 }
 
+/**
+ * ¿Es mayor que cero? Para decidir si queda saldo, sin pasar por `Number`: un
+ * `number` no distingue `99999999999999.99` de `99999999999999.98`.
+ */
+export function isPositiveMoney(value: MoneyInput): boolean {
+  return toDecimal(value).greaterThan(0)
+}
+
 /** Forma canónica para DTOs y para persistir: siempre 2 decimales, sin separadores. */
 export function toMoneyString(value: MoneyInput): string {
   return roundMoney(value).toFixed(CENTS)

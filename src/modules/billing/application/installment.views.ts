@@ -5,7 +5,13 @@ import { OwnerRef, OwnersFacade } from '@/modules/owners/public'
 import { PropertiesFacade, PropertyRef } from '@/modules/properties/public'
 import { RenterRef, RentersFacade } from '@/modules/renters/public'
 import { IsoDate, Period, todayIso } from '@/shared/dates/calendar-date'
-import { addMoney, sumMoney, toMoneyString } from '@/shared/money'
+import {
+  addMoney,
+  compareMoney,
+  isPositiveMoney,
+  sumMoney,
+  toMoneyString,
+} from '@/shared/money'
 import {
   ChargeConcept,
   CollectionMode,
@@ -479,7 +485,7 @@ export class InstallmentViews {
     const balances = InstallmentPolicy.balances(installment, asOf)
     const creditAvailable = sumMoney(available.map((c) => c.remaining))
     const applicable =
-      Number(creditAvailable) > Number(balances.totalDue)
+      compareMoney(creditAvailable, balances.totalDue) > 0
         ? balances.totalDue
         : creditAvailable
     return {
@@ -588,7 +594,7 @@ export class InstallmentViews {
           installment,
           balances: InstallmentPolicy.balances(installment, today),
         }))
-        .filter((r) => Number(r.balances.totalDue) > 0)
+        .filter((r) => isPositiveMoney(r.balances.totalDue))
       const overdue = rows.filter(
         (r) =>
           InstallmentPolicy.displayStatus(r.installment, r.balances, today) ===

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import {
   compareMoney,
+  isPositiveMoney,
   Money,
   subtractMoney,
   sumMoney,
@@ -424,7 +425,7 @@ export class BillingFacade {
     })
     return installments.flatMap((i) => {
       const { rentBalance } = InstallmentPolicy.balances(i, today)
-      return Number(rentBalance) > 0 ? [toRentDue(i, rentBalance)] : []
+      return isPositiveMoney(rentBalance) ? [toRentDue(i, rentBalance)] : []
     })
   }
 
@@ -440,7 +441,7 @@ export class BillingFacade {
         installment,
         balances: InstallmentPolicy.balances(installment, today),
       }))
-      .filter((r) => Number(r.balances.totalDue) > 0)
+      .filter((r) => isPositiveMoney(r.balances.totalDue))
       .map(({ installment, balances }) => ({
         id: installment.id,
         contractId: installment.contractId,

@@ -5,6 +5,7 @@ import {
   addMoney,
   compareMoney,
   formatMoney,
+  isPositiveMoney,
   multiplyMoney,
   percentageOf,
   roundMoney,
@@ -112,7 +113,25 @@ describe('money', () => {
     })
   })
 
+  describe('isPositiveMoney', () => {
+    it.each([
+      ['0.01', true],
+      ['150000.00', true],
+      ['0.00', false],
+      ['0', false],
+      ['-0.01', false],
+    ])('%s -> %s', (value, expected) => {
+      expect(isPositiveMoney(value)).toBe(expected)
+    })
+  })
+
   describe('compareMoney', () => {
+    it('distingue montos que un number confunde (por eso no se usa Number)', () => {
+      // Con 14 dígitos enteros, un double ya no alcanza para los centavos.
+      expect(Number('99999999999999.99')).toBe(Number('99999999999999.98'))
+      expect(compareMoney('99999999999999.99', '99999999999999.98')).toBe(1)
+    })
+
     it('compara por valor, no por representación', () => {
       expect(compareMoney('1.50', '1.5')).toBe(0)
       expect(compareMoney('1.49', '1.5')).toBe(-1)

@@ -9,6 +9,7 @@ export {
   multiplyMoney,
   percentageOf,
   compareMoney,
+  isPositiveMoney,
   toMoneyString,
   formatMoney,
 } from './money'
