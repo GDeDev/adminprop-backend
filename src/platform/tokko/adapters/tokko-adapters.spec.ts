@@ -110,6 +110,31 @@ describe('TokkoHttpSource', () => {
     expect(urls[0]).toContain('key=secreta')
   })
 
+  // Qué fallaba: el recorrido sólo terminaba con una página vacía; si Tokko
+  // ignora `offset` y repite siempre la misma página, no terminaba nunca.
+  it('corta cuando la API repite la misma página en vez de avanzar', async () => {
+    const fetchImpl = jest
+      .fn()
+      .mockImplementation(async () => json({ objects: [{ id: 1 }, { id: 2 }] }))
+
+    const properties = await collect(source(fetchImpl).properties())
+
+    expect(properties.map((p) => p.id)).toEqual(['1', '2'])
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('falla con un mensaje claro si pasa el tope de páginas', async () => {
+    let id = 0
+    const fetchImpl = jest
+      .fn()
+      .mockImplementation(async () => json({ objects: [{ id: (id += 1) }] }))
+
+    await expect(collect(source(fetchImpl).properties())).rejects.toThrow(
+      'Tokko devolvió más de 40000 propiedades',
+    )
+    expect(fetchImpl).toHaveBeenCalledTimes(2000)
+  })
+
   it('reintenta ante 429/5xx y termina bien', async () => {
     const fetchImpl = jest
       .fn()

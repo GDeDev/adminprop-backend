@@ -14,6 +14,8 @@ const BASE_URL = 'https://www.tokkobroker.com/api/v1'
 const PAGE_SIZE = 20
 const REQUEST_TIMEOUT_MS = 20_000
 const MAX_RETRIES = 3
+/** Tope de seguridad: 2.000 páginas de 20 son 40.000 propiedades. */
+const MAX_PAGES = 2000
 
 export interface TokkoHttpOptions {
   /** Pausa entre páginas para no golpear la API. Default 400 ms. */
@@ -97,16 +99,25 @@ export class TokkoHttpSource extends TokkoSourcePort {
   async *properties(): AsyncIterable<TokkoProperty[]> {
     const data = encodeURIComponent(JSON.stringify({}))
     let offset = 0
-    for (;;) {
+    let previousFirstId: unknown
+    for (let page = 0; page < MAX_PAGES; page += 1) {
       const body = (await this.get(
         `/property/search/?format=json&limit=${PAGE_SIZE}&offset=${offset}&data=${data}`,
       )) as { objects?: unknown[] }
       const objects = Array.isArray(body?.objects) ? body.objects : []
       if (objects.length === 0) return
+      // Si la API ignora `offset` devuelve siempre la misma página y el
+      // recorrido no terminaría nunca (acumulando propiedades repetidas).
+      const firstId = (objects[0] as { id?: unknown } | null)?.id
+      if (firstId !== undefined && firstId === previousFirstId) return
+      previousFirstId = firstId
       yield objects.flatMap((raw) => mapTokkoProperty(raw) ?? [])
       offset += objects.length
       await this.sleep(this.pauseMs)
     }
+    throw new TokkoSourceError(
+      `Tokko devolvió más de ${MAX_PAGES * PAGE_SIZE} propiedades: acotá el análisis o dividilo`,
+    )
   }
 
   private async dictionary(endpoint: string): Promise<TokkoNamedItem[]> {
