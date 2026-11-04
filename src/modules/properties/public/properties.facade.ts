@@ -16,12 +16,20 @@ import {
   PublicPropertyViews,
 } from '../application/public-property.views'
 import {
+  PUBLIC_PROPERTY_SORTS,
   PropertyRepository,
   PublicPropertyFilter,
+  PublicPropertySort,
 } from '../domain/property.ports'
 
-export { ListingCurrency, ListingOperation, PropertyStatus }
+export {
+  ListingCurrency,
+  ListingOperation,
+  PropertyStatus,
+  PUBLIC_PROPERTY_SORTS,
+}
 export type {
+  PublicPropertySort,
   PublicFiltersView,
   PublicPropertyDetailView,
   PublicPropertySummaryView,

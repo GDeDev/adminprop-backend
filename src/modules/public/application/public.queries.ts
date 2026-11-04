@@ -5,6 +5,7 @@ import {
   ListingOperation,
   PropertiesFacade,
   PublicFiltersView,
+  PublicPropertySort,
   PublicPropertyDetailView,
   PublicPropertySummaryView,
 } from '@/modules/properties/public'
@@ -26,6 +27,7 @@ export interface PublicListingFilter {
   bedroomsMin?: number
   bathroomsMin?: number
   ids?: string[]
+  sort?: PublicPropertySort
 }
 
 export class ListPublicPropertiesQuery {

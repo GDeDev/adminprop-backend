@@ -39,7 +39,7 @@ function errorsOf(
 
 describe('validateSiteDraft', () => {
   it('el borrador inicial de cada template es válido y publicable', () => {
-    for (const key of ['CLASSIC', 'MODERN'] as const) {
+    for (const key of ['CLASSIC', 'MODERN', 'LUXURY'] as const) {
       const info = templateInfo(key)
       const c = ctx({
         fontKeys: info.fontOptions.map((f) => f.key),

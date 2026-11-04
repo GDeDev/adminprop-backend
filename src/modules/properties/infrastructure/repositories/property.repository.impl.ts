@@ -13,6 +13,7 @@ import {
   PropertyFilter,
   PropertyRepository,
   PublicPropertyFilter,
+  PublicPropertySort,
 } from '@/modules/properties/domain/property.ports'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 
@@ -21,6 +22,28 @@ const ALL_PHOTOS = { photos: { orderBy: { position: 'asc' } } } as const
 const MAIN_PHOTO = {
   photos: { orderBy: { position: 'asc' }, take: 1 },
 } as const
+
+/**
+ * Orden del listado público. El precio se ordena en la base (es Decimal, nunca
+ * number) y las que no tienen precio ("Consultar") van siempre al final, sea
+ * cual sea el sentido. Todos los órdenes cierran con `id`: sin un desempate
+ * total, la paginación puede repetir u omitir filas entre páginas.
+ */
+function publicOrderBy(
+  sort: PublicPropertySort = 'recent',
+): Prisma.PropertyOrderByWithRelationInput[] {
+  if (sort === 'recent') return [{ createdAt: 'desc' }, { id: 'asc' }]
+  return [
+    {
+      listingPrice: {
+        sort: sort === 'price_asc' ? 'asc' : 'desc',
+        nulls: 'last',
+      },
+    },
+    { createdAt: 'desc' },
+    { id: 'asc' },
+  ]
+}
 
 type PropertyRow = Prisma.PropertyGetPayload<{ include: typeof ALL_PHOTOS }>
 type PhotoRow = PropertyRow['photos'][number]
@@ -117,7 +140,7 @@ export class PropertyRepositoryImpl extends PropertyRepository {
       this.prisma.db.property.findMany({
         where,
         include: MAIN_PHOTO,
-        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        orderBy: publicOrderBy(filter.sort),
         ...page,
       }),
       this.prisma.db.property.count({ where }),

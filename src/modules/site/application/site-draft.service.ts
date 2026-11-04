@@ -17,7 +17,11 @@ import {
   SiteSettingsRecord,
   SiteSettingsRepository,
 } from '../domain/site.ports'
-import { SiteSettingsDraft, SiteTemplateKey } from '../domain/site.types'
+import {
+  SITE_TEMPLATE_KEYS,
+  SiteSettingsDraft,
+  SiteTemplateKey,
+} from '../domain/site.types'
 
 const IMAGE_FIELDS: ((content: Record<string, unknown>) => unknown[])[] = [
   (c) => [obj(c.brand).logoUrl, obj(c.brand).faviconUrl],
@@ -90,7 +94,9 @@ export class SiteDraftService {
     options: { forPublish?: boolean } = {},
   ): Promise<SiteSettingsDraft> {
     const template = (input as { template?: SiteTemplateKey } | null)?.template
-    const info = templateInfo(template === 'MODERN' ? 'MODERN' : 'CLASSIC')
+    const info = templateInfo(
+      template && SITE_TEMPLATE_KEYS.includes(template) ? template : 'CLASSIC',
+    )
     const isAllowedImageUrl = await this.imageGuard(input)
 
     const result = validateSiteDraft(
