@@ -218,6 +218,16 @@ export class PublicPropertyDetailDto extends PublicPropertySummaryDto {
   @ApiProperty({ type: [PublicPhotoDto] }) photos: PublicPhotoDto[]
   @ApiProperty({ description: 'Barrio, ciudad' }) location: string
   @ApiProperty({ type: [PublicFeatureDto] }) features: PublicFeatureDto[]
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: -34.604,
+    description:
+      'Aproximada (3 decimales, ~100 m) para mostrar la zona en un mapa. Null si la propiedad no tiene coordenadas.',
+  })
+  latitude: number | null
+  @ApiProperty({ type: Number, nullable: true, example: -58.382 })
+  longitude: number | null
 }
 
 class PublicFilterOptionDto {

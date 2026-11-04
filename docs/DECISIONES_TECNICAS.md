@@ -1436,3 +1436,10 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Migración**: aditiva (`ALTER TYPE "SiteTemplateKey" ADD VALUE 'LUXURY'`); no toca filas existentes. No se puede revertir un valor de enum en Postgres sin recrear el tipo; es aceptable porque nada lo usa hasta que alguien elige el template.
 - **Catálogo**: `GET /site/templates` (ya existía) lista ahora tres elementos; no hace falta un endpoint nuevo. El frontend debe tolerar claves desconocidas en `PublicSite.template` (un sitio publicado con `LUXURY` visto por un front viejo).
 - **Código**: la validación y el fallback de tipografías usan `SITE_TEMPLATE_KEYS` en vez de un `=== 'MODERN'` fijo, para que un template nuevo no quede validado con las fuentes de CLASSIC.
+
+### D-226 · Coordenadas en la ficha pública, con precisión reducida
+
+- **Contexto**: `Property` ya guarda `latitude`/`longitude` (`Decimal(9,6)`, opcionales, se cargan por API en el alta y la edición). `apps/sites` las necesita para el mapa OpenStreetMap de la ficha. La spec `web-inmobiliaria.md` las menciona ("opcionales, no se usan en v1") pero **no dice qué precisión se publica**.
+- **Decisión (supuesto a confirmar)**: `GET /public/:slug/properties/:id` suma `latitude` y `longitude` con **3 decimales (~100 m)**: la zona, no la puerta. Cambio aditivo; son `null` si falta alguna de las dos. El listado no las incluye. El valor exacto de 6 decimales no sale por ninguna ruta pública.
+- **Por qué**: publicar el domicilio exacto de una propiedad ocupada por un inquilino es un dato personal del inquilino; la dirección ya se muestra, pero un pin exacto facilita ubicar la unidad. Si el dueño del producto quiere el punto exacto, se cambia `COORDINATE_FACTOR` en `public-property.views.ts`.
+- **Pendiente**: la UI del backoffice debe permitir cargar las coordenadas (hoy solo la API las acepta). No se agregó geocodificación externa.

@@ -32696,6 +32696,17 @@
             "items": {
               "$ref": "#/components/schemas/PublicFeatureDto"
             }
+          },
+          "latitude": {
+            "type": "number",
+            "nullable": true,
+            "example": -34.604,
+            "description": "Aproximada (3 decimales, ~100 m) para mostrar la zona en un mapa. Null si la propiedad no tiene coordenadas."
+          },
+          "longitude": {
+            "type": "number",
+            "nullable": true,
+            "example": -58.382
           }
         },
         "required": [
@@ -32718,7 +32729,9 @@
           "publicDescription",
           "photos",
           "location",
-          "features"
+          "features",
+          "latitude",
+          "longitude"
         ]
       },
       "PublicFilterOptionDto": {
