@@ -1,4 +1,4 @@
-import { HttpImageDownloader } from './http-image-downloader'
+import { HttpImageDownloader, isInternalAddress } from './http-image-downloader'
 import { TokkoFixtureSource } from './tokko-fixture.source'
 import { TokkoHttpSource } from './tokko-http.source'
 import { mapTokkoProperty } from './tokko-mapper'
@@ -164,8 +164,9 @@ describe('HttpImageDownloader', () => {
       status,
       headers: { 'content-type': type },
     })
-  const downloader = (fetchImpl: jest.Mock) =>
-    new HttpImageDownloader({ fetchImpl, sleep })
+  const publicDns = jest.fn().mockResolvedValue(['93.184.216.34'])
+  const downloader = (fetchImpl: jest.Mock, resolveHost = publicDns) =>
+    new HttpImageDownloader({ fetchImpl, sleep, resolveHost })
 
   it('baja una imagen permitida', async () => {
     const result = await downloader(
@@ -217,5 +218,90 @@ describe('HttpImageDownloader', () => {
       )
     }
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  // Qué fallaba: el host se validaba solo para la URL inicial y el fetch
+  // seguía las redirecciones solo, así que un host público con un 302 hacia
+  // la red interna salteaba el chequeo.
+  it('no sigue una redirección hacia la red interna', async () => {
+    const redirect = (location: string) =>
+      new Response(null, { status: 302, headers: { location } })
+    for (const target of [
+      'http://169.254.169.254/latest/meta-data/',
+      'http://localhost:6379/',
+      'http://[::ffff:127.0.0.1]/a.png',
+      'ftp://cdn.example.com/a.jpg',
+    ]) {
+      const fetchImpl = jest.fn().mockResolvedValueOnce(redirect(target))
+      await expect(
+        downloader(fetchImpl).download('https://cdn.example.com/a.jpg'),
+      ).rejects.toThrow(/no es pública|no es válida/)
+      expect(fetchImpl).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('sigue una redirección pública (y la revalida) hasta un tope', async () => {
+    const hop = () =>
+      new Response(null, {
+        status: 301,
+        headers: { location: 'https://cdn2.example.com/b.jpg' },
+      })
+    const ok = jest
+      .fn()
+      .mockResolvedValueOnce(hop())
+      .mockResolvedValueOnce(image('image/jpeg'))
+    const result = await downloader(ok).download('https://cdn.example.com/a')
+    expect(result.mimeType).toBe('image/jpeg')
+    expect(publicDns).toHaveBeenCalledWith('cdn2.example.com')
+
+    const loop = jest.fn().mockImplementation(async () => hop())
+    await expect(
+      downloader(loop).download('https://cdn.example.com/a'),
+    ).rejects.toThrow('demasiadas veces')
+    expect(loop).toHaveBeenCalledTimes(4)
+  })
+
+  it('rechaza un nombre público que resuelve a una dirección interna', async () => {
+    const fetchImpl = jest.fn()
+    const rebinding = jest
+      .fn()
+      .mockResolvedValue(['93.184.216.34', '127.0.0.1'])
+    await expect(
+      downloader(fetchImpl, rebinding).download('https://evil.example.com/a'),
+    ).rejects.toThrow('no es pública')
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})
+
+describe('isInternalAddress', () => {
+  it.each([
+    '127.0.0.1',
+    '10.1.2.3',
+    '172.31.0.1',
+    '192.168.1.1',
+    '169.254.169.254',
+    '100.64.0.1',
+    '0.0.0.0',
+    '224.0.0.1',
+    '::',
+    '::1',
+    '::ffff:7f00:1',
+    '::ffff:127.0.0.1',
+    '::ffff:10.0.0.1',
+    'fe80::1',
+    'fd12:3456::1',
+    'ff02::1',
+  ])('%s es interna', (address) => {
+    expect(isInternalAddress(address)).toBe(true)
+  })
+
+  it.each([
+    '93.184.216.34',
+    '8.8.8.8',
+    '172.32.0.1',
+    '2606:2800:220:1:248:1893:25c8:1946',
+    '::ffff:8.8.8.8',
+  ])('%s es pública', (address) => {
+    expect(isInternalAddress(address)).toBe(false)
   })
 })
