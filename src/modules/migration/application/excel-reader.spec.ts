@@ -1,3 +1,5 @@
+import { deflateRawSync } from 'node:zlib'
+
 import ExcelJS from 'exceljs'
 
 import { ImportEntity } from '../domain/migration.types'
@@ -19,6 +21,39 @@ async function book(
   }
   build(workbook)
   return Buffer.from(await workbook.xlsx.writeBuffer())
+}
+
+/**
+ * Un zip de una sola entrada deflatada, armado a mano para poder falsear el
+ * tamaño descomprimido que declara (así las zip bombs reales engañan a quien
+ * sólo mira los encabezados).
+ */
+function zipOf(content: Buffer, declaredSize = content.length): Buffer {
+  const name = Buffer.from('xl/worksheets/sheet1.xml')
+  const data = deflateRawSync(content)
+  const local = Buffer.alloc(30)
+  local.writeUInt32LE(0x04034b50, 0)
+  local.writeUInt16LE(20, 4)
+  local.writeUInt16LE(8, 8)
+  local.writeUInt32LE(data.length, 18)
+  local.writeUInt32LE(declaredSize, 22)
+  local.writeUInt16LE(name.length, 26)
+  const central = Buffer.alloc(46)
+  central.writeUInt32LE(0x02014b50, 0)
+  central.writeUInt16LE(20, 4)
+  central.writeUInt16LE(20, 6)
+  central.writeUInt16LE(8, 10)
+  central.writeUInt32LE(data.length, 20)
+  central.writeUInt32LE(declaredSize, 24)
+  central.writeUInt16LE(name.length, 28)
+  const centralOffset = local.length + name.length + data.length
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(1, 8)
+  end.writeUInt16LE(1, 10)
+  end.writeUInt32LE(central.length + name.length, 12)
+  end.writeUInt32LE(centralOffset, 16)
+  return Buffer.concat([local, name, data, central, name, end])
 }
 
 const OWNER_HEADERS = ['Nombre', 'Apellido', 'DNI/CUIT']
@@ -89,6 +124,51 @@ describe('ExcelReader', () => {
     await expect(reader.read(file)).rejects.toMatchObject({
       code: 'IMPORT_TOO_MANY_ROWS',
     })
+  })
+  // Qué fallaba: el tope de 10 MB era del archivo comprimido y exceljs inflaba
+  // todo en memoria; un .xlsx chico podía ser una zip bomb.
+  it('rechaza una zip bomb, aunque el encabezado declare un tamaño chico', async () => {
+    const bomb = Buffer.alloc(60 * 1024 * 1024)
+    for (const declared of [bomb.length, 100]) {
+      const file = zipOf(bomb, declared)
+      expect(file.length).toBeLessThan(1024 * 1024)
+      await expect(reader.read(file)).rejects.toMatchObject({
+        code: 'INVALID_XLSX',
+        message: expect.stringContaining('descomprimido'),
+      })
+    }
+  })
+
+  it('rechaza un zip con la estructura rota o con entradas en zip64', async () => {
+    const good = zipOf(Buffer.from('<sheet/>'))
+    const truncated = good.subarray(0, good.length - 30)
+    await expect(reader.read(truncated)).rejects.toMatchObject({
+      code: 'INVALID_XLSX',
+    })
+    const zip64 = Buffer.from(good)
+    zip64.writeUInt32LE(0xffffffff, zip64.length - 22 + 16)
+    await expect(reader.read(zip64)).rejects.toMatchObject({
+      code: 'INVALID_XLSX',
+    })
+  })
+
+  // Qué fallaba: se recorría `rowCount` con getRow(), que crea cada fila vacía:
+  // una celda suelta en la fila 1.048.576 costaba un millón de iteraciones.
+  it('una celda suelta en una fila altísima no cuesta recorrer las filas vacías', async () => {
+    const file = await book((workbook) => {
+      const sheet = workbook.addWorksheet('Propietarios')
+      sheet.addRow(OWNER_HEADERS)
+      sheet.addRow(['ejemplo', 'ejemplo', 'ejemplo'])
+      sheet.addRow(['Ana', 'Pérez', 20111111])
+      sheet.getCell(1_048_576, 1).value = 'perdida'
+    })
+    const started = Date.now()
+
+    const parsed = await reader.read(file)
+
+    const rows = parsed.sheets.get(ImportEntity.OWNER) ?? []
+    expect(rows.map((r) => r.rowNumber)).toEqual([3, 1_048_576])
+    expect(Date.now() - started).toBeLessThan(3000)
   })
 })
 
