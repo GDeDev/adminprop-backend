@@ -2,8 +2,8 @@ import { ContractRef, DepositReturnMode } from '@/modules/contracts/public'
 import {
   firstDayOfPeriod,
   IsoDate,
+  localDateOf,
   Period,
-  toIsoDate,
 } from '@/shared/dates/calendar-date'
 import { compareMoney, subtractMoney, toMoneyString } from '@/shared/money'
 import {
@@ -146,7 +146,7 @@ export function buildContractAccount(
     for (const charge of installment.charges) {
       if (charge.voidedAt !== null) continue
       drafts.push({
-        date: toIsoDate(charge.createdAt),
+        date: localDateOf(charge.createdAt),
         type: AccountMovementType.CHARGE,
         description: `${PERIOD_LABEL(installment.period)}: ${charge.description}`,
         debit: charge.amount,
@@ -172,7 +172,7 @@ export function buildContractAccount(
     for (const adjustment of installment.adjustments) {
       const reduce = adjustment.kind === LateFeeAdjustmentKind.REDUCE
       drafts.push({
-        date: toIsoDate(adjustment.createdAt),
+        date: localDateOf(adjustment.createdAt),
         type: AccountMovementType.LATE_FEE_ADJUSTMENT,
         description: `${PERIOD_LABEL(installment.period)}: ${
           reduce ? 'reducción' : 'condonación'
@@ -227,7 +227,7 @@ export function buildContractAccount(
       }
       if (payment.status === PaymentStatus.VOIDED && payment.voidedAt) {
         drafts.push({
-          date: toIsoDate(payment.voidedAt),
+          date: localDateOf(payment.voidedAt),
           type: AccountMovementType.PAYMENT_VOIDED,
           description: `${PERIOD_LABEL(installment.period)}: pago anulado (${payment.voidReason ?? ''})`,
           debit: applied,
