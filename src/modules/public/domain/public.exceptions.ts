@@ -31,14 +31,3 @@ export class InquiryPropertyNotAvailableException extends DomainException {
     )
   }
 }
-
-export class PublicInquiryNotFoundException extends DomainException {
-  constructor(id: string) {
-    super(
-      'PUBLIC_INQUIRY_NOT_FOUND',
-      'La consulta no existe',
-      DomainErrorKind.NotFound,
-      { id },
-    )
-  }
-}

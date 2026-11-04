@@ -28,6 +28,8 @@ import { PublicModule } from '@/modules/public/public'
 import { ReportsModule } from '@/modules/reports/public'
 import { MigrationModule } from '@/modules/migration/public'
 import { ValuationModule } from '@/modules/valuation/public'
+import { CrmModule } from '@/modules/crm/public'
+import { SecretsModule } from '@/platform/secrets/secrets.module'
 import { ExampleModule } from '@/modules/_example/public'
 import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
 import { QueueModule } from '@/platform/queue/queue.module'
@@ -67,6 +69,7 @@ import { SharedModule } from './shared/shared.module'
     IndexSourceModule,
     PdfModule,
     ExportsModule,
+    SecretsModule,
     TokkoModule,
     HealthModule,
     JobsModule,
@@ -90,6 +93,7 @@ import { SharedModule } from './shared/shared.module'
     NotificationsDeliveryModule,
     MigrationModule,
     ValuationModule,
+    CrmModule,
     // Módulos de referencia (Fase 1). No se borran.
     ExampleModule,
     ExampleListenerModule,

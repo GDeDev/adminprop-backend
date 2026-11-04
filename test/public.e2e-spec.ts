@@ -466,7 +466,8 @@ describe('Portal público (e2e, Postgres)', () => {
         name: 'Ana Pérez',
         email: 'ana@mail.com',
         propertyId: property.id,
-        status: 'NEW',
+        stage: 'NEW',
+        assignedToId: null,
         source: 'PORTAL',
       })
       expect(row.ip).toEqual(expect.any(String))
@@ -486,21 +487,22 @@ describe('Portal público (e2e, Postgres)', () => {
         (await alertsOf(adminBToken)).some((a) => a.type === 'PUBLIC_INQUIRY'),
       ).toBe(false)
 
-      const list = await api(adminToken).get('/inquiries').expect(200)
+      const list = await api(adminToken).get('/crm/inquiries').expect(200)
       expect(list.body.data.data).toEqual([
         expect.objectContaining({
           id,
           name: 'Ana Pérez',
           email: 'ana@mail.com',
           property: { id: property.id, address: 'Calle 7 1234' },
-          status: 'NEW',
+          stage: 'NEW',
           source: 'PORTAL',
+          assignedTo: null,
         }),
       ])
       // La IP es sólo para frenar spam: nunca sale por la API.
       expect(JSON.stringify(list.body)).not.toContain('"ip"')
 
-      const listB = await api(adminBToken).get('/inquiries').expect(200)
+      const listB = await api(adminBToken).get('/crm/inquiries').expect(200)
       expect(listB.body.data.data).toHaveLength(0)
     })
 
@@ -584,70 +586,49 @@ describe('Portal público (e2e, Postgres)', () => {
     })
   })
 
-  describe('consultas para el personal', () => {
-    const inquiryOf = async (tenantId: string, name = 'Ana') =>
-      prisma.publicInquiry.create({
-        data: {
-          tenantId,
-          name,
-          email: `${name.toLowerCase()}@mail.com`,
-          phone: '',
-          message: 'Hola',
-        },
-      })
-
-    it('requiere sesión del personal', async () => {
-      await request(app.getHttpServer()).get('/api/v1/inquiries').expect(401)
-      await request(app.getHttpServer())
-        .patch(`/api/v1/inquiries/${UNKNOWN_ID}/status`)
-        .send({ status: 'CLOSED' })
-        .expect(401)
-    })
-
-    it('lista con filtro por estado y cambia el estado (admin y empleado)', async () => {
-      const one = await inquiryOf(tenantA.id, 'Ana')
-      await inquiryOf(tenantA.id, 'Beto')
-
-      const changed = await api(employeeToken)
-        .patch(`/inquiries/${one.id}/status`)
-        .send({ status: 'CONTACTED' })
-        .expect(200)
-      expect(changed.body.data).toMatchObject({
-        id: one.id,
-        status: 'CONTACTED',
-      })
-
-      const contacted = await api(adminToken)
-        .get('/inquiries?status=CONTACTED')
-        .expect(200)
-      expect(contacted.body.data.data.map((i: { id: string }) => i.id)).toEqual(
-        [one.id],
-      )
-      const fresh = await api(adminToken)
-        .get('/inquiries?status=NEW')
-        .expect(200)
-      expect(fresh.body.data.pagination.total).toBe(1)
-
+  describe('consultas del portal en el CRM (Fase 23)', () => {
+    it('los endpoints /inquiries de la Fase 22 ya no existen (A-80)', async () => {
+      await api(adminToken).get('/inquiries').expect(404)
       await api(adminToken)
-        .patch(`/inquiries/${one.id}/status`)
-        .send({ status: 'NOPE' })
-        .expect(400)
-    })
-
-    it('otra inmobiliaria no ve ni modifica la consulta (404)', async () => {
-      const mine = await inquiryOf(tenantA.id)
-
-      await api(adminBToken)
-        .patch(`/inquiries/${mine.id}/status`)
+        .patch(`/inquiries/${UNKNOWN_ID}/status`)
         .send({ status: 'CLOSED' })
         .expect(404)
-      expect(
-        (
-          await prisma.publicInquiry.findUniqueOrThrow({
-            where: { id: mine.id },
-          })
-        ).status,
-      ).toBe('NEW')
+    })
+
+    it('una consulta del portal entra en la columna NEW del tablero, sin asignar', async () => {
+      await contact('tenant-a', { name: 'Beto' }).expect(201)
+
+      const pipeline = await api(employeeToken).get('/crm/pipeline').expect(200)
+      const columns = pipeline.body.data.columns as {
+        stage: string
+        total: number
+        cards: { name: string; source: string; assignedTo: unknown }[]
+      }[]
+      expect(columns.map((c) => c.stage)).toEqual([
+        'NEW',
+        'CONTACTED',
+        'VISIT_SCHEDULED',
+        'PROPOSAL_SENT',
+        'CLOSED_WON',
+        'CLOSED_LOST',
+      ])
+      expect(columns[0].total).toBe(1)
+      expect(columns[0].cards[0]).toMatchObject({
+        name: 'Beto',
+        source: 'PORTAL',
+        assignedTo: null,
+      })
+    })
+
+    it('la ficha pública cuenta una vista por IP y propiedad (A-83)', async () => {
+      const property = await createProperty({ address: 'Calle 9' })
+      await pub.get(`/public/tenant-a/properties/${property.id}`).expect(200)
+      await pub.get(`/public/tenant-a/properties/${property.id}`).expect(200)
+
+      const rows = await prisma.propertyView.findMany({
+        where: { propertyId: property.id },
+      })
+      expect(rows.map((r) => r.views)).toEqual([1])
     })
   })
 

@@ -117,7 +117,12 @@ export class PublicController {
     const property = await this.queryBus.execute<
       GetPublicPropertyQuery,
       PublicPropertyDetailView
-    >(new GetPublicPropertyQuery(slug, id))
+    >(
+      new GetPublicPropertyQuery(slug, id, {
+        ip: RequestContext.get()?.ip ?? null,
+        userAgent: RequestContext.get()?.userAgent ?? null,
+      }),
+    )
     return { success: true, message: null, data: property }
   }
 

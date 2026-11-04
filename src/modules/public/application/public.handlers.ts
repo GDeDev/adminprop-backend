@@ -7,6 +7,7 @@ import {
 } from '@nestjs/cqrs'
 import { randomUUID } from 'node:crypto'
 
+import { CrmFacade } from '@/modules/crm/public'
 import { PropertiesFacade } from '@/modules/properties/public'
 import { EmailPort } from '@/platform/email/email.port'
 import { NotificationsService } from '@/platform/notifications/notifications.service'
@@ -14,18 +15,10 @@ import { AppException } from '@/shared/errors'
 import { createLogger } from '@/shared/logging/root-logger'
 import { INQUIRY_WINDOW_MINUTES } from '../domain/public-inquiry'
 import { PublicInquiryPolicy } from '../domain/public-inquiry.policy'
-import {
-  InquiryPropertyNotAvailableException,
-  PublicInquiryNotFoundException,
-} from '../domain/public.exceptions'
-import { PublicInquiryRepository } from '../domain/public.ports'
+import { InquiryPropertyNotAvailableException } from '../domain/public.exceptions'
 import { PublicInquiryCreatedEvent } from './public-inquiry-created.event'
 import { PublicTenantScope } from './public-tenant-scope'
-import {
-  SubmitPublicInquiryCommand,
-  UpdatePublicInquiryStatusCommand,
-} from './public.commands'
-import { PublicInquiryView, PublicInquiryViews } from './public.views'
+import { SubmitPublicInquiryCommand } from './public.commands'
 
 /**
  * Formulario de contacto del portal (Fase 22, 2). En orden:
@@ -35,6 +28,7 @@ import { PublicInquiryView, PublicInquiryViews } from './public.views'
  * 2. Límite: 5 consultas por hora por IP y por email. Se cuenta contra la
  *    propia tabla, así vale con varias instancias y es lo que prueban los e2e.
  * 3. La propiedad, si viene, tiene que seguir disponible.
+ * 4. La consulta la crea el CRM (Fase 23, A-80): entra en `NEW`, sin asignar.
  */
 @CommandHandler(SubmitPublicInquiryCommand)
 export class SubmitPublicInquiryHandler implements ICommandHandler<
@@ -45,7 +39,7 @@ export class SubmitPublicInquiryHandler implements ICommandHandler<
 
   constructor(
     private readonly scope: PublicTenantScope,
-    private readonly inquiries: PublicInquiryRepository,
+    private readonly crm: CrmFacade,
     private readonly properties: PropertiesFacade,
     private readonly events: EventBus,
   ) {}
@@ -67,7 +61,7 @@ export class SubmitPublicInquiryHandler implements ICommandHandler<
       const contact = PublicInquiryPolicy.normalize(input)
 
       const since = new Date(Date.now() - INQUIRY_WINDOW_MINUTES * 60_000)
-      const recent = await this.inquiries.countSince(since, {
+      const recent = await this.crm.countRecentInquiries(since, {
         ip,
         email: contact.email,
       })
@@ -84,8 +78,9 @@ export class SubmitPublicInquiryHandler implements ICommandHandler<
         throw new InquiryPropertyNotAvailableException()
       }
 
-      const inquiry = await this.inquiries.create({
+      const inquiry = await this.crm.registerPortalInquiry({
         ...contact,
+        phone: contact.phone || null,
         propertyId: property?.id ?? null,
         ip,
       })
@@ -96,9 +91,9 @@ export class SubmitPublicInquiryHandler implements ICommandHandler<
           tenant.email,
           inquiry.id,
           inquiry.name,
-          inquiry.email,
-          inquiry.phone,
-          inquiry.message,
+          contact.email,
+          contact.phone,
+          contact.message,
           property,
         ),
       )
@@ -163,29 +158,5 @@ export class NotifyStaffOnInquiryHandler implements IEventHandler<PublicInquiryC
         'No se pudo enviar el email de la consulta',
       )
     }
-  }
-}
-
-@CommandHandler(UpdatePublicInquiryStatusCommand)
-export class UpdatePublicInquiryStatusHandler implements ICommandHandler<
-  UpdatePublicInquiryStatusCommand,
-  PublicInquiryView
-> {
-  constructor(
-    private readonly inquiries: PublicInquiryRepository,
-    private readonly views: PublicInquiryViews,
-  ) {}
-
-  async execute({
-    id,
-    status,
-  }: UpdatePublicInquiryStatusCommand): Promise<PublicInquiryView> {
-    const current = await this.inquiries.findById(id)
-    if (!current) throw new PublicInquiryNotFoundException(id)
-    const updated =
-      current.status === status
-        ? current
-        : await this.inquiries.updateStatus(id, status)
-    return (await this.views.of([updated]))[0]
   }
 }

@@ -7,13 +7,10 @@ import {
   PublicPropertyDetailView,
   PublicPropertySummaryView,
 } from '@/modules/properties/public'
+import { CrmFacade } from '@/modules/crm/public'
 import { PaginatedResult, PaginationQueryDto } from '@/shared/pagination'
-import { paginateWith } from '@/shared/pagination/pagination'
-import { PublicInquiryStatus } from '../domain/public-inquiry'
 import { PropertyNotAvailableException } from '../domain/public.exceptions'
-import { PublicInquiryRepository } from '../domain/public.ports'
 import { PublicTenantScope } from './public-tenant-scope'
-import { PublicInquiryView, PublicInquiryViews } from './public.views'
 
 export interface PublicListingFilter {
   locationId?: string
@@ -35,21 +32,16 @@ export class GetPublicPropertyQuery {
   constructor(
     public readonly slug: string,
     public readonly id: string,
+    /** Para contar la vista (A-83); nunca se guarda. */
+    public readonly visitor: { ip: string | null; userAgent: string | null } = {
+      ip: null,
+      userAgent: null,
+    },
   ) {}
 }
 
 export class GetPublicFiltersQuery {
   constructor(public readonly slug: string) {}
-}
-
-export class ListPublicInquiriesQuery {
-  constructor(
-    public readonly filter: {
-      status?: PublicInquiryStatus
-      propertyId?: string
-    },
-    public readonly page: Partial<PaginationQueryDto>,
-  ) {}
 }
 
 @QueryHandler(ListPublicPropertiesQuery)
@@ -97,15 +89,18 @@ export class GetPublicPropertyHandler implements IQueryHandler<
   constructor(
     private readonly scope: PublicTenantScope,
     private readonly properties: PropertiesFacade,
+    private readonly crm: CrmFacade,
   ) {}
 
   execute({
     slug,
     id,
+    visitor,
   }: GetPublicPropertyQuery): Promise<PublicPropertyDetailView> {
     return this.scope.run(slug, async () => {
       const property = await this.properties.getPublic(id)
       if (!property) throw new PropertyNotAvailableException()
+      await this.crm.recordPropertyView(id, visitor)
       return property
     })
   }
@@ -123,25 +118,5 @@ export class GetPublicFiltersHandler implements IQueryHandler<
 
   execute({ slug }: GetPublicFiltersQuery): Promise<PublicFiltersView> {
     return this.scope.run(slug, () => this.properties.publicFilters())
-  }
-}
-
-@QueryHandler(ListPublicInquiriesQuery)
-export class ListPublicInquiriesHandler implements IQueryHandler<
-  ListPublicInquiriesQuery,
-  PaginatedResult<PublicInquiryView>
-> {
-  constructor(
-    private readonly inquiries: PublicInquiryRepository,
-    private readonly views: PublicInquiryViews,
-  ) {}
-
-  execute(
-    query: ListPublicInquiriesQuery,
-  ): Promise<PaginatedResult<PublicInquiryView>> {
-    return paginateWith(query.page, async (page) => {
-      const [items, total] = await this.inquiries.list(query.filter, page)
-      return [await this.views.of(items), total]
-    })
   }
 }

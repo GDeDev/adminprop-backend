@@ -130,3 +130,26 @@ export class OAuthStateInvalidException extends DomainException {
     )
   }
 }
+
+/** La propiedad pedida (analítica, publicación) no existe en esta inmobiliaria. */
+export class CrmPropertyNotFoundException extends DomainException {
+  constructor(id: string) {
+    super(
+      'PROPERTY_NOT_FOUND',
+      'La propiedad no existe',
+      DomainErrorKind.NotFound,
+      { id },
+    )
+  }
+}
+
+export class WhatsAppTemplateNotFoundException extends DomainException {
+  constructor(key: string) {
+    super(
+      'TEMPLATE_NOT_FOUND',
+      'La plantilla de WhatsApp no existe',
+      DomainErrorKind.NotFound,
+      { key },
+    )
+  }
+}

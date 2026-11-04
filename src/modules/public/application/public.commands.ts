@@ -1,5 +1,3 @@
-import { PublicInquiryStatus } from '../domain/public-inquiry'
-
 export interface PublicContactInput {
   name: string
   email: string
@@ -16,12 +14,5 @@ export class SubmitPublicInquiryCommand {
     public readonly slug: string,
     public readonly input: PublicContactInput,
     public readonly ip: string | null,
-  ) {}
-}
-
-export class UpdatePublicInquiryStatusCommand {
-  constructor(
-    public readonly id: string,
-    public readonly status: PublicInquiryStatus,
   ) {}
 }

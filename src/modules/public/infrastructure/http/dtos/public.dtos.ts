@@ -13,10 +13,6 @@ import {
 
 import { ListingCurrency } from '@/modules/properties/public'
 import { PaginationQueryDto } from '@/shared/pagination'
-import {
-  PublicInquirySource,
-  PublicInquiryStatus,
-} from '../../../domain/public-inquiry'
 
 const trimmed = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value
@@ -112,24 +108,6 @@ export class PublicContactDto {
   website?: string
 }
 
-export class ListInquiriesQueryDto extends PaginationQueryDto {
-  @ApiPropertyOptional({ enum: PublicInquiryStatus })
-  @IsOptional()
-  @IsEnum(PublicInquiryStatus, { message: 'El estado no es válido' })
-  status?: PublicInquiryStatus
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsUUID('all')
-  propertyId?: string
-}
-
-export class UpdateInquiryStatusDto {
-  @ApiProperty({ enum: PublicInquiryStatus })
-  @IsEnum(PublicInquiryStatus, { message: 'El estado no es válido' })
-  status: PublicInquiryStatus
-}
-
 // ----------------------------------------------------------- Respuestas
 
 export class PublicPropertySummaryDto {
@@ -186,23 +164,4 @@ export class PublicFiltersDto {
 
 export class PublicContactResultDto {
   @ApiProperty() id: string
-}
-
-class InquiryPropertyDto {
-  @ApiProperty() id: string
-  @ApiProperty() address: string
-}
-
-export class PublicInquiryDto {
-  @ApiProperty() id: string
-  @ApiProperty() name: string
-  @ApiProperty() email: string
-  @ApiProperty() phone: string
-  @ApiProperty() message: string
-  @ApiProperty({ type: String, nullable: true }) propertyId: string | null
-  @ApiProperty({ type: InquiryPropertyDto, nullable: true })
-  property: InquiryPropertyDto | null
-  @ApiProperty({ enum: PublicInquiryStatus }) status: PublicInquiryStatus
-  @ApiProperty({ enum: PublicInquirySource }) source: PublicInquirySource
-  @ApiProperty() createdAt: Date
 }
