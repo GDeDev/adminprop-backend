@@ -545,13 +545,14 @@ export function validateEnv(
   assertProviderCredentials(validated)
 
   // El secreto de la vista previa también firma la prueba de propiedad de los
-  // dominios (TXT): sin uno propio y largo en producción, quien conozca el
-  // secreto de otra cosa podría fabricar tokens y valores de verificación.
-  if (validated.NODE_ENV === Environment.Production) {
+  // dominios (TXT): sin uno propio y largo fuera de desarrollo y test (qa
+  // incluido), quien lea el valor fijo del repo podría fabricar tokens de vista
+  // previa y valores de verificación para cualquier inmobiliaria.
+  if (!isLocalEnvironment(validated.NODE_ENV)) {
     const preview = validated.SITES_PREVIEW_SECRET ?? ''
     if (preview.length < 32) {
       throw new Error(
-        '\n❌ SITES_PREVIEW_SECRET es obligatoria en producción (32 caracteres o más).\n' +
+        `\n❌ SITES_PREVIEW_SECRET es obligatoria con NODE_ENV=${validated.NODE_ENV} (32 caracteres o más).\n` +
           'Firma los tokens de vista previa del sitio web y los TXT de verificación de dominios: ' +
           'rotarla invalida los dominios que están pendientes de verificar (los ya verificados no se pierden).\n',
       )

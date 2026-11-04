@@ -42,7 +42,11 @@ describe('validateEnv', () => {
     expect(() =>
       validateEnv({ ...production, SITES_PREVIEW_SECRET: 'p'.repeat(40) }),
     ).not.toThrow()
-    // Fuera de producción alcanza con el valor de desarrollo.
+    // Antes qa quedaba con el valor fijo del repo, que es público.
+    expect(() => validateEnv({ ...VALID_ENV, NODE_ENV: 'qa' })).toThrow(
+      /SITES_PREVIEW_SECRET/,
+    )
+    // En desarrollo y test alcanza con el valor de desarrollo.
     expect(() => validateEnv(VALID_ENV)).not.toThrow()
   })
 
