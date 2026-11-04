@@ -46,6 +46,7 @@ import {
   TenantSettingsDto,
   UpdateTenantSettingsDto,
 } from '../dtos/tenant-settings.dto'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 @ApiTags('Tenants')
 @Controller({ path: 'tenants' })
@@ -129,7 +130,7 @@ export class TenantsController {
   @Post('current/logo')
   @Roles(Role.ADMIN)
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_LOGO_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_LOGO_BYTES) }),
   )
   @ApiOperation({
     summary: 'Subir el logo (admin)',

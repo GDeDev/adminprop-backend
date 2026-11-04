@@ -68,6 +68,7 @@ import {
   RenterCreditsDto,
   VoidDto,
 } from '../dtos/billing.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 /**
  * Pagos, cargos, ajustes del punitorio y saldos a favor (rediseño 5). Admin
@@ -138,7 +139,7 @@ export class PaymentsController {
   @Post('installments/:id/payments')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_RECEIPT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_RECEIPT_BYTES) }),
   )
   @ApiOperation({
     summary: 'Registrar un pago',

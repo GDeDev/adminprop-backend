@@ -55,6 +55,7 @@ import {
   SettlementSummaryDto,
   VoidDto,
 } from '../dtos/settlement.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 /**
  * Liquidaciones (rediseño Fase 12, sección 5). Admin y empleado, salvo
@@ -303,7 +304,7 @@ export class SettlementsController {
   @Post('settlements/:id/transfers')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_RECEIPT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_RECEIPT_BYTES) }),
   )
   @ApiOperation({
     summary: 'Registrar una transferencia al propietario',

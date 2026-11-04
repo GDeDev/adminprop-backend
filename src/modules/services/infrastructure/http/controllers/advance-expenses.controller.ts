@@ -44,6 +44,7 @@ import {
   ListAdvanceExpensesQueryDto,
   UpdateAdvanceExpenseDto,
 } from '../dtos/advance-expense.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 /**
  * Gastos adelantados por el inquilino (spec Fase 10, 3.2; RN-11). Admin y
@@ -87,7 +88,7 @@ export class AdvanceExpensesController {
   @Post('contracts/:contractId/advance-expenses')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_RECEIPT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_RECEIPT_BYTES) }),
   )
   @ApiOperation({
     summary: 'Registrar un gasto adelantado, con su comprobante',
