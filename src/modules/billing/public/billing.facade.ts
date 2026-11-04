@@ -4,6 +4,7 @@ import {
   compareMoney,
   Money,
   subtractMoney,
+  sumMoney,
   toMoneyString,
 } from '@/shared/money'
 import { IsoDate, Period, todayIso } from '@/shared/dates/calendar-date'
@@ -26,7 +27,6 @@ import {
   MoneyByCurrency,
   RenterArrearsView,
   sumByCurrency,
-  sumMoney,
 } from '../application/installment.views'
 import {
   activePayments,

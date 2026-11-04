@@ -71,6 +71,15 @@ export function addMoney(...values: MoneyInput[]): Money {
   return roundMoney(total)
 }
 
+/**
+ * Suma una lista de montos y la devuelve como string canónico. Una lista vacía
+ * suma `"0.00"`. Es el único camino de "sumar montos" de la app: nadie arma su
+ * propio `reduce`, para que el redondeo sea el mismo en todos lados.
+ */
+export function sumMoney(values: MoneyInput[]): string {
+  return toMoneyString(addMoney(...values))
+}
+
 export function subtractMoney(
   minuend: MoneyInput,
   subtrahend: MoneyInput,

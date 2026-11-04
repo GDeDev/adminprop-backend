@@ -5,7 +5,7 @@ import { OwnerRef, OwnersFacade } from '@/modules/owners/public'
 import { PropertiesFacade, PropertyRef } from '@/modules/properties/public'
 import { RenterRef, RentersFacade } from '@/modules/renters/public'
 import { IsoDate, Period, todayIso } from '@/shared/dates/calendar-date'
-import { addMoney, toMoneyString } from '@/shared/money'
+import { addMoney, sumMoney, toMoneyString } from '@/shared/money'
 import {
   ChargeConcept,
   CollectionMode,
@@ -243,12 +243,6 @@ export interface Parties {
   properties: Map<string, PropertyRef>
   renters: Map<string, RenterRef>
   owners: Map<string, OwnerRef>
-}
-
-const ZERO = toMoneyString('0')
-
-export function sumMoney(values: string[]): string {
-  return toMoneyString(addMoney(ZERO, ...values))
 }
 
 /** Suma por moneda, sin mezclar. */

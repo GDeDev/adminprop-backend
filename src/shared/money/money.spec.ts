@@ -9,6 +9,7 @@ import {
   percentageOf,
   roundMoney,
   subtractMoney,
+  sumMoney,
   toDecimal,
   toMoneyString,
 } from './money'
@@ -84,6 +85,31 @@ describe('money', () => {
         expect(() => toDecimal(value)).toThrow(TypeError)
       },
     )
+  })
+
+  describe('sumMoney', () => {
+    it('suma strings, Decimal y Prisma.Decimal sin perder centavos', () => {
+      expect(
+        sumMoney(['0.10', new Decimal('0.20'), new Prisma.Decimal('0.30')]),
+      ).toBe('0.60')
+    })
+
+    it('una lista vacía suma cero con dos decimales', () => {
+      expect(sumMoney([])).toBe('0.00')
+    })
+
+    it('redondea el total half-up, como addMoney', () => {
+      expect(sumMoney(['1.004', '0.001'])).toBe('1.01')
+      expect(sumMoney(['1.004', '0.0009'])).toBe('1.00')
+    })
+
+    it('rechaza number', () => {
+      expect(() => sumMoney([1.5 as never])).toThrow(TypeError)
+    })
+
+    it('no pierde centavos con montos de 14 dígitos enteros', () => {
+      expect(sumMoney(['99999999999999.99', '0.01'])).toBe('100000000000000.00')
+    })
   })
 
   describe('compareMoney', () => {

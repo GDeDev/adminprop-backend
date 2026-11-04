@@ -4,6 +4,7 @@ export {
   toDecimal,
   roundMoney,
   addMoney,
+  sumMoney,
   subtractMoney,
   multiplyMoney,
   percentageOf,
