@@ -2300,6 +2300,15 @@ enum SiteTemplateKey {
 /// Configuración del sitio web de una inmobiliaria (una fila por tenant). El
 /// editor escribe `draft`; el sitio público lee `published`, que se copia del
 /// borrador al publicar. Ambos son el `SiteSettingsDraft` del contrato.
+///
+/// ⚠️ ÍNDICE PARCIAL QUE VIVE SOLO EN SQL: `site_settings_custom_domain_verified_key`
+/// (`UNIQUE (custom_domain) WHERE custom_domain_verified_at IS NOT NULL`, creado a
+/// mano en la migración `add_site_domain_verification`). Prisma no puede declarar
+/// índices parciales, así que NO aparece en este schema, y `prisma migrate dev`
+/// podría proponer borrarlo como "deriva". No lo "arregles": sin ese índice dos
+/// inmobiliarias podrían verificar el mismo dominio. Si una migración generada lo
+/// elimina, hay que sacar esa línea del SQL antes de aplicarla. Las migraciones de
+/// este repo se generan con `migrate diff` y se aplican con `migrate deploy`.
 model SiteSettings {
   id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId String @unique @map("tenant_id") @db.Uuid
@@ -2310,7 +2319,8 @@ model SiteSettings {
   templateKey            SiteTemplateKey @default(CLASSIC) @map("template_key")
   /// Único global: minúsculas, [a-z0-9-], sin reservados.
   subdomain              String?         @unique @db.VarChar(63)
-  /// Único entre los dominios VERIFICADOS (índice parcial de la migración
+  /// Único solo entre los dominios VERIFICADOS (ver el aviso del modelo: es un
+  /// índice parcial que existe únicamente en SQL; la migración
   /// `add_site_domain_verification`): reservar un dominio sin demostrar que es
   /// tuyo no bloquea a nadie.
   customDomain           String?         @map("custom_domain") @db.VarChar(253)
