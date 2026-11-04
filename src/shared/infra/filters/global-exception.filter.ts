@@ -71,13 +71,18 @@ interface NormalizedError {
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly isProduction: boolean
+  private readonly logRequestBody: boolean
 
   constructor(
     private readonly logger: PinoLogger,
     configService: ConfigService<Configuration, true>,
   ) {
     this.logger.setContext('ExceptionFilter')
-    this.isProduction = configService.get('app', { infer: true }).isProduction
+    const app = configService.get('app', { infer: true })
+    this.isProduction = app.isProduction
+    // El body puede traer datos personales en campos de texto libre que ningún
+    // redactor por nombre de clave atrapa: sólo se loguea en desarrollo.
+    this.logRequestBody = app.isDevelopment === true
   }
 
   catch(exception: unknown, host: ArgumentsHost): void {
@@ -267,14 +272,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const summary = `${request.method} ${context.url} → ${normalized.status} ${normalized.code}: ${normalized.message}`
 
     if (normalized.status >= 500) {
-      // Un 5xx es un bug nuestro: va con stack y con el request completo
-      // (redactado) para poder reproducirlo.
+      // Un 5xx es un bug nuestro: va con stack y con el request para poder
+      // reproducirlo. Fuera de desarrollo el body se reemplaza por los nombres
+      // de sus campos, que alcanzan para ubicar el endpoint sin filtrar datos.
       this.logger.error(
         {
           ...context,
           err: exception,
           query: redact(request.query),
-          body: redact(request.body),
+          ...(this.logRequestBody
+            ? { body: redact(request.body) }
+            : { bodyKeys: bodyKeysOf(request.body) }),
         },
         summary,
       )
@@ -284,4 +292,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // Los 4xx son ruido esperable: warn sin stack ni payload.
     this.logger.warn(context, summary)
   }
+}
+
+function bodyKeysOf(body: unknown): string[] {
+  return body && typeof body === 'object' ? Object.keys(body) : []
 }
