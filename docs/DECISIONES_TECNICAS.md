@@ -1230,3 +1230,35 @@ Sale de `adminprop-repo-files/docs/REDISENO_FASE_23.md` (que numera sus supuesto
 - **A-155** · `PropertyListingDto.canPublish` es verdadero solo si el canal tiene adapter, la cuenta está conectada y la propiedad está lista; `missingForPublish` lista solo lo de la propiedad.
 - **A-156** · La publicación se cierra automáticamente solo cuando la propiedad se alquila por un contrato (`attachContract`). Un cambio manual del estado a «Mantenimiento» no la cierra. _Si lo quieren_: emitir el mismo evento desde el cambio de estado de propiedades.
 - **A-157** · Una _actualización_ fallida de una publicación viva no la pasa a `ERROR` (sigue activa en el portal): conserva su estado y guarda `last_error`; el botón «Actualizar» sigue disponible. `ERROR` queda para publicaciones que nunca llegaron a estar vivas y para el cierre automático fallido.
+
+## Auditoría de seguridad e integración: pendientes de backend
+
+### D-195 · `RolesGuard` cierra por defecto
+
+- **Decisión**: un handler autenticado sin `@Roles(...)`, `@AnyRole()` ni `@IsPublic()` (en el handler o en el controller) responde 403 `INSUFFICIENT_PERMISSIONS` a todos los roles. Antes dejaba pasar a cualquier usuario autenticado, incluidos `OWNER` y `RENTER`, que comparten tenant con la inmobiliaria. `@AnyRole()` (nuevo, en `auth/public`) es la excepción explícita: `auth/me`, `change-password`, `logout-all` y `GET /tenants/current`.
+- **Red de seguridad**: `controllers-declare-access.spec.ts` recorre todos los `*.controller.ts` y falla si un handler no declara su acceso; `test/roles-default-deny.e2e-spec.ts` verifica el 403 de propietarios e inquilinos en `/migration`, `/crm` y `/valuation`.
+- **Por qué**: un controller nuevo al que se le olvidara `@Roles` quedaba abierto (un inquilino subiendo un Excel de migración, un propietario leyendo las consultas del CRM).
+
+### D-196 · Archivos privados con URL firmada
+
+- **Decisión**: `UploadOptions.access: 'private'` sube a Cloudinary como `raw` + `authenticated`; la key lleva el tipo de entrega (`raw:authenticated:<public_id>`; las keys viejas de dos partes siguen valiendo). `StoragePort.signUrl(url, ttl?)` devuelve una URL de descarga firmada que vence (10 min por defecto) y deja pasar tal cual cualquier URL pública. Son privados: PDFs generados, PDFs de contratos y pólizas, comprobantes de pagos, honorarios, transferencias y gastos adelantados, y el Excel de migración.
+- **Dónde se firma**: un único `SignedUrlsInterceptor` global firma toda URL `https://` de la respuesta JSON; los redirects y `?format=json` del portal, que responden con `@Res()`, firman en el controller. La base guarda la URL cruda del proveedor.
+- **Fuera de alcance**: fotos de propiedades e inventarios y logo siguen públicos. Los archivos ya subidos siguen públicos hasta migrarlos (ver A-159).
+
+### D-197 · Sobre `{ success, data }` documentado en `/auth/*`
+
+- **Decisión**: `@ApiSuccessResponse(Modelo, descripción)` (`shared/dtos`) documenta el sobre con `data` tipado, y se aplica a `login`, `portal-login`, `refresh`, `logout-all`, `change-password` y `me`. No cambia ninguna respuesta real; sí cambia `openapi.json`, y con él los tipos que genera el frontend.
+
+### D-198 · Logos SVG: se rechaza, no se sanea
+
+- **Decisión**: `POST /tenants/current/logo` sigue aceptando SVG (lo usan los PDFs) pero responde 422 `TENANT_INVALID_LOGO` si trae `<script>`, `<foreignObject>`, `<set>`/`<animate>`, handlers `on*=`, `javascript:`, `href` que no sea `#id` o imagen `data:`, `@import`/`url()` externos, entidades declaradas o numéricas.
+- **Por qué no sanear**: sanear obliga a parsear XML adversarial y a mantener una lista de permitidos; ningún logo legítimo necesita nada de lo rechazado.
+
+### D-199 · Inyección de fórmulas en el reporte de migración
+
+- **Decisión**: las celdas de texto del `report.xlsx` que empiezan con `=`, `+`, `-`, `@`, tab o CR llevan un apóstrofo previo.
+
+### Supuestos a confirmar (auditoría)
+
+- **A-158** · Default-deny estricto: un handler sin declarar da 403 incluso al ADMIN (no solo a propietarios e inquilinos). Elegido para que un olvido se note en el primer request y en el test de arquitectura, no en producción.
+- **A-159** · Los archivos subidos antes de D-196 siguen con su URL pública permanente; no hay script de migración (`cloudinary.uploader.rename(..., { type: 'authenticated' })` más reescribir las keys). _Si lo quieren_: un script que recorra `generated_documents` y los `*_key` y los renombre. La descarga firmada usa el endpoint de API de Cloudinary y no se probó contra el servicio real: confirmar que el navegador abre el PDF en la pestaña y no lo baja.
