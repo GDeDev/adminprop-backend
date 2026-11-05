@@ -40,7 +40,9 @@ function extendClient(
     : client
 
   const extended = scoped
-    .$extends(softDeleteExtension(ref))
+    .$extends(
+      softDeleteExtension(ref, { useTransaction: options.tenantScoped }),
+    )
     .$extends(
       auditExtension(client as never, { useTransaction: options.tenantScoped }),
     )

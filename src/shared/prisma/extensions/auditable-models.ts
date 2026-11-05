@@ -210,6 +210,8 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   // que no pasa por el filtro: quien lee filtra a mano.
   JobExecution: { audit: false, softDelete: false },
   NotificationLog: { tenantScoped: true, audit: false, softDelete: false },
+  // Claves de idempotencia: traza técnica de cada POST, sin auditoría.
+  IdempotencyKey: { tenantScoped: true, audit: false, softDelete: false },
 
   // Notificaciones (Fase 14): plantillas, configuración por tipo y mensajes de
   // WhatsApp son decisiones de la inmobiliaria, con historial. Las preferencias

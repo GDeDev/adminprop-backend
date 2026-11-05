@@ -7989,6 +7989,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Opcional, hasta 128 caracteres sin espacios. Repetir el pedido con la misma clave y el mismo cuerpo (reintento de red, doble click) devuelve el pago ya registrado en vez de crear otro; con otro cuerpo es 409 `IDEMPOTENCY_KEY_REUSED`. Vale 24 horas.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {

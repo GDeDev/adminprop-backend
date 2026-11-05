@@ -144,6 +144,14 @@ export interface ReportInstallmentRef {
   feeOnCollected: string
 }
 
+/** Alquiler devengado y cobrado de un mes y una moneda, ya sumado. */
+export interface ReportRentTotalRef {
+  period: Period
+  currency: Currency
+  baseAmount: string
+  rentPaid: string
+}
+
 /** Un pago confirmado con los datos de su cuota, para los reportes. */
 export interface ReportPaymentRef {
   paymentId: string
@@ -569,6 +577,17 @@ export class BillingFacade {
           InstallmentPolicy.feeAccrual(installment).feeOnCollected,
       }
     })
+  }
+
+  /**
+   * Alquiler devengado y cobrado por mes y moneda en un rango de períodos
+   * (historial del dashboard). Se suma en la base: no hidrata las cuotas.
+   */
+  async reportRentTotals(
+    periodFrom: Period,
+    periodTo: Period,
+  ): Promise<ReportRentTotalRef[]> {
+    return this.installments.rentTotalsByPeriod(periodFrom, periodTo)
   }
 
   /**
