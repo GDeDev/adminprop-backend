@@ -278,6 +278,10 @@ Notas:
 - Alternativa solo para desarrollo: `npm run prisma:seed` crea la inmobiliaria
   demo (`slug demo`) con `admin@demo.local` / `demo-admin-1234` y un usuario por
   rol; se niega a correr en producción.
+- Para empezar las pruebas manuales: `npm run seed:demo` carga dos inmobiliarias
+  ficticias con personas, propiedades, los doce contratos tipo, cobros y
+  liquidaciones (idempotente, solo desarrollo local). Contraseñas, cómo correrlo
+  sin Doppler y cómo resetear: [SEED_DEMO.md](SEED_DEMO.md).
 - URLs una vez arriba: API `http://localhost:3000/api/v1`, Swagger
   `http://localhost:3000/swagger`, health `http://localhost:3000/health`.
 - **Build y arranque de producción:** `npm run build` deja el resultado en
