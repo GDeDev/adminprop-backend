@@ -139,20 +139,19 @@ del template).
 | Variable                  | Para qué                                                                                                                                           | Cómo se obtiene        |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
 | `APP_ENCRYPTION_KEY`      | Cifra los tokens de los portales (CRM). 32 bytes en hex (64 caracteres) o base64. Sin clave la app arranca, pero falla al guardar/leer un secreto. | `openssl rand -hex 32` |
-| `SITES_REVALIDATE_SECRET` | Secreto compartido con `apps/sites` para el aviso de publicación. Si falta `SITES_SERVER_SECRET`, también hace de secreto del throttle.            | `openssl rand -hex 32` |
-| `SITES_SERVER_SECRET`     | Secreto del header `X-Sites-Secret` contra el tope por IP. **No crearla por ahora** (ver el recuadro de abajo).                                    | `openssl rand -hex 32` |
+| `SITES_REVALIDATE_SECRET` | Secreto compartido con `apps/sites` para el aviso de publicación. También se acepta como `X-Sites-Secret` (es el que manda `apps/sites`).          | `openssl rand -hex 32` |
+| `SITES_SERVER_SECRET`     | Secreto opcional, adicional, que la API también acepta en `X-Sites-Secret` (ver el recuadro de abajo).                                             | `openssl rand -hex 32` |
 
-> **Incoherencia detectada con `apps/sites` (verificada):** `apps/sites` manda
-> como `X-Sites-Secret` el valor de **su** `SITES_REVALIDATE_SECRET` (no tiene
-> variable `SITES_SERVER_SECRET`). La API compara ese header solo contra
-> `SITES_SERVER_SECRET` cuando está definida (si no, contra
-> `SITES_REVALIDATE_SECRET`). Si definís las dos con valores distintos, el
-> servidor de sitios queda **limitado como cualquier visitante** (429 a los 10
-> pedidos por segundo, probado) y un sitio con tráfico dejaría sin servicio a
-> los demás. Hasta que `apps/sites` lea `SITES_SERVER_SECRET`: **no crear
-> `SITES_SERVER_SECRET`**, o cargar en ambas el mismo valor. Una sola
-> `SITES_REVALIDATE_SECRET` en `dev_backend` y en la config de sitios, con el
-> mismo valor.
+> **Secretos de `apps/sites` (resuelto):** `apps/sites` manda como
+> `X-Sites-Secret` el valor de **su** `SITES_REVALIDATE_SECRET` (no tiene variable
+> `SITES_SERVER_SECRET`). Antes la API comparaba ese header solo contra
+> `SITES_SERVER_SECRET` si estaba definida, y el servidor de sitios quedaba
+> limitado como cualquier visitante. Ahora la API acepta el header si coincide
+> con `SITES_SERVER_SECRET` **o** con `SITES_REVALIDATE_SECRET` (comparación en
+> tiempo constante; ambas opcionales; un valor vacío no se acepta). Alcanza con
+> una sola `SITES_REVALIDATE_SECRET`, con el mismo valor en `dev_backend` y en la
+> config de sitios; `SITES_SERVER_SECRET` ya no rompe nada si se crea (vacía o
+> con valor). Ver D-231.
 > | `RESEND_WEBHOOK_SECRET` | Secreto Svix del webhook de Resend (`whsec_...`). | Lo entrega Resend. |
 
 ### Credenciales de terceros (solo si se activa el proveedor)

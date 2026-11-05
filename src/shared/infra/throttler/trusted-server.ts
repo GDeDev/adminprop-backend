@@ -20,14 +20,25 @@ export const SkipThrottleForTrustedServer = () =>
   SetMetadata(SKIP_THROTTLE_FOR_TRUSTED_SERVER, true)
 
 /**
- * Compara el secreto recibido con el esperado en tiempo constante (sobre los
+ * Compara el secreto recibido con los esperados en tiempo constante (sobre los
  * hashes, que tienen el mismo largo siempre) para no filtrar cuánto coincide.
+ * Acepta uno o varios secretos válidos; los vacíos o ausentes no cuentan, y un
+ * secreto recibido vacío nunca es válido. Se recorren todos, sin cortar en el
+ * primero, para que el tiempo no dependa de cuál coincide.
  */
 export function isTrustedServerSecret(
   received: string | undefined,
-  expected: string | null | undefined,
+  expected: string | null | undefined | readonly (string | null | undefined)[],
 ): boolean {
-  if (!received || !expected) return false
+  if (!received) return false
+  const candidates = (Array.isArray(expected) ? expected : [expected]).filter(
+    (secret): secret is string => typeof secret === 'string' && secret !== '',
+  )
   const hash = (value: string) => createHash('sha256').update(value).digest()
-  return timingSafeEqual(hash(received), hash(expected))
+  const receivedHash = hash(received)
+  let matches = false
+  for (const secret of candidates) {
+    if (timingSafeEqual(receivedHash, hash(secret))) matches = true
+  }
+  return matches
 }

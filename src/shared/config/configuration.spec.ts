@@ -37,23 +37,34 @@ describe('configuration: secreto del throttle de apps/sites', () => {
     process.env = { ...saved }
   })
 
-  it('usa SITES_SERVER_SECRET, distinto del de revalidación', () => {
+  it('acepta SITES_SERVER_SECRET y también SITES_REVALIDATE_SECRET', () => {
     process.env.SITES_SERVER_SECRET = 'secreto-del-throttle'
     process.env.SITES_REVALIDATE_SECRET = 'secreto-de-revalidar'
     delete process.env.SITES_REVALIDATE_URL
-    expect(configuration().sites.serverSecret).toBe('secreto-del-throttle')
+    expect(configuration().sites.serverSecrets).toEqual([
+      'secreto-del-throttle',
+      'secreto-de-revalidar',
+    ])
   })
 
-  it('sin SITES_SERVER_SECRET cae a SITES_REVALIDATE_SECRET (compatibilidad)', () => {
+  it('sin SITES_SERVER_SECRET queda SITES_REVALIDATE_SECRET (compatibilidad)', () => {
     delete process.env.SITES_SERVER_SECRET
     process.env.SITES_REVALIDATE_SECRET = 'secreto-de-revalidar'
-    expect(configuration().sites.serverSecret).toBe('secreto-de-revalidar')
+    expect(configuration().sites.serverSecrets).toEqual([
+      'secreto-de-revalidar',
+    ])
   })
 
-  it('sin ninguno de los dos no hay secreto', () => {
+  it('sin ninguno de los dos no hay secretos', () => {
     delete process.env.SITES_SERVER_SECRET
     delete process.env.SITES_REVALIDATE_SECRET
-    expect(configuration().sites.serverSecret).toBeNull()
+    expect(configuration().sites.serverSecrets).toEqual([])
+  })
+
+  it('los secretos vacíos no se aceptan', () => {
+    process.env.SITES_SERVER_SECRET = ''
+    process.env.SITES_REVALIDATE_SECRET = ''
+    expect(configuration().sites.serverSecrets).toEqual([])
   })
 
   it('el aviso de revalidación sigue usando SITES_REVALIDATE_SECRET', () => {

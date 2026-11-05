@@ -1505,3 +1505,10 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
   1. `authorizedBy` es **texto libre** (puede ser el propietario, que no es usuario del sistema), no un id de usuario; el usuario que aplicó el cambio sigue en `appliedById`.
   2. Quién puede hacerlo no cambió: ADMIN y EMPLOYEE. El hallazgo 13 pedía "definir si el empleado puede": **no se restringió** (decisión de negocio pendiente).
   3. El aumento por `%` fijo automático no es "ajuste manual" y no pide motivo (el % ya está pactado en el contrato).
+
+### D-231 · `X-Sites-Secret` vale con `SITES_SERVER_SECRET` o con `SITES_REVALIDATE_SECRET`
+
+- **Antes**: la API comparaba el header solo contra `SITES_SERVER_SECRET` si existía (si no, contra `SITES_REVALIDATE_SECRET`). `apps/sites` manda su `SITES_REVALIDATE_SECRET` y no tiene variable propia para el otro: definir `SITES_SERVER_SECRET` lo dejaba limitado como cualquier visitante (429 a los 10 pedidos por segundo), y un sitio con tráfico dejaba sin servicio a los demás.
+- **Ahora**: `sites.serverSecrets` lista los secretos definidos y no vacíos; `isTrustedServerSecret` acepta el header si coincide con cualquiera (hash SHA-256 + `timingSafeEqual`, recorriendo todos). Un header vacío nunca vale y una variable vacía no cuenta.
+- **Por qué no tocar el frontend**: es otro repo; aceptar ambos desde la API es compatible hacia atrás y no reduce la seguridad (los dos son secretos compartidos con el mismo servidor).
+- **Supuesto**: quien conozca el secreto de revalidar puede saltearse el tope de lectura (y al revés), como ya ocurría cuando `SITES_SERVER_SECRET` no estaba definida. Si se quiere separarlos de verdad, `apps/sites` tiene que leer una variable propia para el header.

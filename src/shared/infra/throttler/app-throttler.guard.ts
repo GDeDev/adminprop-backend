@@ -51,7 +51,7 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     const header = request.headers[TRUSTED_SERVER_HEADER]
     return isTrustedServerSecret(
       Array.isArray(header) ? header[0] : header,
-      this.config.get('sites', { infer: true }).serverSecret,
+      this.config.get('sites', { infer: true }).serverSecrets,
     )
   }
 
