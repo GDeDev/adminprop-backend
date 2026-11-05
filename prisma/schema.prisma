@@ -262,6 +262,7 @@ model AuditLog {
 
   @@index([tenantId, entity, entityId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, action, createdAt(sort: Desc)])
   @@index([userId])
   @@index([createdAt])
   @@index([correlationId])
@@ -1360,6 +1361,7 @@ model Payment {
   @@index([tenantId, contractId, paidAt])
   @@index([tenantId, renterId])
   @@index([tenantId, status, receivedBy])
+  @@index([tenantId, status, paidAt])
   @@index([tenantId, creditId])
   @@index([tenantId, settlementId])
   @@map("payments")
