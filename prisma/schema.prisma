@@ -679,6 +679,8 @@ model Owner {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, bankCbu])
   @@index([tenantId, deletedAt])
+  /// Único parcial `WHERE portal_user_id IS NOT NULL` (owners_portal_user_id_key)
+  /// sólo en SQL: Prisma no declara índices parciales.
   @@index([portalUserId])
   @@map("owners")
 }
@@ -778,6 +780,8 @@ model Renter {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, guarantorId])
   @@index([tenantId, deletedAt])
+  /// Único parcial `WHERE portal_user_id IS NOT NULL` (renters_portal_user_id_key)
+  /// sólo en SQL: Prisma no declara índices parciales.
   @@index([portalUserId])
   @@map("renters")
 }
@@ -992,6 +996,8 @@ model ContractRentUpdate {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
+  /// Un aumento por fecha: el job y el doble click no duplican (M7).
+  @@unique([contractId, effectiveFrom])
   @@index([tenantId, contractId, effectiveFrom])
   @@map("contract_rent_updates")
 }
@@ -1491,7 +1497,8 @@ model RenterCredit {
 
   @@index([tenantId, renterId, status])
   @@index([tenantId, contractId])
-  @@index([tenantId, originPaymentId])
+  /// Un pago genera un solo saldo a favor: un reintento no lo duplica (M7).
+  @@unique([tenantId, originPaymentId])
   @@map("renter_credits")
 }
 
@@ -1622,6 +1629,7 @@ model Settlement {
 
   /// Una sola PENDING por contrato: índice único parcial en la migración
   /// `add_settlements`.
+  @@unique([tenantId, contractId, period, sequence])
   @@index([tenantId, contractId, period])
   @@index([tenantId, ownerId, status])
   @@index([tenantId, propertyId])
@@ -1892,6 +1900,7 @@ model FeePaymentAllocation {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
+  @@unique([feePaymentId, feeReceivableId])
   @@index([tenantId, feePaymentId])
   @@index([tenantId, feeReceivableId])
   @@map("fee_payment_allocations")
