@@ -20092,6 +20092,10 @@
             "type": "number",
             "example": 10
           },
+          "autoApplyCreditOnGeneration": {
+            "type": "boolean",
+            "description": "El saldo a favor del inquilino se aplica solo al generar la cuota (si no, a mano)"
+          },
           "lateFeeStartDay": {
             "type": "number",
             "example": 11,
@@ -20121,6 +20125,7 @@
           "documentFooter",
           "dailyLateFeePercentage",
           "paymentGraceDays",
+          "autoApplyCreditOnGeneration",
           "lateFeeStartDay",
           "receiptSequence"
         ]
@@ -20210,6 +20215,10 @@
             "type": "number",
             "example": 10,
             "description": "Días del mes sin punitorio por defecto (el punitorio corre desde el día siguiente)."
+          },
+          "autoApplyCreditOnGeneration": {
+            "type": "boolean",
+            "description": "Saldo a favor del inquilino: true = se aplica solo al generar la cuota; false (por defecto) = se aplica a mano o al registrar un pago."
           }
         }
       },
@@ -24380,13 +24389,18 @@
           "skipped": {
             "type": "number",
             "description": "Ya tenían su cuota"
+          },
+          "creditsApplied": {
+            "type": "number",
+            "description": "Saldos a favor aplicados solos a las cuotas nuevas (sólo si la inmobiliaria eligió el modo automático)"
           }
         },
         "required": [
           "period",
           "contracts",
           "created",
-          "skipped"
+          "skipped",
+          "creditsApplied"
         ]
       },
       "InstallmentContractRefDto": {

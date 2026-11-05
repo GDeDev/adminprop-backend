@@ -138,7 +138,8 @@ export interface Payment {
   receiptNumber: string | null
   receiptPdfKey: string | null
   receiptPdfUrl: string | null
-  registeredById: string
+  /** Null: lo registró el sistema (saldo a favor aplicado al generar la cuota, D-237). */
+  registeredById: string | null
   notes: string | null
   confirmedById: string | null
   confirmedAt: Date | null

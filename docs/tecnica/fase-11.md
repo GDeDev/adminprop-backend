@@ -106,3 +106,7 @@ Totales: 365 unitarios (38 nuevos: `contract.policy.spec.ts`, `installment.polic
 ## Ajustes posteriores a la verificación de las respuestas de Micaela
 
 - **Punitorio (D-228)**: `tenants.daily_late_fee_percentage` sin default y nullable (migración `20261107130000_tenant_late_fee_no_default`, conserva los valores). `ContractPolicy.assertLateFeeSource` (alta, renovación y cambio de términos), `resolveGraceInput` (`lateFeeStartDay` ↔ gracia, sin columna nueva) y `LateFeeDefaults.dailyLateFeePercentage: string | null`. `PATCH /tenants/current/settings` edita `dailyLateFeePercentage` y `paymentGraceDays`. `provisionTenant` y `tenant:create --late-fee-percentage` lo fijan al crear. El helper `createTenant` de los e2e fija 5 explícito. Tests: `contract.policy.spec.ts`, `test/contracts.e2e-spec.ts`, `test/tenants.e2e-spec.ts`, `test/tenant-provisioning.e2e-spec.ts`.
+
+## Saldo a favor al generar la cuota (D-237)
+
+`Tenant.autoApplyCreditOnGeneration` (default `false`) y `payments.registered_by_id` nullable (migración `20261108130000_credit_auto_apply_on_generation`). `applyCreditPlan` y `publishConfirmed` salieron de `payment.handlers.ts` a `credit-application.ts` para compartirlos; `InstallmentCreditApplier.applyIfAutomatic` lo usa `InstallmentGenerator` sólo con las cuotas recién creadas; `GenerationResult.creditsApplied`. El flag viaja por `TenantsFacade.getBillingSettings` y `PATCH /tenants/current/settings`. Tests: `installment-generator.spec.ts`, `test/billing.e2e-spec.ts` (manual, automático sin duplicar, cobro directo, empleado 403).

@@ -24,6 +24,8 @@ export interface TenantBillingSettings {
   installmentGenerationDay: number
   /** Día del mes en que sale el recordatorio de pago. */
   paymentReminderDay: number
+  /** Aplica solo el saldo a favor al generar la cuota; false = a mano (D-237). */
+  autoApplyCreditOnGeneration: boolean
 }
 
 /** Una inmobiliaria habilitada, para recorrerlas desde los jobs. */
@@ -159,6 +161,7 @@ export class TenantsFacade {
       dailyLateFeePercentage: tenant.dailyLateFeePercentage,
       installmentGenerationDay: tenant.installmentGenerationDay,
       paymentReminderDay: tenant.paymentReminderDay,
+      autoApplyCreditOnGeneration: tenant.autoApplyCreditOnGeneration,
     }
   }
 

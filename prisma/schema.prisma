@@ -53,26 +53,29 @@ model Tenant {
 
   // ---------------------------------------------------- Parámetros de negocio
   /// Honorarios de administración estándar, en % (PRD: honorarios_pct_estandar).
-  standardFeePercentage    Decimal  @default(5) @map("standard_fee_percentage") @db.Decimal(5, 2)
+  standardFeePercentage       Decimal  @default(5) @map("standard_fee_percentage") @db.Decimal(5, 2)
   /// Honorarios reducidos para propietarios con varias propiedades.
-  reducedFeePercentage     Decimal  @default(3) @map("reduced_fee_percentage") @db.Decimal(5, 2)
+  reducedFeePercentage        Decimal  @default(3) @map("reduced_fee_percentage") @db.Decimal(5, 2)
   /// Cantidad de propiedades activas desde la que aplica el honorario reducido.
-  reducedFeeThreshold      Int      @default(3) @map("reduced_fee_threshold")
+  reducedFeeThreshold         Int      @default(3) @map("reduced_fee_threshold")
   /// Días del mes sin punitorio (del 1 al N).
-  paymentGraceDays         Int      @default(10) @map("payment_grace_days")
+  paymentGraceDays            Int      @default(10) @map("payment_grace_days")
   /// Punitorio diario por defecto, en %, a partir del día siguiente a la gracia.
   /// Sin default de esquema (D-228): null = la inmobiliaria no fijó uno y cada
   /// contrato tiene que indicar el suyo.
-  dailyLateFeePercentage   Decimal? @map("daily_late_fee_percentage") @db.Decimal(5, 2)
+  dailyLateFeePercentage      Decimal? @map("daily_late_fee_percentage") @db.Decimal(5, 2)
   /// Día del mes en que se generan las cuotas del mes siguiente.
-  installmentGenerationDay Int      @default(28) @map("installment_generation_day")
+  installmentGenerationDay    Int      @default(28) @map("installment_generation_day")
+  /// Saldo a favor: false = se aplica a mano (o al registrar un pago); true =
+  /// además se aplica solo al generar la cuota (Micaela #6, D-237).
+  autoApplyCreditOnGeneration Boolean  @default(false) @map("auto_apply_credit_on_generation")
   /// Día del mes en que sale el recordatorio de pago.
-  paymentReminderDay       Int      @default(1) @map("payment_reminder_day")
+  paymentReminderDay          Int      @default(1) @map("payment_reminder_day")
   /// Anticipación, en días, del aviso de vencimiento de contrato.
-  contractExpiryNoticeDays Int      @default(60) @map("contract_expiry_notice_days")
+  contractExpiryNoticeDays    Int      @default(60) @map("contract_expiry_notice_days")
   /// Día del mes en que se envía el informe mensual a propietarios.
-  monthlyReportDay         Int      @default(10) @map("monthly_report_day")
-  defaultCurrency          Currency @default(ARS) @map("default_currency")
+  monthlyReportDay            Int      @default(10) @map("monthly_report_day")
+  defaultCurrency             Currency @default(ARS) @map("default_currency")
 
   // ---------------------------------------------------- Datos legales (Fase 15)
   /// Razón social, CUIT y contacto: encabezado y pie de los PDFs y datos del
@@ -1330,7 +1333,9 @@ model Payment {
   receiptPdfKey String? @map("receipt_pdf_key") @db.VarChar(500)
   receiptPdfUrl String? @map("receipt_pdf_url") @db.VarChar(1000)
 
-  registeredById String  @map("registered_by_id") @db.Uuid
+  /// Null cuando lo registró el sistema: la aplicación automática de saldo a
+  /// favor al generar la cuota, sin usuario en el contexto (D-237).
+  registeredById String? @map("registered_by_id") @db.Uuid
   notes          String? @db.Text
 
   confirmedById String?   @map("confirmed_by_id") @db.Uuid

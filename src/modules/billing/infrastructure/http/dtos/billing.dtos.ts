@@ -656,6 +656,11 @@ export class InstallmentGenerationResultDto {
   contracts: number
   @ApiProperty() created: number
   @ApiProperty({ description: 'Ya tenían su cuota' }) skipped: number
+  @ApiProperty({
+    description:
+      'Saldos a favor aplicados solos a las cuotas nuevas (sólo si la inmobiliaria eligió el modo automático)',
+  })
+  creditsApplied: number
 }
 
 export class RegisterPaymentResultDto {

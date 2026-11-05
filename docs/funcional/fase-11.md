@@ -23,3 +23,7 @@
 - **El 5 % diario ya no es un valor fijo del sistema.** Las inmobiliarias que ya existían conservan el punitorio que tenían. Las nuevas se crean con el punitorio que se indique (o sin ninguno) y, si no tienen uno por defecto, cada contrato tiene que indicar el suyo al crearse.
 - **Un administrador puede cambiar el punitorio diario y los días de gracia de la inmobiliaria** desde la configuración. Los contratos que no tienen uno propio usan el nuevo valor en las cuotas que se generen de ahí en adelante; las cuotas ya generadas no cambian.
 - **"Desde cuándo corre":** además de los días de gracia, el contrato puede indicar el día del mes desde el que corre el punitorio (día 11 equivale a 10 días de gracia). Se usa uno u otro, no los dos.
+
+## Saldo a favor al generar la cuota (D-237)
+
+Ahora la aplicación del saldo a favor puede ser **manual** (como hasta ahora) o **automática**, a elección de la inmobiliaria en Configuración (sólo administradores). En modo automático, cuando se genera la cuota de un mes, el saldo a favor del inquilino (en la misma moneda) se descuenta solo de esa cuota, sin duplicarse si se vuelve a generar el mes. Los contratos con cobro directo al propietario quedan afuera: ahí el saldo se aplica a mano.

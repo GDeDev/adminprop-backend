@@ -52,7 +52,12 @@ export class UpdateTenantSettingsHandler implements ICommandHandler<
     command: UpdateTenantSettingsCommand,
   ): Promise<TenantSettingsView> {
     const patch: TenantSettingsPatch = {}
-    const { dailyLateFeePercentage, paymentGraceDays, ...texts } = command.patch
+    const {
+      dailyLateFeePercentage,
+      paymentGraceDays,
+      autoApplyCreditOnGeneration,
+      ...texts
+    } = command.patch
     // `null` llega porque el DTO deja pasar el nulo de los campos opcionales:
     // estos dos no se pueden borrar, sólo cambiar.
     if (dailyLateFeePercentage === null || paymentGraceDays === null) {
@@ -75,6 +80,11 @@ export class UpdateTenantSettingsHandler implements ICommandHandler<
     }
     if (paymentGraceDays !== undefined)
       patch.paymentGraceDays = paymentGraceDays
+    if (
+      autoApplyCreditOnGeneration !== undefined &&
+      autoApplyCreditOnGeneration !== null
+    )
+      patch.autoApplyCreditOnGeneration = autoApplyCreditOnGeneration
     for (const [key, value] of Object.entries(texts)) {
       const normalized = normalize(value as string | null | undefined)
       if (normalized !== undefined) {

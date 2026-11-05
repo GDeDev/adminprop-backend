@@ -1,6 +1,7 @@
 import { ContractsFacade } from '@/modules/contracts/public'
 import { InstallmentRepository } from '../domain/billing.ports'
 import { CollectionMode, Currency, FeeMode } from '../domain/billing'
+import { InstallmentCreditApplier } from './installment-credit-applier'
 import { InstallmentGenerator } from './installment-generator'
 
 function activeContract(overrides: Record<string, unknown> = {}) {
@@ -30,11 +31,13 @@ function setup(contracts: ReturnType<typeof activeContract>[]) {
   const facade = {
     listActiveForPeriod: jest.fn().mockResolvedValue(contracts),
   }
+  const creditApplier = { applyIfAutomatic: jest.fn().mockResolvedValue(0) }
   const generator = new InstallmentGenerator(
     repo as unknown as InstallmentRepository,
     facade as unknown as ContractsFacade,
+    creditApplier as unknown as InstallmentCreditApplier,
   )
-  return { generator, repo, facade }
+  return { generator, repo, facade, creditApplier }
 }
 
 describe('InstallmentGenerator', () => {
@@ -64,6 +67,7 @@ describe('InstallmentGenerator', () => {
       contracts: 1,
       created: 1,
       skipped: 0,
+      creditsApplied: 0,
     })
   })
 
@@ -80,7 +84,24 @@ describe('InstallmentGenerator', () => {
       contracts: 2,
       created: 1,
       skipped: 1,
+      creditsApplied: 0,
     })
+  })
+
+  it('aplica el saldo a favor sólo a las cuotas que acaba de crear, nunca a las que ya existían (D-237)', async () => {
+    const created = { id: 'new' }
+    const { generator, repo, creditApplier } = setup([
+      activeContract(),
+      activeContract({ id: 'contract-2' }),
+    ])
+    creditApplier.applyIfAutomatic.mockResolvedValue(1)
+    repo.createIfAbsent
+      .mockResolvedValueOnce(created)
+      .mockResolvedValueOnce(null)
+    const result = await generator.generate('2026-10')
+    expect(creditApplier.applyIfAutomatic).toHaveBeenCalledTimes(1)
+    expect(creditApplier.applyIfAutomatic).toHaveBeenCalledWith(created)
+    expect(result).toMatchObject({ created: 1, skipped: 1, creditsApplied: 1 })
   })
 
   it('copia el honorario fijo del contrato cuando lo tiene', async () => {
@@ -119,6 +140,7 @@ describe('InstallmentGenerator', () => {
         contracts: 0,
         created: 0,
         skipped: 0,
+        creditsApplied: 0,
       })
     } finally {
       jest.useRealTimers()
