@@ -1512,3 +1512,8 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Ahora**: `sites.serverSecrets` lista los secretos definidos y no vacíos; `isTrustedServerSecret` acepta el header si coincide con cualquiera (hash SHA-256 + `timingSafeEqual`, recorriendo todos). Un header vacío nunca vale y una variable vacía no cuenta.
 - **Por qué no tocar el frontend**: es otro repo; aceptar ambos desde la API es compatible hacia atrás y no reduce la seguridad (los dos son secretos compartidos con el mismo servidor).
 - **Supuesto**: quien conozca el secreto de revalidar puede saltearse el tope de lectura (y al revés), como ya ocurría cuando `SITES_SERVER_SECRET` no estaba definida. Si se quiere separarlos de verdad, `apps/sites` tiene que leer una variable propia para el header.
+
+### D-232 · Variables opcionales vacías equivalen a no definidas
+
+- **Antes**: la regla del dueño es crear en Doppler las variables nuevas **vacías** (`doppler secrets set NAME=""`), pero un `*_PROVIDER`, `TOKKO_SOURCE`, `NODE_ENV`, `PORT`, `SECRETS_PROVIDER` o `JWT_*_TTL` vacío hacía que la API no arrancara.
+- **Ahora**: `validateEnv` descarta las variables en blanco (también las de solo espacios) antes de validar, salvo `DATABASE_URL`, `JWT_ACCESS_SECRET` y `JWT_REFRESH_SECRET`, que siguen fallando con su mensaje. `configuration()` y `loadSecrets()` ya tratan el vacío como default. `SITES_PREVIEW_SECRET` vacía en producción sigue siendo error (32+ caracteres).

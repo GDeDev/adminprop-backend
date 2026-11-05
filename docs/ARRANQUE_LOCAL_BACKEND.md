@@ -7,6 +7,17 @@ y el arranque se **probó de punta a punta** con valores descartables (sin
 Doppler ni Docker): ver `docs/AUDITORIA_LISTO_PARA_LOCAL.md`. Lo que no se pudo
 verificar desde el sandbox figura como **a confirmar**.
 
+> **Tres avisos antes de empezar:**
+>
+> 1. **`CORS_ORIGINS` es obligatoria para que el login del frontend entre** (sin
+>    ella el navegador bloquea el `POST /auth/login`): en `dev_backend`,
+>    `http://localhost:3001,http://localhost:3002` (ver sección 4).
+> 2. **Corré `npx prisma generate` después de `npm ci` y cada vez que cambies de
+>    rama** (o el schema de Prisma cambie): con el cliente desactualizado `tsc`,
+>    `tenant:create` y los tests fallan al compilar.
+> 3. **Crear un contrato no genera sus cuotas:** hay que usar **"Generar cuotas"**
+>    (manual, en Cobros) o esperar el proceso automático mensual.
+
 > No existe `.env`: la app ignora cualquier archivo `.env`. Las variables salen
 > de Doppler (proyecto `admin-prop`, config `dev_backend` en local) y los
 > scripts de `package.json` ya corren dentro de `doppler run --`.
@@ -91,17 +102,13 @@ Sin valores. Fuente de verdad: `.env.example` (documenta) y
 `src/shared/config/env.validation.ts` (valida al arrancar: si falta una
 obligatoria o está mal tipada, la app no levanta y dice cuál).
 
-Convenciones (verificadas probando cada variable con `""` contra
-`validateEnv`): los booleanos, los numéricos con `@toInt` (límites y tiempos del
-throttle, `BCRYPT_SALT_ROUNDS`, etc.), los textos y todas las `SITES_*`,
-`CORS_*`, `*_API_KEY`, `*_SECRET` con valor vacío se tratan como "sin definir".
-**Rompen el arranque con valor vacío** (la app muere con "Configuración de
-entorno inválida"), así que si no se usan **no se crean**:
-
-`NODE_ENV`, `PORT`, `SECRETS_PROVIDER`, `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL`,
-`QUEUE_PROVIDER`, `STORAGE_PROVIDER`, `FEATURE_FLAGS_PROVIDER`, `EMAIL_PROVIDER`,
-`NOTIFICATIONS_PROVIDER`, `PDF_PROVIDER`, `TOKKO_SOURCE`, `INDEX_SOURCE_PROVIDER`,
-`VALUATION_NARRATOR`, `LISTING_PUBLISHER_PROVIDER`.
+Convención (D-232): **toda variable opcional o con default con valor vacío (o solo
+espacios) se trata como "sin definir"**, así que se pueden crear vacías en Doppler
+con `doppler secrets set NAME=""` (también `NODE_ENV`, `PORT`, `SECRETS_PROVIDER`,
+`JWT_*_TTL` y todos los `*_PROVIDER`). Las únicas que **no** admiten vacío son las
+obligatorias (`DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`): vacías
+siguen fallando con un mensaje que dice cuál. Tampoco se relaja la seguridad:
+`SITES_PREVIEW_SECRET` vacía con `NODE_ENV=qa`/`production` sigue siendo error.
 
 Qué pasa si falta una obligatoria: la app no arranca y lista qué variable está
 mal (`DATABASE_URL es obligatoria`, `JWT_ACCESS_SECRET debe tener al menos 32
@@ -207,8 +214,9 @@ completa de lo que hay que crear en cada config de Doppler está en
 ## 5. Orden de comandos
 
 ```bash
-# 1. Dependencias (usa package-lock.json)
+# 1. Dependencias (usa package-lock.json) y cliente de Prisma
 npm ci
+npx prisma generate                    # también tras cada cambio de rama
 
 # 2. Postgres 16 (base de desarrollo + base de tests e2e)
 npm run docker:dev
@@ -311,9 +319,6 @@ npm run test:e2e -- test/<archivo>.e2e-spec.ts   # e2e de a UN archivo
   cambiar el puerto publicado en `docker-compose.yml` y en `DATABASE_URL`.
 - **La app no arranca y lista variables**: es la validación de entorno; falta
   `DATABASE_URL` o un `JWT_*_SECRET`, o son iguales entre sí.
-- **No arranca con "Configuración de entorno inválida" y una variable `*_PROVIDER`
-  (o `PORT`, `JWT_*_TTL`)**: está creada en Doppler con valor vacío. Borrala o
-  dale un valor válido (sección 4).
 - **El navegador dice "CORS" / el login del backoffice no entra y la pantalla
   se queda en `/login`**: falta
   `CORS_ORIGINS` en `dev_backend` o no incluye `http://localhost:3001` y
