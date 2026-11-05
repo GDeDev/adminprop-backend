@@ -10,6 +10,7 @@ import { compareMoney } from '@/shared/money'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { CollectionMode, Installment } from '../domain/billing'
 import {
+  InstallmentRepository,
   PaymentRepository,
   RenterCreditRepository,
 } from '../domain/billing.ports'
@@ -33,6 +34,7 @@ export class InstallmentCreditApplier {
 
   constructor(
     private readonly tenants: TenantsFacade,
+    private readonly installments: InstallmentRepository,
     private readonly payments: PaymentRepository,
     private readonly credits: RenterCreditRepository,
     private readonly recalculator: InstallmentRecalculator,
@@ -53,26 +55,33 @@ export class InstallmentCreditApplier {
 
     try {
       const today = todayIso()
-      const balances = InstallmentPolicy.balances(installment, today)
-      if (compareMoney(balances.totalDue, '0') <= 0) return 0
-      const available = await this.credits.listAvailable(
-        installment.renterId,
-        installment.currency,
-      )
-      const plan = PaymentPolicy.planCreditApplications(
-        available,
-        balances.totalDue,
-        installment.currency,
-      )
-      if (plan.length === 0) return 0
-
       // Sin usuario cuando corre el cron: el pago queda "registrado por el
       // sistema" (null).
       const registeredById = RequestContext.userId ?? null
-      const { created, updated } = await this.prisma.transaction(async () => {
+      const result = await this.prisma.transaction(async () => {
+        // Mismo orden que RegisterPayment y ApplyCredit: lock de la cuota y
+        // recién ahí saldos y créditos, leídos dentro de la transacción. La
+        // cuota es nueva, pero entre crearla y acá un pago o una aplicación a
+        // mano puede haberla tocado, y dos aplicaciones no pueden gastar el
+        // mismo saldo.
+        await this.installments.lockForUpdate(installment.id)
+        const current = await this.installments.findById(installment.id)
+        if (!current) return null
+        const balances = InstallmentPolicy.balances(current, today)
+        if (compareMoney(balances.totalDue, '0') <= 0) return null
+        const available = await this.credits.listAvailable(
+          current.renterId,
+          current.currency,
+        )
+        const plan = PaymentPolicy.planCreditApplications(
+          available,
+          balances.totalDue,
+          current.currency,
+        )
+        if (plan.length === 0) return null
         const applied = await applyCreditPlan(
           { payments: this.payments, credits: this.credits },
-          installment,
+          current,
           plan,
           balances,
           today,
@@ -80,11 +89,12 @@ export class InstallmentCreditApplier {
         )
         return {
           created: applied.created,
-          updated: await this.recalculator.recalculate(installment.id),
+          updated: await this.recalculator.recalculate(current.id),
         }
       })
-      publishConfirmed(this.eventBus, updated, created)
-      return created.length
+      if (!result) return 0
+      publishConfirmed(this.eventBus, result.updated, result.created)
+      return result.created.length
     } catch (error) {
       // La cuota ya existe: que no se pueda aplicar el saldo no puede frenar
       // la generación del resto. Queda para aplicar a mano.
