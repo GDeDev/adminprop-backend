@@ -26723,6 +26723,18 @@
             "type": "string",
             "description": "Con signo"
           },
+          "withholdingsTotal": {
+            "type": "string",
+            "description": "Retenciones vigentes, con signo (negativo)"
+          },
+          "advancesTotal": {
+            "type": "string",
+            "description": "Adelantos al propietario vigentes, con signo (negativo)"
+          },
+          "otherAdjustmentsTotal": {
+            "type": "string",
+            "description": "Otras deducciones y créditos vigentes, con signo. Las tres columnas suman `adjustmentsTotal`"
+          },
           "netAmount": {
             "type": "string",
             "description": "Puede ser negativo"
@@ -26862,6 +26874,9 @@
           "feeDeducted",
           "expensesTotal",
           "adjustmentsTotal",
+          "withholdingsTotal",
+          "advancesTotal",
+          "otherAdjustmentsTotal",
           "netAmount",
           "transferredTotal",
           "statementId",
@@ -26977,6 +26992,18 @@
             "type": "string",
             "description": "Con signo"
           },
+          "withholdingsTotal": {
+            "type": "string",
+            "description": "Retenciones vigentes, con signo (negativo)"
+          },
+          "advancesTotal": {
+            "type": "string",
+            "description": "Adelantos al propietario vigentes, con signo (negativo)"
+          },
+          "otherAdjustmentsTotal": {
+            "type": "string",
+            "description": "Otras deducciones y créditos vigentes, con signo. Las tres columnas suman `adjustmentsTotal`"
+          },
           "netAmount": {
             "type": "string",
             "description": "Puede ser negativo"
@@ -27024,6 +27051,9 @@
           "feeDeducted",
           "expensesTotal",
           "adjustmentsTotal",
+          "withholdingsTotal",
+          "advancesTotal",
+          "otherAdjustmentsTotal",
           "netAmount",
           "transferredTotal",
           "statementId",
@@ -27108,6 +27138,18 @@
             "type": "string",
             "description": "Con signo"
           },
+          "withholdingsTotal": {
+            "type": "string",
+            "description": "Retenciones, con signo (negativo)"
+          },
+          "advancesTotal": {
+            "type": "string",
+            "description": "Adelantos al propietario, con signo (negativo)"
+          },
+          "otherAdjustmentsTotal": {
+            "type": "string",
+            "description": "Otras deducciones y créditos, con signo. Las tres columnas suman `adjustmentsTotal`"
+          },
           "netTotal": {
             "type": "string"
           },
@@ -27123,6 +27165,9 @@
           "feeTotal",
           "expensesTotal",
           "adjustmentsTotal",
+          "withholdingsTotal",
+          "advancesTotal",
+          "otherAdjustmentsTotal",
           "netTotal",
           "transferredTotal"
         ]

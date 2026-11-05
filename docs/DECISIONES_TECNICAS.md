@@ -1542,3 +1542,10 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
   1. Un pago por **saldo a favor aplicado** (`kind = CREDIT_APPLICATION`) cuenta en el bucket de quien lo recibió, igual que al liquidar (D-84): el efectivo ya figuró como cobrado en su momento (sólo lo imputado cuenta, no el excedente), así que no se duplica. No se agregó una columna aparte para saldo aplicado.
   2. Un pago cubierto con el **depósito en garantía** (`method = DEPOSIT`) sigue contando como cobrado por la inmobiliaria; no se separa.
   3. Los **honorarios** (devengados/cobrados) y el neto no cambian: ya salen de liquidaciones y pagos de honorarios, que sólo incluyen fondos de la inmobiliaria.
+
+### D-236 · Consolidado: retenciones, adelantos y otros ajustes por separado (Micaela #7)
+
+- **Antes**: el consolidado mostraba una sola columna "Ajustes" (`adjustmentsTotal`) que mezclaba retenciones, adelantos y deducciones o créditos varios.
+- **Ahora** (aditivo): `withholdingsTotal` (`WITHHOLDING`), `advancesTotal` (`OWNER_ADVANCE`) y `otherAdjustmentsTotal` (`OTHER_DEDUCTION` + `OTHER_CREDIT`), **con signo** como `adjustmentsTotal`, que se conserva y es la suma de los tres. Están en cada liquidación del listado (`SettlementSummaryDto`), en los totales por moneda del consolidado (`OwnerStatementTotalsDto`) y en el PDF del consolidado, que reemplaza la columna "Ajustes" por "Retenc.", "Adelantos" y "Otros aj.".
+- **Persistencia**: tres columnas nuevas en `owner_statement_totals` (migración `20261108120000_statement_totals_adjustments_breakdown`, `DEFAULT 0`). Los totales se congelan al cerrar como antes; la migración reconstruye el desglose de los consolidados ya cerrados con los ajustes vigentes de sus liquidaciones. Las liquidaciones no guardan el desglose: se calcula al leer desde sus ajustes (`SettlementPolicy.adjustmentsBreakdown`).
+- **Supuesto**: "otros" agrupa deducciones y créditos varios en un solo número neto; si Micaela quiere verlos separados hay que abrir un campo más.

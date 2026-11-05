@@ -111,6 +111,10 @@ export interface StatementRowData {
   fee: string
   expenses: string
   adjustments: string
+  /** `adjustments` abierto, con signo (D-236). */
+  withholdings: string
+  advances: string
+  otherAdjustments: string
   net: string
   transferred: string
   currency: DocumentCurrency
@@ -124,6 +128,9 @@ export interface StatementTotalsData {
   fee: string
   expenses: string
   adjustments: string
+  withholdings: string
+  advances: string
+  otherAdjustments: string
   net: string
   transferred: string
 }

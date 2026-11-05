@@ -1776,15 +1776,20 @@ model OwnerStatementTotal {
   statementId String         @map("statement_id") @db.Uuid
   statement   OwnerStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
 
-  currency         Currency
-  rentTotal        Decimal  @map("rent_total") @db.Decimal(14, 2)
-  lateFeeTotal     Decimal  @map("late_fee_total") @db.Decimal(14, 2)
-  chargesTotal     Decimal  @map("charges_total") @db.Decimal(14, 2)
-  feeTotal         Decimal  @map("fee_total") @db.Decimal(14, 2)
-  expensesTotal    Decimal  @map("expenses_total") @db.Decimal(14, 2)
-  adjustmentsTotal Decimal  @map("adjustments_total") @db.Decimal(14, 2)
-  netTotal         Decimal  @map("net_total") @db.Decimal(14, 2)
-  transferredTotal Decimal  @map("transferred_total") @db.Decimal(14, 2)
+  currency              Currency
+  rentTotal             Decimal  @map("rent_total") @db.Decimal(14, 2)
+  lateFeeTotal          Decimal  @map("late_fee_total") @db.Decimal(14, 2)
+  chargesTotal          Decimal  @map("charges_total") @db.Decimal(14, 2)
+  feeTotal              Decimal  @map("fee_total") @db.Decimal(14, 2)
+  expensesTotal         Decimal  @map("expenses_total") @db.Decimal(14, 2)
+  adjustmentsTotal      Decimal  @map("adjustments_total") @db.Decimal(14, 2)
+  /// Con signo (negativo). `withholdingsTotal + advancesTotal +
+  /// otherAdjustmentsTotal = adjustmentsTotal` (D-236).
+  withholdingsTotal     Decimal  @default(0) @map("withholdings_total") @db.Decimal(14, 2)
+  advancesTotal         Decimal  @default(0) @map("advances_total") @db.Decimal(14, 2)
+  otherAdjustmentsTotal Decimal  @default(0) @map("other_adjustments_total") @db.Decimal(14, 2)
+  netTotal              Decimal  @map("net_total") @db.Decimal(14, 2)
+  transferredTotal      Decimal  @map("transferred_total") @db.Decimal(14, 2)
 
   @@unique([statementId, currency])
   @@index([tenantId, statementId])
