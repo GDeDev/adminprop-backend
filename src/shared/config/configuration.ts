@@ -239,7 +239,7 @@ function parseCorsOrigins(raw: string | undefined): string[] | boolean {
  * por acá vía `ConfigService`.
  */
 export function configuration(): Configuration {
-  const env = (process.env.NODE_ENV as Environment) ?? Environment.Development
+  const env = (process.env.NODE_ENV || Environment.Development) as Environment
   const isProduction = env === Environment.Production
   const isDevelopment = env === Environment.Development
 

@@ -666,17 +666,52 @@ function assertComparableSources(env: EnvironmentVariables): void {
 }
 
 /**
+ * Las únicas variables que no admiten el valor vacío como "no definida": sin
+ * ellas la API no puede funcionar y tiene que fallar con un mensaje claro.
+ */
+const MANDATORY_VARIABLES: readonly string[] = [
+  'DATABASE_URL',
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+]
+
+/**
+ * La regla del dueño es crear en Doppler las variables nuevas VACÍAS. Una
+ * variable opcional (o con default) en blanco equivale a no definirla; sin esto,
+ * un `PORT=""` o un `STORAGE_PROVIDER=""` impedían arrancar. Las obligatorias se
+ * dejan tal cual para que sigan fallando. No se relaja nada de seguridad:
+ * `SITES_PREVIEW_SECRET` vacía en producción queda como `undefined` y se sigue
+ * exigiendo de 32 caracteres o más.
+ */
+function withoutBlankOptionals(
+  config: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(config).filter(
+      ([name, value]) =>
+        MANDATORY_VARIABLES.includes(name) ||
+        typeof value !== 'string' ||
+        value.trim() !== '',
+    ),
+  )
+}
+
+/**
  * Valida `process.env` contra `EnvironmentVariables`.
  * La pasamos a `ConfigModule.forRoot({ validate })`.
  */
 export function validateEnv(
   config: Record<string, unknown>,
 ): EnvironmentVariables {
-  const validated = plainToInstance(EnvironmentVariables, config, {
-    enableImplicitConversion: false,
-    exposeDefaultValues: true,
-    excludeExtraneousValues: false,
-  })
+  const validated = plainToInstance(
+    EnvironmentVariables,
+    withoutBlankOptionals(config),
+    {
+      enableImplicitConversion: false,
+      exposeDefaultValues: true,
+      excludeExtraneousValues: false,
+    },
+  )
 
   const errors = validateSync(validated, {
     skipMissingProperties: false,
