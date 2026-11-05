@@ -51,6 +51,7 @@
     "master-data:seed": "doppler run -- ts-node -r tsconfig-paths/register prisma/scripts/seed-master-data.ts",
     "tenant:create": "doppler run -- ts-node -r tsconfig-paths/register prisma/scripts/create-tenant.ts",
     "db:check-duplicates": "doppler run -- ts-node -r tsconfig-paths/register prisma/scripts/check-unique-duplicates.ts",
+    "seed:demo": "doppler run -- ts-node -r tsconfig-paths/register src/seed-demo/main.ts",
     "docker:dev": "docker-compose --profile dev up -d",
     "docker:prod": "doppler run -- docker-compose --profile prod up -d",
     "docker:down": "docker-compose down",
