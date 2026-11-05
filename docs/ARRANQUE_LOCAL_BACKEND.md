@@ -124,7 +124,8 @@ API desde el navegador: **ni siquiera el login entra** (el navegador bloquea el
 (backoffice y portal; ver puertos en la sección 8). Tiene que ser `localhost`,
 no `127.0.0.1`: el origen se compara literal. `apps/sites` llama a la API desde
 su servidor, no necesita CORS. El valor de `.env.example`
-(`localhost:3000,localhost:5173`) es del template, no sirve para este frontend.
+ya está ajustado a esos dos orígenes (antes traía `localhost:3000,localhost:5173`,
+del template).
 
 ### Obligatorias solo fuera de development/test (incluye `qa`)
 
