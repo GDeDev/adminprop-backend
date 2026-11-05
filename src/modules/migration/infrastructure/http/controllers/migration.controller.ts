@@ -20,6 +20,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiExtraModels,
   ApiOperation,
   ApiProduces,
   ApiResponse,
@@ -58,6 +59,7 @@ import {
   ConfirmImportDto,
   ImportBatchDetailDto,
   ImportBatchSummaryDto,
+  ImportEntityCountsDto,
   ImportRowDto,
   ListBatchesQueryDto,
   ListRowsQueryDto,
@@ -87,6 +89,9 @@ const ok = <T>(data: T, message: string | null = null): ApiSuccessDto<T> => ({
  * confirma lo que se revisó. Lo pesado responde 202 con un `jobId` que se
  * consulta en `GET /jobs/:id/status`.
  */
+// `ImportCountsDto.byEntity` lo referencia con un $ref escrito a mano (un mapa
+// de DTOs no se puede declarar con `type`), así que Swagger no lo descubre solo.
+@ApiExtraModels(ImportEntityCountsDto)
 @ApiTags('Migration')
 @ApiBearerAuth()
 @Roles(Role.ADMIN)

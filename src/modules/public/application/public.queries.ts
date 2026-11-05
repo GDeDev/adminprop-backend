@@ -2,8 +2,10 @@ import { IQueryHandler, QueryHandler } from '@nestjs/cqrs'
 
 import {
   ListingCurrency,
+  ListingOperation,
   PropertiesFacade,
   PublicFiltersView,
+  PublicPropertySort,
   PublicPropertyDetailView,
   PublicPropertySummaryView,
 } from '@/modules/properties/public'
@@ -18,6 +20,11 @@ export interface PublicListingFilter {
   priceFrom?: string
   priceTo?: string
   currency?: ListingCurrency
+  operation?: ListingOperation
+  bedroomsMin?: number
+  bathroomsMin?: number
+  ids?: string[]
+  sort?: PublicPropertySort
 }
 
 export class ListPublicPropertiesQuery {

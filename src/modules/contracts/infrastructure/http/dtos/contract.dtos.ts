@@ -15,6 +15,7 @@ import {
   IsUUID,
   Matches,
   MaxLength,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator'
@@ -78,7 +79,8 @@ export class ContractBillingTermsInputDto {
     type: String,
     nullable: true,
     example: '5.00',
-    description: 'Punitorio diario en %. Si no viene, el de la inmobiliaria.',
+    description:
+      'Punitorio diario en %. Si no viene, el de la inmobiliaria; si la inmobiliaria no fijó uno, es obligatorio (422).',
   })
   @IsOptional()
   @Matches(PERCENTAGE, {
@@ -97,6 +99,19 @@ export class ContractBillingTermsInputDto {
   @IsInt({ message: 'lateFeeGraceDays tiene que ser un entero' })
   @Min(0)
   lateFeeGraceDays?: number | null
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    example: 11,
+    description:
+      'Día del mes desde el que corre el punitorio (1 a 31). Es la gracia dicha al revés (inicio = gracia + 1): no se combina con lateFeeGraceDays.',
+  })
+  @IsOptional()
+  @IsInt({ message: 'lateFeeStartDay tiene que ser un entero' })
+  @Min(1)
+  @Max(31)
+  lateFeeStartDay?: number | null
 }
 
 export class ContractSuretyInputDto {
@@ -309,7 +324,8 @@ export class CreateContractDto {
     type: String,
     nullable: true,
     example: '5.00',
-    description: 'Punitorio diario en %. Si no viene, el de la inmobiliaria.',
+    description:
+      'Punitorio diario en %. Si no viene, el de la inmobiliaria; si la inmobiliaria no fijó uno, es obligatorio (422).',
   })
   @IsOptional()
   @Matches(PERCENTAGE, {
@@ -328,6 +344,19 @@ export class CreateContractDto {
   @IsInt({ message: 'lateFeeGraceDays tiene que ser un entero' })
   @Min(0)
   lateFeeGraceDays?: number | null
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    example: 11,
+    description:
+      'Día del mes desde el que corre el punitorio (1 a 31). Es la gracia dicha al revés (inicio = gracia + 1): no se combina con lateFeeGraceDays.',
+  })
+  @IsOptional()
+  @IsInt({ message: 'lateFeeStartDay tiene que ser un entero' })
+  @Min(1)
+  @Max(31)
+  lateFeeStartDay?: number | null
 }
 
 export class PartialSuretyDto extends PartialType(ContractSuretyInputDto) {}
@@ -441,6 +470,28 @@ export class ApplyRentUpdateDto {
       'newRent debe ser un monto con hasta 2 decimales (ej. "120000.00")',
   })
   newRent?: string
+
+  @ApiPropertyOptional({
+    maxLength: 500,
+    example: 'Acuerdo con el inquilino por refacciones a su cargo',
+    description:
+      'Obligatorio cuando viene newRent (ajuste manual): por qué se ajusta a mano.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string
+
+  @ApiPropertyOptional({
+    maxLength: 150,
+    example: 'Juan Pérez (propietario)',
+    description:
+      'Obligatorio cuando viene newRent (ajuste manual): quién lo autorizó.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  authorizedBy?: string
 }
 
 export class TerminateContractDto {
@@ -574,6 +625,11 @@ export class ContractCurrentBillingTermsDto extends ContractBillingTermsDto {
   declare lateFeePercentage: string
   @ApiProperty({ type: Number, example: 10 })
   declare lateFeeGraceDays: number
+  @ApiProperty({
+    example: 11,
+    description: 'Día del mes desde el que corre el punitorio (gracia + 1)',
+  })
+  lateFeeStartDay: number
   @ApiProperty({ description: 'El % de punitorio es el de la inmobiliaria' })
   inheritedLateFeePercentage: boolean
   @ApiProperty({ description: 'La gracia es la de la inmobiliaria' })
@@ -619,6 +675,18 @@ export class ContractRentUpdateDto {
   })
   fixedPercentage: string | null
   @ApiProperty({ type: String, nullable: true }) appliedById: string | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Ajuste manual: por qué se hizo (D-230)',
+  })
+  adjustmentReason: string | null
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Ajuste manual: quién lo autorizó (D-230)',
+  })
+  authorizedBy: string | null
   @ApiProperty() createdAt: Date
 }
 

@@ -212,8 +212,9 @@ export class CloseStatementHandler implements ICommandHandler<
     )
     assertOpen(statement)
     const closedById = this.references.requireUser()
+    let members: Settlement[] = []
     const closed = await this.prisma.transaction(async () => {
-      const members = await this.settlements.listAll({
+      members = await this.settlements.listAll({
         statementId: statement.id,
       })
       await this.statements.replaceTotals(
@@ -228,7 +229,7 @@ export class CloseStatementHandler implements ICommandHandler<
         closedById,
       })
     })
-    this.eventBus.publish(new StatementClosedEvent(closed))
+    this.eventBus.publish(new StatementClosedEvent(closed, members))
     return this.views.detail(closed)
   }
 }

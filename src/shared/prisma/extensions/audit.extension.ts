@@ -4,6 +4,7 @@ import { actorKindOf } from '@/shared/audit/audit-event'
 import { RequestContext } from '@/shared/context/request-context'
 import { createLogger } from '@/shared/logging/root-logger'
 import { behaviourFor, delegateKey } from './auditable-models'
+import { TransactionContext } from '../transaction-context'
 
 const logger = createLogger('Audit')
 
@@ -44,10 +45,27 @@ export type AuditDiff = Record<string, FieldChange>
  * eso, una lectura inmediatamente posterior puede no ver todavía la fila, y en
  * un script de vida corta el proceso puede terminar antes de que se escriba.
  */
-export function auditExtension(client: {
-  auditLog: { create: (args: any) => Promise<unknown> }
-  [key: string]: any
-}) {
+export function auditExtension(
+  client: {
+    auditLog: { create: (args: any) => Promise<unknown> }
+    [key: string]: any
+  },
+  options: { useTransaction?: boolean } = {},
+) {
+  // Dentro de `PrismaService.transaction()` el historial se escribe con el
+  // cliente de esa transacción. Con el cliente base cada escritura auditada
+  // pedía una segunda conexión del pool mientras la transacción retenía la
+  // suya: con tantas transacciones concurrentes como conexiones, todas
+  // esperaban una libre hasta el P2024. Además, el "antes" de un update se
+  // leía sin ver lo escrito por la propia transacción (el update no quedaba en
+  // el historial) y un rollback dejaba filas de cosas que no pasaron.
+  //
+  // Sólo el cliente con filtro de tenant participa: el `unscoped` nunca corre
+  // sus consultas dentro de la transacción, así que su historial tampoco.
+  const clientFor = (): any =>
+    (options.useTransaction ? TransactionContext.current<any>() : undefined) ??
+    client
+
   return Prisma.defineExtension({
     name: 'audit',
     query: {
@@ -72,7 +90,7 @@ export function auditExtension(client: {
               any
             >
 
-            await record(client, model, 'CREATE', created?.id, {
+            await record(clientFor(), model, 'CREATE', created?.id, {
               diff: onlyDefined(pick(created, behaviour.excludeFromDiff)),
               direction: 'after',
             })
@@ -82,9 +100,17 @@ export function auditExtension(client: {
 
           // ---------------------------------------------------------- UPDATE
           if (operation === 'update') {
-            const delegate = client[delegateKey(model as string)]
+            const db = clientFor()
+            const delegate = db[delegateKey(model as string)]
+            // El cliente de la transacción trae el filtro de soft delete; el
+            // `deletedAt: undefined` lo apaga para ver también lo borrado, que
+            // es lo que veía la lectura con el cliente base.
+            const where =
+              db !== client && params.where && !('deletedAt' in params.where)
+                ? { ...params.where, deletedAt: undefined }
+                : params.where
             const before = (await delegate.findFirst({
-              where: params.where,
+              where,
             })) as Record<string, any> | null
 
             const data = { ...(params.data ?? {}) }
@@ -102,7 +128,7 @@ export function auditExtension(client: {
             const diff = buildDiff(before, after, behaviour.excludeFromDiff)
             if (Object.keys(diff).length > 0) {
               await record(
-                client,
+                db,
                 model,
                 isSoftDelete ? 'DELETE' : 'UPDATE',
                 after?.id,
@@ -118,7 +144,7 @@ export function auditExtension(client: {
           if (operation === 'delete') {
             const deleted = (await query(args)) as Record<string, any>
 
-            await record(client, model, 'DELETE', deleted?.id, {
+            await record(clientFor(), model, 'DELETE', deleted?.id, {
               diff: onlyDefined(pick(deleted, behaviour.excludeFromDiff)),
               direction: 'before',
             })

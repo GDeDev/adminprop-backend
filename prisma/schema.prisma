@@ -53,24 +53,29 @@ model Tenant {
 
   // ---------------------------------------------------- Parámetros de negocio
   /// Honorarios de administración estándar, en % (PRD: honorarios_pct_estandar).
-  standardFeePercentage    Decimal  @default(5) @map("standard_fee_percentage") @db.Decimal(5, 2)
+  standardFeePercentage       Decimal  @default(5) @map("standard_fee_percentage") @db.Decimal(5, 2)
   /// Honorarios reducidos para propietarios con varias propiedades.
-  reducedFeePercentage     Decimal  @default(3) @map("reduced_fee_percentage") @db.Decimal(5, 2)
+  reducedFeePercentage        Decimal  @default(3) @map("reduced_fee_percentage") @db.Decimal(5, 2)
   /// Cantidad de propiedades activas desde la que aplica el honorario reducido.
-  reducedFeeThreshold      Int      @default(3) @map("reduced_fee_threshold")
+  reducedFeeThreshold         Int      @default(3) @map("reduced_fee_threshold")
   /// Días del mes sin punitorio (del 1 al N).
-  paymentGraceDays         Int      @default(10) @map("payment_grace_days")
-  /// Punitorio diario, en %, a partir del día siguiente a la gracia.
-  dailyLateFeePercentage   Decimal  @default(5) @map("daily_late_fee_percentage") @db.Decimal(5, 2)
+  paymentGraceDays            Int      @default(10) @map("payment_grace_days")
+  /// Punitorio diario por defecto, en %, a partir del día siguiente a la gracia.
+  /// Sin default de esquema (D-228): null = la inmobiliaria no fijó uno y cada
+  /// contrato tiene que indicar el suyo.
+  dailyLateFeePercentage      Decimal? @map("daily_late_fee_percentage") @db.Decimal(5, 2)
   /// Día del mes en que se generan las cuotas del mes siguiente.
-  installmentGenerationDay Int      @default(28) @map("installment_generation_day")
+  installmentGenerationDay    Int      @default(28) @map("installment_generation_day")
+  /// Saldo a favor: false = se aplica a mano (o al registrar un pago); true =
+  /// además se aplica solo al generar la cuota (Micaela #6, D-237).
+  autoApplyCreditOnGeneration Boolean  @default(false) @map("auto_apply_credit_on_generation")
   /// Día del mes en que sale el recordatorio de pago.
-  paymentReminderDay       Int      @default(1) @map("payment_reminder_day")
+  paymentReminderDay          Int      @default(1) @map("payment_reminder_day")
   /// Anticipación, en días, del aviso de vencimiento de contrato.
-  contractExpiryNoticeDays Int      @default(60) @map("contract_expiry_notice_days")
+  contractExpiryNoticeDays    Int      @default(60) @map("contract_expiry_notice_days")
   /// Día del mes en que se envía el informe mensual a propietarios.
-  monthlyReportDay         Int      @default(10) @map("monthly_report_day")
-  defaultCurrency          Currency @default(ARS) @map("default_currency")
+  monthlyReportDay            Int      @default(10) @map("monthly_report_day")
+  defaultCurrency             Currency @default(ARS) @map("default_currency")
 
   // ---------------------------------------------------- Datos legales (Fase 15)
   /// Razón social, CUIT y contacto: encabezado y pie de los PDFs y datos del
@@ -113,6 +118,7 @@ model Tenant {
 
   notificationLogs NotificationLog[]
   jobExecutions    JobExecution[]
+  idempotencyKeys  IdempotencyKey[]
 
   generatedDocuments          GeneratedDocument[]
   propertyInventories         PropertyInventory[]
@@ -166,6 +172,9 @@ model Tenant {
   feeReceivables        FeeReceivable[]
   feePayments           FeePayment[]
   feePaymentAllocations FeePaymentAllocation[]
+
+  siteSettings SiteSettings?
+  siteAssets   SiteAsset[]
 
   @@map("tenants")
 }
@@ -257,6 +266,7 @@ model AuditLog {
 
   @@index([tenantId, entity, entityId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, action, createdAt(sort: Desc)])
   @@index([userId])
   @@index([createdAt])
   @@index([correlationId])
@@ -532,35 +542,52 @@ enum PropertyStatus {
 /// Ubicación, tipo y amenities son ids de los maestros, **sin FK** a propósito:
 /// los módulos no comparten tablas (se validan con MasterDataFacade al guardar).
 /// Lo mismo el propietario (Fase 7).
+/// Operación con la que se publica una propiedad en el sitio web.
+enum ListingOperation {
+  SALE
+  RENT
+}
+
 model Property {
   id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId String @map("tenant_id") @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  address           String         @db.VarChar(200)
-  locationId        String         @map("location_id") @db.Uuid
-  propertyTypeId    String         @map("property_type_id") @db.Uuid
-  status            PropertyStatus @default(AVAILABLE)
+  address           String           @db.VarChar(200)
+  locationId        String           @map("location_id") @db.Uuid
+  propertyTypeId    String           @map("property_type_id") @db.Uuid
+  status            PropertyStatus   @default(AVAILABLE)
   /// Nullable: la propiedad se puede cargar antes que su propietario.
-  ownerId           String?        @map("owner_id") @db.Uuid
-  amenityIds        String[]       @default([]) @map("amenity_ids") @db.Uuid
+  ownerId           String?          @map("owner_id") @db.Uuid
+  amenityIds        String[]         @default([]) @map("amenity_ids") @db.Uuid
   /// Notas internas: nunca se exponen en el portal público.
-  notes             String?        @db.Text
+  notes             String?          @db.Text
   /// Contrato activo (módulo de contratos, sin FK). Lo fija y lo limpia el
   /// módulo de contratos por `PropertiesFacade`; acá sólo se lee (D-51).
-  activeContractId  String?        @map("active_contract_id") @db.Uuid
+  activeContractId  String?          @map("active_contract_id") @db.Uuid
   /// Último contrato que tuvo, activo o no. Nunca se limpia: es el "historial
   /// de contratos" que bloquea el borrado (spec Fase 6, 3.8).
-  lastContractId    String?        @map("last_contract_id") @db.Uuid
+  lastContractId    String?          @map("last_contract_id") @db.Uuid
   /// Precio de publicación en el portal público (Fase 22). Null = "Consultar".
-  listingPrice      Decimal?       @map("listing_price") @db.Decimal(14, 2)
+  listingPrice      Decimal?         @map("listing_price") @db.Decimal(14, 2)
   /// Moneda del precio de publicación; sin precio no se muestra.
-  listingCurrency   Currency       @default(ARS) @map("listing_currency")
+  listingCurrency   Currency         @default(ARS) @map("listing_currency")
   /// Texto que ve el público (máx. 2000). Distinto de las notas internas.
-  publicDescription String?        @map("public_description") @db.VarChar(2000)
+  publicDescription String?          @map("public_description") @db.VarChar(2000)
+  /// Datos de la ficha pública (sitio web de la inmobiliaria). Todos opcionales.
+  listingOperation  ListingOperation @default(RENT) @map("listing_operation")
+  bedrooms          Int?
+  bathrooms         Int?
+  rooms             Int?
+  totalAreaM2       Decimal?         @map("total_area_m2") @db.Decimal(10, 2)
+  coveredAreaM2     Decimal?         @map("covered_area_m2") @db.Decimal(10, 2)
+  ageYears          Int?             @map("age_years")
+  /// Sin uso en la v1 del sitio; se guardan para el mapa futuro.
+  latitude          Decimal?         @db.Decimal(9, 6)
+  longitude         Decimal?         @db.Decimal(9, 6)
   /// Marca de la migración (Fase 21, A-77): cargada con datos dudosos (p. ej. sin
   /// ubicación) y a la espera de que alguien la revise. Se limpia a mano.
-  needsReview       Boolean        @default(false) @map("needs_review")
+  needsReview       Boolean          @default(false) @map("needs_review")
 
   photos PropertyPhoto[]
 
@@ -657,6 +684,9 @@ model Owner {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, bankCbu])
   @@index([tenantId, deletedAt])
+  /// Único parcial `WHERE portal_user_id IS NOT NULL` (owners_portal_user_id_key)
+  /// sólo en SQL: Prisma no declara índices parciales.
+  @@index([portalUserId])
   @@map("owners")
 }
 
@@ -755,6 +785,9 @@ model Renter {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, guarantorId])
   @@index([tenantId, deletedAt])
+  /// Único parcial `WHERE portal_user_id IS NOT NULL` (renters_portal_user_id_key)
+  /// sólo en SQL: Prisma no declara índices parciales.
+  @@index([portalUserId])
   @@map("renters")
 }
 
@@ -960,8 +993,16 @@ model ContractRentUpdate {
   /// Usuario que lo aplicó. Null si lo aplicó el cron (Fase 13).
   appliedById String? @map("applied_by_id") @db.Uuid
 
+  /// Ajuste manual (D-230, Micaela #8): por qué se hizo y quién lo autorizó
+  /// (texto libre: puede ser el propietario). Null en los aumentos automáticos
+  /// y en los anteriores a D-230.
+  adjustmentReason String? @map("adjustment_reason") @db.VarChar(500)
+  authorizedBy     String? @map("authorized_by") @db.VarChar(150)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
+  /// Un aumento por fecha: el job y el doble click no duplican (M7).
+  @@unique([contractId, effectiveFrom])
   @@index([tenantId, contractId, effectiveFrom])
   @@map("contract_rent_updates")
 }
@@ -1300,7 +1341,9 @@ model Payment {
   receiptPdfKey String? @map("receipt_pdf_key") @db.VarChar(500)
   receiptPdfUrl String? @map("receipt_pdf_url") @db.VarChar(1000)
 
-  registeredById String  @map("registered_by_id") @db.Uuid
+  /// Null cuando lo registró el sistema: la aplicación automática de saldo a
+  /// favor al generar la cuota, sin usuario en el contexto (D-237).
+  registeredById String? @map("registered_by_id") @db.Uuid
   notes          String? @db.Text
 
   confirmedById String?   @map("confirmed_by_id") @db.Uuid
@@ -1324,6 +1367,7 @@ model Payment {
   @@index([tenantId, contractId, paidAt])
   @@index([tenantId, renterId])
   @@index([tenantId, status, receivedBy])
+  @@index([tenantId, status, paidAt])
   @@index([tenantId, creditId])
   @@index([tenantId, settlementId])
   @@map("payments")
@@ -1340,14 +1384,19 @@ model DepositReturn {
 
   contractId String @map("contract_id") @db.Uuid
 
-  returnedAt      DateTime      @map("returned_at") @db.Date
+  returnedAt      DateTime          @map("returned_at") @db.Date
   /// Copiados del contrato al devolver.
-  depositAmount   Decimal       @map("deposit_amount") @db.Decimal(14, 2)
-  depositCurrency Currency      @map("deposit_currency")
-  returnedAmount  Decimal       @map("returned_amount") @db.Decimal(14, 2)
+  depositAmount   Decimal           @map("deposit_amount") @db.Decimal(14, 2)
+  depositCurrency Currency          @map("deposit_currency")
+  /// Modo del contrato al devolver (D-227): decide el monto de referencia.
+  mode            DepositReturnMode @default(FIXED)
+  /// Monto del que se descuentan las deducciones (según `mode`); no tiene
+  /// por qué ser el depósito recibido.
+  referenceAmount Decimal           @default(0) @map("reference_amount") @db.Decimal(14, 2)
+  returnedAmount  Decimal           @map("returned_amount") @db.Decimal(14, 2)
   method          PaymentMethod
-  notes           String?       @db.Text
-  registeredById  String        @map("registered_by_id") @db.Uuid
+  notes           String?           @db.Text
+  registeredById  String            @map("registered_by_id") @db.Uuid
 
   deductions DepositReturnDeduction[]
 
@@ -1456,7 +1505,8 @@ model RenterCredit {
 
   @@index([tenantId, renterId, status])
   @@index([tenantId, contractId])
-  @@index([tenantId, originPaymentId])
+  /// Un pago genera un solo saldo a favor: un reintento no lo duplica (M7).
+  @@unique([tenantId, originPaymentId])
   @@map("renter_credits")
 }
 
@@ -1587,6 +1637,7 @@ model Settlement {
 
   /// Una sola PENDING por contrato: índice único parcial en la migración
   /// `add_settlements`.
+  @@unique([tenantId, contractId, period, sequence])
   @@index([tenantId, contractId, period])
   @@index([tenantId, ownerId, status])
   @@index([tenantId, propertyId])
@@ -1741,15 +1792,20 @@ model OwnerStatementTotal {
   statementId String         @map("statement_id") @db.Uuid
   statement   OwnerStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
 
-  currency         Currency
-  rentTotal        Decimal  @map("rent_total") @db.Decimal(14, 2)
-  lateFeeTotal     Decimal  @map("late_fee_total") @db.Decimal(14, 2)
-  chargesTotal     Decimal  @map("charges_total") @db.Decimal(14, 2)
-  feeTotal         Decimal  @map("fee_total") @db.Decimal(14, 2)
-  expensesTotal    Decimal  @map("expenses_total") @db.Decimal(14, 2)
-  adjustmentsTotal Decimal  @map("adjustments_total") @db.Decimal(14, 2)
-  netTotal         Decimal  @map("net_total") @db.Decimal(14, 2)
-  transferredTotal Decimal  @map("transferred_total") @db.Decimal(14, 2)
+  currency              Currency
+  rentTotal             Decimal  @map("rent_total") @db.Decimal(14, 2)
+  lateFeeTotal          Decimal  @map("late_fee_total") @db.Decimal(14, 2)
+  chargesTotal          Decimal  @map("charges_total") @db.Decimal(14, 2)
+  feeTotal              Decimal  @map("fee_total") @db.Decimal(14, 2)
+  expensesTotal         Decimal  @map("expenses_total") @db.Decimal(14, 2)
+  adjustmentsTotal      Decimal  @map("adjustments_total") @db.Decimal(14, 2)
+  /// Con signo (negativo). `withholdingsTotal + advancesTotal +
+  /// otherAdjustmentsTotal = adjustmentsTotal` (D-236).
+  withholdingsTotal     Decimal  @default(0) @map("withholdings_total") @db.Decimal(14, 2)
+  advancesTotal         Decimal  @default(0) @map("advances_total") @db.Decimal(14, 2)
+  otherAdjustmentsTotal Decimal  @default(0) @map("other_adjustments_total") @db.Decimal(14, 2)
+  netTotal              Decimal  @map("net_total") @db.Decimal(14, 2)
+  transferredTotal      Decimal  @map("transferred_total") @db.Decimal(14, 2)
 
   @@unique([statementId, currency])
   @@index([tenantId, statementId])
@@ -1857,6 +1913,7 @@ model FeePaymentAllocation {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
+  @@unique([feePaymentId, feeReceivableId])
   @@index([tenantId, feePaymentId])
   @@index([tenantId, feeReceivableId])
   @@map("fee_payment_allocations")
@@ -1907,8 +1964,16 @@ model JobExecution {
   triggeredBy       JobTrigger @default(SCHEDULE) @map("triggered_by")
   triggeredByUserId String?    @map("triggered_by_user_id") @db.Uuid
 
+  /// Número de corrida del día (0, 1, ...) de las programadas. Junto con job,
+  /// tenant y día es único (índice parcial `job_executions_scheduled_slot_key`,
+  /// que vive sólo en SQL): así dos réplicas no encolan la misma corrida.
+  slot Int?
+
   @@index([tenantId, job, scheduledFor])
   @@index([job, startedAt])
+  /// `countScheduled` filtra sólo por día: sin esto recorre toda la tabla
+  /// cada 10 minutos en cada instancia.
+  @@index([scheduledFor])
   @@map("job_executions")
 }
 
@@ -2744,4 +2809,111 @@ model ValuationRequest {
   @@index([tenantId, createdAt])
   @@index([tenantId, propertyId, inputHash, createdAt])
   @@map("valuation_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Sitio web de la inmobiliaria (generador de sitios)
+// ---------------------------------------------------------------------------
+
+enum SiteTemplateKey {
+  CLASSIC
+  MODERN
+  LUXURY
+}
+
+/// Configuración del sitio web de una inmobiliaria (una fila por tenant). El
+/// editor escribe `draft`; el sitio público lee `published`, que se copia del
+/// borrador al publicar. Ambos son el `SiteSettingsDraft` del contrato.
+///
+/// ⚠️ ÍNDICE PARCIAL QUE VIVE SOLO EN SQL: `site_settings_custom_domain_verified_key`
+/// (`UNIQUE (custom_domain) WHERE custom_domain_verified_at IS NOT NULL`, creado a
+/// mano en la migración `add_site_domain_verification`). Prisma no puede declarar
+/// índices parciales, así que NO aparece en este schema, y `prisma migrate dev`
+/// podría proponer borrarlo como "deriva". No lo "arregles": sin ese índice dos
+/// inmobiliarias podrían verificar el mismo dominio. Si una migración generada lo
+/// elimina, hay que sacar esa línea del SQL antes de aplicarla. Las migraciones de
+/// este repo se generan con `migrate diff` y se aplican con `migrate deploy`.
+model SiteSettings {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @unique @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  enabled                Boolean         @default(false)
+  /// Espejo de `draft.template`; lo mantiene la aplicación.
+  templateKey            SiteTemplateKey @default(CLASSIC) @map("template_key")
+  /// Único global: minúsculas, [a-z0-9-], sin reservados.
+  subdomain              String?         @unique @db.VarChar(63)
+  /// Único solo entre los dominios VERIFICADOS (ver el aviso del modelo: es un
+  /// índice parcial que existe únicamente en SQL; la migración
+  /// `add_site_domain_verification`): reservar un dominio sin demostrar que es
+  /// tuyo no bloquea a nadie.
+  customDomain           String?         @map("custom_domain") @db.VarChar(253)
+  /// Cuándo se comprobó el registro TXT del dominio; solo un dominio verificado
+  /// resuelve el sitio.
+  customDomainVerifiedAt DateTime?       @map("custom_domain_verified_at") @db.Timestamptz(3)
+
+  draft         Json
+  published     Json?
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(3)
+  publishedById String?   @map("published_by_id") @db.Uuid
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([customDomain])
+  @@map("site_settings")
+}
+
+/// Imagen subida desde el editor del sitio. Sirve para saber qué URLs son
+/// nuestras al validar el contenido.
+model SiteAsset {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  storageKey  String @map("storage_key") @db.VarChar(500)
+  url         String @db.VarChar(1000)
+  contentType String @map("content_type") @db.VarChar(100)
+  sizeBytes   Int    @map("size_bytes")
+  width       Int?
+  height      Int?
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+
+  @@index([tenantId, url])
+  @@map("site_assets")
+}
+
+// ---------------------------------------------------------------------------
+// Idempotencia de POST (auditoría de datos, A3)
+// ---------------------------------------------------------------------------
+
+/// Clave `Idempotency-Key` de un POST que mueve dinero. Se escribe en la misma
+/// transacción que el pago: o están las dos filas o no hay ninguna. Dentro de
+/// `scope` y del tenant, la misma clave con el mismo pedido devuelve el
+/// resultado de la primera vez en vez de repetir el efecto; con otro pedido es
+/// un error. Vence (`expiresAt`): después vale como clave nueva.
+model IdempotencyKey {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Qué operación (`billing.register-payment`): la misma clave en dos
+  /// operaciones distintas no se pisa.
+  scope       String   @db.VarChar(60)
+  key         String   @db.VarChar(128)
+  /// SHA-256 del pedido: detecta la reutilización de la clave con otro cuerpo.
+  requestHash String   @map("request_hash") @db.VarChar(64)
+  /// Con qué se puede reconstruir la respuesta (ids creados). Null mientras la
+  /// primera ejecución no terminó.
+  response    Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, scope, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
 }

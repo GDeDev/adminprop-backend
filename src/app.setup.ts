@@ -20,6 +20,7 @@ import { Logger } from 'nestjs-pino'
 import { createLogger } from '@/shared/logging/root-logger'
 import { GlobalExceptionFilter } from './shared/infra/filters/global-exception.filter'
 import { PrismaExceptionFilter } from './shared/infra/filters/prisma-exception.filter'
+import { noStoreForPrivateApi } from './shared/infra/http/no-store.middleware'
 import { CustomValidationPipe } from './shared/infra/pipes/custom-validation.pipe'
 
 /**
@@ -94,6 +95,8 @@ function configureSecurity(
     }),
   )
 
+  app.use(noStoreForPrivateApi)
+
   // CORS cerrado por defecto: sin CORS_ORIGINS no se habilita ningún origen.
   // El `app.enableCors()` sin argumentos que traía el template dejaba entrar a
   // cualquier sitio.
@@ -117,6 +120,8 @@ function configureSecurity(
         'Authorization',
         'x-correlation-id',
         'x-request-id',
+        // El navegador hace preflight por este header al registrar un pago.
+        'Idempotency-Key',
       ],
       exposedHeaders: ['x-correlation-id', 'Retry-After'],
       maxAge: 86_400,

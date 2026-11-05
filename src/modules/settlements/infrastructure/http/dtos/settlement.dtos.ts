@@ -190,6 +190,22 @@ export class SettlementSummaryDto {
   @ApiProperty({ type: String }) expensesTotal: string
   @ApiProperty({ type: String, description: 'Con signo' })
   adjustmentsTotal: string
+  @ApiProperty({
+    type: String,
+    description: 'Retenciones vigentes, con signo (negativo)',
+  })
+  withholdingsTotal: string
+  @ApiProperty({
+    type: String,
+    description: 'Adelantos al propietario vigentes, con signo (negativo)',
+  })
+  advancesTotal: string
+  @ApiProperty({
+    type: String,
+    description:
+      'Otras deducciones y créditos vigentes, con signo. Las tres columnas suman `adjustmentsTotal`',
+  })
+  otherAdjustmentsTotal: string
   @ApiProperty({ type: String, description: 'Puede ser negativo' })
   netAmount: string
   @ApiProperty({ type: String }) transferredTotal: string

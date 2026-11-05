@@ -82,16 +82,21 @@ export function incomeTable(
     money('Honorarios cobrados'),
     money('Neto liquidado'),
     money('Neto transferido'),
+    // Al final para no mover las columnas que ya usa quien exporta (D-235).
+    money('Cobrado por la inmobiliaria'),
+    money('Percibido por el propietario'),
   ]
   const fields = [
-    'rentCollected',
-    'lateFeesCollected',
-    'chargesCollected',
-    'feesAccrued',
-    'feesCollected',
-    'netSettled',
-    'netTransferred',
-  ] as const
+    (row: IncomeReport['rows'][number]) => row.rentCollected,
+    (row: IncomeReport['rows'][number]) => row.lateFeesCollected,
+    (row: IncomeReport['rows'][number]) => row.chargesCollected,
+    (row: IncomeReport['rows'][number]) => row.feesAccrued,
+    (row: IncomeReport['rows'][number]) => row.feesCollected,
+    (row: IncomeReport['rows'][number]) => row.netSettled,
+    (row: IncomeReport['rows'][number]) => row.netTransferred,
+    (row: IncomeReport['rows'][number]) => row.collectedByReceiver.agency.total,
+    (row: IncomeReport['rows'][number]) => row.collectedByReceiver.owner.total,
+  ]
   return {
     title: 'Ingresos y honorarios',
     meta: metaOf(report, generatedOn),
@@ -99,7 +104,7 @@ export function incomeTable(
     rows: report.rows.map((row) => [
       row.period,
       row.currency,
-      ...fields.map((field) => row[field]),
+      ...fields.map((field) => field(row)),
     ]),
     totalRows: CURRENCIES.flatMap((currency) => {
       const rows = report.rows.filter((row) => row.currency === currency)
@@ -109,7 +114,7 @@ export function incomeTable(
           'Total',
           currency,
           ...fields.map((field) =>
-            toMoneyString(addMoney('0', ...rows.map((row) => row[field]))),
+            toMoneyString(addMoney('0', ...rows.map((row) => field(row)))),
           ),
         ],
       ]

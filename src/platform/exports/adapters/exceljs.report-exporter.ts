@@ -109,8 +109,10 @@ function csvLine(cells: ExportCell[]): string {
 
 function csvCell(cell: ExportCell): string {
   const text = cell === null ? '' : String(cell)
-  // Un valor que empieza con = + @ lo evaluaría Excel como fórmula; los
-  // montos negativos son números legítimos y se dejan pasar.
-  const safe = /^[=+@]/.test(text) || /^-(?!\d)/.test(text) ? `'${text}` : text
+  // Un valor que empieza con = + @ (o con tab / retorno de carro, que Excel
+  // ignora antes de evaluar) lo trataría como fórmula; los montos negativos
+  // son números legítimos y se dejan pasar.
+  const safe =
+    /^[=+@\t\r]/.test(text) || /^-(?!\d)/.test(text) ? `'${text}` : text
   return /[;"\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
 }

@@ -125,8 +125,8 @@ Ninguna nueva. Cambian dos defaults (no hay que tocar Doppler):
   inquilino (facade de auth) y guardar el vínculo usuario ↔ ficha.
 - **Fase 14**: invitación por email al crear un usuario (hoy el admin define
   la contraseña inicial).
-- **Fase 16**: el build con SWC deja `dist/main.js`, pero `start:prod`,
-  `start:qa`, `start:production` y el `CMD` del Dockerfile apuntan a
-  `dist/src/main`. Es previo a esta fase; hay que corregirlo antes del deploy.
+- ~~**Fase 16**: el build con SWC deja `dist/main.js`, pero `start:prod`, `start:qa`,
+  `start:production` y el `CMD` del Dockerfile apuntaban a `dist/src/main`.~~
+  **Resuelto** (rama `fix/arranque-local-backend`): ahora apuntan a `dist/main`.
 - Documentar el sobre `{ success, message, data }` en las respuestas de un
   solo objeto del OpenAPI (D-24).

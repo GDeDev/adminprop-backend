@@ -270,6 +270,11 @@ describe('Portal público (e2e, Postgres)', () => {
         currency: 'ARS',
         coverPhotoUrl: null,
         amenities: [],
+        // Campos aditivos del sitio web: una propiedad sin datos sale en alquiler.
+        operation: 'RENT',
+        rooms: null,
+        coveredAreaM2: null,
+        ageYears: null,
       })
       // Nada de propietario, contrato ni notas internas.
       const text = JSON.stringify(response.body)
@@ -304,6 +309,35 @@ describe('Portal público (e2e, Postgres)', () => {
           { label: 'Ubicación', value: 'Tolosa, La Plata' },
         ],
       })
+    })
+
+    it('la ficha publica las coordenadas aproximadas (3 decimales) y null si no hay', async () => {
+      const located = await createProperty({
+        address: 'Con mapa',
+        latitude: -34.603722,
+        longitude: -58.381592,
+      })
+      const bare = await createProperty({ address: 'Sin mapa' })
+
+      const withMap = await pub
+        .get(`/public/tenant-a/properties/${located.id}`)
+        .expect(200)
+      const withoutMap = await pub
+        .get(`/public/tenant-a/properties/${bare.id}`)
+        .expect(200)
+      const list = await pub.get('/public/tenant-a/properties').expect(200)
+
+      expect(withMap.body.data).toMatchObject({
+        latitude: -34.604,
+        longitude: -58.382,
+      })
+      expect(withoutMap.body.data).toMatchObject({
+        latitude: null,
+        longitude: null,
+      })
+      // El valor exacto no sale por ningún lado, ni en el listado.
+      expect(JSON.stringify(list.body)).not.toContain('34.603722')
+      expect(JSON.stringify(withMap.body)).not.toContain('34.603722')
     })
 
     it('una propiedad borrada o inexistente es el mismo 404', async () => {
@@ -376,6 +410,90 @@ describe('Portal público (e2e, Postgres)', () => {
         total: 3,
         totalPages: 2,
         hasNextPage: true,
+      })
+    })
+
+    describe('orden (sort)', () => {
+      const titles = async (query: string) =>
+        (
+          (await pub.get(`/public/tenant-a/properties?${query}`).expect(200))
+            .body.data.data as { title: string }[]
+        ).map((p) => p.title)
+
+      const seed = async () => {
+        await createProperty({ address: 'Sin precio 1' })
+        await createProperty({ address: 'Media', listingPrice: '200000' })
+        await createProperty({ address: 'Cara', listingPrice: '900000' })
+        await createProperty({ address: 'Barata', listingPrice: '50000' })
+        await createProperty({ address: 'Sin precio 2' })
+      }
+
+      it('sin sort es recent: más nuevas primero', async () => {
+        await seed()
+        const recent = await titles('')
+        expect(recent).toEqual([
+          'Sin precio 2',
+          'Barata',
+          'Cara',
+          'Media',
+          'Sin precio 1',
+        ])
+        expect(await titles('sort=recent')).toEqual(recent)
+      })
+
+      it('price_asc y price_desc ordenan por monto y dejan las sin precio al final', async () => {
+        await seed()
+        // Entre las sin precio manda createdAt desc y después id: determinista.
+        expect(await titles('sort=price_asc')).toEqual([
+          'Barata',
+          'Media',
+          'Cara',
+          'Sin precio 2',
+          'Sin precio 1',
+        ])
+        expect(await titles('sort=price_desc')).toEqual([
+          'Cara',
+          'Media',
+          'Barata',
+          'Sin precio 2',
+          'Sin precio 1',
+        ])
+      })
+
+      it('compara montos como Decimal, no como texto ni float', async () => {
+        await createProperty({ address: 'Nueve', listingPrice: '9' })
+        await createProperty({ address: 'Diez', listingPrice: '10' })
+        await createProperty({ address: 'Centavos', listingPrice: '9.99' })
+        expect(await titles('sort=price_asc')).toEqual([
+          'Nueve',
+          'Centavos',
+          'Diez',
+        ])
+      })
+
+      it('pagina sin repetir ni omitir filas, incluso con precios iguales', async () => {
+        for (const n of [1, 2, 3, 4, 5]) {
+          await createProperty({ address: `Igual ${n}`, listingPrice: '1000' })
+        }
+        await createProperty({ address: 'Sin precio' })
+        for (const sort of ['price_asc', 'price_desc']) {
+          const seen: string[] = []
+          for (const page of [1, 2, 3]) {
+            seen.push(...(await titles(`sort=${sort}&page=${page}&limit=2`)))
+          }
+          expect(new Set(seen).size).toBe(6)
+          expect(seen[5]).toBe('Sin precio')
+        }
+      })
+
+      it('se combina con los filtros y rechaza valores inválidos', async () => {
+        await seed()
+        expect(
+          await titles('sort=price_desc&priceFrom=100000&currency=ARS'),
+        ).toEqual(['Cara', 'Media'])
+        await pub.get('/public/tenant-a/properties?sort=price').expect(400)
+        await pub.get('/public/tenant-a/properties?sort=PRICE_ASC').expect(400)
+        await pub.get('/public/tenant-a/properties?sort=').expect(400)
       })
     })
 
@@ -632,6 +750,103 @@ describe('Portal público (e2e, Postgres)', () => {
     })
   })
 
+  describe('datos de la ficha para el sitio web', () => {
+    it('se cargan en el alta y la edición, y salen en la API pública sin romper su forma', async () => {
+      const created = await createProperty({
+        listingOperation: 'SALE',
+        listingPrice: '120000',
+        listingCurrency: 'USD',
+        bedrooms: 3,
+        bathrooms: 2,
+        rooms: 4,
+        totalAreaM2: 85.5,
+        coveredAreaM2: 70,
+        ageYears: 12,
+      })
+      const bare = await createProperty({ address: 'Sin datos 1' })
+
+      const detail = await pub
+        .get(`/public/tenant-a/properties/${created.id}`)
+        .expect(200)
+      expect(detail.body.data).toMatchObject({
+        bedrooms: 3,
+        bathrooms: 2,
+        areaM2: 85.5,
+        operation: 'SALE',
+        rooms: 4,
+        coveredAreaM2: 70,
+        ageYears: 12,
+      })
+      // Sin coordenadas cargadas la ficha las trae en null (D-226).
+      expect(detail.body.data).toMatchObject({
+        latitude: null,
+        longitude: null,
+      })
+
+      // Una propiedad vieja (sin datos) se publica en alquiler y con null.
+      const old = await pub
+        .get(`/public/tenant-a/properties/${bare.id}`)
+        .expect(200)
+      expect(old.body.data).toMatchObject({
+        bedrooms: null,
+        areaM2: null,
+        operation: 'RENT',
+      })
+
+      await api(adminToken)
+        .patch(`/properties/${bare.id}`)
+        .send({ bedrooms: 1, listingOperation: 'SALE' })
+        .expect(200)
+      const edited = await api(adminToken)
+        .get(`/properties/${bare.id}`)
+        .expect(200)
+      expect(edited.body.data).toMatchObject({
+        bedrooms: 1,
+        listingOperation: 'SALE',
+        totalAreaM2: null,
+      })
+    })
+
+    it('filtra por operación, dormitorios, baños e ids', async () => {
+      const sale = await createProperty({
+        listingOperation: 'SALE',
+        bedrooms: 3,
+        bathrooms: 2,
+      })
+      const rent = await createProperty({ bedrooms: 1, bathrooms: 1 })
+
+      const ids = async (query: string) =>
+        (
+          (await pub.get(`/public/tenant-a/properties?${query}`).expect(200))
+            .body.data.data as { id: string }[]
+        ).map((p) => p.id)
+
+      expect(await ids('operation=SALE')).toEqual([sale.id])
+      expect(await ids('operation=RENT')).toEqual([rent.id])
+      expect(await ids('bedrooms=2')).toEqual([sale.id])
+      expect(await ids('bathrooms=1')).toHaveLength(2)
+      expect(await ids(`ids=${rent.id}`)).toEqual([rent.id])
+
+      await setStatus(rent.id, 'MAINTENANCE')
+      expect(await ids(`ids=${rent.id}`)).toEqual([])
+    })
+
+    it('rechaza valores fuera de rango', async () => {
+      await api(adminToken)
+        .post('/properties')
+        .send({
+          address: 'X 1',
+          locationId: refs.tolosa,
+          propertyTypeId: refs.casa,
+          bedrooms: -1,
+          latitude: 120,
+        })
+        .expect(400)
+      await pub.get('/public/tenant-a/properties?operation=NOPE').expect(400)
+      await pub.get('/public/tenant-a/properties?bedrooms=abc').expect(400)
+    })
+  })
+
   describe('rate limiting de las lecturas', () => {
     let throttled: INestApplication
     const original = process.env.THROTTLE_ENABLED
@@ -644,6 +859,17 @@ describe('Portal público (e2e, Postgres)', () => {
     afterAll(async () => {
       await throttled.close()
       process.env.THROTTLE_ENABLED = original
+    })
+
+    it('el servidor de sitios (con el secreto compartido) no cuenta contra el tope de las lecturas', async () => {
+      let blocked = 0
+      for (let i = 0; i < 80; i += 1) {
+        const response = await request(throttled.getHttpServer())
+          .get('/api/v1/public/tenant-a/filters')
+          .set('X-Sites-Secret', 'secreto-compartido-e2e')
+        if (response.status === 429) blocked += 1
+      }
+      expect(blocked).toBe(0)
     })
 
     it('frena a una IP que pide demasiado y avisa con Retry-After', async () => {

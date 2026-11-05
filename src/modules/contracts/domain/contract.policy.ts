@@ -24,6 +24,8 @@ import {
 } from './contract'
 import {
   BillingTermsNotAfterLatestException,
+  LateFeePercentageRequiredException,
+  ManualRentAdjustmentJustificationException,
   BillingTermsOutOfRangeException,
   ContractDatesInvalidException,
   InvalidBillingTermsException,
@@ -211,6 +213,50 @@ export const ContractPolicy = {
     }
   },
 
+  /**
+   * "Desde cuándo corre" el punitorio (D-228): el contrato puede indicar el
+   * día del mes de inicio (`lateFeeStartDay`, 1 a 31) en vez de los días de
+   * gracia; es lo mismo dicho al revés (inicio = gracia + 1), así que se
+   * guarda como gracia y las cuotas y contratos existentes no cambian. Los
+   * dos a la vez son ambiguos y se rechazan. Devuelve la gracia a guardar
+   * (`undefined`/`null` conservan su significado: sin cambio / heredar).
+   */
+  resolveGraceInput(
+    graceDays: number | null | undefined,
+    startDay: number | null | undefined,
+  ): number | null | undefined {
+    if (startDay === undefined || startDay === null) return graceDays
+    if (graceDays !== undefined && graceDays !== null) {
+      throw new InvalidBillingTermsException(
+        'lateFeeStartDay',
+        'no se combina con lateFeeGraceDays: indicá uno solo',
+      )
+    }
+    if (!Number.isInteger(startDay) || startDay < 1 || startDay > 31) {
+      throw new InvalidBillingTermsException(
+        'lateFeeStartDay',
+        'tiene que ser un día del mes entre 1 y 31',
+      )
+    }
+    return startDay - 1
+  },
+
+  /**
+   * Un contrato necesita un punitorio de dónde sacarlo: el suyo o el de la
+   * inmobiliaria (D-228, Micaela #3: no hay un 5 % obligatorio por defecto).
+   */
+  assertLateFeeSource(
+    lateFeePercentage: string | null,
+    defaults: LateFeeDefaults,
+  ): void {
+    if (
+      lateFeePercentage === null &&
+      defaults.dailyLateFeePercentage === null
+    ) {
+      throw new LateFeePercentageRequiredException()
+    }
+  },
+
   /** Completa el punitorio con el del tenant donde el contrato no lo fijó. */
   resolveBillingTerms(
     terms: BillingTerms,
@@ -218,13 +264,56 @@ export const ContractPolicy = {
   ): ResolvedBillingTerms {
     return {
       ...terms,
+      // Sin ninguno de los dos (no debería pasar: las altas lo exigen) no hay
+      // punitorio, antes que inventar uno.
       lateFeePercentage:
         terms.lateFeePercentage ??
-        toMoneyString(defaults.dailyLateFeePercentage),
+        toMoneyString(defaults.dailyLateFeePercentage ?? '0'),
       lateFeeGraceDays: terms.lateFeeGraceDays ?? defaults.paymentGraceDays,
+      lateFeeStartDay:
+        (terms.lateFeeGraceDays ?? defaults.paymentGraceDays) + 1,
       inheritedLateFeePercentage: terms.lateFeePercentage === null,
       inheritedLateFeeGraceDays: terms.lateFeeGraceDays === null,
     }
+  },
+
+  /**
+   * Un ajuste manual del alquiler (Micaela #8: "ajustes manuales autorizados")
+   * deja constancia de por qué se hizo y quién lo autorizó (D-230).
+   */
+  normalizeManualAdjustment(
+    reason: string | null | undefined,
+    authorizedBy: string | null | undefined,
+  ): { adjustmentReason: string; authorizedBy: string } {
+    const clean = (value: string | null | undefined) =>
+      (value ?? '').trim().replace(/\s+/g, ' ')
+    const adjustmentReason = clean(reason)
+    const authorizer = clean(authorizedBy)
+    if (adjustmentReason.length === 0) {
+      throw new ManualRentAdjustmentJustificationException(
+        'reason',
+        'es obligatorio',
+      )
+    }
+    if (authorizer.length === 0) {
+      throw new ManualRentAdjustmentJustificationException(
+        'authorizedBy',
+        'es obligatorio',
+      )
+    }
+    if (adjustmentReason.length > 500) {
+      throw new ManualRentAdjustmentJustificationException(
+        'reason',
+        'admite hasta 500 caracteres',
+      )
+    }
+    if (authorizer.length > 150) {
+      throw new ManualRentAdjustmentJustificationException(
+        'authorizedBy',
+        'admite hasta 150 caracteres',
+      )
+    }
+    return { adjustmentReason, authorizedBy: authorizer }
   },
 
   /** Un aumento a mano tiene que traer un monto mayor que cero. */

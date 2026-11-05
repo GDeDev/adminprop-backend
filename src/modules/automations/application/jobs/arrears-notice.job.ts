@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 
+import { isPositiveMoney } from '@/shared/money'
 import { BillingFacade } from '@/modules/billing/public'
 import { PropertiesFacade } from '@/modules/properties/public'
 import { RentersFacade } from '@/modules/renters/public'
@@ -32,7 +33,7 @@ export class ArrearsNoticeJob implements AutomationJob {
 
   async run(context: JobContext): Promise<JobOutcome> {
     const overdue = (await this.billing.listOverdue(context.today)).filter(
-      (installment) => Number(installment.rentBalance) > 0,
+      (installment) => isPositiveMoney(installment.rentBalance),
     )
     if (overdue.length === 0) return skipped('Ninguna cuota en mora')
 

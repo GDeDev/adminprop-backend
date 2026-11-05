@@ -151,6 +151,30 @@ export interface ListingsConfig {
   }
 }
 
+export interface SitesConfig {
+  /** Dominio de los subdominios de sitios, en minúsculas; null si no hay. */
+  baseDomain: string | null
+  protocol: 'http' | 'https'
+  /** Base del acceso por slug (`/_s/<slug>`); null en producción. */
+  devUrl: string | null
+  /** Hosts https permitidos para imágenes además de nuestro storage. */
+  allowedImageHosts: string[]
+  /** Secreto del token de vista previa. */
+  previewSecret: string
+  /** Exige verificar con un TXT el dominio propio (default true). */
+  domainVerification: boolean
+  /**
+   * Secretos válidos para `X-Sites-Secret`: quien manda uno de ellos no cuenta
+   * contra el tope por IP de las lecturas públicas del sitio. Son
+   * `SITES_SERVER_SECRET` y `SITES_REVALIDATE_SECRET` (el que realmente manda
+   * `apps/sites`), los que estén definidos y no vacíos. Vacío = nadie se saltea
+   * el tope.
+   */
+  serverSecrets: string[]
+  /** Aviso a `apps/sites` al publicar; sin URL o secreto no se avisa. */
+  revalidate: { url: string; secret: string } | null
+}
+
 export interface Configuration {
   app: AppConfig
   database: DatabaseConfig
@@ -169,6 +193,7 @@ export interface Configuration {
   valuation: ValuationConfig
   security: SecurityConfig
   listings: ListingsConfig
+  sites: SitesConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -216,7 +241,7 @@ function parseCorsOrigins(raw: string | undefined): string[] | boolean {
  * por acá vía `ConfigService`.
  */
 export function configuration(): Configuration {
-  const env = (process.env.NODE_ENV as Environment) ?? Environment.Development
+  const env = (process.env.NODE_ENV || Environment.Development) as Environment
   const isProduction = env === Environment.Production
   const isDevelopment = env === Environment.Development
 
@@ -228,8 +253,12 @@ export function configuration(): Configuration {
       isProduction,
       isDevelopment,
       logLevel: str(process.env.LOG_LEVEL, isProduction ? 'info' : 'debug'),
-      // En producción el Swagger queda apagado salvo que lo pidas explícitamente.
-      swaggerEnabled: bool(process.env.SWAGGER_ENABLED, !isProduction),
+      // Swagger sólo arranca solo en desarrollo y test. En cualquier otro entorno
+      // (qa incluido) queda apagado salvo que lo pidas con SWAGGER_ENABLED.
+      swaggerEnabled: bool(
+        process.env.SWAGGER_ENABLED,
+        env === Environment.Development || env === Environment.Test,
+      ),
       bodyLimit: str(process.env.BODY_LIMIT, '1mb'),
       trustProxy: bool(process.env.TRUST_PROXY, isProduction),
     },
@@ -375,6 +404,44 @@ export function configuration(): Configuration {
         TokkoSourceProvider.Fixture,
       ) as TokkoSourceProvider,
       apiKey: process.env.TOKKO_API_KEY || null,
+    },
+    sites: {
+      baseDomain:
+        str(process.env.SITES_BASE_DOMAIN, '').trim().toLowerCase() || null,
+      protocol:
+        str(process.env.SITES_PROTOCOL, 'https') === 'http' ? 'http' : 'https',
+      devUrl: process.env.SITES_DEV_URL
+        ? process.env.SITES_DEV_URL.replace(/\/+$/, '')
+        : isProduction
+          ? null
+          : 'http://localhost:3003',
+      allowedImageHosts: str(process.env.SITES_ALLOWED_IMAGE_HOSTS, '')
+        .split(',')
+        .map((h) => h.trim().toLowerCase())
+        .filter(Boolean),
+      domainVerification: bool(process.env.SITES_DOMAIN_VERIFICATION, true),
+      // `apps/sites` manda su SITES_REVALIDATE_SECRET como X-Sites-Secret (no
+      // tiene otra variable), así que se acepta ese y también el propio del
+      // throttle si existe: antes, definir SITES_SERVER_SECRET dejaba a sitios
+      // limitado como cualquier visitante.
+      serverSecrets: [
+        process.env.SITES_SERVER_SECRET,
+        process.env.SITES_REVALIDATE_SECRET,
+      ].filter((secret): secret is string => !!secret),
+      revalidate:
+        process.env.SITES_REVALIDATE_URL && process.env.SITES_REVALIDATE_SECRET
+          ? {
+              url: process.env.SITES_REVALIDATE_URL.replace(/\/+$/, ''),
+              secret: process.env.SITES_REVALIDATE_SECRET,
+            }
+          : null,
+      // Fuera de desarrollo y test `validateEnv` ya exigió un secreto propio y
+      // largo. En desarrollo y test hay un valor fijo: NO se deriva de
+      // JWT_ACCESS_SECRET (un secreto distinto para una cosa distinta).
+      previewSecret: str(
+        process.env.SITES_PREVIEW_SECRET,
+        'desarrollo-solo-secreto-de-vista-previa-no-usar-en-produccion',
+      ),
     },
     automations: {
       enabled: bool(process.env.AUTOMATIONS_ENABLED, true),

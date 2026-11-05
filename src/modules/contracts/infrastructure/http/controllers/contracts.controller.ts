@@ -23,7 +23,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger'
 
-import { Role, Roles } from '@/modules/auth/public'
+import { CurrentUser, Role, Roles } from '@/modules/auth/public'
 import {
   ApplyRentUpdateCommand,
   ChangeBillingTermsCommand,
@@ -70,6 +70,7 @@ import {
   TerminationResultDto,
   UpdateContractDto,
 } from '../dtos/contract.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 function toSurety(dto: {
   hasSurety: boolean
@@ -95,6 +96,7 @@ function toBillingInput(dto: ContractBillingTermsInputDto) {
     feeAmount: dto.feeAmount ?? null,
     lateFeePercentage: dto.lateFeePercentage ?? null,
     lateFeeGraceDays: dto.lateFeeGraceDays ?? null,
+    lateFeeStartDay: dto.lateFeeStartDay ?? null,
   }
 }
 
@@ -109,6 +111,8 @@ function toPartialBilling(dto: Partial<ContractBillingTermsInputDto>) {
     result.lateFeePercentage = dto.lateFeePercentage
   if (dto.lateFeeGraceDays !== undefined)
     result.lateFeeGraceDays = dto.lateFeeGraceDays
+  if (dto.lateFeeStartDay !== undefined)
+    result.lateFeeStartDay = dto.lateFeeStartDay
   return result
 }
 
@@ -313,6 +317,7 @@ export class ContractsController {
         feeAmount: dto.feeAmount,
         lateFeePercentage: dto.lateFeePercentage,
         lateFeeGraceDays: dto.lateFeeGraceDays,
+        lateFeeStartDay: dto.lateFeeStartDay,
         notes: dto.notes,
       }),
     )
@@ -352,7 +357,7 @@ export class ContractsController {
 
   @Post(':id/documents/contract')
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_DOCUMENT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_DOCUMENT_BYTES) }),
   )
   @ApiOperation({
     summary: 'Subir el PDF del contrato firmado (reemplaza al anterior)',
@@ -374,7 +379,7 @@ export class ContractsController {
 
   @Post(':id/documents/policy')
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_DOCUMENT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_DOCUMENT_BYTES) }),
   )
   @ApiOperation({
     summary: 'Subir el PDF de la póliza de caución (reemplaza al anterior)',
@@ -399,12 +404,18 @@ export class ContractsController {
   @ApiOperation({
     summary: 'Aplicar el próximo aumento programado',
     description:
-      'Con ICL/IPC el nuevo alquiler sale de la variación del índice entre el mes del aumento anterior y el del nuevo. Con FIXED/OTHER, `newRent` es obligatorio. Aplica un aumento por llamada.',
+      'Con ICL/IPC el nuevo alquiler sale de la variación del índice entre el mes del aumento anterior y el del nuevo. Con FIXED/OTHER, `newRent` es obligatorio. Aplica un aumento por llamada. Cargar `newRent` a mano (ajuste manual) es sólo de administradores: un empleado recibe 403 y sólo puede aplicar los aumentos por índice o por % fijo.',
   })
   @ApiResponse({ status: 201, type: ContractDetailDto })
   @ApiResponse({
     status: 400,
     description: 'Falta `newRent` en un contrato FIXED/OTHER',
+    type: ApiErrorDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description:
+      'Un empleado intentó un ajuste manual (`CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY`)',
     type: ApiErrorDto,
   })
   @ApiResponse({
@@ -421,11 +432,20 @@ export class ContractsController {
   async applyRentUpdate(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ApplyRentUpdateDto,
+    @CurrentUser('role') role: string,
   ): Promise<ApiSuccessDto<ContractDetailView>> {
     const contract = await this.commandBus.execute<
       ApplyRentUpdateCommand,
       ContractDetailView
-    >(new ApplyRentUpdateCommand(id, dto.newRent))
+    >(
+      new ApplyRentUpdateCommand(
+        id,
+        dto.newRent,
+        dto.reason,
+        dto.authorizedBy,
+        role,
+      ),
+    )
     return { success: true, message: 'Aumento aplicado', data: contract }
   }
 

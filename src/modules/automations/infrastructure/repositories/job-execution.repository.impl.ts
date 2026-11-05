@@ -43,6 +43,30 @@ export class JobExecutionRepositoryImpl extends JobExecutionRepository {
     return toDomain(row)
   }
 
+  async createScheduled(
+    data: NewJobExecution,
+    slot: number,
+  ): Promise<JobExecution | null> {
+    // Prisma no expresa ON CONFLICT DO NOTHING: va en SQL. Sin objetivo de
+    // conflicto, cualquier violación del único parcial cuenta como "ya existe".
+    const rows = await this.prisma.db.$queryRaw<{ id: string }[]>`
+      INSERT INTO job_executions
+        (id, job, tenant_id, scheduled_for, triggered_by, triggered_by_user_id, slot)
+      VALUES (
+        gen_random_uuid(),
+        ${data.job},
+        ${data.tenantId}::uuid,
+        ${toDateColumn(data.scheduledFor)}::date,
+        ${data.triggeredBy}::"JobTrigger",
+        ${data.triggeredByUserId}::uuid,
+        ${slot}
+      )
+      ON CONFLICT DO NOTHING
+      RETURNING id`
+    if (rows.length === 0) return null
+    return this.findById(rows[0].id)
+  }
+
   async findById(id: string): Promise<JobExecution | null> {
     const row = await this.prisma.db.jobExecution.findUnique({ where: { id } })
     return row ? toDomain(row) : null
@@ -110,10 +134,16 @@ export class JobExecutionRepositoryImpl extends JobExecutionRepository {
   }
 
   async lastByJob(tenantId: string): Promise<Map<string, JobExecution>> {
+    // `distinct` de Prisma 6 se resuelve en memoria (traía todo el historial,
+    // con summary y details, para quedarse con un registro por job). Los ids
+    // salen de un DISTINCT ON en la base y después se leen sólo esas filas.
+    const latest = await this.prisma.db.$queryRaw<{ id: string }[]>`
+      SELECT DISTINCT ON (job) id
+      FROM job_executions
+      WHERE tenant_id = ${tenantId}::uuid OR tenant_id IS NULL
+      ORDER BY job, started_at DESC, id DESC`
     const rows = await this.prisma.db.jobExecution.findMany({
-      where: { OR: [{ tenantId }, { tenantId: null }] },
-      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
-      distinct: ['job'],
+      where: { id: { in: latest.map((row) => row.id) } },
     })
     return new Map(rows.map((row) => [row.job, toDomain(row)]))
   }

@@ -6,6 +6,7 @@ import {
   Currency,
   DepositDeductionConcept,
   DepositReturn,
+  DepositReturnMode,
   ExchangeRateSource,
   FeeMode,
   Installment,
@@ -90,6 +91,16 @@ export interface NewLateFeeAdjustment {
   reason: string
 }
 
+/** Alquiler devengado y cobrado de un mes en una moneda (strings de dinero). */
+export interface RentPeriodTotal {
+  period: string
+  currency: Currency
+  /** Σ del alquiler base de las cuotas. */
+  baseAmount: string
+  /** Σ del alquiler imputado por los pagos vigentes. */
+  rentPaid: string
+}
+
 /**
  * Puerto del repositorio de cuotas. Dentro del tenant del contexto; sin
  * bajas. La cuota se lee siempre completa: cargos, pagos, ajustes y detalle
@@ -103,6 +114,25 @@ export abstract class InstallmentRepository {
   abstract createIfAbsent(data: NewInstallment): Promise<Installment | null>
 
   abstract findById(id: string): Promise<Installment | null>
+
+  /**
+   * `SELECT ... FOR UPDATE` sobre la cuota: dentro de una transacción,
+   * serializa a quienes van a leer los saldos y a escribir pagos sobre ella.
+   * El lock se suelta con el commit o el rollback. Fuera de una transacción
+   * no sirve de nada.
+   */
+  abstract lockForUpdate(id: string): Promise<void>
+
+  /**
+   * Alquiler devengado y cobrado por mes y moneda, sumado en la base: las
+   * cuotas del rango y los pagos vigentes (no anulados, informados incluidos)
+   * de cada una. Para el historial del dashboard, que no necesita cada cuota.
+   * Una fila por (período, moneda) que tenga cuotas.
+   */
+  abstract rentTotalsByPeriod(
+    periodFrom: string,
+    periodTo: string,
+  ): Promise<RentPeriodTotal[]>
 
   /** Período descendente, y dentro del mes por alta. */
   abstract list(
@@ -163,7 +193,7 @@ export interface NewPayment {
   creditId: string | null
   receiptKey: string | null
   receiptUrl: string | null
-  registeredById: string
+  registeredById: string | null
   notes: string | null
 }
 
@@ -192,15 +222,24 @@ export abstract class PaymentRepository {
 
   abstract listAll(filter: PaymentFilter): Promise<Payment[]>
 
+  /** Cuántos pagos cumplen el filtro, sin traerlos. */
+  abstract count(filter: PaymentFilter): Promise<number>
+
+  /**
+   * Confirma un pago que sigue pendiente de confirmación. `null` si ya no lo
+   * está (otro request lo confirmó o lo anuló primero): la condición va en el
+   * UPDATE, así que dos confirmaciones simultáneas no pasan las dos.
+   */
   abstract confirm(
     id: string,
     data: { confirmedById: string; confirmedAt: Date },
-  ): Promise<Payment>
+  ): Promise<Payment | null>
 
+  /** Anula un pago que no estaba anulado. `null` si ya lo estaba. */
   abstract void(
     id: string,
     data: { voidedById: string; voidedAt: Date; voidReason: string },
-  ): Promise<Payment>
+  ): Promise<Payment | null>
 
   /**
    * Los pagos de un contrato que una liquidación puede tomar (Fase 12):
@@ -232,6 +271,8 @@ export interface NewDepositReturn {
   returnedAt: IsoDate
   depositAmount: string
   depositCurrency: Currency
+  mode: DepositReturnMode
+  referenceAmount: string
   returnedAmount: string
   method: PaymentMethod
   notes: string | null

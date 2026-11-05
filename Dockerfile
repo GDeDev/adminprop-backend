@@ -45,4 +45,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # dumb-init como PID 1 para que SIGTERM llegue a Node y corran los shutdown
 # hooks (cerrar Prisma, terminar requests en vuelo) en vez de un kill seco.
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/src/main"]
+CMD ["node", "dist/main"]

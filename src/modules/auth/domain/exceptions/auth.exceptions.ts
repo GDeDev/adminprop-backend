@@ -16,16 +16,19 @@ export const AuthErrors = {
       { metadata },
     ),
 
+  // El email de staff es único en todo el sistema, no por inmobiliaria. El
+  // mensaje no dice si el conflicto es con una cuenta propia o ajena, para que
+  // un admin no use el alta como oráculo de qué emails usan otras inmobiliarias.
   emailAlreadyRegistered: () =>
     AppException.conflict(
-      'Ya existe una cuenta registrada con ese email',
+      'Ese email no está disponible. Probá con otro.',
       ErrorCode.EMAIL_ALREADY_REGISTERED,
       {
         details: [
           {
             field: 'email',
             code: ErrorCode.EMAIL_ALREADY_REGISTERED,
-            message: 'Ese email ya está en uso',
+            message: 'Ese email no está disponible',
           },
         ],
       },

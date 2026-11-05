@@ -19,7 +19,10 @@ export class SettlementConfirmedEvent implements IEvent {
 
 /** Un consolidado se cerró (4.7). */
 export class StatementClosedEvent implements IEvent {
-  constructor(public readonly statement: OwnerStatement) {}
+  constructor(
+    public readonly statement: OwnerStatement,
+    public readonly members: Settlement[] = [],
+  ) {}
 }
 
 /**
@@ -61,12 +64,20 @@ export class RelayStatementClosedHandler implements IEventHandler<StatementClose
   constructor(private readonly queue: QueuePort) {}
 
   async handle(event: StatementClosedEvent): Promise<void> {
-    const { statement } = event
+    const { statement, members } = event
     const payload: StatementClosedPayload = {
       statementId: statement.id,
       ownerId: statement.ownerId,
       period: statement.period,
       sendMode: statement.sendMode,
+      settlements: members.map((settlement) => ({
+        settlementId: settlement.id,
+        ownerId: settlement.ownerId,
+        contractId: settlement.contractId,
+        period: settlement.period,
+        netAmount: settlement.netAmount,
+        currency: settlement.currency,
+      })),
     }
     try {
       await this.queue.publish(STATEMENT_CLOSED_QUEUE, payload)

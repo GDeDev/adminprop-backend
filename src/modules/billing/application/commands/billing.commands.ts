@@ -53,6 +53,8 @@ export class RegisterPaymentCommand {
     public readonly data: RegisterPaymentInput,
     /** El comprobante tal como llegó; vacío si no mandaron archivo. */
     public readonly receipt: Buffer,
+    /** `Idempotency-Key` del request, ya validada; null si no la mandaron. */
+    public readonly idempotencyKey: string | null = null,
   ) {}
 }
 
@@ -90,7 +92,10 @@ export class RegisterDepositReturnCommand {
     public readonly contractId: string,
     public readonly data: {
       returnedAt: string
-      returnedAmount: string
+      /** Monto de referencia: obligatorio en modo MANUAL (o alquiler en otra moneda). */
+      referenceAmount: string | null
+      /** Opcional: si viene tiene que coincidir con referencia - deducciones. */
+      returnedAmount: string | null
       method: PaymentMethod
       notes: string | null
       deductions: {

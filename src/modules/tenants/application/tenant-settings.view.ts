@@ -18,6 +18,13 @@ export interface TenantSettingsView {
   bankCbu: string | null
   bankAlias: string | null
   documentFooter: string | null
+  /** Parámetros de cobro (D-228). */
+  dailyLateFeePercentage: string | null
+  paymentGraceDays: number
+  /** Saldo a favor: se aplica solo al generar la cuota (D-237). */
+  autoApplyCreditOnGeneration: boolean
+  /** Día del mes desde el que corre el punitorio por defecto (gracia + 1). */
+  lateFeeStartDay: number
   receiptSequence: number
 }
 
@@ -39,6 +46,10 @@ export function toTenantSettingsView(tenant: Tenant): TenantSettingsView {
     bankCbu: tenant.bankCbu,
     bankAlias: tenant.bankAlias,
     documentFooter: tenant.documentFooter,
+    dailyLateFeePercentage: tenant.dailyLateFeePercentage,
+    paymentGraceDays: tenant.paymentGraceDays,
+    autoApplyCreditOnGeneration: tenant.autoApplyCreditOnGeneration,
+    lateFeeStartDay: tenant.paymentGraceDays + 1,
     receiptSequence: tenant.receiptSequence,
   }
 }

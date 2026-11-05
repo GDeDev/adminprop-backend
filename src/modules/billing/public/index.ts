@@ -12,6 +12,7 @@ export type {
   RentDueRef,
   ReportInstallmentRef,
   ReportPaymentRef,
+  ReportRentTotalRef,
   SettleablePayment,
 } from './billing.facade'
 export type { PaymentReceiptData } from '../application/payment-receipts'

@@ -20,6 +20,11 @@ export enum Environment {
   Production = 'production',
 }
 
+/** Desarrollo y tests: los únicos entornos donde se toleran los valores laxos. */
+export function isLocalEnvironment(env: Environment): boolean {
+  return env === Environment.Development || env === Environment.Test
+}
+
 export enum QueueProvider {
   /** Cola real sobre Postgres. El default. */
   PgBoss = 'pgboss',
@@ -418,6 +423,73 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   TOKKO_API_KEY?: string
+  // ------------------------------------------------------------ Sitios web
+  /**
+   * Dominio bajo el que viven los sitios por subdominio (`<sub>.<dominio>`).
+   * Sin valor, solo se resuelven dominios propios y el acceso por slug.
+   */
+  @IsOptional()
+  @IsString()
+  SITES_BASE_DOMAIN?: string
+
+  /** `https` (default) o `http` (desarrollo con *.lvh.me). */
+  @IsOptional()
+  @IsString()
+  SITES_PROTOCOL?: string
+
+  /**
+   * URL de la app de sitios para el acceso por slug (`<url>/_s/<slug>`).
+   * Default en desarrollo: http://localhost:3003. En producción, sin valor.
+   */
+  @IsOptional()
+  @IsString()
+  SITES_DEV_URL?: string
+
+  /** Hosts https extra desde los que se admiten imágenes (separados por coma). */
+  @IsOptional()
+  @IsString()
+  SITES_ALLOWED_IMAGE_HOSTS?: string
+
+  /**
+   * Exige un registro TXT para activar un dominio propio. `false` (solo
+   * desarrollo) lo da por verificado al cargarlo. Default: true.
+   */
+  @toBool()
+  @IsOptional()
+  @IsBoolean()
+  SITES_DOMAIN_VERIFICATION?: boolean
+
+  /** URL base de `apps/sites` para avisarle que un sitio cambió (`/api/revalidate`). */
+  @IsOptional()
+  @IsString()
+  SITES_REVALIDATE_URL?: string
+
+  /**
+   * Secreto compartido con `apps/sites` para el aviso de publicación. Si no
+   * se define `SITES_SERVER_SECRET`, también hace de secreto del throttle
+   * (compatibilidad con despliegues anteriores).
+   */
+  @IsOptional()
+  @IsString()
+  SITES_REVALIDATE_SECRET?: string
+
+  /**
+   * Secreto con el que `apps/sites` se identifica (header `X-Sites-Secret`)
+   * para no contar contra el tope por IP de las lecturas públicas. Distinto del
+   * de revalidación; si falta, se usa `SITES_REVALIDATE_SECRET`.
+   */
+  @IsOptional()
+  @IsString()
+  SITES_SERVER_SECRET?: string
+
+  /**
+   * Secreto de la vista previa del sitio y de la verificación de dominios.
+   * **Obligatoria en producción** (32 caracteres o más); fuera de producción hay
+   * un valor fijo de desarrollo.
+   */
+  @IsOptional()
+  @IsString()
+  SITES_PREVIEW_SECRET?: string
 
   // ---------------------------------------------------------- Automatizaciones
   @IsOptional()
@@ -594,17 +666,52 @@ function assertComparableSources(env: EnvironmentVariables): void {
 }
 
 /**
+ * Las únicas variables que no admiten el valor vacío como "no definida": sin
+ * ellas la API no puede funcionar y tiene que fallar con un mensaje claro.
+ */
+const MANDATORY_VARIABLES: readonly string[] = [
+  'DATABASE_URL',
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+]
+
+/**
+ * La regla del dueño es crear en Doppler las variables nuevas VACÍAS. Una
+ * variable opcional (o con default) en blanco equivale a no definirla; sin esto,
+ * un `PORT=""` o un `STORAGE_PROVIDER=""` impedían arrancar. Las obligatorias se
+ * dejan tal cual para que sigan fallando. No se relaja nada de seguridad:
+ * `SITES_PREVIEW_SECRET` vacía en producción queda como `undefined` y se sigue
+ * exigiendo de 32 caracteres o más.
+ */
+function withoutBlankOptionals(
+  config: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(config).filter(
+      ([name, value]) =>
+        MANDATORY_VARIABLES.includes(name) ||
+        typeof value !== 'string' ||
+        value.trim() !== '',
+    ),
+  )
+}
+
+/**
  * Valida `process.env` contra `EnvironmentVariables`.
  * La pasamos a `ConfigModule.forRoot({ validate })`.
  */
 export function validateEnv(
   config: Record<string, unknown>,
 ): EnvironmentVariables {
-  const validated = plainToInstance(EnvironmentVariables, config, {
-    enableImplicitConversion: false,
-    exposeDefaultValues: true,
-    excludeExtraneousValues: false,
-  })
+  const validated = plainToInstance(
+    EnvironmentVariables,
+    withoutBlankOptionals(config),
+    {
+      enableImplicitConversion: false,
+      exposeDefaultValues: true,
+      excludeExtraneousValues: false,
+    },
+  )
 
   const errors = validateSync(validated, {
     skipMissingProperties: false,
@@ -628,6 +735,35 @@ export function validateEnv(
 
   assertProviderCredentials(validated)
   assertComparableSources(validated)
+
+  // El secreto de la vista previa también firma la prueba de propiedad de los
+  // dominios (TXT): sin uno propio y largo fuera de desarrollo y test (qa
+  // incluido), quien lea el valor fijo del repo podría fabricar tokens de vista
+  // previa y valores de verificación para cualquier inmobiliaria.
+  if (!isLocalEnvironment(validated.NODE_ENV)) {
+    const preview = validated.SITES_PREVIEW_SECRET ?? ''
+    if (preview.length < 32) {
+      throw new Error(
+        `\n❌ SITES_PREVIEW_SECRET es obligatoria con NODE_ENV=${validated.NODE_ENV} (32 caracteres o más).\n` +
+          'Firma los tokens de vista previa del sitio web y los TXT de verificación de dominios: ' +
+          'rotarla invalida los dominios que están pendientes de verificar (los ya verificados no se pierden).\n',
+      )
+    }
+  }
+
+  // Antes `*` en producción sólo emitía un warning al arrancar. Con `*` cualquier
+  // sitio puede llamar a la API desde el navegador de un usuario.
+  if (
+    !isLocalEnvironment(validated.NODE_ENV) &&
+    (validated.CORS_ORIGINS ?? '')
+      .split(',')
+      .some((origin) => origin.trim() === '*')
+  ) {
+    throw new Error(
+      `\n❌ CORS_ORIGINS="*" no está permitido con NODE_ENV=${validated.NODE_ENV}.\n` +
+        'Listá los orígenes permitidos separados por comas.\n',
+    )
+  }
 
   if (validated.JWT_ACCESS_SECRET === validated.JWT_REFRESH_SECRET) {
     throw new Error(

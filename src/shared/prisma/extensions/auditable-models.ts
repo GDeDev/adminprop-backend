@@ -127,6 +127,19 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   InventoryItem: { tenantScoped: true, audit: false, softDelete: false },
   InventoryPhoto: { tenantScoped: true, audit: false, softDelete: false },
 
+  // Sitio web de la inmobiliaria: los cambios de template, subdominio, dominio,
+  // publicar y despublicar quedan en el historial por sus columnas. El
+  // contenido (`draft`, `published`) es un JSON grande que cambia con cada
+  // guardado: se excluye del diff para no llenar el historial. Las imágenes
+  // subidas no se auditan (la fila misma es la traza).
+  SiteSettings: {
+    tenantScoped: true,
+    audit: true,
+    softDelete: false,
+    excludeFromDiff: ['draft', 'published'],
+  },
+  SiteAsset: { tenantScoped: true, audit: false, softDelete: false },
+
   // Consultas (Fase 22 las crea el público, sin usuario; Fase 23 las administra
   // el CRM): cada cambio queda en el historial. La IP es sólo para frenar spam:
   // no va al historial. `externalId` se muta al borrar para liberar el único.
@@ -197,6 +210,8 @@ export const MODEL_BEHAVIOUR: Record<string, ModelBehaviour> = {
   // que no pasa por el filtro: quien lee filtra a mano.
   JobExecution: { audit: false, softDelete: false },
   NotificationLog: { tenantScoped: true, audit: false, softDelete: false },
+  // Claves de idempotencia: traza técnica de cada POST, sin auditoría.
+  IdempotencyKey: { tenantScoped: true, audit: false, softDelete: false },
 
   // Notificaciones (Fase 14): plantillas, configuración por tipo y mensajes de
   // WhatsApp son decisiones de la inmobiliaria, con historial. Las preferencias

@@ -56,6 +56,7 @@ import {
   InventoryDetailDto,
   UpdateInventoryDto,
 } from '../dtos/inventory.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 /**
  * Inventario del inmueble (spec Fase 25, rediseño 2). Admin y empleado hacen
@@ -194,7 +195,7 @@ export class InventoryController {
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
     FilesInterceptor('files', MAX_PHOTOS_PER_UPLOAD, {
-      limits: { fileSize: MAX_PHOTO_BYTES },
+      limits: uploadLimits(MAX_PHOTO_BYTES, MAX_PHOTOS_PER_UPLOAD),
     }),
   )
   @ApiOperation({

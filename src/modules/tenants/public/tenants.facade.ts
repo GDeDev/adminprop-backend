@@ -18,11 +18,14 @@ export interface TenantBillingSettings {
   /** Días del mes sin punitorio: del 1 al N. */
   paymentGraceDays: number
   /** Punitorio diario, en %, como string decimal ("5.00"). */
-  dailyLateFeePercentage: string
+  /** Null si la inmobiliaria no fijó un punitorio por defecto (D-228). */
+  dailyLateFeePercentage: string | null
   /** Día del mes en que se generan las cuotas del mes siguiente. */
   installmentGenerationDay: number
   /** Día del mes en que sale el recordatorio de pago. */
   paymentReminderDay: number
+  /** Aplica solo el saldo a favor al generar la cuota; false = a mano (D-237). */
+  autoApplyCreditOnGeneration: boolean
 }
 
 /** Una inmobiliaria habilitada, para recorrerlas desde los jobs. */
@@ -111,6 +114,19 @@ export class TenantsFacade {
     }
   }
 
+  /** Igual que `findActiveBySlug` pero por id (resolución de sitios por host). */
+  async findActiveById(id: string): Promise<PublicTenantRef | null> {
+    const tenant = await this.tenants.findById(id)
+    if (!tenant?.isActive) return null
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      email: tenant.email,
+      defaultCurrency: tenant.defaultCurrency,
+    }
+  }
+
   /** Moneda por defecto de la inmobiliaria del contexto (precio de publicación, Fase 22). */
   async defaultCurrency(): Promise<'ARS' | 'USD'> {
     const tenantId = RequestContext.tenantId
@@ -145,6 +161,7 @@ export class TenantsFacade {
       dailyLateFeePercentage: tenant.dailyLateFeePercentage,
       installmentGenerationDay: tenant.installmentGenerationDay,
       paymentReminderDay: tenant.paymentReminderDay,
+      autoApplyCreditOnGeneration: tenant.autoApplyCreditOnGeneration,
     }
   }
 

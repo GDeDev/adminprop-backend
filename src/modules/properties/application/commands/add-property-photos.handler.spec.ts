@@ -1,5 +1,6 @@
 import {
   ListingCurrency,
+  ListingOperation,
   Property,
   PropertyStatus,
 } from '@/modules/properties/domain/property'
@@ -24,6 +25,15 @@ const PROPERTY: Property = {
   listingCurrency: ListingCurrency.ARS,
   publicDescription: null,
   needsReview: false,
+  listingOperation: ListingOperation.RENT,
+  bedrooms: null,
+  bathrooms: null,
+  rooms: null,
+  totalAreaM2: null,
+  coveredAreaM2: null,
+  ageYears: null,
+  latitude: null,
+  longitude: null,
   photos: [],
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),

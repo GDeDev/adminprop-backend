@@ -75,7 +75,13 @@ describe('LoginHandler', () => {
           provide: AuthTokenIssuer,
           useValue: { issueNewSession: jest.fn().mockResolvedValue(TOKENS) },
         },
-        { provide: AuditFacade, useValue: { record: jest.fn() } },
+        {
+          provide: AuditFacade,
+          useValue: {
+            record: jest.fn(),
+            countGlobalSince: jest.fn().mockResolvedValue(0),
+          },
+        },
         {
           provide: ConfigService,
           useValue: {

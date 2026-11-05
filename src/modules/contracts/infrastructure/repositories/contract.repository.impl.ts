@@ -379,6 +379,8 @@ function rentUpdateToDomain(row: RentUpdateRow): RentUpdate {
     indexToValue: row.indexToValue ? row.indexToValue.toFixed(6) : null,
     fixedPercentage: money(row.fixedPercentage),
     appliedById: row.appliedById,
+    adjustmentReason: row.adjustmentReason,
+    authorizedBy: row.authorizedBy,
     createdAt: row.createdAt,
   }
 }

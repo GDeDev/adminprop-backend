@@ -79,6 +79,9 @@ export interface NewRentUpdate {
   indexToValue: string | null
   fixedPercentage: string | null
   appliedById: string | null
+  /** Sólo en el ajuste manual (D-230). */
+  adjustmentReason?: string | null
+  authorizedBy?: string | null
 }
 
 export interface TerminationData {

@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto'
 
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 
+import { roundMoney, toMoneyString } from '@/shared/money'
 import { StoragePort } from '@/platform/storage/storage.port'
 import { errorMessage } from '@/shared/core/error-message'
 import { createLogger } from '@/shared/logging/root-logger'
 import { TenantSettingsPatch } from '../../domain/tenant.entity'
 import {
+  InvalidTenantBillingSettingException,
   InvalidTenantLogoException,
   TenantNotFoundException,
 } from '../../domain/tenant.exceptions'
@@ -34,7 +36,11 @@ function normalize(value: string | null | undefined) {
   return trimmed === '' ? null : trimmed
 }
 
-/** Edita los datos legales, bancarios y de marca (Fase 15, 2). */
+/**
+ * Edita los datos legales, bancarios y de marca (Fase 15, 2) y los parámetros
+ * de cobro: punitorio por defecto y gracia (D-228). Los contratos que heredan
+ * el valor lo toman en la próxima cuota; las cuotas ya generadas no cambian.
+ */
 @CommandHandler(UpdateTenantSettingsCommand)
 export class UpdateTenantSettingsHandler implements ICommandHandler<
   UpdateTenantSettingsCommand,
@@ -46,13 +52,48 @@ export class UpdateTenantSettingsHandler implements ICommandHandler<
     command: UpdateTenantSettingsCommand,
   ): Promise<TenantSettingsView> {
     const patch: TenantSettingsPatch = {}
-    for (const [key, value] of Object.entries(command.patch)) {
-      const normalized = normalize(value)
+    const {
+      dailyLateFeePercentage,
+      paymentGraceDays,
+      autoApplyCreditOnGeneration,
+      ...texts
+    } = command.patch
+    // `null` llega porque el DTO deja pasar el nulo de los campos opcionales:
+    // estos dos no se pueden borrar, sólo cambiar.
+    if (dailyLateFeePercentage === null || paymentGraceDays === null) {
+      throw new InvalidTenantBillingSettingException(
+        dailyLateFeePercentage === null
+          ? 'dailyLateFeePercentage'
+          : 'paymentGraceDays',
+        'no se puede quitar: indicá un valor (0 = sin punitorio)',
+      )
+    }
+    if (dailyLateFeePercentage !== undefined) {
+      const percentage = roundMoney(dailyLateFeePercentage)
+      if (percentage.isNegative() || percentage.greaterThan(100)) {
+        throw new InvalidTenantBillingSettingException(
+          'dailyLateFeePercentage',
+          'tiene que estar entre 0 y 100',
+        )
+      }
+      patch.dailyLateFeePercentage = toMoneyString(percentage)
+    }
+    if (paymentGraceDays !== undefined)
+      patch.paymentGraceDays = paymentGraceDays
+    if (
+      autoApplyCreditOnGeneration !== undefined &&
+      autoApplyCreditOnGeneration !== null
+    )
+      patch.autoApplyCreditOnGeneration = autoApplyCreditOnGeneration
+    for (const [key, value] of Object.entries(texts)) {
+      const normalized = normalize(value as string | null | undefined)
       if (normalized !== undefined) {
-        patch[key as keyof TenantSettingsPatch] =
-          key === 'primaryColor' && normalized !== null
-            ? normalized.toLowerCase()
-            : normalized
+        Object.assign(patch, {
+          [key]:
+            key === 'primaryColor' && normalized !== null
+              ? normalized.toLowerCase()
+              : normalized,
+        })
       }
     }
     const tenant = await this.tenants.updateSettings(command.tenantId, patch)
