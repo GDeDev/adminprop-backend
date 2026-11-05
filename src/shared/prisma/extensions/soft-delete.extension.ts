@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 
 import { RequestContext } from '@/shared/context/request-context'
 import { behaviourFor, delegateKey, DELETED_MARKER } from './auditable-models'
+import { TransactionContext } from '../transaction-context'
 
 /** Operaciones de lectura a las que hay que sumarles el filtro de borrados. */
 const READ_OPERATIONS = new Set([
@@ -77,7 +78,10 @@ export interface ClientRef {
   extended?: Record<string, any>
 }
 
-export function softDeleteExtension(ref: ClientRef) {
+export function softDeleteExtension(
+  ref: ClientRef,
+  options: { useTransaction?: boolean } = {},
+) {
   return Prisma.defineExtension({
     name: 'soft-delete',
     query: {
@@ -94,13 +98,33 @@ export function softDeleteExtension(ref: ClientRef) {
           }
 
           const key = delegateKey(model as string)
+          // Dentro de `PrismaService.transaction()` las lecturas y escrituras
+          // derivadas van por el cliente de esa transacción. Con el cliente
+          // global el `delete` convertido en `update` escribía fuera de ella:
+          // un rollback no lo deshacía, pedía una segunda conexión del pool
+          // mientras la transacción retenía la suya, y el "registro actual" se
+          // leía sin ver lo creado por la propia transacción (no lo encontraba
+          // y el `delete` terminaba borrando de verdad).
+          //
+          // Sólo el cliente con filtro de tenant participa: el `unscoped` nunca
+          // corre sus consultas dentro de la transacción (mismo criterio que la
+          // auditoría).
+          const tx = options.useTransaction
+            ? TransactionContext.current<Record<string, any>>()
+            : undefined
           // Las lecturas internas van por el cliente base: ya les aplicamos el
-          // filtro a mano y no queremos que vuelvan a entrar al pipeline.
-          const baseDelegate = ref.base[key]
+          // filtro a mano y no queremos que vuelvan a entrar al pipeline. El
+          // cliente de la transacción sí trae el filtro de borrados; el
+          // `deletedAt: undefined` lo apaga, que es lo que veía el cliente base.
+          const baseDelegate = (tx ?? ref.base)[key]
+          const readWhere = (where: Record<string, any> | undefined) =>
+            tx && where && !('deletedAt' in where)
+              ? { ...where, deletedAt: undefined }
+              : where
           // Las escrituras derivadas van por el cliente extendido, para que la
           // auditoría las vea. Un `delete` convertido en `update` que corriera
           // sobre el cliente base no quedaría registrado en el historial.
-          const writeDelegate = (ref.extended ?? ref.base)[key]
+          const writeDelegate = (tx ?? ref.extended ?? ref.base)[key]
 
           // `findUnique` no admite filtros extra: se degrada a `findFirst`.
           if (operation === 'findUnique' || operation === 'findUniqueOrThrow') {
@@ -118,7 +142,7 @@ export function softDeleteExtension(ref: ClientRef) {
             if (operation === 'delete') {
               // Se lee primero para poder mutar los campos únicos con el id.
               const current = await baseDelegate.findFirst({
-                where: params.where,
+                where: readWhere(params.where),
               })
 
               if (!current) {
