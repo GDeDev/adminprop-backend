@@ -106,6 +106,11 @@ export class ApplyRentUpdateCommand {
     /** Con `newRent` (ajuste manual): motivo y quién lo autorizó, obligatorios (D-230). */
     public readonly reason?: string | null,
     public readonly authorizedBy?: string | null,
+    /**
+     * Rol de quien aplica el aumento. Un monto a mano sólo lo puede cargar un
+     * administrador (D-234); el resto de los aumentos no mira el rol.
+     */
+    public readonly actorRole?: string,
   ) {}
 }
 

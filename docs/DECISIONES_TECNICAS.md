@@ -1503,7 +1503,7 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Orden de validación**: primero que el contrato esté activo y que el aumento esté al día (409, D-60), después el monto y por último la justificación.
 - **Supuestos**:
   1. `authorizedBy` es **texto libre** (puede ser el propietario, que no es usuario del sistema), no un id de usuario; el usuario que aplicó el cambio sigue en `appliedById`.
-  2. Quién puede hacerlo no cambió: ADMIN y EMPLOYEE. El hallazgo 13 pedía "definir si el empleado puede": **no se restringió** (decisión de negocio pendiente).
+  2. ~~Quién puede hacerlo no cambió: ADMIN y EMPLOYEE.~~ **Reemplazado por D-234**: el ajuste manual es sólo de administradores.
   3. El aumento por `%` fijo automático no es "ajuste manual" y no pide motivo (el % ya está pactado en el contrato).
 
 ### D-231 · `X-Sites-Secret` vale con `SITES_SERVER_SECRET` o con `SITES_REVALIDATE_SECRET`
@@ -1524,3 +1524,11 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Ya figuraba** como supuesto 5 de D-227; acá se eleva a pregunta abierta y se fija con un test (`deposit-return.follows-rent.spec.ts`).
 - **Decisión**: **no se cambió**. Queda como supuesto y pregunta abierta.
 - **Pregunta para Micaela**: ¿la devolución puede superar lo efectivamente recibido (la inmobiliaria o el propietario pone la diferencia), o hay que topearla en lo recibido? Hoy se paga el alquiler vigente completo.
+
+### D-234 · El ajuste manual de alquiler es sólo de administradores (Micaela #8)
+
+- **Decisión del dueño**: por ahora, cargar el alquiler a mano (`newRent`) lo puede hacer únicamente un ADMIN. Cierra el supuesto 2 de D-230.
+- **Qué cambia**: `POST /contracts/:id/rent-updates` con `newRent` (un ajuste manual sobre ICL/IPC/FIXED, o el monto obligatorio de un contrato FIXED sin % u OTHER) devuelve **403** `CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY` si quien llama es EMPLOYEE. El rol viaja en `ApplyRentUpdateCommand.actorRole` (`@CurrentUser('role')`); el chequeo corre antes de leer el contrato, así el empleado no averigua el estado del contrato por los 409.
+- **Sin cambios**: el aumento por índice o por % fijo (un empleado sigue pudiendo aplicarlo), el cron de aumentos (no pasa por este comando) y el resto de la edición del contrato (ADMIN y EMPLOYEE).
+- **Supuesto**: en un contrato `FIXED` sin % u `OTHER`, un empleado no puede resolver el aumento vencido: tiene que pedírselo a un administrador (el aviso `RENT_UPDATE_PENDING` sigue llegando a todos).
+- **Frontend**: el botón/campo de monto manual debería ocultarse para EMPLOYEE (hoy recibiría el 403).

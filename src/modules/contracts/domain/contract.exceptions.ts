@@ -146,6 +146,20 @@ export class ContractNotActiveException extends DomainException {
   }
 }
 
+/**
+ * D-234: el monto del alquiler a mano lo carga sólo un administrador; un
+ * empleado puede aplicar los aumentos por índice o por % fijo.
+ */
+export class ManualRentAdjustmentForbiddenException extends DomainException {
+  constructor() {
+    super(
+      'CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY',
+      'Sólo un administrador puede ajustar el alquiler a mano. Pedile a un administrador que cargue el monto.',
+      DomainErrorKind.Forbidden,
+    )
+  }
+}
+
 export class RentUpdateNotDueException extends DomainException {
   constructor(nextUpdateOn: string | null) {
     super(

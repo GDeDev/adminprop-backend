@@ -186,6 +186,7 @@ describe('ApplyRentUpdateHandler', () => {
         '123456.789',
         '  Acuerdo   con el inquilino ',
         'Juan Pérez',
+        'ADMIN',
       ),
     )
     expect(applier.applyIndex).not.toHaveBeenCalled()
@@ -206,7 +207,13 @@ describe('ApplyRentUpdateHandler', () => {
     const { handler, applier } = setup()
     await expect(
       handler.execute(
-        new ApplyRentUpdateCommand('contract-1', '123456', null, 'Juan'),
+        new ApplyRentUpdateCommand(
+          'contract-1',
+          '123456',
+          null,
+          'Juan',
+          'ADMIN',
+        ),
       ),
     ).rejects.toMatchObject({
       code: 'CONTRACT_MANUAL_ADJUSTMENT_JUSTIFICATION_REQUIRED',
@@ -214,10 +221,81 @@ describe('ApplyRentUpdateHandler', () => {
     })
     await expect(
       handler.execute(
-        new ApplyRentUpdateCommand('contract-1', '123456', 'Motivo', ' '),
+        new ApplyRentUpdateCommand(
+          'contract-1',
+          '123456',
+          'Motivo',
+          ' ',
+          'ADMIN',
+        ),
       ),
     ).rejects.toMatchObject({ metadata: { field: 'authorizedBy' } })
     expect(applier.record).not.toHaveBeenCalled()
+  })
+
+  it('un empleado no puede cargar un monto a mano, ni en un contrato que lo exige (D-234)', async () => {
+    for (const role of ['EMPLOYEE', undefined]) {
+      const { handler, applier } = setup()
+      await expect(
+        handler.execute(
+          new ApplyRentUpdateCommand(
+            'contract-1',
+            '123456',
+            'Motivo',
+            'Juan',
+            role,
+          ),
+        ),
+      ).rejects.toMatchObject({
+        code: 'CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY',
+        kind: 'forbidden',
+      })
+      expect(applier.record).not.toHaveBeenCalled()
+    }
+    const other = setup(makeContract({ rentUpdateType: RentUpdateType.OTHER }))
+    await expect(
+      other.handler.execute(
+        new ApplyRentUpdateCommand(
+          'contract-1',
+          undefined,
+          undefined,
+          undefined,
+          'EMPLOYEE',
+        ),
+      ),
+    ).rejects.toMatchObject({
+      code: 'CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY',
+    })
+  })
+
+  it('un empleado sí aplica el aumento por índice o por % fijo (D-234)', async () => {
+    const byIndex = setup()
+    await byIndex.handler.execute(
+      new ApplyRentUpdateCommand(
+        'contract-1',
+        undefined,
+        undefined,
+        undefined,
+        'EMPLOYEE',
+      ),
+    )
+    expect(byIndex.applier.applyIndex).toHaveBeenCalled()
+    const fixed = setup(
+      makeContract({
+        rentUpdateType: RentUpdateType.FIXED,
+        fixedIncreasePercentage: '8.00',
+      }),
+    )
+    await fixed.handler.execute(
+      new ApplyRentUpdateCommand(
+        'contract-1',
+        undefined,
+        undefined,
+        undefined,
+        'EMPLOYEE',
+      ),
+    )
+    expect(fixed.applier.applyFixedPercentage).toHaveBeenCalled()
   })
 
   it('con porcentaje fijo y sin monto lo calcula solo', async () => {
@@ -240,7 +318,15 @@ describe('ApplyRentUpdateHandler', () => {
       makeContract({ rentUpdateType: RentUpdateType.OTHER }),
     )
     await expect(
-      handler.execute(new ApplyRentUpdateCommand('contract-1', undefined)),
+      handler.execute(
+        new ApplyRentUpdateCommand(
+          'contract-1',
+          undefined,
+          undefined,
+          undefined,
+          'ADMIN',
+        ),
+      ),
     ).rejects.toMatchObject({ code: 'CONTRACT_NEW_RENT_REQUIRED' })
     expect(applier.record).not.toHaveBeenCalled()
   })
@@ -252,7 +338,15 @@ describe('ApplyRentUpdateHandler', () => {
       }),
     )
     await expect(
-      handler.execute(new ApplyRentUpdateCommand('contract-1', '999999')),
+      handler.execute(
+        new ApplyRentUpdateCommand(
+          'contract-1',
+          '999999',
+          undefined,
+          undefined,
+          'ADMIN',
+        ),
+      ),
     ).rejects.toMatchObject({
       code: 'CONTRACT_RENT_UPDATE_NOT_DUE',
       metadata: { nextUpdateOn: '2026-05-01' },
