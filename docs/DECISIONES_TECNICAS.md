@@ -1524,3 +1524,44 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Ya figuraba** como supuesto 5 de D-227; acá se eleva a pregunta abierta y se fija con un test (`deposit-return.follows-rent.spec.ts`).
 - **Decisión**: **no se cambió**. Queda como supuesto y pregunta abierta.
 - **Pregunta para Micaela**: ¿la devolución puede superar lo efectivamente recibido (la inmobiliaria o el propietario pone la diferencia), o hay que topearla en lo recibido? Hoy se paga el alquiler vigente completo.
+
+> **Numeración.** Las D-240 en adelante son de la rama `fix/datos-2-backend` (auditoría de datos, segunda pasada). Se saltó de la D-233 a la D-240 a propósito, para no chocar con las decisiones que sume en paralelo la rama `feat/brechas-micaela-2-backend`; al fusionar, renumerar si hace falta.
+
+### D-240 · Únicos nuevos detrás de una guardia de duplicados; sin único en `contract_billing_terms` ni `property_photos`
+
+- **Contexto**: la auditoría (M7) lista únicos que el negocio da por sentados. Un `CREATE UNIQUE INDEX` sobre una tabla con duplicados falla a mitad del deploy con un mensaje que no dice qué filas.
+- **Decisión**: una migración (`20261110120000_add_missing_unique_constraints`) corre primero un chequeo de los seis casos y, si hay duplicados, **aborta sin crear nada** con la lista de qué constraints están violadas y cuántas combinaciones. Todo en una transacción: quedan los seis o ninguno. Las mismas consultas se corren antes de desplegar con `npm run db:check-duplicates` (`-- --sql` las imprime). Lo cubre `test/unique-constraints.e2e-spec.ts` con datos sintéticos.
+- **Por qué no una migración de diagnóstico que no rompa**: una que sólo avisa deja pasar el deploy y la siguiente falla igual; abortar con el mensaje completo es lo mismo con menos pasos, y el script previo evita llegar a ese punto en producción.
+- **Únicos creados**: `contract_rent_updates(contract_id, effective_from)`, `renter_credits(tenant_id, origin_payment_id)` (reemplaza al índice común), `settlements(tenant_id, contract_id, period, sequence)`, `fee_payment_allocations(fee_payment_id, fee_receivable_id)`, y parciales `owners(portal_user_id)` / `renters(portal_user_id)` `WHERE portal_user_id IS NOT NULL`.
+- **No se creó** `contract_billing_terms(contract_id, effective_from)`: la regla D-70 permite cargar dos veces la misma fecha ("corrige la fila del día; la más nueva manda") y un único la convertiría en un 409. **Tampoco** `property_photos(property_id, position)`: reordenar fotos intercambia posiciones y exigiría un único diferible; queda pendiente de una decisión sobre cómo reordenar.
+- **Efecto visible**: el segundo aumento del mismo contrato y fecha (job con dos réplicas, doble click) pasa a ser un 409 `UNIQUE_CONSTRAINT_VIOLATION` en vez de una fila duplicada.
+
+### D-241 · CHECK de bajo riesgo: `NOT VALID` y una validación que nunca tira el deploy
+
+- **Decisión**: `20261110130000_add_check_constraints` agrega los CHECK como `NOT VALID` (lock instantáneo, protegen toda escritura nueva) y `20261110131000_validate_check_constraints` los valida con `VALIDATE CONSTRAINT`, que sólo toma `SHARE UPDATE EXCLUSIVE`. Si una fila vieja no cumple, la constraint queda `NOT VALID` y se emite un `WARNING` con su nombre (corregir las filas y correr `ALTER TABLE ... VALIDATE CONSTRAINT`); el deploy no se cae por datos viejos.
+- **Qué se incluyó**: sólo reglas que el dominio ya hace cumplir (un CHECK más estricto convertiría un 422 en un 500) o intrínsecas: montos no negativos, `end_date > start_date`, porcentajes 0..100 de contratos y términos de cobro, períodos `AAAA-MM`, `remaining` y `paid_amount` dentro de su total, cotización siempre con su fuente.
+- **Qué se dejó afuera**: porcentajes de `tenants`/`installments`/`late_fee_percentage` (los DTOs aceptan hasta 999,99; falta decidir el tope), días de `tenants` (no se editan por la API), la identidad de la imputación del pago y `confirmed_at`/`voided_at` (piden revisar datos históricos).
+
+### D-242 · Índices de tablas grandes con `CONCURRENTLY`, uno por migración
+
+- `payments(tenant_id, status, paid_at)`, `installments(tenant_id, grace_end_date) WHERE status <> 'PAID'` y `audit_logs(tenant_id, action, created_at DESC)`, cada uno en su migración de una sola sentencia (Prisma envuelve en transacción las de varias y `CONCURRENTLY` no corre ahí). `src/shared/prisma/concurrent-indexes.spec.ts` verifica que siga siendo una sola sentencia. Si una falla deja un índice `INVALID`: el comentario de cada migración dice cómo borrarlo antes de reintentar.
+- No se tocaron `site_settings_custom_domain_verified_key` ni `job_executions_scheduled_slot_key`.
+
+### D-243 · Registrar un pago: lock de la cuota, saldos dentro de la transacción e `Idempotency-Key`
+
+- **Antes**: `balances` se calculaba antes de abrir la transacción. Dos pagos simultáneos sobre la misma cuota leían el mismo saldo y los dos lo imputaban entero (120.000 aplicados sobre 100.000, sin saldo a favor por el exceso).
+- **Ahora**: la transacción toma `SELECT ... FOR UPDATE` sobre la cuota (`InstallmentRepository.lockForUpdate`), relee la cuota y recalcula saldos adentro; el segundo pago se imputa contra lo que dejó el primero y, si ya no queda nada, recibe 409 `INSTALLMENT_ALREADY_PAID`. `ApplyCredit` sigue el mismo orden. La verificación de "ya saldada" de antes de subir el comprobante se mantiene sólo como atajo (sin clave).
+- **`Idempotency-Key`** (opcional, 1 a 128 caracteres imprimibles, sin espacios) en `POST /billing/installments/:id/payments`. Tabla `idempotency_keys(tenant_id, scope, key)` única, con `request_hash` (SHA-256 de cuota + cuerpo + comprobante) y `response` (los ids creados, no la respuesta: un reintento devuelve el estado actual de la cuota). La fila se inserta en la **misma transacción** que el pago con `INSERT ... ON CONFLICT`: dos pedidos con la misma clave en paralelo se serializan en el índice único y el segundo reproduce al primero. Misma clave con otro cuerpo: 409 `IDEMPOTENCY_KEY_REUSED`. Vence a las 24 h (una vencida vale como nueva; se purgan las del tenant de pasada en cada alta con clave, sin job). Si el pago falla no queda clave.
+- **Reintento de un pago que saldó la cuota**: con clave se omite el atajo de "ya saldada", porque tiene que devolver ese pago y no un 409.
+- **No cubierto**: el saldo a favor (`renter_credits`) se puede consumir en dos cuotas distintas del mismo inquilino a la vez; el lock es por cuota. Tampoco se tocaron anular/confirmar (ya tenían la condición de estado en el `UPDATE`), cargos ni ajustes de punitorio, ni recálculo de liquidaciones.
+
+### D-244 · Dashboard: el historial se suma en la base
+
+- El dashboard traía 6 meses de cuotas con cargos, pagos, ajustes y detalle diario sólo para sumar dos columnas por mes. Ahora `BillingFacade.reportRentTotals` hace un `GROUP BY (period, currency)` (suma el alquiler base y, por separado por cuota, el alquiler imputado por los pagos no anulados, para que un JOIN con varios pagos no multiplique) y `buildHistoryFromTotals` arma el mismo historial. Sólo el mes en curso sigue hidratado: sus estados y el punitorio a hoy salen de `InstallmentPolicy`, que no se duplica en SQL.
+- **Contrato idéntico**, fijado por `test/dashboard-contract.e2e-spec.ts` (escrito antes del cambio, en su propio commit) y comparado contra el camino viejo. `countPaymentsToConfirm` ya era un `count`.
+- **Pendiente** (otro módulo): `contracts.listDueForRentUpdate` (sólo se usa `.length`) y `expiringRows` (`listForReport` de todos los contratos) siguen cargando filas de más.
+
+### D-245 · El soft delete dentro de una transacción escribe con el cliente de la transacción
+
+- **Antes** (pendiente A2 de la auditoría): el `delete` convertido en `update` de `deletedAt` corría por `ref.extended`, fuera de la transacción: un rollback no lo deshacía, pedía una segunda conexión del pool mientras la transacción retenía la suya (P2024 con pocas conexiones) y el "registro actual" se leía sin ver lo creado por la propia transacción, así que no lo encontraba y el `delete` terminaba **borrando de verdad**.
+- **Ahora**: `softDeleteExtension(ref, { useTransaction })` usa el cliente de la transacción en curso para la lectura y la escritura derivadas, con el mismo criterio que la auditoría (sólo el cliente con filtro de tenant). Lo cubre `test/soft-delete-transaction.e2e-spec.ts` (4 de sus 6 casos fallan sin el arreglo).

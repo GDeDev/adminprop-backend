@@ -115,6 +115,7 @@ model Tenant {
 
   notificationLogs NotificationLog[]
   jobExecutions    JobExecution[]
+  idempotencyKeys  IdempotencyKey[]
 
   generatedDocuments          GeneratedDocument[]
   propertyInventories         PropertyInventory[]
@@ -262,6 +263,7 @@ model AuditLog {
 
   @@index([tenantId, entity, entityId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, action, createdAt(sort: Desc)])
   @@index([userId])
   @@index([createdAt])
   @@index([correlationId])
@@ -679,6 +681,8 @@ model Owner {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, bankCbu])
   @@index([tenantId, deletedAt])
+  /// Único parcial `WHERE portal_user_id IS NOT NULL` (owners_portal_user_id_key)
+  /// sólo en SQL: Prisma no declara índices parciales.
   @@index([portalUserId])
   @@map("owners")
 }
@@ -778,6 +782,8 @@ model Renter {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, guarantorId])
   @@index([tenantId, deletedAt])
+  /// Único parcial `WHERE portal_user_id IS NOT NULL` (renters_portal_user_id_key)
+  /// sólo en SQL: Prisma no declara índices parciales.
   @@index([portalUserId])
   @@map("renters")
 }
@@ -992,6 +998,8 @@ model ContractRentUpdate {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
+  /// Un aumento por fecha: el job y el doble click no duplican (M7).
+  @@unique([contractId, effectiveFrom])
   @@index([tenantId, contractId, effectiveFrom])
   @@map("contract_rent_updates")
 }
@@ -1354,6 +1362,7 @@ model Payment {
   @@index([tenantId, contractId, paidAt])
   @@index([tenantId, renterId])
   @@index([tenantId, status, receivedBy])
+  @@index([tenantId, status, paidAt])
   @@index([tenantId, creditId])
   @@index([tenantId, settlementId])
   @@map("payments")
@@ -1491,7 +1500,8 @@ model RenterCredit {
 
   @@index([tenantId, renterId, status])
   @@index([tenantId, contractId])
-  @@index([tenantId, originPaymentId])
+  /// Un pago genera un solo saldo a favor: un reintento no lo duplica (M7).
+  @@unique([tenantId, originPaymentId])
   @@map("renter_credits")
 }
 
@@ -1622,6 +1632,7 @@ model Settlement {
 
   /// Una sola PENDING por contrato: índice único parcial en la migración
   /// `add_settlements`.
+  @@unique([tenantId, contractId, period, sequence])
   @@index([tenantId, contractId, period])
   @@index([tenantId, ownerId, status])
   @@index([tenantId, propertyId])
@@ -1892,6 +1903,7 @@ model FeePaymentAllocation {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
+  @@unique([feePaymentId, feeReceivableId])
   @@index([tenantId, feePaymentId])
   @@index([tenantId, feeReceivableId])
   @@map("fee_payment_allocations")
@@ -2863,4 +2875,35 @@ model SiteAsset {
 
   @@index([tenantId, url])
   @@map("site_assets")
+}
+
+// ---------------------------------------------------------------------------
+// Idempotencia de POST (auditoría de datos, A3)
+// ---------------------------------------------------------------------------
+
+/// Clave `Idempotency-Key` de un POST que mueve dinero. Se escribe en la misma
+/// transacción que el pago: o están las dos filas o no hay ninguna. Dentro de
+/// `scope` y del tenant, la misma clave con el mismo pedido devuelve el
+/// resultado de la primera vez en vez de repetir el efecto; con otro pedido es
+/// un error. Vence (`expiresAt`): después vale como clave nueva.
+model IdempotencyKey {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Qué operación (`billing.register-payment`): la misma clave en dos
+  /// operaciones distintas no se pisa.
+  scope       String   @db.VarChar(60)
+  key         String   @db.VarChar(128)
+  /// SHA-256 del pedido: detecta la reutilización de la clave con otro cuerpo.
+  requestHash String   @map("request_hash") @db.VarChar(64)
+  /// Con qué se puede reconstruir la respuesta (ids creados). Null mientras la
+  /// primera ejecución no terminó.
+  response    Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, scope, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
 }

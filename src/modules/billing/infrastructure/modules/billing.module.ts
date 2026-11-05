@@ -24,6 +24,7 @@ import { InstallmentGenerator } from '@/modules/billing/application/installment-
 import { PaymentReceipts } from '@/modules/billing/application/payment-receipts'
 import { InstallmentRebaser } from '@/modules/billing/application/installment-rebaser'
 import { ContractEventsConsumer } from '../consumers/contract-events.consumer'
+import { IdempotencyService } from '@/shared/idempotency/idempotency.service'
 import { InstallmentRecalculator } from '@/modules/billing/application/installment-recalculator'
 import { InstallmentViews } from '@/modules/billing/application/installment.views'
 import {
@@ -74,6 +75,7 @@ import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.reposi
     { provide: PaymentRepository, useClass: PaymentRepositoryImpl },
     { provide: RenterCreditRepository, useClass: RenterCreditRepositoryImpl },
     { provide: DepositReturnRepository, useClass: DepositReturnRepositoryImpl },
+    IdempotencyService,
     BillingReferences,
     InstallmentViews,
     InstallmentGenerator,

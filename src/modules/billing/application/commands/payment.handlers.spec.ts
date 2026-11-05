@@ -37,6 +37,7 @@ import {
   makeInstallment,
   makePayment,
 } from '../../testing/billing.fixtures'
+import { IdempotencyService } from '@/shared/idempotency/idempotency.service'
 import { BillingReferences } from '../billing-references'
 import {
   PaymentConfirmedEvent,
@@ -137,8 +138,17 @@ function build(installment: Installment = installmentWithCharge()) {
     detail: jest.fn().mockResolvedValue({ payments: [] }),
   }
   const eventBus = { publish: jest.fn() }
-  const installments = { findById: jest.fn().mockResolvedValue(installment) }
+  const installments = {
+    findById: jest.fn().mockResolvedValue(installment),
+    lockForUpdate: jest.fn().mockResolvedValue(undefined),
+  }
+  const idempotency = {
+    begin: jest.fn().mockResolvedValue({ replay: false }),
+    complete: jest.fn().mockResolvedValue(undefined),
+    purgeExpired: jest.fn().mockResolvedValue(undefined),
+  }
   return {
+    idempotency,
     references,
     payments,
     credits,
@@ -156,6 +166,7 @@ type Deps = ReturnType<typeof build>
 function registerHandler(d: Deps) {
   return new RegisterPaymentHandler(
     d.references as unknown as BillingReferences,
+    d.installments as unknown as InstallmentRepository,
     d.payments as unknown as PaymentRepository,
     d.credits as unknown as RenterCreditRepository,
     d.recalculator as unknown as InstallmentRecalculator,
@@ -163,6 +174,7 @@ function registerHandler(d: Deps) {
     d.prisma as unknown as PrismaService,
     d.views as unknown as InstallmentViews,
     d.eventBus as unknown as EventBus,
+    d.idempotency as unknown as IdempotencyService,
   )
 }
 
@@ -397,6 +409,149 @@ describe('RegisterPaymentHandler', () => {
     ).rejects.toBeInstanceOf(InstallmentAlreadyPaidException)
   })
 
+  it('bloquea la cuota y recalcula los saldos dentro de la transacción', async () => {
+    // La cuota que se leyó antes estaba impaga; para cuando se tomó el lock,
+    // otro pago ya la había saldado. Sin releer adentro, este pago se imputaba
+    // contra un saldo viejo.
+    const stale = installmentWithCharge()
+    const settled = installmentWithCharge({
+      payments: [
+        makePayment({
+          lateFeeApplied: '50000.00',
+          rentApplied: '200000.00',
+          chargesApplied: '30000.00',
+        }),
+      ],
+    })
+    const d = build(stale)
+    d.references.requireInstallment
+      .mockResolvedValueOnce(stale)
+      .mockResolvedValueOnce(settled)
+
+    await expect(
+      inUserContext(() =>
+        registerHandler(d).execute(
+          new RegisterPaymentCommand('inst-1', input(), Buffer.alloc(0)),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(InstallmentAlreadyPaidException)
+
+    expect(d.installments.lockForUpdate).toHaveBeenCalledWith('inst-1')
+    expect(d.payments.create).not.toHaveBeenCalled()
+    // El lock va antes de la segunda lectura de la cuota.
+    expect(
+      d.installments.lockForUpdate.mock.invocationCallOrder[0],
+    ).toBeLessThan(d.references.requireInstallment.mock.invocationCallOrder[1])
+  })
+
+  describe('con Idempotency-Key', () => {
+    const KEY = 'pago-123'
+    const withKey = (amount = '280000.00') =>
+      new RegisterPaymentCommand(
+        'inst-1',
+        input({ amount }),
+        Buffer.alloc(0),
+        KEY,
+      )
+
+    it('la primera vez registra el pago y guarda con qué reconstruirlo', async () => {
+      const d = build()
+      await inUserContext(() => registerHandler(d).execute(withKey()))
+
+      expect(d.idempotency.begin).toHaveBeenCalledWith(
+        'billing.register-payment',
+        KEY,
+        expect.stringMatching(/^[0-9a-f]{64}$/),
+      )
+      expect(d.payments.create).toHaveBeenCalledTimes(1)
+      expect(d.idempotency.complete).toHaveBeenCalledWith(
+        'billing.register-payment',
+        KEY,
+        { paymentId: 'new-1', creditApplicationIds: [] },
+      )
+    })
+
+    it('la misma clave con otro monto no es el mismo pedido: otra huella', async () => {
+      const d = build()
+      await inUserContext(() => registerHandler(d).execute(withKey()))
+      await inUserContext(() =>
+        registerHandler(d).execute(withKey('100000.00')),
+      )
+      const [first, second] = d.idempotency.begin.mock.calls.map((c) => c[2])
+      expect(first).not.toEqual(second)
+    })
+
+    it('si la clave ya se usó devuelve el pago de la primera vez sin crear otro', async () => {
+      const original = makePayment({ id: 'pay-orig' })
+      const d = build()
+      d.idempotency.begin.mockResolvedValue({
+        replay: true,
+        response: { paymentId: 'pay-orig', creditApplicationIds: [] },
+      })
+      d.payments.findById.mockResolvedValue(original)
+
+      await inUserContext(() => registerHandler(d).execute(withKey()))
+
+      expect(d.payments.create).not.toHaveBeenCalled()
+      expect(d.installments.lockForUpdate).not.toHaveBeenCalled()
+      expect(d.credits.create).not.toHaveBeenCalled()
+      expect(d.eventBus.publish).not.toHaveBeenCalled()
+    })
+
+    it('el reintento de un pago que saldó la cuota devuelve ese pago y no un 409', async () => {
+      const paid = installmentWithCharge({
+        status: InstallmentStatus.PAID,
+        payments: [
+          makePayment({
+            id: 'pay-orig',
+            lateFeeApplied: '50000.00',
+            rentApplied: '200000.00',
+            chargesApplied: '30000.00',
+          }),
+        ],
+      })
+      const d = build(paid)
+      d.idempotency.begin.mockResolvedValue({
+        replay: true,
+        response: { paymentId: 'pay-orig', creditApplicationIds: [] },
+      })
+      d.payments.findById.mockResolvedValue(paid.payments[0])
+
+      await expect(
+        inUserContext(() => registerHandler(d).execute(withKey())),
+      ).resolves.toBeDefined()
+    })
+
+    it('si era un reintento descarta el comprobante recién subido', async () => {
+      const d = build()
+      d.idempotency.begin.mockResolvedValue({
+        replay: true,
+        response: { paymentId: 'pay-orig', creditApplicationIds: [] },
+      })
+      d.payments.findById.mockResolvedValue(makePayment({ id: 'pay-orig' }))
+
+      await inUserContext(() =>
+        registerHandler(d).execute(
+          new RegisterPaymentCommand('inst-1', input(), PDF, KEY),
+        ),
+      )
+
+      expect(d.storage.upload).toHaveBeenCalledTimes(1)
+      expect(d.storage.delete).toHaveBeenCalledTimes(1)
+    })
+
+    it('sin clave no toca la tabla de idempotencia', async () => {
+      const d = build()
+      await inUserContext(() =>
+        registerHandler(d).execute(
+          new RegisterPaymentCommand('inst-1', input(), Buffer.alloc(0)),
+        ),
+      )
+      expect(d.idempotency.begin).not.toHaveBeenCalled()
+      expect(d.idempotency.complete).not.toHaveBeenCalled()
+    })
+  })
+
   it('un pago con fecha futura se rechaza', async () => {
     const d = build()
     await expect(
@@ -475,6 +630,7 @@ describe('ApplyCreditHandler', () => {
   function handler(d: Deps) {
     return new ApplyCreditHandler(
       d.references as unknown as BillingReferences,
+      d.installments as unknown as InstallmentRepository,
       d.payments as unknown as PaymentRepository,
       d.credits as unknown as RenterCreditRepository,
       d.recalculator as unknown as InstallmentRecalculator,

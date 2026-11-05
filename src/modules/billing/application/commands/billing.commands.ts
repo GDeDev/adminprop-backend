@@ -53,6 +53,8 @@ export class RegisterPaymentCommand {
     public readonly data: RegisterPaymentInput,
     /** El comprobante tal como llegó; vacío si no mandaron archivo. */
     public readonly receipt: Buffer,
+    /** `Idempotency-Key` del request, ya validada; null si no la mandaron. */
+    public readonly idempotencyKey: string | null = null,
   ) {}
 }
 
