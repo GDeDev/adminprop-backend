@@ -1619,3 +1619,12 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Ahora**: `Idempotency-Key` está en la lista. El controller lo lee con `@Headers('idempotency-key')`; Express baja a minúsculas todos los nombres, así que el match no depende de cómo lo escriba el cliente.
 - **Sin cambios**: los orígenes permitidos (`CORS_ORIGINS`) y el cierre por defecto. Un origen no listado sigue sin recibir `Access-Control-Allow-Origin`, que es lo que el navegador usa para bloquear.
 - **Test**: `test/cors.e2e-spec.ts` (preflight desde un origen permitido y desde uno ajeno).
+
+### D-247 · Una violación de CHECK de Postgres (23514) es un 422, no un 500
+
+- **Problema**: los CHECK de la migración `20261110130000` (D-241) rechazan datos inválidos en la base, pero Prisma los entrega por caminos que el filtro no reconocía y caían en `DATABASE_ERROR` 500: el ORM los devuelve como `PrismaClientUnknownRequestError` (sólo con el SQLSTATE dentro del mensaje) y el SQL crudo como `P2010` con `meta.code = '23514'`.
+- **Ahora**: `PrismaExceptionFilter` (donde ya se mapea `P2002` → `UNIQUE_CONSTRAINT_VIOLATION`) también atrapa `PrismaClientUnknownRequestError` y reconoce el CHECK en los tres caminos (`P2010` con 23514, `P2004` y el error desconocido con 23514 o "violates check constraint"). Responde **422** con `code: CHECK_CONSTRAINT_VIOLATION` (nuevo en `ErrorCode` y en `openapi.json`).
+- **Mensaje**: genérico en español ("Los datos no cumplen una regla de validez…"), igual en producción y en desarrollo. El mensaje de Postgres trae el nombre de la constraint, la tabla y la fila completa, así que no sale en la respuesta; queda sólo en el log.
+- **Supuesto**: es un 422 y no un 400 porque el pedido estaba bien formado y es la regla de datos la que lo rechaza; el dominio ya valida casi todo esto antes, así que llegar acá es un hueco de validación a cerrar, no un caso normal.
+- **Sin cambios**: cualquier otro error desconocido del ORM sigue siendo `DATABASE_ERROR` 500, y `P2002` sigue siendo 409.
+- **Tests**: `prisma-exception.filter.spec.ts` (los tres caminos, sin fuga de nombres, los otros códigos intactos); `src/openapi-refs.spec.ts` sigue pasando.

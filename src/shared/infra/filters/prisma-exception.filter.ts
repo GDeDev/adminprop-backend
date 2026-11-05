@@ -11,6 +11,7 @@ import { PinoLogger } from 'nestjs-pino'
 import {
   PrismaClientInitializationError,
   PrismaClientKnownRequestError,
+  PrismaClientUnknownRequestError,
   PrismaClientValidationError,
 } from '@prisma/client/runtime/library'
 
@@ -40,6 +41,7 @@ interface MappedPrismaError {
   PrismaClientKnownRequestError,
   PrismaClientValidationError,
   PrismaClientInitializationError,
+  PrismaClientUnknownRequestError,
 )
 export class PrismaExceptionFilter implements ExceptionFilter {
   private readonly isProduction: boolean
@@ -124,6 +126,21 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         status: HttpStatus.SERVICE_UNAVAILABLE,
         code: ErrorCode.SERVICE_UNAVAILABLE,
         message: 'La base de datos no está disponible en este momento',
+      }
+    }
+
+    // Un CHECK de Postgres (SQLSTATE 23514) llega por tres caminos según cómo
+    // se hizo la consulta: P2004 (ORM, motores con código), P2010 (SQL crudo,
+    // con el SQLSTATE en `meta.code`) o un error "desconocido" del ORM que sólo
+    // lleva el SQLSTATE dentro del mensaje. Los tres son la misma regla rota.
+    if (isCheckViolation(exception)) {
+      return {
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        code: ErrorCode.CHECK_CONSTRAINT_VIOLATION,
+        // Genérico a propósito: el mensaje de Postgres trae el nombre de la
+        // constraint y la fila completa. El detalle real queda en el log.
+        message:
+          'Los datos no cumplen una regla de validez (por ejemplo, un monto o una fecha fuera de rango)',
       }
     }
 
@@ -253,4 +270,30 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     if (typeof target === 'string') return [target]
     return []
   }
+}
+
+/** SQLSTATE de `check_violation`. */
+const CHECK_VIOLATION_SQLSTATE = '23514'
+
+function isCheckViolation(exception: unknown): boolean {
+  if (exception instanceof PrismaClientKnownRequestError) {
+    if (exception.code === 'P2010') {
+      return exception.meta?.code === CHECK_VIOLATION_SQLSTATE
+    }
+    if (exception.code === 'P2004') {
+      const text = `${exception.message} ${JSON.stringify(exception.meta ?? {})}`
+      return (
+        text.includes(CHECK_VIOLATION_SQLSTATE) ||
+        /violates check constraint/i.test(text)
+      )
+    }
+    return false
+  }
+  if (exception instanceof PrismaClientUnknownRequestError) {
+    return (
+      exception.message.includes(`"${CHECK_VIOLATION_SQLSTATE}"`) ||
+      /violates check constraint/i.test(exception.message)
+    )
+  }
+  return false
 }
