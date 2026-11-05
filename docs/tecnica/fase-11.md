@@ -110,3 +110,7 @@ Totales: 365 unitarios (38 nuevos: `contract.policy.spec.ts`, `installment.polic
 ## Saldo a favor al generar la cuota (D-237)
 
 `Tenant.autoApplyCreditOnGeneration` (default `false`) y `payments.registered_by_id` nullable (migración `20261108130000_credit_auto_apply_on_generation`). `applyCreditPlan` y `publishConfirmed` salieron de `payment.handlers.ts` a `credit-application.ts` para compartirlos; `InstallmentCreditApplier.applyIfAutomatic` lo usa `InstallmentGenerator` sólo con las cuotas recién creadas; `GenerationResult.creditsApplied`. El flag viaja por `TenantsFacade.getBillingSettings` y `PATCH /tenants/current/settings`. Tests: `installment-generator.spec.ts`, `test/billing.e2e-spec.ts` (manual, automático sin duplicar, cobro directo, empleado 403).
+
+## Cuenta corriente: por liquidar (D-238)
+
+`ContractAccountTotalsView.pendingSettlement` (`buildContractAccount`): pagos `CONFIRMED`, `AGENCY` y con `settlementId` nulo, con punitorio + alquiler + cargos del propietario (`chargesAppliedByConcept`, sin SERVICE), todo con `@/shared/money`. Tests: `contract-account.views.spec.ts`, `test/settlements.e2e-spec.ts`.

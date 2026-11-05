@@ -25440,6 +25440,10 @@
           "collectedByOwner": {
             "type": "string"
           },
+          "pendingSettlement": {
+            "type": "string",
+            "description": "Por liquidar al propietario: lo cobrado por la inmobiliaria y confirmado que todavía no está en una liquidación confirmada (alquiler + punitorios + cargos del propietario, antes de honorarios y gastos)"
+          },
           "pendingConfirmation": {
             "type": "string"
           },
@@ -25464,6 +25468,7 @@
           "collected",
           "collectedByAgency",
           "collectedByOwner",
+          "pendingSettlement",
           "pendingConfirmation",
           "balance",
           "creditsAvailable",

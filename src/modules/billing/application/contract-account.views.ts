@@ -74,6 +74,12 @@ export interface ContractAccountTotalsView {
   collected: string
   collectedByAgency: string
   collectedByOwner: string
+  /**
+   * Lo cobrado por la inmobiliaria, confirmado y todavía fuera de una
+   * liquidación cerrada: alquiler + punitorios + cargos del propietario
+   * (sin los de servicio, A-16), antes de honorarios y gastos (D-238).
+   */
+  pendingSettlement: string
   pendingConfirmation: string
   balance: string
   creditsAvailable: string
@@ -339,6 +345,31 @@ export function buildContractAccount(
       ),
     )
 
+  // Un pago entra a `settlementId` sólo cuando la liquidación se confirma
+  // (`markPaymentsSettled`), así que "sin settlementId" es "fuera de una
+  // liquidación cerrada". Mismo criterio que `listSettleable` (D-238).
+  const pendingSettlement = sumMoney(
+    installments.flatMap((installment) => {
+      const byConcept = InstallmentPolicy.chargesAppliedByConcept(installment)
+      return installment.payments
+        .filter(
+          (p) =>
+            p.status === PaymentStatus.CONFIRMED &&
+            p.receivedBy === PaymentReceiver.AGENCY &&
+            p.settlementId === null,
+        )
+        .map((p) => {
+          const charges = byConcept.get(p.id)
+          return sumMoney([
+            p.lateFeeApplied,
+            p.rentApplied,
+            charges?.TERMINATION_PENALTY ?? '0',
+            charges?.OTHER ?? '0',
+          ])
+        })
+    }),
+  )
+
   return {
     contract: {
       id: contract.id,
@@ -355,6 +386,7 @@ export function buildContractAccount(
       collected: sumMoney(rows.map((r) => r.balances.paidTotal)),
       collectedByAgency: collectedBy(PaymentReceiver.AGENCY),
       collectedByOwner: collectedBy(PaymentReceiver.OWNER),
+      pendingSettlement,
       pendingConfirmation: sumMoney(
         rows.map((r) => r.balances.pendingConfirmationTotal),
       ),

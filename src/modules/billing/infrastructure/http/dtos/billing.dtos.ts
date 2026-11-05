@@ -736,6 +736,12 @@ export class ContractAccountTotalsDto {
   @ApiProperty({ type: String }) collected: string
   @ApiProperty({ type: String }) collectedByAgency: string
   @ApiProperty({ type: String }) collectedByOwner: string
+  @ApiProperty({
+    type: String,
+    description:
+      'Por liquidar al propietario: lo cobrado por la inmobiliaria y confirmado que todavía no está en una liquidación confirmada (alquiler + punitorios + cargos del propietario, antes de honorarios y gastos)',
+  })
+  pendingSettlement: string
   @ApiProperty({ type: String }) pendingConfirmation: string
   @ApiProperty({ type: String }) balance: string
   @ApiProperty({ type: String }) creditsAvailable: string

@@ -1562,3 +1562,12 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
   3. Si no se puede aplicar (error inesperado), la cuota queda creada, se registra un aviso en el log y el resto de las cuotas sigue; el saldo queda para aplicar a mano.
   4. La fecha del pago de la aplicación es la de la generación (hoy), aunque la cuota sea de un mes futuro (pago anticipado, ya permitido).
   5. El modo es por inmobiliaria, no por contrato ni por inquilino.
+
+### D-238 · Cuenta corriente del contrato: monto "por liquidar" al propietario (Micaela #8)
+
+- **Antes**: la cuenta (`GET /contracts/:id/account`) mostraba lo cobrado, pero no cuánto de eso le corresponde todavía al propietario: había que ir a la sección de liquidaciones.
+- **Ahora** (aditivo): `totals.pendingSettlement`, en la moneda del contrato. Es la suma, sobre los pagos **confirmados, recibidos por la inmobiliaria y sin `settlementId`**, de punitorio + alquiler + cargos del propietario aplicados (`TERMINATION_PENALTY` y `OTHER`; los `SERVICE` no, A-16). Incluye el saldo a favor aplicado (D-84) y excluye lo que cobró el propietario, lo sin confirmar y lo anulado. Es el mismo criterio de `listSettleable`: `settlementId` se escribe recién al **confirmar** la liquidación, así que "sin `settlementId`" equivale a "fuera de una liquidación cerrada" y la cuenta no necesita consultar `settlements` (que depende de `billing`).
+- **Supuestos**:
+  1. Es **bruto**: antes de honorarios, gastos y ajustes, que se definen al armar la liquidación. El neto a transferir sigue saliendo de la liquidación pendiente.
+  2. "Cerrada" = confirmada (`CONFIRMED` o `TRANSFERRED`); una liquidación `PENDING` (borrador) todavía no cierra nada, así que sus pagos siguen contando como por liquidar.
+  3. Se recalcula al leer, igual que el resto de la cuenta.

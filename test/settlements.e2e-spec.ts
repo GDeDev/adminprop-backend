@@ -1031,6 +1031,42 @@ describe('Liquidaciones (e2e, Postgres)', () => {
     })
   })
 
+  describe('cuenta corriente del contrato: por liquidar (D-238)', () => {
+    it('suma lo cobrado y confirmado por la inmobiliaria hasta que la liquidación se confirma, y no cuenta lo que cobró el propietario', async () => {
+      const contract = await createContract({})
+      const account = async () =>
+        (
+          await api(adminToken)
+            .get(`/contracts/${contract.id}/account`)
+            .expect(200)
+        ).body.data.totals
+      expect((await account()).pendingSettlement).toBe('0.00')
+
+      await payInstallment(contract.id, previous)
+      const settlementId = await waitForDraft(contract.id)
+      // Cobrado y confirmado, con la liquidación todavía pendiente.
+      expect(await account()).toMatchObject({
+        collectedByAgency: '100000.00',
+        pendingSettlement: '100000.00',
+      })
+
+      await api(adminToken)
+        .post(`/settlements/${settlementId}/confirm`)
+        .expect(200)
+      expect(await account()).toMatchObject({
+        collectedByAgency: '100000.00',
+        pendingSettlement: '0.00',
+      })
+
+      const direct = await createContract({ collectionMode: 'OWNER_DIRECT' })
+      await payInstallment(direct.id, previous)
+      const directAccount = (
+        await api(adminToken).get(`/contracts/${direct.id}/account`).expect(200)
+      ).body.data.totals
+      expect(directAccount.pendingSettlement).toBe('0.00')
+    })
+  })
+
   describe('cuenta de honorarios (4.8, Micaela #9B y #10)', () => {
     it('un alquiler cobrado por el propietario devenga el honorario al confirmarse; los pagos se imputan a los más viejos y el exceso espera al siguiente', async () => {
       const contract = await createContract({

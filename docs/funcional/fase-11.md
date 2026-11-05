@@ -27,3 +27,7 @@
 ## Saldo a favor al generar la cuota (D-237)
 
 Ahora la aplicación del saldo a favor puede ser **manual** (como hasta ahora) o **automática**, a elección de la inmobiliaria en Configuración (sólo administradores). En modo automático, cuando se genera la cuota de un mes, el saldo a favor del inquilino (en la misma moneda) se descuenta solo de esa cuota, sin duplicarse si se vuelve a generar el mes. Los contratos con cobro directo al propietario quedan afuera: ahí el saldo se aplica a mano.
+
+## Cuenta corriente: cuánto se le debe liquidar al propietario (D-238)
+
+La cuenta corriente del contrato suma el total **por liquidar**: lo que la inmobiliaria cobró y confirmó (alquiler, punitorios y cargos del propietario) y todavía no está en una liquidación confirmada. Es un monto bruto, antes de honorarios y gastos; el neto a transferir se ve en la liquidación. Lo que cobró directamente el propietario no cuenta.
