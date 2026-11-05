@@ -412,7 +412,7 @@ El proyecto ahora compila correctamente con todos los errores resueltos:
 - ✅ **Unused variable warnings** - Variables renombradas con prefijo `_`
 - ✅ **Import case sensitivity** - Imports consistentes con nombres de archivo
 - ✅ **TypeScript compliance** - Tipos correctos en toda la aplicación
-- ✅ **Package.json scripts** - Rutas corregidas para `dist/src/main`
+- ✅ **Package.json scripts** - Rutas corregidas para `dist/main`
 
 ### **📁 Archivos del Sistema**
 
@@ -439,9 +439,9 @@ src/
 
 ```json
 {
-  "start:prod": "node dist/src/main",
-  "start:qa": "NODE_ENV=qa node dist/src/main",
-  "start:production": "NODE_ENV=production node dist/src/main"
+  "start:prod": "node dist/main",
+  "start:qa": "NODE_ENV=qa node dist/main",
+  "start:production": "NODE_ENV=production node dist/main"
 }
 ```
 

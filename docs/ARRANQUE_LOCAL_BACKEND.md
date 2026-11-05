@@ -7,6 +7,17 @@ y el arranque se **probó de punta a punta** con valores descartables (sin
 Doppler ni Docker): ver `docs/AUDITORIA_LISTO_PARA_LOCAL.md`. Lo que no se pudo
 verificar desde el sandbox figura como **a confirmar**.
 
+> **Tres avisos antes de empezar:**
+>
+> 1. **`CORS_ORIGINS` es obligatoria para que el login del frontend entre** (sin
+>    ella el navegador bloquea el `POST /auth/login`): en `dev_backend`,
+>    `http://localhost:3001,http://localhost:3002` (ver sección 4).
+> 2. **Corré `npx prisma generate` después de `npm ci` y cada vez que cambies de
+>    rama** (o el schema de Prisma cambie): con el cliente desactualizado `tsc`,
+>    `tenant:create` y los tests fallan al compilar.
+> 3. **Crear un contrato no genera sus cuotas:** hay que usar **"Generar cuotas"**
+>    (manual, en Cobros) o esperar el proceso automático mensual.
+
 > No existe `.env`: la app ignora cualquier archivo `.env`. Las variables salen
 > de Doppler (proyecto `admin-prop`, config `dev_backend` en local) y los
 > scripts de `package.json` ya corren dentro de `doppler run --`.
@@ -91,17 +102,13 @@ Sin valores. Fuente de verdad: `.env.example` (documenta) y
 `src/shared/config/env.validation.ts` (valida al arrancar: si falta una
 obligatoria o está mal tipada, la app no levanta y dice cuál).
 
-Convenciones (verificadas probando cada variable con `""` contra
-`validateEnv`): los booleanos, los numéricos con `@toInt` (límites y tiempos del
-throttle, `BCRYPT_SALT_ROUNDS`, etc.), los textos y todas las `SITES_*`,
-`CORS_*`, `*_API_KEY`, `*_SECRET` con valor vacío se tratan como "sin definir".
-**Rompen el arranque con valor vacío** (la app muere con "Configuración de
-entorno inválida"), así que si no se usan **no se crean**:
-
-`NODE_ENV`, `PORT`, `SECRETS_PROVIDER`, `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL`,
-`QUEUE_PROVIDER`, `STORAGE_PROVIDER`, `FEATURE_FLAGS_PROVIDER`, `EMAIL_PROVIDER`,
-`NOTIFICATIONS_PROVIDER`, `PDF_PROVIDER`, `TOKKO_SOURCE`, `INDEX_SOURCE_PROVIDER`,
-`VALUATION_NARRATOR`, `LISTING_PUBLISHER_PROVIDER`.
+Convención (D-232): **toda variable opcional o con default con valor vacío (o solo
+espacios) se trata como "sin definir"**, así que se pueden crear vacías en Doppler
+con `doppler secrets set NAME=""` (también `NODE_ENV`, `PORT`, `SECRETS_PROVIDER`,
+`JWT_*_TTL` y todos los `*_PROVIDER`). Las únicas que **no** admiten vacío son las
+obligatorias (`DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`): vacías
+siguen fallando con un mensaje que dice cuál. Tampoco se relaja la seguridad:
+`SITES_PREVIEW_SECRET` vacía con `NODE_ENV=qa`/`production` sigue siendo error.
 
 Qué pasa si falta una obligatoria: la app no arranca y lista qué variable está
 mal (`DATABASE_URL es obligatoria`, `JWT_ACCESS_SECRET debe tener al menos 32
@@ -124,7 +131,8 @@ API desde el navegador: **ni siquiera el login entra** (el navegador bloquea el
 (backoffice y portal; ver puertos en la sección 8). Tiene que ser `localhost`,
 no `127.0.0.1`: el origen se compara literal. `apps/sites` llama a la API desde
 su servidor, no necesita CORS. El valor de `.env.example`
-(`localhost:3000,localhost:5173`) es del template, no sirve para este frontend.
+ya está ajustado a esos dos orígenes (antes traía `localhost:3000,localhost:5173`,
+del template).
 
 ### Obligatorias solo fuera de development/test (incluye `qa`)
 
@@ -138,20 +146,19 @@ su servidor, no necesita CORS. El valor de `.env.example`
 | Variable                  | Para qué                                                                                                                                           | Cómo se obtiene        |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
 | `APP_ENCRYPTION_KEY`      | Cifra los tokens de los portales (CRM). 32 bytes en hex (64 caracteres) o base64. Sin clave la app arranca, pero falla al guardar/leer un secreto. | `openssl rand -hex 32` |
-| `SITES_REVALIDATE_SECRET` | Secreto compartido con `apps/sites` para el aviso de publicación. Si falta `SITES_SERVER_SECRET`, también hace de secreto del throttle.            | `openssl rand -hex 32` |
-| `SITES_SERVER_SECRET`     | Secreto del header `X-Sites-Secret` contra el tope por IP. **No crearla por ahora** (ver el recuadro de abajo).                                    | `openssl rand -hex 32` |
+| `SITES_REVALIDATE_SECRET` | Secreto compartido con `apps/sites` para el aviso de publicación. También se acepta como `X-Sites-Secret` (es el que manda `apps/sites`).          | `openssl rand -hex 32` |
+| `SITES_SERVER_SECRET`     | Secreto opcional, adicional, que la API también acepta en `X-Sites-Secret` (ver el recuadro de abajo).                                             | `openssl rand -hex 32` |
 
-> **Incoherencia detectada con `apps/sites` (verificada):** `apps/sites` manda
-> como `X-Sites-Secret` el valor de **su** `SITES_REVALIDATE_SECRET` (no tiene
-> variable `SITES_SERVER_SECRET`). La API compara ese header solo contra
-> `SITES_SERVER_SECRET` cuando está definida (si no, contra
-> `SITES_REVALIDATE_SECRET`). Si definís las dos con valores distintos, el
-> servidor de sitios queda **limitado como cualquier visitante** (429 a los 10
-> pedidos por segundo, probado) y un sitio con tráfico dejaría sin servicio a
-> los demás. Hasta que `apps/sites` lea `SITES_SERVER_SECRET`: **no crear
-> `SITES_SERVER_SECRET`**, o cargar en ambas el mismo valor. Una sola
-> `SITES_REVALIDATE_SECRET` en `dev_backend` y en la config de sitios, con el
-> mismo valor.
+> **Secretos de `apps/sites` (resuelto):** `apps/sites` manda como
+> `X-Sites-Secret` el valor de **su** `SITES_REVALIDATE_SECRET` (no tiene variable
+> `SITES_SERVER_SECRET`). Antes la API comparaba ese header solo contra
+> `SITES_SERVER_SECRET` si estaba definida, y el servidor de sitios quedaba
+> limitado como cualquier visitante. Ahora la API acepta el header si coincide
+> con `SITES_SERVER_SECRET` **o** con `SITES_REVALIDATE_SECRET` (comparación en
+> tiempo constante; ambas opcionales; un valor vacío no se acepta). Alcanza con
+> una sola `SITES_REVALIDATE_SECRET`, con el mismo valor en `dev_backend` y en la
+> config de sitios; `SITES_SERVER_SECRET` ya no rompe nada si se crea (vacía o
+> con valor). Ver D-231.
 > | `RESEND_WEBHOOK_SECRET` | Secreto Svix del webhook de Resend (`whsec_...`). | Lo entrega Resend. |
 
 ### Credenciales de terceros (solo si se activa el proveedor)
@@ -207,8 +214,9 @@ completa de lo que hay que crear en cada config de Doppler está en
 ## 5. Orden de comandos
 
 ```bash
-# 1. Dependencias (usa package-lock.json)
+# 1. Dependencias (usa package-lock.json) y cliente de Prisma
 npm ci
+npx prisma generate                    # también tras cada cambio de rama
 
 # 2. Postgres 16 (base de desarrollo + base de tests e2e)
 npm run docker:dev
@@ -273,11 +281,10 @@ Notas:
 - URLs una vez arriba: API `http://localhost:3000/api/v1`, Swagger
   `http://localhost:3000/swagger`, health `http://localhost:3000/health`.
 - **Build y arranque de producción:** `npm run build` deja el resultado en
-  `dist/main.js`, pero `npm run start:prod` (y `start:qa`, `start:production` y
-  el `CMD` del `Dockerfile`) apuntan a `dist/src/main`, que **no existe** con el
-  builder SWC actual (ya figura como pendiente en `docs/tecnica/fase-04.md`,
-  para antes de la Fase 16). Hasta que se corrija, arrancar con
-  `node dist/main.js` y las variables ya inyectadas (o con `doppler run --`).
+  `dist/main.js` y `npm run start:prod` (igual que `start:qa`, `start:production`
+  y el `CMD` del `Dockerfile`) arranca `node dist/main`. Estos scripts no usan
+  Doppler: las variables tienen que venir ya inyectadas (o correr con
+  `doppler run --`).
 
 ## 6. Tests
 
@@ -312,9 +319,6 @@ npm run test:e2e -- test/<archivo>.e2e-spec.ts   # e2e de a UN archivo
   cambiar el puerto publicado en `docker-compose.yml` y en `DATABASE_URL`.
 - **La app no arranca y lista variables**: es la validación de entorno; falta
   `DATABASE_URL` o un `JWT_*_SECRET`, o son iguales entre sí.
-- **No arranca con "Configuración de entorno inválida" y una variable `*_PROVIDER`
-  (o `PORT`, `JWT_*_TTL`)**: está creada en Doppler con valor vacío. Borrala o
-  dale un valor válido (sección 4).
 - **El navegador dice "CORS" / el login del backoffice no entra y la pantalla
   se queda en `/login`**: falta
   `CORS_ORIGINS` en `dev_backend` o no incluye `http://localhost:3001` y

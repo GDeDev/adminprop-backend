@@ -1505,3 +1505,22 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
   1. `authorizedBy` es **texto libre** (puede ser el propietario, que no es usuario del sistema), no un id de usuario; el usuario que aplicó el cambio sigue en `appliedById`.
   2. Quién puede hacerlo no cambió: ADMIN y EMPLOYEE. El hallazgo 13 pedía "definir si el empleado puede": **no se restringió** (decisión de negocio pendiente).
   3. El aumento por `%` fijo automático no es "ajuste manual" y no pide motivo (el % ya está pactado en el contrato).
+
+### D-231 · `X-Sites-Secret` vale con `SITES_SERVER_SECRET` o con `SITES_REVALIDATE_SECRET`
+
+- **Antes**: la API comparaba el header solo contra `SITES_SERVER_SECRET` si existía (si no, contra `SITES_REVALIDATE_SECRET`). `apps/sites` manda su `SITES_REVALIDATE_SECRET` y no tiene variable propia para el otro: definir `SITES_SERVER_SECRET` lo dejaba limitado como cualquier visitante (429 a los 10 pedidos por segundo), y un sitio con tráfico dejaba sin servicio a los demás.
+- **Ahora**: `sites.serverSecrets` lista los secretos definidos y no vacíos; `isTrustedServerSecret` acepta el header si coincide con cualquiera (hash SHA-256 + `timingSafeEqual`, recorriendo todos). Un header vacío nunca vale y una variable vacía no cuenta.
+- **Por qué no tocar el frontend**: es otro repo; aceptar ambos desde la API es compatible hacia atrás y no reduce la seguridad (los dos son secretos compartidos con el mismo servidor).
+- **Supuesto**: quien conozca el secreto de revalidar puede saltearse el tope de lectura (y al revés), como ya ocurría cuando `SITES_SERVER_SECRET` no estaba definida. Si se quiere separarlos de verdad, `apps/sites` tiene que leer una variable propia para el header.
+
+### D-232 · Variables opcionales vacías equivalen a no definidas
+
+- **Antes**: la regla del dueño es crear en Doppler las variables nuevas **vacías** (`doppler secrets set NAME=""`), pero un `*_PROVIDER`, `TOKKO_SOURCE`, `NODE_ENV`, `PORT`, `SECRETS_PROVIDER` o `JWT_*_TTL` vacío hacía que la API no arrancara.
+- **Ahora**: `validateEnv` descarta las variables en blanco (también las de solo espacios) antes de validar, salvo `DATABASE_URL`, `JWT_ACCESS_SECRET` y `JWT_REFRESH_SECRET`, que siguen fallando con su mensaje. `configuration()` y `loadSecrets()` ya tratan el vacío como default. `SITES_PREVIEW_SECRET` vacía en producción sigue siendo error (32+ caracteres).
+
+### D-233 · Depósito menor al alquiler con `FOLLOWS_RENT`: devolución mayor a lo recibido (pregunta abierta para Micaela)
+
+- **Qué hace el código** (verificado en `src/modules/billing/domain` y su spec, sin cambios): con el modo `FOLLOWS_RENT` el monto de referencia de la devolución es el alquiler vigente al rescindir (D-227), no lo que se cobró de depósito. Si el depósito recibido fue menor que ese alquiler (por ejemplo, 1 mes de depósito y alquiler actualizado por ICL/IPC), el sistema calcula una devolución **mayor a lo recibido**.
+- **Ya figuraba** como supuesto 5 de D-227; acá se eleva a pregunta abierta y se fija con un test (`deposit-return.follows-rent.spec.ts`).
+- **Decisión**: **no se cambió**. Queda como supuesto y pregunta abierta.
+- **Pregunta para Micaela**: ¿la devolución puede superar lo efectivamente recibido (la inmobiliaria o el propietario pone la diferencia), o hay que topearla en lo recibido? Hoy se paga el alquiler vigente completo.

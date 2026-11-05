@@ -935,15 +935,21 @@ describe('Sitio web (e2e, Postgres)', () => {
     let throttled: INestApplication
     const original = process.env.THROTTLE_ENABLED
     const SECRET = 'secreto-compartido-e2e'
+    const SERVER_SECRET = 'secreto-del-throttle-e2e'
 
     beforeAll(async () => {
       process.env.THROTTLE_ENABLED = 'true'
+      // Con las dos definidas y distintas, la API tiene que aceptar ambas: antes
+      // sólo valía SITES_SERVER_SECRET y apps/sites (que manda el de revalidación)
+      // quedaba limitado como cualquier visitante.
+      process.env.SITES_SERVER_SECRET = SERVER_SECRET
       throttled = await createTestApp()
     })
 
     afterAll(async () => {
       await throttled.close()
       process.env.THROTTLE_ENABLED = original
+      delete process.env.SITES_SERVER_SECRET
     })
 
     /** Pide `times` veces y devuelve cuántas respondieron 429. */
@@ -978,6 +984,13 @@ describe('Sitio web (e2e, Postgres)', () => {
       expect(
         await blockedOf('/public/site-by-host?host=x.sites.test', 620, SECRET),
       ).toBe(0)
+    })
+
+    it('con SITES_SERVER_SECRET definido, el de revalidación y el propio valen', async () => {
+      expect(await blockedOf('/public/tenant-b/site', 320, SERVER_SECRET)).toBe(
+        0,
+      )
+      expect(await blockedOf('/public/tenant-b/site', 320, SECRET)).toBe(0)
     })
 
     it('el secreto no abre nada más: el contacto público sigue limitado', async () => {

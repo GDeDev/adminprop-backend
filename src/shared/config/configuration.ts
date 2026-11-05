@@ -164,11 +164,13 @@ export interface SitesConfig {
   /** Exige verificar con un TXT el dominio propio (default true). */
   domainVerification: boolean
   /**
-   * Secreto compartido con `apps/sites` (el mismo de la revalidación): quien lo
-   * manda en `X-Sites-Secret` no cuenta contra el tope por IP de las lecturas
-   * públicas del sitio. Null = nadie se saltea el tope.
+   * Secretos válidos para `X-Sites-Secret`: quien manda uno de ellos no cuenta
+   * contra el tope por IP de las lecturas públicas del sitio. Son
+   * `SITES_SERVER_SECRET` y `SITES_REVALIDATE_SECRET` (el que realmente manda
+   * `apps/sites`), los que estén definidos y no vacíos. Vacío = nadie se saltea
+   * el tope.
    */
-  serverSecret: string | null
+  serverSecrets: string[]
   /** Aviso a `apps/sites` al publicar; sin URL o secreto no se avisa. */
   revalidate: { url: string; secret: string } | null
 }
@@ -239,7 +241,7 @@ function parseCorsOrigins(raw: string | undefined): string[] | boolean {
  * por acá vía `ConfigService`.
  */
 export function configuration(): Configuration {
-  const env = (process.env.NODE_ENV as Environment) ?? Environment.Development
+  const env = (process.env.NODE_ENV || Environment.Development) as Environment
   const isProduction = env === Environment.Production
   const isDevelopment = env === Environment.Development
 
@@ -418,14 +420,14 @@ export function configuration(): Configuration {
         .map((h) => h.trim().toLowerCase())
         .filter(Boolean),
       domainVerification: bool(process.env.SITES_DOMAIN_VERIFICATION, true),
-      // Secreto propio del throttle. Si no está definido se cae a
-      // SITES_REVALIDATE_SECRET para no romper despliegues existentes, pero
-      // conviene separarlos: quien conozca el de revalidar no debería poder
-      // saltearse el límite de lectura (y viceversa).
-      serverSecret:
-        process.env.SITES_SERVER_SECRET ||
-        process.env.SITES_REVALIDATE_SECRET ||
-        null,
+      // `apps/sites` manda su SITES_REVALIDATE_SECRET como X-Sites-Secret (no
+      // tiene otra variable), así que se acepta ese y también el propio del
+      // throttle si existe: antes, definir SITES_SERVER_SECRET dejaba a sitios
+      // limitado como cualquier visitante.
+      serverSecrets: [
+        process.env.SITES_SERVER_SECRET,
+        process.env.SITES_REVALIDATE_SECRET,
+      ].filter((secret): secret is string => !!secret),
       revalidate:
         process.env.SITES_REVALIDATE_URL && process.env.SITES_REVALIDATE_SECRET
           ? {
