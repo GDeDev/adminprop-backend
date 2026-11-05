@@ -1517,3 +1517,10 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 
 - **Antes**: la regla del dueño es crear en Doppler las variables nuevas **vacías** (`doppler secrets set NAME=""`), pero un `*_PROVIDER`, `TOKKO_SOURCE`, `NODE_ENV`, `PORT`, `SECRETS_PROVIDER` o `JWT_*_TTL` vacío hacía que la API no arrancara.
 - **Ahora**: `validateEnv` descarta las variables en blanco (también las de solo espacios) antes de validar, salvo `DATABASE_URL`, `JWT_ACCESS_SECRET` y `JWT_REFRESH_SECRET`, que siguen fallando con su mensaje. `configuration()` y `loadSecrets()` ya tratan el vacío como default. `SITES_PREVIEW_SECRET` vacía en producción sigue siendo error (32+ caracteres).
+
+### D-233 · Depósito menor al alquiler con `FOLLOWS_RENT`: devolución mayor a lo recibido (pregunta abierta para Micaela)
+
+- **Qué hace el código** (verificado en `src/modules/billing/domain` y su spec, sin cambios): con el modo `FOLLOWS_RENT` el monto de referencia de la devolución es el alquiler vigente al rescindir (D-227), no lo que se cobró de depósito. Si el depósito recibido fue menor que ese alquiler (por ejemplo, 1 mes de depósito y alquiler actualizado por ICL/IPC), el sistema calcula una devolución **mayor a lo recibido**.
+- **Ya figuraba** como supuesto 5 de D-227; acá se eleva a pregunta abierta y se fija con un test (`deposit-return.follows-rent.spec.ts`).
+- **Decisión**: **no se cambió**. Queda como supuesto y pregunta abierta.
+- **Pregunta para Micaela**: ¿la devolución puede superar lo efectivamente recibido (la inmobiliaria o el propietario pone la diferencia), o hay que topearla en lo recibido? Hoy se paga el alquiler vigente completo.
