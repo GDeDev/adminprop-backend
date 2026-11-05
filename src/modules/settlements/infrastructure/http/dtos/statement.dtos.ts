@@ -159,6 +159,22 @@ export class OwnerStatementTotalsDto {
   @ApiProperty({ type: String }) expensesTotal: string
   @ApiProperty({ type: String, description: 'Con signo' })
   adjustmentsTotal: string
+  @ApiProperty({
+    type: String,
+    description: 'Retenciones, con signo (negativo)',
+  })
+  withholdingsTotal: string
+  @ApiProperty({
+    type: String,
+    description: 'Adelantos al propietario, con signo (negativo)',
+  })
+  advancesTotal: string
+  @ApiProperty({
+    type: String,
+    description:
+      'Otras deducciones y créditos, con signo. Las tres columnas suman `adjustmentsTotal`',
+  })
+  otherAdjustmentsTotal: string
   @ApiProperty({ type: String }) netTotal: string
   @ApiProperty({ type: String }) transferredTotal: string
 }

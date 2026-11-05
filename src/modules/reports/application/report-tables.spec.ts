@@ -27,6 +27,17 @@ describe('formatAmountEs', () => {
   })
 })
 
+const zeroBreakdown = {
+  rent: '0.00',
+  lateFees: '0.00',
+  charges: '0.00',
+  total: '0.00',
+}
+const byReceiver = (agencyRent: string, ownerRent: string) => ({
+  agency: { ...zeroBreakdown, rent: agencyRent, total: agencyRent },
+  owner: { ...zeroBreakdown, rent: ownerRent, total: ownerRent },
+})
+
 describe('tablas de exportación', () => {
   it('la de ingresos suma los totales por moneda y deja los filtros en el encabezado', () => {
     const table = incomeTable(
@@ -39,6 +50,7 @@ describe('tablas de exportación', () => {
             rentCollected: '100.50',
             lateFeesCollected: '0.00',
             chargesCollected: '0.00',
+            collectedByReceiver: byReceiver('100.50', '0.00'),
             feesAccrued: '5.00',
             feesCollected: '5.00',
             netSettled: '95.50',
@@ -50,12 +62,14 @@ describe('tablas de exportación', () => {
             rentCollected: '0.50',
             lateFeesCollected: '0.00',
             chargesCollected: '0.00',
+            collectedByReceiver: byReceiver('0.00', '0.50'),
             feesAccrued: '0.00',
             feesCollected: '0.00',
             netSettled: '0.00',
             netTransferred: '95.50',
           },
         ],
+        totals: [],
       },
       '2026-11-02',
     )
@@ -64,7 +78,7 @@ describe('tablas de exportación', () => {
       ['Desde', '2026-06'],
       ['Hasta', '2026-11'],
     ])
-    expect(table.columns).toHaveLength(9)
+    expect(table.columns).toHaveLength(11)
     expect(table.rows[0].slice(0, 3)).toEqual(['2026-10', 'ARS', '100.50'])
     expect(table.totalRows).toEqual([
       [
@@ -77,6 +91,8 @@ describe('tablas de exportación', () => {
         '5.00',
         '95.50',
         '95.50',
+        '100.50',
+        '0.50',
       ],
     ])
   })

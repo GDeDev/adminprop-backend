@@ -1,7 +1,8 @@
-import type {
-  OverdueInstallmentRef,
-  ReportInstallmentRef,
-  ReportPaymentRef,
+import {
+  PaymentReceiver,
+  type OverdueInstallmentRef,
+  type ReportInstallmentRef,
+  type ReportPaymentRef,
 } from '@/modules/billing/public'
 import type { ContractReportRef } from '@/modules/contracts/public'
 import type { PropertyReportRef } from '@/modules/properties/public'
@@ -20,7 +21,10 @@ import {
 import {
   ArrearsReportRow,
   DashboardReport,
+  CollectedBreakdown,
+  CollectedByReceiver,
   IncomeReportRow,
+  IncomeReportTotal,
   InstallmentBucket,
   PaymentReportRow,
   PropertyReportRow,
@@ -94,6 +98,58 @@ type IncomeKey = `${Period}|${ReportCurrency}`
  * mes de la liquidación (`settlements.period`), igual que el estado de cuenta
  * del propietario (D-115); los pagos de honorarios, por su fecha.
  */
+const emptyBreakdown = (): CollectedBreakdown => ({
+  rent: ZERO,
+  lateFees: ZERO,
+  charges: ZERO,
+  total: ZERO,
+})
+
+const emptyByReceiver = (): CollectedByReceiver => ({
+  agency: emptyBreakdown(),
+  owner: emptyBreakdown(),
+})
+
+function addToBreakdown(
+  target: CollectedBreakdown,
+  rent: string,
+  lateFees: string,
+  charges: string,
+): void {
+  target.rent = toMoneyString(addMoney(target.rent, rent))
+  target.lateFees = toMoneyString(addMoney(target.lateFees, lateFees))
+  target.charges = toMoneyString(addMoney(target.charges, charges))
+  target.total = toMoneyString(addMoney(target.total, rent, lateFees, charges))
+}
+
+/**
+ * Un total por moneda del rango de `rows`. Suma por moneda: nunca mezcla ARS
+ * con USD (D-118).
+ */
+export function buildIncomeTotals(
+  rows: IncomeReportRow[],
+): IncomeReportTotal[] {
+  return REPORT_CURRENCY_ORDER.flatMap((currency) => {
+    const ofCurrency = rows.filter((row) => row.currency === currency)
+    if (ofCurrency.length === 0) return []
+    const collected = emptyBreakdown()
+    const byReceiver = emptyByReceiver()
+    for (const row of ofCurrency) {
+      addToBreakdown(
+        collected,
+        row.rentCollected,
+        row.lateFeesCollected,
+        row.chargesCollected,
+      )
+      for (const side of ['agency', 'owner'] as const) {
+        const part = row.collectedByReceiver[side]
+        addToBreakdown(byReceiver[side], part.rent, part.lateFees, part.charges)
+      }
+    }
+    return [{ currency, collected, collectedByReceiver: byReceiver }]
+  })
+}
+
 export function buildIncomeRows(
   fromPeriod: Period,
   toPeriod: Period,
@@ -113,6 +169,7 @@ export function buildIncomeRows(
         rentCollected: ZERO,
         lateFeesCollected: ZERO,
         chargesCollected: ZERO,
+        collectedByReceiver: emptyByReceiver(),
         feesAccrued: ZERO,
         feesCollected: ZERO,
         netSettled: ZERO,
@@ -130,6 +187,15 @@ export function buildIncomeRows(
     row.rentCollected = add(row.rentCollected, payment.rentApplied)
     row.lateFeesCollected = add(row.lateFeesCollected, payment.lateFeeApplied)
     row.chargesCollected = add(row.chargesCollected, payment.chargesApplied)
+    // Lo recibido por el propietario no es plata de la inmobiliaria (D-235).
+    addToBreakdown(
+      payment.receivedBy === PaymentReceiver.OWNER
+        ? row.collectedByReceiver.owner
+        : row.collectedByReceiver.agency,
+      payment.rentApplied,
+      payment.lateFeeApplied,
+      payment.chargesApplied,
+    )
   }
   for (const settlement of settlements) {
     const row = rowFor(settlement.period, settlement.currency)

@@ -263,6 +263,49 @@ export class DashboardReportDto extends ReportMetaDto {
   history: DashboardHistoryDto[]
 }
 
+export class CollectedBreakdownDto {
+  @ApiProperty({ description: 'Alquiler cobrado' })
+  rent: string
+
+  @ApiProperty({ description: 'Punitorios cobrados' })
+  lateFees: string
+
+  @ApiProperty({ description: 'Cargos cobrados' })
+  charges: string
+
+  @ApiProperty({ description: 'Alquiler + punitorios + cargos' })
+  total: string
+}
+
+export class CollectedByReceiverDto {
+  @ApiProperty({
+    type: CollectedBreakdownDto,
+    description: 'Lo que cobró la inmobiliaria (fondos que administra)',
+  })
+  agency: CollectedBreakdownDto
+
+  @ApiProperty({
+    type: CollectedBreakdownDto,
+    description:
+      'Lo que percibió directamente el propietario (nunca pasó por la inmobiliaria)',
+  })
+  owner: CollectedBreakdownDto
+}
+
+export class IncomeReportTotalDto {
+  @ApiProperty({ enum: ['ARS', 'USD'] })
+  currency: string
+
+  @ApiProperty({
+    type: CollectedBreakdownDto,
+    description: 'Todo lo cobrado, sin distinguir quién lo recibió',
+  })
+  collected: CollectedBreakdownDto
+
+  @ApiProperty({ type: CollectedByReceiverDto })
+  collectedByReceiver: CollectedByReceiverDto
+}
+
 export class IncomeReportRowDto {
   @ApiProperty({ example: '2026-10' })
   period: string
@@ -270,7 +313,10 @@ export class IncomeReportRowDto {
   @ApiProperty({ enum: ['ARS', 'USD'] })
   currency: string
 
-  @ApiProperty()
+  @ApiProperty({
+    description:
+      'Suma de lo cobrado por la inmobiliaria y lo percibido por el propietario; para separarlos, `collectedByReceiver`',
+  })
   rentCollected: string
 
   @ApiProperty()
@@ -278,6 +324,9 @@ export class IncomeReportRowDto {
 
   @ApiProperty()
   chargesCollected: string
+
+  @ApiProperty({ type: CollectedByReceiverDto })
+  collectedByReceiver: CollectedByReceiverDto
 
   @ApiProperty()
   feesAccrued: string
@@ -295,6 +344,13 @@ export class IncomeReportRowDto {
 export class IncomeReportDto extends ReportMetaDto {
   @ApiProperty({ type: [IncomeReportRowDto] })
   rows: IncomeReportRowDto[]
+
+  @ApiProperty({
+    type: [IncomeReportTotalDto],
+    description:
+      'Un total por moneda del rango (ARS, USD), con lo cobrado por tipo y por quién lo recibió',
+  })
+  totals: IncomeReportTotalDto[]
 }
 
 export class PaymentReportRowDto {

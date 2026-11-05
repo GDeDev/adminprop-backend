@@ -18,6 +18,7 @@ import {
   ContractNotActiveException,
   ContractNotFoundException,
   InvalidContractDocumentException,
+  ManualRentAdjustmentForbiddenException,
   RentUpdateNotDueException,
 } from '@/modules/contracts/domain/contract.exceptions'
 import { ContractPolicy } from '@/modules/contracts/domain/contract.policy'
@@ -414,6 +415,13 @@ export class UploadContractDocumentHandler implements ICommandHandler<
  * aumento: si hay varios atrasados, se llama varias veces (el cron de la
  * Fase 13 hace lo mismo).
  */
+const MANUAL_ADJUSTMENT_ROLE = 'ADMIN'
+
+function assertCanAdjustRentManually(command: ApplyRentUpdateCommand): void {
+  if (command.actorRole !== MANUAL_ADJUSTMENT_ROLE)
+    throw new ManualRentAdjustmentForbiddenException()
+}
+
 @CommandHandler(ApplyRentUpdateCommand)
 export class ApplyRentUpdateHandler implements ICommandHandler<
   ApplyRentUpdateCommand,
@@ -426,6 +434,11 @@ export class ApplyRentUpdateHandler implements ICommandHandler<
   ) {}
 
   async execute(command: ApplyRentUpdateCommand): Promise<ContractDetailView> {
+    // Un monto a mano es sólo de administradores (D-234). Se corta antes de
+    // mirar el contrato para que el empleado no averigüe su estado por los
+    // 409 y el mensaje sea siempre el mismo.
+    if (command.newRent !== undefined) assertCanAdjustRentManually(command)
+
     const contract = await requireContract(this.contracts, command.id)
     requireActive(contract)
 
@@ -461,6 +474,9 @@ export class ApplyRentUpdateHandler implements ICommandHandler<
         fixedPercentage,
       )
     } else {
+      // FIXED sin % u OTHER sin monto: el monto a mano es obligatorio y
+      // también es sólo de administradores (D-234).
+      assertCanAdjustRentManually(command)
       const newRent = ContractPolicy.normalizeNewRent(command.newRent)
       // Todo monto a mano deja motivo y autorizante (D-230, Micaela #8).
       const justification = ContractPolicy.normalizeManualAdjustment(

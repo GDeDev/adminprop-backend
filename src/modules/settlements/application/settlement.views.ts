@@ -14,6 +14,7 @@ import {
   SettlementAdjustmentConcept,
   SettlementStatus,
 } from '../domain/settlement'
+import { SettlementPolicy } from '../domain/settlement.policy'
 
 /** Una liquidación en el listado (`SettlementSummaryDto`). Montos como string. */
 export interface SettlementSummaryView {
@@ -34,6 +35,10 @@ export interface SettlementSummaryView {
   feeDeducted: boolean
   expensesTotal: string
   adjustmentsTotal: string
+  /** `adjustmentsTotal` abierto, con signo (D-236). */
+  withholdingsTotal: string
+  advancesTotal: string
+  otherAdjustmentsTotal: string
   netAmount: string
   transferredTotal: string
   statementId: string | null
@@ -137,6 +142,7 @@ export function toSettlementSummary(
     feeDeducted: settlement.feeDeducted,
     expensesTotal: settlement.expensesTotal,
     adjustmentsTotal: settlement.adjustmentsTotal,
+    ...SettlementPolicy.adjustmentsBreakdown(settlement.adjustments),
     netAmount: settlement.netAmount,
     transferredTotal: settlement.transferredTotal,
     statementId: settlement.statementId,

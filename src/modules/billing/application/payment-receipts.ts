@@ -98,7 +98,9 @@ export class PaymentReceipts {
     const [renters, properties, users] = await Promise.all([
       this.renters.contacts([installment.renterId]),
       this.properties.describe([installment.propertyId]),
-      this.users.describe([payment.registeredById]),
+      this.users.describe(
+        payment.registeredById ? [payment.registeredById] : [],
+      ),
     ])
 
     // El saldo es el de la cuota inmediatamente después de este pago: cuentan
@@ -160,7 +162,9 @@ export class PaymentReceipts {
       property: property
         ? { id: property.id, address: property.address }
         : null,
-      registeredBy: users.get(payment.registeredById)?.fullName ?? null,
+      registeredBy: payment.registeredById
+        ? (users.get(payment.registeredById)?.fullName ?? null)
+        : null,
       notes: payment.notes,
       remaining: {
         rent: balances.rentBalance,

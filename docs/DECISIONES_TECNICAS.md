@@ -1503,7 +1503,7 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Orden de validación**: primero que el contrato esté activo y que el aumento esté al día (409, D-60), después el monto y por último la justificación.
 - **Supuestos**:
   1. `authorizedBy` es **texto libre** (puede ser el propietario, que no es usuario del sistema), no un id de usuario; el usuario que aplicó el cambio sigue en `appliedById`.
-  2. Quién puede hacerlo no cambió: ADMIN y EMPLOYEE. El hallazgo 13 pedía "definir si el empleado puede": **no se restringió** (decisión de negocio pendiente).
+  2. ~~Quién puede hacerlo no cambió: ADMIN y EMPLOYEE.~~ **Reemplazado por D-234**: el ajuste manual es sólo de administradores.
   3. El aumento por `%` fijo automático no es "ajuste manual" y no pide motivo (el % ya está pactado en el contrato).
 
 ### D-231 · `X-Sites-Secret` vale con `SITES_SERVER_SECRET` o con `SITES_REVALIDATE_SECRET`
@@ -1524,3 +1524,50 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Ya figuraba** como supuesto 5 de D-227; acá se eleva a pregunta abierta y se fija con un test (`deposit-return.follows-rent.spec.ts`).
 - **Decisión**: **no se cambió**. Queda como supuesto y pregunta abierta.
 - **Pregunta para Micaela**: ¿la devolución puede superar lo efectivamente recibido (la inmobiliaria o el propietario pone la diferencia), o hay que topearla en lo recibido? Hoy se paga el alquiler vigente completo.
+
+### D-234 · El ajuste manual de alquiler es sólo de administradores (Micaela #8)
+
+- **Decisión del dueño**: por ahora, cargar el alquiler a mano (`newRent`) lo puede hacer únicamente un ADMIN. Cierra el supuesto 2 de D-230.
+- **Qué cambia**: `POST /contracts/:id/rent-updates` con `newRent` (un ajuste manual sobre ICL/IPC/FIXED, o el monto obligatorio de un contrato FIXED sin % u OTHER) devuelve **403** `CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY` si quien llama es EMPLOYEE. El rol viaja en `ApplyRentUpdateCommand.actorRole` (`@CurrentUser('role')`); el chequeo corre antes de leer el contrato, así el empleado no averigua el estado del contrato por los 409.
+- **Sin cambios**: el aumento por índice o por % fijo (un empleado sigue pudiendo aplicarlo), el cron de aumentos (no pasa por este comando) y el resto de la edición del contrato (ADMIN y EMPLOYEE).
+- **Supuesto**: en un contrato `FIXED` sin % u `OTHER`, un empleado no puede resolver el aumento vencido: tiene que pedírselo a un administrador (el aviso `RENT_UPDATE_PENDING` sigue llegando a todos).
+- **Frontend**: el botón/campo de monto manual debería ocultarse para EMPLOYEE (hoy recibiría el 403).
+
+### D-235 · Reporte de ingresos: cobrado por la inmobiliaria vs. percibido por el propietario (Micaela #9 y #10)
+
+- **Antes**: `GET /reports/financial/income` sumaba `rentApplied`/`lateFeeApplied`/`chargesApplied` de todos los pagos confirmados, sin mirar `receivedBy`: un alquiler que cobró directamente el propietario aparecía como cobrado por la inmobiliaria.
+- **Ahora** (aditivo, los campos viejos no cambian de nombre ni de significado): cada fila suma `collectedByReceiver: { agency, owner }`, cada uno con `rent`, `lateFees`, `charges` y `total` (= suma de los tres); y la respuesta suma `totals[]`, un total del rango **por moneda** (ARS, USD; nunca se mezclan) con `collected` (todo) y `collectedByReceiver`. `rentCollected`/`lateFeesCollected`/`chargesCollected` siguen siendo la suma de ambos. Las tablas exportadas (XLSX/CSV/PDF) agregan al final las columnas "Cobrado por la inmobiliaria" y "Percibido por el propietario".
+- **Filtros** intactos: `from`/`to`; los pagos siguen entrando sólo confirmados (un cobro directo informado no es ingreso de nadie hasta confirmarse).
+- **Supuestos** (no hay respuesta de Micaela):
+  1. Un pago por **saldo a favor aplicado** (`kind = CREDIT_APPLICATION`) cuenta en el bucket de quien lo recibió, igual que al liquidar (D-84): el efectivo ya figuró como cobrado en su momento (sólo lo imputado cuenta, no el excedente), así que no se duplica. No se agregó una columna aparte para saldo aplicado.
+  2. Un pago cubierto con el **depósito en garantía** (`method = DEPOSIT`) sigue contando como cobrado por la inmobiliaria; no se separa.
+  3. Los **honorarios** (devengados/cobrados) y el neto no cambian: ya salen de liquidaciones y pagos de honorarios, que sólo incluyen fondos de la inmobiliaria.
+
+### D-236 · Consolidado: retenciones, adelantos y otros ajustes por separado (Micaela #7)
+
+- **Antes**: el consolidado mostraba una sola columna "Ajustes" (`adjustmentsTotal`) que mezclaba retenciones, adelantos y deducciones o créditos varios.
+- **Ahora** (aditivo): `withholdingsTotal` (`WITHHOLDING`), `advancesTotal` (`OWNER_ADVANCE`) y `otherAdjustmentsTotal` (`OTHER_DEDUCTION` + `OTHER_CREDIT`), **con signo** como `adjustmentsTotal`, que se conserva y es la suma de los tres. Están en cada liquidación del listado (`SettlementSummaryDto`), en los totales por moneda del consolidado (`OwnerStatementTotalsDto`) y en el PDF del consolidado, que reemplaza la columna "Ajustes" por "Retenc.", "Adelantos" y "Otros aj.".
+- **Persistencia**: tres columnas nuevas en `owner_statement_totals` (migración `20261108120000_statement_totals_adjustments_breakdown`, `DEFAULT 0`). Los totales se congelan al cerrar como antes; la migración reconstruye el desglose de los consolidados ya cerrados con los ajustes vigentes de sus liquidaciones. Las liquidaciones no guardan el desglose: se calcula al leer desde sus ajustes (`SettlementPolicy.adjustmentsBreakdown`).
+- **Supuesto**: "otros" agrupa deducciones y créditos varios en un solo número neto; si Micaela quiere verlos separados hay que abrir un campo más.
+
+### D-237 · Saldo a favor: aplicación automática o manual al generar la cuota (Micaela #6)
+
+- **Antes**: el saldo a favor se aplicaba solo al **registrar un pago** (`applyCredit`, por defecto `true`) o a mano (`POST /installments/:id/apply-credit`). Al generar la cuota no se tocaba, así que si el saldo cubría la cuota entera había que aplicarlo a mano. No existía ninguna configuración manual/automático.
+- **Ahora**: parámetro de la inmobiliaria `autoApplyCreditOnGeneration` (`PATCH /tenants/current/settings`, sólo ADMIN; `GET` lo devuelve). `false` (por defecto, no cambia nada) = manual; `true` = al generar una cuota, se aplica el saldo disponible del inquilino en la moneda del contrato, con la misma regla de siempre (los más viejos primero, hasta lo que debe la cuota; un pago `CREDIT_APPLICATION` por crédito usado). Lo hace `InstallmentCreditApplier`, que `InstallmentGenerator` llama **sólo con la cuota que `createIfAbsent` acaba de crear**: volver a generar el mes (o el cron) no duplica aplicaciones, porque las cuotas que ya existían no se tocan. `GenerationResult` suma `creditsApplied`.
+- **Pago sin usuario**: el cron corre sin usuario, así que `payments.registered_by_id` pasó a ser **nullable** (migración `20261108130000_credit_auto_apply_on_generation`; el cron deja `null` = registrado por el sistema; el endpoint manual de generar deja al usuario). Los recibos y vistas ya toleran el nulo.
+- **Eventos**: igual que la aplicación manual, se emite `PaymentConfirmedEvent` por cada aplicación, así que el saldo aplicado entra a la liquidación del propietario como cualquier pago de la inmobiliaria (D-84).
+- **Supuestos** (sin respuesta de Micaela, quedan abiertos):
+  1. El modo sólo gobierna la **generación**; el registro de un pago sigue aplicando el saldo por defecto (como hoy, `applyCredit` por pedido).
+  2. Las cuotas de **cobro directo al propietario** (`OWNER_DIRECT`) no reciben aplicación automática: el saldo es plata que tiene la inmobiliaria y aplicarlo ahí movería fondos entre las dos cuentas sin que nadie lo decida. Se pueden aplicar a mano.
+  3. Si no se puede aplicar (error inesperado), la cuota queda creada, se registra un aviso en el log y el resto de las cuotas sigue; el saldo queda para aplicar a mano.
+  4. La fecha del pago de la aplicación es la de la generación (hoy), aunque la cuota sea de un mes futuro (pago anticipado, ya permitido).
+  5. El modo es por inmobiliaria, no por contrato ni por inquilino.
+
+### D-238 · Cuenta corriente del contrato: monto "por liquidar" al propietario (Micaela #8)
+
+- **Antes**: la cuenta (`GET /contracts/:id/account`) mostraba lo cobrado, pero no cuánto de eso le corresponde todavía al propietario: había que ir a la sección de liquidaciones.
+- **Ahora** (aditivo): `totals.pendingSettlement`, en la moneda del contrato. Es la suma, sobre los pagos **confirmados, recibidos por la inmobiliaria y sin `settlementId`**, de punitorio + alquiler + cargos del propietario aplicados (`TERMINATION_PENALTY` y `OTHER`; los `SERVICE` no, A-16). Incluye el saldo a favor aplicado (D-84) y excluye lo que cobró el propietario, lo sin confirmar y lo anulado. Es el mismo criterio de `listSettleable`: `settlementId` se escribe recién al **confirmar** la liquidación, así que "sin `settlementId`" equivale a "fuera de una liquidación cerrada" y la cuenta no necesita consultar `settlements` (que depende de `billing`).
+- **Supuestos**:
+  1. Es **bruto**: antes de honorarios, gastos y ajustes, que se definen al armar la liquidación. El neto a transferir sigue saliendo de la liquidación pendiente.
+  2. "Cerrada" = confirmada (`CONFIRMED` o `TRANSFERRED`); una liquidación `PENDING` (borrador) todavía no cierra nada, así que sus pagos siguen contando como por liquidar.
+  3. Se recalcula al leer, igual que el resto de la cuenta.

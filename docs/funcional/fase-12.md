@@ -19,3 +19,7 @@
 
 - **Devolución del depósito:** el depósito se registra por lo recibido y su moneda y no se actualiza solo. Al devolverlo, lo que corresponde devolver depende de lo que diga el contrato: lo recibido (fijo), el alquiler vigente al terminar (actualizado según el alquiler) o un monto que se indica a mano al cerrar las cuentas. Las deducciones justificadas (deuda, daños, otros; siempre con motivo) se descuentan de ese monto y lo que queda es lo que se devuelve; el sistema lo calcula. Los movimientos del depósito (recibido, devuelto, deducciones) aparecen en la cuenta corriente con su importe.
 - **Envío al propietario:** la elección "sólo el resumen / sólo los comprobantes / ambos" ahora se respeta. Con "sólo el resumen" no sale el mail de cada liquidación; con "sólo los comprobantes" no sale el mail del consolidado. Si al cerrar el mes se elige un modo que incluye los comprobantes y todavía no habían salido, salen en ese momento. Un comprobante que ya salió no se puede retirar: para recibir sólo el resumen, el propietario tiene que estar configurado así desde el principio.
+
+## Retenciones y adelantos por separado en el consolidado (D-236)
+
+El resumen mensual del propietario (pantalla y PDF) muestra **retenciones**, **adelantos** y **otros ajustes** en columnas distintas, en vez de una sola columna "Ajustes". Siguen siendo montos con signo (lo que se descuenta va en negativo). Los consolidados ya cerrados se completaron con el mismo desglose.
