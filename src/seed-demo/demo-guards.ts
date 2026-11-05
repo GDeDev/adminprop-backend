@@ -92,11 +92,13 @@ export function assertDemoSeedAllowed(env: DemoSeedEnvironment): void {
 
 /**
  * Variables que el seed fuerza dentro de su propio proceso (no toca tu shell
- * ni Doppler): nada de colas reales, mails, portales de publicación ni
- * Cloudinary. Un seed de demo no debe llegar a ningún servicio externo.
+ * ni Doppler): nada de mails reales, portales de publicación ni Cloudinary. Un seed de demo no debe llegar a ningún servicio externo.
  */
 export const DEMO_SEED_FORCED_ENV: Readonly<Record<string, string>> = {
-  QUEUE_PROVIDER: 'memory',
+  // Cola real (pg-boss): los cobros dejan efectos de negocio que corren por la
+  // cola (borradores de liquidación, cuenta de honorarios, recibos).
+  QUEUE_PROVIDER: 'pgboss',
+  QUEUE_POLLING_INTERVAL_SECONDS: '0.5',
   AUTOMATIONS_ENABLED: 'false',
   EMAIL_PROVIDER: 'console',
   NOTIFICATIONS_PROVIDER: 'console',
