@@ -26,7 +26,9 @@ const LOADERS: Record<string, () => SecretsLoader> = {
 export async function loadSecrets(): Promise<void> {
   // A propósito no se lee ningún archivo `.env`: las variables las inyecta
   // Doppler (`doppler run --` en local, su integración nativa en los deploys).
-  const providerKey = process.env.SECRETS_PROVIDER ?? 'env'
+  // Vacía (la regla de Doppler es crear las variables nuevas vacías) equivale a
+  // no definida: sin el `||`, `SECRETS_PROVIDER=""` abortaba el arranque.
+  const providerKey = process.env.SECRETS_PROVIDER?.trim() || 'env'
   const factory = LOADERS[providerKey]
 
   if (!factory) {
