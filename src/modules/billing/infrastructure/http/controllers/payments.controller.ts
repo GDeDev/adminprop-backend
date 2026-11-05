@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -17,6 +18,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiHeader,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -33,6 +35,7 @@ import {
   VoidChargeCommand,
   VoidPaymentCommand,
 } from '@/modules/billing/application/commands/billing.commands'
+import { IdempotencyService } from '@/shared/idempotency/idempotency.service'
 import { RegisterPaymentResult } from '@/modules/billing/application/commands/payment.handlers'
 import {
   InstallmentDetailView,
@@ -146,6 +149,12 @@ export class PaymentsController {
     description:
       'Multipart. Parcial o total, en la moneda del contrato o en la otra con cotización (fuente, fecha, valor). Se aplican antes los saldos a favor (`applyCredit`, default true); después el pago se imputa punitorio → alquiler → cargos, o según `allocation` (JSON). El exceso queda como saldo a favor. Recibido por el propietario nace pendiente de confirmación.',
   })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: false,
+    description:
+      'Opcional, hasta 128 caracteres sin espacios. Repetir el pedido con la misma clave y el mismo cuerpo (reintento de red, doble click) devuelve el pago ya registrado en vez de crear otro; con otro cuerpo es 409 `IDEMPOTENCY_KEY_REUSED`. Vale 24 horas.',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -185,6 +194,7 @@ export class PaymentsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: RegisterPaymentDto,
     @UploadedFile() file: Express.Multer.File | undefined,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
   ): Promise<ApiSuccessDto<RegisterPaymentResult>> {
     const result = await this.commandBus.execute<
       RegisterPaymentCommand,
@@ -206,6 +216,7 @@ export class PaymentsController {
           notes: dto.notes ?? null,
         },
         file?.buffer ?? Buffer.alloc(0),
+        IdempotencyService.normalizeKey(idempotencyKey),
       ),
     )
     return { success: true, message: 'Pago registrado', data: result }

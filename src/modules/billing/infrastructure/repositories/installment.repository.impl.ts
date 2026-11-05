@@ -17,6 +17,7 @@ import {
   NewLateFeeAdjustment,
   PageArgs,
 } from '@/modules/billing/domain/billing.ports'
+import { RequestContext } from '@/shared/context/request-context'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import {
   adjustmentToDomain,
@@ -62,6 +63,18 @@ export class InstallmentRepositoryImpl extends InstallmentRepository {
       include: INSTALLMENT_INCLUDE,
     })
     return row ? installmentToDomain(row) : null
+  }
+
+  async lockForUpdate(id: string): Promise<void> {
+    // SQL directo: Prisma no tiene FOR UPDATE. El tenant se filtra a mano
+    // porque el SQL crudo no pasa por la extensión de tenant.
+    const tenantId = RequestContext.tenantId
+    if (!tenantId) throw new Error('Lock de cuota sin tenant en el contexto')
+    await this.prisma.db.$queryRaw`
+      SELECT id FROM installments
+      WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
+      FOR UPDATE
+    `
   }
 
   async list(

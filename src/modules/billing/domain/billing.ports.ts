@@ -105,6 +105,14 @@ export abstract class InstallmentRepository {
 
   abstract findById(id: string): Promise<Installment | null>
 
+  /**
+   * `SELECT ... FOR UPDATE` sobre la cuota: dentro de una transacción,
+   * serializa a quienes van a leer los saldos y a escribir pagos sobre ella.
+   * El lock se suelta con el commit o el rollback. Fuera de una transacción
+   * no sirve de nada.
+   */
+  abstract lockForUpdate(id: string): Promise<void>
+
   /** Período descendente, y dentro del mes por alta. */
   abstract list(
     filter: InstallmentFilter,

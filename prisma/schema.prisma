@@ -115,6 +115,7 @@ model Tenant {
 
   notificationLogs NotificationLog[]
   jobExecutions    JobExecution[]
+  idempotencyKeys  IdempotencyKey[]
 
   generatedDocuments          GeneratedDocument[]
   propertyInventories         PropertyInventory[]
@@ -2874,4 +2875,35 @@ model SiteAsset {
 
   @@index([tenantId, url])
   @@map("site_assets")
+}
+
+// ---------------------------------------------------------------------------
+// Idempotencia de POST (auditoría de datos, A3)
+// ---------------------------------------------------------------------------
+
+/// Clave `Idempotency-Key` de un POST que mueve dinero. Se escribe en la misma
+/// transacción que el pago: o están las dos filas o no hay ninguna. Dentro de
+/// `scope` y del tenant, la misma clave con el mismo pedido devuelve el
+/// resultado de la primera vez en vez de repetir el efecto; con otro pedido es
+/// un error. Vence (`expiresAt`): después vale como clave nueva.
+model IdempotencyKey {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Qué operación (`billing.register-payment`): la misma clave en dos
+  /// operaciones distintas no se pisa.
+  scope       String   @db.VarChar(60)
+  key         String   @db.VarChar(128)
+  /// SHA-256 del pedido: detecta la reutilización de la clave con otro cuerpo.
+  requestHash String   @map("request_hash") @db.VarChar(64)
+  /// Con qué se puede reconstruir la respuesta (ids creados). Null mientras la
+  /// primera ejecución no terminó.
+  response    Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, scope, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
 }
