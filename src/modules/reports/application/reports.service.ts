@@ -33,6 +33,7 @@ import {
   buildArrearsRows,
   buildHistory,
   buildIncomeRows,
+  buildIncomeTotals,
   buildInstallmentBuckets,
   buildPaymentRows,
   buildPropertyRows,
@@ -154,15 +155,17 @@ export class ReportsService {
       this.settlements.reportSettlements(range.fromPeriod, range.toPeriod),
       this.settlements.reportFeePayments(range.fromDate, range.toDate),
     ])
+    const rows = buildIncomeRows(
+      range.fromPeriod,
+      range.toPeriod,
+      payments,
+      settlements,
+      feePayments,
+    )
     return {
       ...this.meta({ from: range.fromPeriod, to: range.toPeriod }),
-      rows: buildIncomeRows(
-        range.fromPeriod,
-        range.toPeriod,
-        payments,
-        settlements,
-        feePayments,
-      ),
+      rows,
+      totals: buildIncomeTotals(rows),
     }
   }
 

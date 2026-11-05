@@ -6267,7 +6267,7 @@
     },
     "/api/v1/contracts/{id}/rent-updates": {
       "post": {
-        "description": "Con ICL/IPC el nuevo alquiler sale de la variación del índice entre el mes del aumento anterior y el del nuevo. Con FIXED/OTHER, `newRent` es obligatorio. Aplica un aumento por llamada.",
+        "description": "Con ICL/IPC el nuevo alquiler sale de la variación del índice entre el mes del aumento anterior y el del nuevo. Con FIXED/OTHER, `newRent` es obligatorio. Aplica un aumento por llamada. Cargar `newRent` a mano (ajuste manual) es sólo de administradores: un empleado recibe 403 y sólo puede aplicar los aumentos por índice o por % fijo.",
         "operationId": "ContractsController_applyRentUpdate_api/v1",
         "parameters": [
           {
@@ -6311,7 +6311,7 @@
             }
           },
           "403": {
-            "description": "Rol insuficiente",
+            "description": "Un empleado intentó un ajuste manual (`CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -31712,6 +31712,58 @@
           "history"
         ]
       },
+      "CollectedBreakdownDto": {
+        "type": "object",
+        "properties": {
+          "rent": {
+            "type": "string",
+            "description": "Alquiler cobrado"
+          },
+          "lateFees": {
+            "type": "string",
+            "description": "Punitorios cobrados"
+          },
+          "charges": {
+            "type": "string",
+            "description": "Cargos cobrados"
+          },
+          "total": {
+            "type": "string",
+            "description": "Alquiler + punitorios + cargos"
+          }
+        },
+        "required": [
+          "rent",
+          "lateFees",
+          "charges",
+          "total"
+        ]
+      },
+      "CollectedByReceiverDto": {
+        "type": "object",
+        "properties": {
+          "agency": {
+            "description": "Lo que cobró la inmobiliaria (fondos que administra)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CollectedBreakdownDto"
+              }
+            ]
+          },
+          "owner": {
+            "description": "Lo que percibió directamente el propietario (nunca pasó por la inmobiliaria)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CollectedBreakdownDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "agency",
+          "owner"
+        ]
+      },
       "IncomeReportRowDto": {
         "type": "object",
         "properties": {
@@ -31727,13 +31779,17 @@
             ]
           },
           "rentCollected": {
-            "type": "string"
+            "type": "string",
+            "description": "Suma de lo cobrado por la inmobiliaria y lo percibido por el propietario; para separarlos, `collectedByReceiver`"
           },
           "lateFeesCollected": {
             "type": "string"
           },
           "chargesCollected": {
             "type": "string"
+          },
+          "collectedByReceiver": {
+            "$ref": "#/components/schemas/CollectedByReceiverDto"
           },
           "feesAccrued": {
             "type": "string"
@@ -31754,10 +31810,39 @@
           "rentCollected",
           "lateFeesCollected",
           "chargesCollected",
+          "collectedByReceiver",
           "feesAccrued",
           "feesCollected",
           "netSettled",
           "netTransferred"
+        ]
+      },
+      "IncomeReportTotalDto": {
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ARS",
+              "USD"
+            ]
+          },
+          "collected": {
+            "description": "Todo lo cobrado, sin distinguir quién lo recibió",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CollectedBreakdownDto"
+              }
+            ]
+          },
+          "collectedByReceiver": {
+            "$ref": "#/components/schemas/CollectedByReceiverDto"
+          }
+        },
+        "required": [
+          "currency",
+          "collected",
+          "collectedByReceiver"
         ]
       },
       "IncomeReportDto": {
@@ -31780,12 +31865,20 @@
             "items": {
               "$ref": "#/components/schemas/IncomeReportRowDto"
             }
+          },
+          "totals": {
+            "description": "Un total por moneda del rango (ARS, USD), con lo cobrado por tipo y por quién lo recibió",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncomeReportTotalDto"
+            }
           }
         },
         "required": [
           "generatedAt",
           "filters",
-          "rows"
+          "rows",
+          "totals"
         ]
       },
       "PaymentReportRowDto": {

@@ -1532,3 +1532,13 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Sin cambios**: el aumento por índice o por % fijo (un empleado sigue pudiendo aplicarlo), el cron de aumentos (no pasa por este comando) y el resto de la edición del contrato (ADMIN y EMPLOYEE).
 - **Supuesto**: en un contrato `FIXED` sin % u `OTHER`, un empleado no puede resolver el aumento vencido: tiene que pedírselo a un administrador (el aviso `RENT_UPDATE_PENDING` sigue llegando a todos).
 - **Frontend**: el botón/campo de monto manual debería ocultarse para EMPLOYEE (hoy recibiría el 403).
+
+### D-235 · Reporte de ingresos: cobrado por la inmobiliaria vs. percibido por el propietario (Micaela #9 y #10)
+
+- **Antes**: `GET /reports/financial/income` sumaba `rentApplied`/`lateFeeApplied`/`chargesApplied` de todos los pagos confirmados, sin mirar `receivedBy`: un alquiler que cobró directamente el propietario aparecía como cobrado por la inmobiliaria.
+- **Ahora** (aditivo, los campos viejos no cambian de nombre ni de significado): cada fila suma `collectedByReceiver: { agency, owner }`, cada uno con `rent`, `lateFees`, `charges` y `total` (= suma de los tres); y la respuesta suma `totals[]`, un total del rango **por moneda** (ARS, USD; nunca se mezclan) con `collected` (todo) y `collectedByReceiver`. `rentCollected`/`lateFeesCollected`/`chargesCollected` siguen siendo la suma de ambos. Las tablas exportadas (XLSX/CSV/PDF) agregan al final las columnas "Cobrado por la inmobiliaria" y "Percibido por el propietario".
+- **Filtros** intactos: `from`/`to`; los pagos siguen entrando sólo confirmados (un cobro directo informado no es ingreso de nadie hasta confirmarse).
+- **Supuestos** (no hay respuesta de Micaela):
+  1. Un pago por **saldo a favor aplicado** (`kind = CREDIT_APPLICATION`) cuenta en el bucket de quien lo recibió, igual que al liquidar (D-84): el efectivo ya figuró como cobrado en su momento (sólo lo imputado cuenta, no el excedente), así que no se duplica. No se agregó una columna aparte para saldo aplicado.
+  2. Un pago cubierto con el **depósito en garantía** (`method = DEPOSIT`) sigue contando como cobrado por la inmobiliaria; no se separa.
+  3. Los **honorarios** (devengados/cobrados) y el neto no cambian: ya salen de liquidaciones y pagos de honorarios, que sólo incluyen fondos de la inmobiliaria.

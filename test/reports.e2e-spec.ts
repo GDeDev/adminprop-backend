@@ -30,6 +30,13 @@ const binary = (
  * Estadísticas y reportes (Fase 19): importes por moneda, aislamiento entre
  * inmobiliarias, permisos y descargas auditadas.
  */
+const zeroBreakdown = {
+  rent: '0.00',
+  lateFees: '0.00',
+  charges: '0.00',
+  total: '0.00',
+}
+
 describe('Estadísticas y reportes (e2e, Postgres)', () => {
   const prisma = new PrismaService()
   let app: INestApplication
@@ -297,6 +304,10 @@ describe('Estadísticas y reportes (e2e, Postgres)', () => {
         rentCollected: '0.00',
         lateFeesCollected: '0.00',
         chargesCollected: '0.00',
+        collectedByReceiver: {
+          agency: zeroBreakdown,
+          owner: zeroBreakdown,
+        },
         feesAccrued: '5000.00',
         feesCollected: '5000.00',
         netSettled: '95000.00',
@@ -306,6 +317,85 @@ describe('Estadísticas y reportes (e2e, Postgres)', () => {
         from: previous,
         to: current,
       })
+    })
+
+    it('ingresos: separa lo cobrado por la inmobiliaria de lo percibido por el propietario, por moneda (D-235)', async () => {
+      const direct = await createContract({
+        collectionMode: 'OWNER_DIRECT',
+        initialRent: '40000',
+        lateFeeGraceDays: 31,
+      })
+      const installmentId = await installmentOf(direct.contractId)
+      const req = api(adminToken).post(
+        `/billing/installments/${installmentId}/payments`,
+      )
+      for (const [key, value] of Object.entries({
+        paidCurrency: 'ARS',
+        method: 'TRANSFER',
+        paidAt: `${previous}-06`,
+        amount: '40000',
+      })) {
+        req.field(key, value)
+      }
+      const informed = await req.expect(201)
+      const directPaymentId = informed.body.data.payment.id as string
+
+      const income = () =>
+        api(adminToken)
+          .get(`/reports/financial/income?from=${previous}&to=${previous}`)
+          .expect(200)
+
+      // Informado y sin confirmar: todavía no es un ingreso de nadie.
+      const before = (await income()).body.data
+      expect(before.rows[0].collectedByReceiver.owner.total).toBe('0.00')
+
+      await api(adminToken)
+        .post(`/billing/payments/${directPaymentId}/confirm`)
+        .expect(200)
+
+      const data = (await income()).body.data
+      expect(data.rows).toHaveLength(1)
+      // El total de siempre mezcla los dos; el desglose los separa.
+      expect(data.rows[0]).toMatchObject({
+        rentCollected: '140000.00',
+        collectedByReceiver: {
+          agency: { rent: '100000.00', total: '100000.00' },
+          owner: { rent: '40000.00', total: '40000.00' },
+        },
+      })
+      expect(data.totals).toEqual([
+        {
+          currency: 'ARS',
+          collected: {
+            rent: '140000.00',
+            lateFees: '0.00',
+            charges: '0.00',
+            total: '140000.00',
+          },
+          collectedByReceiver: {
+            agency: {
+              rent: '100000.00',
+              lateFees: '0.00',
+              charges: '0.00',
+              total: '100000.00',
+            },
+            owner: {
+              rent: '40000.00',
+              lateFees: '0.00',
+              charges: '0.00',
+              total: '40000.00',
+            },
+          },
+        },
+      ])
+
+      // El filtro por propietario sigue funcionando en el reporte de pagos.
+      const payments = await api(adminToken)
+        .get(
+          `/reports/financial/payments?from=${previous}&to=${previous}&ownerId=${direct.ownerId}`,
+        )
+        .expect(200)
+      expect(payments.body.data.data).toHaveLength(1)
     })
 
     it('ingresos: sin filtros usa los últimos 6 meses y rechaza rangos inválidos', async () => {
