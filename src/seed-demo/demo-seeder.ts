@@ -10,6 +10,7 @@ import { CreateUserCommand } from '@/modules/auth/application/commands/create-us
 import { PasswordService } from '@/modules/auth/infrastructure/services/password.service'
 import { GenerateInstallmentsCommand } from '@/modules/billing/application/commands/billing.commands'
 import {
+  ApplyCreditCommand,
   ConfirmPaymentCommand,
   RegisterPaymentCommand,
   RegisterPaymentInput,
@@ -23,6 +24,7 @@ import {
 import { InstallmentRepository } from '@/modules/billing/domain/billing.ports'
 import { InstallmentPolicy } from '@/modules/billing/domain/installment.policy'
 import {
+  ApplyRentUpdateCommand,
   CreateContractCommand,
   TerminateContractCommand,
 } from '@/modules/contracts/application/commands/contract.commands'
@@ -62,12 +64,21 @@ import {
   ServicePayer,
 } from '@/modules/services/domain/property-service'
 import {
+  AddStatementSettlementsCommand,
+  CloseStatementCommand,
+  CreateStatementCommand,
+} from '@/modules/settlements/application/commands/statement.commands'
+import {
   ConfirmSettlementCommand,
+  CreateSettlementAdjustmentCommand,
   CreateSettlementCommand,
   RecalculateSettlementCommand,
   RegisterSettlementTransferCommand,
 } from '@/modules/settlements/application/commands/settlement.commands'
-import { PaymentMethod as SettlementPaymentMethod } from '@/modules/settlements/domain/settlement'
+import {
+  PaymentMethod as SettlementPaymentMethod,
+  SettlementAdjustmentConcept,
+} from '@/modules/settlements/domain/settlement'
 import { UpdateTenantSettingsCommand } from '@/modules/tenants/application/commands/tenant-settings.commands'
 import { RequestContext } from '@/shared/context/request-context'
 import { DomainException } from '@/shared/errors'
@@ -87,6 +98,7 @@ import {
   DEMO_MARK,
   DemoPlan,
   PaymentPlan,
+  SettlementSeed,
   TenantPlan,
 } from './demo-plan.types'
 import { placeholderPng } from './placeholder-image'
@@ -360,6 +372,8 @@ export class DemoSeeder {
         bankName: legal.bank.bankName,
         bankCbu: legal.bank.cbu,
         bankAlias: legal.bank.alias,
+        autoApplyCreditOnGeneration:
+          ctx.plan.autoApplyCreditOnGeneration ?? false,
       }),
     )
     this.count(ctx, 'tenantSettings')
@@ -744,6 +758,7 @@ export class DemoSeeder {
       await this.ensureContract(ctx, seed)
     }
 
+    await this.ensureManualRentAdjustments(ctx)
     await this.waitForQueueIdle(ctx)
 
     // Servicios y gastos de los contratos que ya existen: antes de liquidar,
@@ -756,7 +771,11 @@ export class DemoSeeder {
       )
       for (const seed of contracts) {
         const contractId = ctx.contractIds.get(seed.code)
-        if (contractId) await this.payForMonth(ctx, seed, contractId, offset)
+        if (!contractId) continue
+        await this.payForMonth(ctx, seed, contractId, offset)
+        if (seed.applyCredit?.offset === offset) {
+          await this.applyCreditByHand(ctx, seed, contractId, offset)
+        }
       }
       // Los pagos disparan cosas por la cola: se espera antes de liquidar.
       await this.waitForQueueIdle(ctx)
@@ -765,7 +784,7 @@ export class DemoSeeder {
         if (!contractId) continue
         for (const settlement of seed.settlements ?? []) {
           if (settlement.after === offset) {
-            await this.settle(ctx, seed, contractId, offset, settlement.mode)
+            await this.settle(ctx, seed, contractId, offset, settlement)
           }
         }
         if (seed.terminate?.after === offset) {
@@ -807,8 +826,13 @@ export class DemoSeeder {
     const plan = this.paymentPlanFor(seed, offset)
     if (!plan) return
     // Un pago ya cargado (de una corrida anterior) no se repite.
+    // El saldo a favor aplicado solo al generar la cuota (D-237) no cuenta: el
+    // resto de la cuota todavía se paga.
     const already = await this.prisma.db.payment.count({
-      where: { installmentId: installment.id },
+      where: {
+        installmentId: installment.id,
+        kind: { not: 'CREDIT_APPLICATION' },
+      },
     })
     if (already > 0) return
 
@@ -896,8 +920,9 @@ export class DemoSeeder {
     seed: ContractSeed,
     contractId: string,
     offset: number,
-    mode: 'close' | 'draft',
+    plan: SettlementSeed,
   ) {
+    const { mode } = plan
     const closed = await this.prisma.db.settlement.count({
       where: { contractId, status: { in: ['CONFIRMED', 'TRANSFERRED'] } },
     })
@@ -933,6 +958,7 @@ export class DemoSeeder {
         new RecalculateSettlementCommand(settlementId),
       )
     }
+    await this.addSettlementAdjustments(settlementId, plan)
     await this.commands.execute(new ConfirmSettlementCommand(settlementId))
     const confirmed = await this.prisma.db.settlement.findFirstOrThrow({
       where: { id: settlementId },
@@ -952,6 +978,110 @@ export class DemoSeeder {
         ),
       )
     }
+    if (plan.closeStatement) {
+      await this.closeStatement(ctx, settlementId, offset)
+    }
+  }
+
+  /** Retenciones, adelantos y otros rubros del borrador, antes de cerrarlo. */
+  private async addSettlementAdjustments(
+    settlementId: string,
+    plan: SettlementSeed,
+  ) {
+    for (const adjustment of plan.adjustments ?? []) {
+      const exists = await this.prisma.db.settlementAdjustment.findFirst({
+        where: { settlementId, description: adjustment.description },
+      })
+      if (exists) continue
+      await this.commands.execute(
+        new CreateSettlementAdjustmentCommand(settlementId, {
+          concept: adjustment.concept as SettlementAdjustmentConcept,
+          description: adjustment.description,
+          amount: adjustment.amount,
+        }),
+      )
+    }
+  }
+
+  /** Arma y cierra el consolidado del propietario con la liquidación ya cerrada. */
+  private async closeStatement(
+    ctx: TenantContext,
+    settlementId: string,
+    offset: number,
+  ) {
+    const settlement = await this.prisma.db.settlement.findFirstOrThrow({
+      where: { id: settlementId },
+    })
+    const period = this.calendar.period(offset)
+    let statement = await this.prisma.db.ownerStatement.findFirst({
+      where: { ownerId: settlement.ownerId, period },
+    })
+    if (!statement) {
+      const created = (await this.commands.execute(
+        new CreateStatementCommand(settlement.ownerId, period),
+      )) as { id: string }
+      statement = await this.prisma.db.ownerStatement.findFirstOrThrow({
+        where: { id: created.id },
+      })
+      this.count(ctx, 'statements')
+    }
+    if (statement.status === 'CLOSED') return
+    if (settlement.statementId !== statement.id) {
+      await this.commands.execute(
+        new AddStatementSettlementsCommand(statement.id, [settlementId]),
+      )
+    }
+    await this.commands.execute(new CloseStatementCommand(statement.id, null))
+  }
+
+  /** Un aumento vencido resuelto a mano: lo carga el administrador, con motivo y autorizante. */
+  private async ensureManualRentAdjustments(ctx: TenantContext) {
+    for (const seed of ctx.plan.contracts) {
+      const adjustment = seed.manualRentAdjustment
+      const contractId = ctx.contractIds.get(seed.code)
+      if (!adjustment || !contractId) continue
+      const done = await this.prisma.db.contractRentUpdate.findFirst({
+        where: { contractId, source: 'MANUAL' },
+      })
+      if (done) continue
+      await this.commands.execute(
+        new ApplyRentUpdateCommand(
+          contractId,
+          adjustment.newRent,
+          adjustment.reason,
+          adjustment.authorizedBy,
+          // El monto a mano es sólo de administradores (D-234): el seed actúa
+          // siempre como el administrador de la inmobiliaria, nunca como empleado.
+          Role.ADMIN,
+        ),
+      )
+      this.count(ctx, 'manualRentAdjustments')
+    }
+  }
+
+  /** Aplica a mano (no al generar ni al cobrar) el saldo a favor a una cuota. */
+  private async applyCreditByHand(
+    ctx: TenantContext,
+    seed: ContractSeed,
+    contractId: string,
+    offset: number,
+  ) {
+    const installment = await this.prisma.db.installment.findFirst({
+      where: { contractId, period: this.calendar.period(offset) },
+    })
+    if (!installment) return
+    const already = await this.prisma.db.payment.count({
+      where: { installmentId: installment.id, kind: 'CREDIT_APPLICATION' },
+    })
+    if (already > 0) return
+    await this.commands.execute(
+      new ApplyCreditCommand(
+        installment.id,
+        undefined,
+        seed.applyCredit?.amount,
+      ),
+    )
+    this.count(ctx, 'creditApplications')
   }
 
   private async terminate(

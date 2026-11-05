@@ -117,6 +117,34 @@ export interface PaymentPlan {
 
 export type SettleMode = 'close' | 'draft'
 
+/** Rubros manuales de una liquidación (los mismos que acepta la API). */
+export type SettlementAdjustmentConceptSeed =
+  'WITHHOLDING' | 'OWNER_ADVANCE' | 'OTHER_DEDUCTION' | 'OTHER_CREDIT'
+
+export interface SettlementAdjustmentSeed {
+  concept: SettlementAdjustmentConceptSeed
+  description: string
+  /** Siempre positivo: el rubro dice si resta o suma. */
+  amount: string
+}
+
+export interface SettlementSeed {
+  /** Se liquida después de procesar el mes `after`. */
+  after: number
+  mode: SettleMode
+  /** Retenciones, adelantos y otros ajustes: se cargan al borrador antes de cerrarlo. */
+  adjustments?: SettlementAdjustmentSeed[]
+  /** Arma y cierra el consolidado del propietario con esta liquidación (sólo con `close`). */
+  closeStatement?: boolean
+}
+
+/** Ajuste manual del alquiler (sólo administradores, con motivo y autorizante). */
+export interface ManualRentAdjustmentSeed {
+  newRent: string
+  reason: string
+  authorizedBy: string
+}
+
 export interface ContractSeed {
   /** C-01..C-12 del plan de pruebas (o D-01.. en la segunda inmobiliaria). */
   code: string
@@ -154,7 +182,17 @@ export interface ContractSeed {
    */
   payments?: Record<number, PaymentPlan | null>
   /** Liquidaciones, después de procesar el mes `after`. */
-  settlements?: { after: number; mode: SettleMode }[]
+  settlements?: SettlementSeed[]
+  /**
+   * Aplica a mano el saldo a favor del inquilino a la cuota del mes `offset`
+   * (`amount` en la moneda del contrato; sin él, todo lo que cubra la cuota).
+   */
+  applyCredit?: { offset: number; amount?: string }
+  /**
+   * Aumento vencido resuelto con un monto a mano. Sólo en contratos cuyo
+   * próximo aumento ya está al día (nunca se adelanta, D-60).
+   */
+  manualRentAdjustment?: ManualRentAdjustmentSeed
   /** Rescisión, después de procesar el mes `after`. */
   terminate?: { after: number; notifiedAt: IsoDate }
   /**
@@ -210,6 +248,8 @@ export interface TenantPlan {
   /** Punitorio diario de la inmobiliaria, en %. Explícito: no hay default del sistema. */
   dailyLateFeePercentage: string
   paymentGraceDays: number
+  /** Al generar la cuota, aplica solo el saldo a favor del inquilino (D-237). Sin dato: manual. */
+  autoApplyCreditOnGeneration?: boolean
   legal: {
     legalName: string
     taxId: string

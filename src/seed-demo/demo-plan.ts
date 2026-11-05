@@ -405,7 +405,7 @@ function planUno(c: DemoCalendar): TenantPlan {
     {
       code: 'C-01',
       covers:
-        'ARS 200.000, ICL trimestral, depósito 200.000 sin caución, cobra la inmobiliaria, honorario 5 % descontado; cobro total y con punitorio, liquidación cerrada y borrador',
+        'ARS 200.000, ICL trimestral, depósito 200.000 sin caución, cobra la inmobiliaria, honorario 5 % descontado; cobro total y con punitorio, liquidación cerrada con retención y adelanto dentro de un consolidado cerrado (columnas separadas) y borrador',
       property: 'P-01',
       renter: 'REN-1',
       start: c.monthStart(-4),
@@ -419,7 +419,24 @@ function planUno(c: DemoCalendar): TenantPlan {
       // Mes -1: pagó el día 18, con punitorio (gracia 10).
       payments: { [-1]: { day: 18, how: 'full' } },
       settlements: [
-        { after: -2, mode: 'close' },
+        {
+          after: -2,
+          mode: 'close',
+          // Retención y adelanto para ver las columnas separadas del consolidado.
+          adjustments: [
+            {
+              concept: 'WITHHOLDING',
+              description: `${DEMO_MARK}: retención de Ganancias (ficticia)`,
+              amount: '3500',
+            },
+            {
+              concept: 'OWNER_ADVANCE',
+              description: `${DEMO_MARK}: adelanto entregado a la propietaria`,
+              amount: '20000',
+            },
+          ],
+          closeStatement: true,
+        },
         { after: -1, mode: 'draft' },
       ],
     },
@@ -448,7 +465,7 @@ function planUno(c: DemoCalendar): TenantPlan {
     {
       code: 'C-03',
       covers:
-        'ARS, aumento fijo del 10 % semestral, punitorio propio del contrato (1,5 % con 5 días de gracia), saldo a favor y pago adelantado, depósito manual',
+        'ARS, aumento fijo del 10 % semestral, punitorio propio del contrato (1,5 % con 5 días de gracia), saldo a favor (5.000 aplicados a mano, 10.000 disponibles) y pago adelantado, depósito manual',
       property: 'P-03',
       renter: 'REN-3',
       start: c.monthStart(-4),
@@ -463,6 +480,9 @@ function planUno(c: DemoCalendar): TenantPlan {
       guarantor: null,
       lateFeePercentage: '1.5',
       lateFeeGraceDays: 5,
+      // Del saldo a favor de 15.000 se aplican 5.000 a mano a la cuota de este
+      // mes; los 10.000 restantes quedan disponibles.
+      applyCredit: { offset: 0, amount: '5000' },
       payments: {
         // Pagó de más: la diferencia queda como saldo a favor.
         [-1]: { day: 2, how: 'overpay', extra: '15000' },
@@ -492,7 +512,7 @@ function planUno(c: DemoCalendar): TenantPlan {
     {
       code: 'C-05',
       covers:
-        'Cobra el propietario directo: un pago informado y confirmado y otro pendiente de confirmación; propietario sin cuenta bancaria',
+        'Cobra el propietario directo: dos pagos informados y confirmados (alimentan "percibido por el propietario" del reporte de ingresos) y otro pendiente de confirmación; propietario sin cuenta bancaria',
       property: 'P-05',
       renter: 'REN-6',
       start: c.monthStart(-3),
@@ -515,7 +535,8 @@ function planUno(c: DemoCalendar): TenantPlan {
     },
     {
       code: 'C-06',
-      covers: 'Honorario por importe fijo (no %), pago parcial del mes pasado',
+      covers:
+        'Honorario por importe fijo (no %), pago parcial del mes pasado (queda monto "por liquidar" en la cuenta corriente)',
       property: 'P-06',
       renter: 'REN-7',
       start: c.monthStart(-3),
@@ -644,7 +665,7 @@ function planUno(c: DemoCalendar): TenantPlan {
     {
       code: 'C-12',
       covers:
-        'Servicios heredados de la propiedad (luz con vencimiento pasado), servicio propio del contrato, expensas y un gasto adelantado',
+        'Servicios heredados de la propiedad (luz con vencimiento pasado), servicio propio del contrato, expensas y un gasto adelantado; aumento ICL resuelto con ajuste manual de administrador (motivo y autorizante)',
       property: 'P-15',
       renter: 'REN-14',
       start: c.monthStart(-3),
@@ -656,6 +677,13 @@ function planUno(c: DemoCalendar): TenantPlan {
       deposit: '230000',
       depositMode: DepositReturnMode.FIXED,
       guarantor: null,
+      // El primer aumento trimestral vence este mes y no hay ICL cargado: se
+      // resuelve con un monto a mano, que sólo puede cargar un administrador.
+      manualRentAdjustment: {
+        newRent: '250000',
+        reason: `${DEMO_MARK}: acuerdo de partes porque el ICL del período no está cargado`,
+        authorizedBy: `Gabriela ${DEMO_MARK} Giménez (propietaria)`,
+      },
     },
     {
       code: 'C-R1',
@@ -946,7 +974,7 @@ function planDos(c: DemoCalendar): TenantPlan {
     {
       code: 'D-01',
       covers:
-        'Aislamiento: contrato en pesos de la segunda inmobiliaria, pagos al día y liquidación cerrada',
+        'Aislamiento: contrato en pesos de la segunda inmobiliaria, pagos al día, liquidación cerrada y saldo a favor aplicado solo al generar la cuota (inmobiliaria en modo automático)',
       property: 'P-01',
       renter: 'REN-1',
       start: c.monthStart(-3),
@@ -958,6 +986,9 @@ function planDos(c: DemoCalendar): TenantPlan {
       deposit: '120000',
       depositMode: DepositReturnMode.FIXED,
       guarantor: null,
+      // Paga de más en el mes -2: el saldo a favor se aplica solo a la cuota
+      // del mes -1, que se genera con la inmobiliaria en modo automático.
+      payments: { [-2]: { day: 3, how: 'overpay', extra: '20000' } },
       settlements: [{ after: -1, mode: 'close' }],
     },
     {
@@ -999,6 +1030,8 @@ function planDos(c: DemoCalendar): TenantPlan {
     name: 'Inmobiliaria Demo Dos',
     dailyLateFeePercentage: '1.00',
     paymentGraceDays: 5,
+    // Esta inmobiliaria aplica sola el saldo a favor al generar la cuota.
+    autoApplyCreditOnGeneration: true,
     legal: {
       legalName: 'Inmobiliaria Demo Dos S.A. (ficticia)',
       taxId: fictitiousCuit('90500002'),

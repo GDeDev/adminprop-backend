@@ -39,6 +39,7 @@ describe('Seed de demo (e2e, Postgres)', () => {
       installments: await prisma.db.installment.count(),
       payments: await prisma.db.payment.count(),
       settlements: await prisma.db.settlement.count(),
+      statements: await prisma.db.ownerStatement.count(),
       services: await prisma.db.propertyService.count(),
       advanceExpenses: await prisma.db.advanceExpense.count(),
       inquiries: await prisma.db.publicInquiry.count(),
@@ -257,6 +258,140 @@ describe('Seed de demo (e2e, Postgres)', () => {
           }),
         ).toBe(0)
       })
+    })
+  })
+
+  describe('reglas de plata y permisos (consolidado-4)', () => {
+    const contractOf = (slug: string, code: string) =>
+      RequestContext.runInTenant(tenantIds[slug], () =>
+        prisma.db.contract.findFirstOrThrow({
+          where: { notes: { startsWith: `[DEMO ${code}]` } },
+        }),
+      )
+
+    it('el ajuste manual del alquiler lo cargó el administrador, con motivo y autorizante', async () => {
+      const contract = await contractOf(UNO, 'C-12')
+      const updates = await RequestContext.runInTenant(tenantIds[UNO], () =>
+        prisma.db.contractRentUpdate.findMany({
+          where: { contractId: contract.id, source: 'MANUAL' },
+        }),
+      )
+      expect(updates).toHaveLength(1)
+      const admin = await prisma.user.findFirstOrThrow({
+        where: { email: 'admin@demo-uno.example.com' },
+      })
+      expect(updates[0]).toMatchObject({
+        appliedById: admin.id,
+        previousRent: expect.anything(),
+      })
+      expect(updates[0].newRent.toString()).toBe('250000')
+      expect(updates[0].adjustmentReason).toContain('ICL')
+      expect(updates[0].authorizedBy).toContain('propietaria')
+      // Los aumentos a mano del seed son de un administrador, no de un empleado.
+      const actor = await prisma.user.findUniqueOrThrow({
+        where: { id: updates[0].appliedById ?? '' },
+      })
+      expect(actor.role).toBe('ADMIN')
+    })
+
+    it('un empleado no puede cargar un ajuste manual (403) sobre los datos del seed', async () => {
+      const contract = await contractOf(UNO, 'C-11')
+      const employee = await login('empleado@demo-uno.example.com')
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/contracts/${contract.id}/rent-updates`)
+        .set('Authorization', `Bearer ${employee}`)
+        .send({
+          newRent: '200000',
+          reason: 'prueba',
+          authorizedBy: 'prueba',
+        })
+        .expect(403)
+      expect(response.body.code).toBe(
+        'CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY',
+      )
+    })
+
+    it('hay un consolidado cerrado con retenciones y adelantos en columnas separadas', async () => {
+      const admin = await login('admin@demo-uno.example.com')
+      const list = await get(admin, '/statements?status=CLOSED').expect(200)
+      const statements = list.body.data.data as { id: string }[]
+      expect(statements.length).toBeGreaterThanOrEqual(1)
+      const detail = await get(admin, `/statements/${statements[0].id}`).expect(
+        200,
+      )
+      const totals = detail.body.data.totals as Record<string, string>[]
+      expect(totals[0]).toMatchObject({
+        currency: 'ARS',
+        withholdingsTotal: '-3500.00',
+        advancesTotal: '-20000.00',
+        otherAdjustmentsTotal: '0.00',
+        adjustmentsTotal: '-23500.00',
+      })
+    })
+
+    it('el reporte de ingresos separa lo cobrado por la inmobiliaria de lo percibido por el propietario', async () => {
+      const admin = await login('admin@demo-uno.example.com')
+      const from = periodOf(
+        new Date(Date.now() - 200 * 86_400_000).toISOString().slice(0, 10),
+      )
+      const response = await get(
+        admin,
+        `/reports/financial/income?from=${from}&to=${periodOf(todayIso())}`,
+      ).expect(200)
+      const total = (
+        response.body.data.totals as {
+          currency: string
+          collectedByReceiver: {
+            agency: { total: string }
+            owner: { total: string }
+          }
+        }[]
+      ).find((row) => row.currency === 'ARS')
+      expect(Number(total?.collectedByReceiver.agency.total)).toBeGreaterThan(0)
+      // C-05: el propietario cobra directo, con dos pagos confirmados.
+      expect(Number(total?.collectedByReceiver.owner.total)).toBeGreaterThan(0)
+    })
+
+    it('deja saldo a favor aplicado a mano en Demo Uno y aplicado solo en Demo Dos', async () => {
+      await RequestContext.runInTenant(tenantIds[UNO], async () => {
+        const applied = await prisma.db.payment.findMany({
+          where: { kind: 'CREDIT_APPLICATION' },
+        })
+        expect(applied).toHaveLength(1)
+        expect(applied[0].amount.toString()).toBe('5000')
+        // Del saldo de C-03 quedan 10.000 disponibles.
+        const credit = await prisma.db.renterCredit.findFirstOrThrow({
+          where: { status: 'AVAILABLE' },
+        })
+        expect(credit.remaining.toString()).toBe('10000')
+      })
+      const tenants = await prisma.tenant.findMany({
+        where: { slug: { in: [UNO, DOS] } },
+      })
+      expect(
+        Object.fromEntries(
+          tenants.map((t) => [t.slug, t.autoApplyCreditOnGeneration]),
+        ),
+      ).toEqual({ [UNO]: false, [DOS]: true })
+      await RequestContext.runInTenant(tenantIds[DOS], async () => {
+        const applied = await prisma.db.payment.findMany({
+          where: { kind: 'CREDIT_APPLICATION' },
+        })
+        expect(applied).toHaveLength(1)
+        expect(applied[0].amount.toString()).toBe('20000')
+      })
+    })
+
+    it('la cuenta corriente muestra un monto por liquidar distinto de cero', async () => {
+      const admin = await login('admin@demo-uno.example.com')
+      const contract = await contractOf(UNO, 'C-06')
+      const account = await get(
+        admin,
+        `/contracts/${contract.id}/account`,
+      ).expect(200)
+      expect(
+        Number(account.body.data.totals.pendingSettlement),
+      ).toBeGreaterThan(0)
     })
   })
 
