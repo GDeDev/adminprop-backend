@@ -119,7 +119,8 @@ caracteres`...).
 
 Para la app la variable es opcional, pero **sin `CORS_ORIGINS` el CORS queda
 cerrado** (la API lo avisa en el log) y el backoffice/portal no pueden leer la
-API desde el navegador. En local: `http://localhost:3001,http://localhost:3002`
+API desde el navegador: **ni siquiera el login entra** (el navegador bloquea el
+`POST /auth/login` por CORS; verificado con Playwright). En local: `http://localhost:3001,http://localhost:3002`
 (backoffice y portal; ver puertos en la sección 8). Tiene que ser `localhost`,
 no `127.0.0.1`: el origen se compara literal. `apps/sites` llama a la API desde
 su servidor, no necesita CORS. El valor de `.env.example`
@@ -314,7 +315,8 @@ npm run test:e2e -- test/<archivo>.e2e-spec.ts   # e2e de a UN archivo
 - **No arranca con "Configuración de entorno inválida" y una variable `*_PROVIDER`
   (o `PORT`, `JWT_*_TTL`)**: está creada en Doppler con valor vacío. Borrala o
   dale un valor válido (sección 4).
-- **El navegador dice "CORS" / el backoffice carga y no muestra datos**: falta
+- **El navegador dice "CORS" / el login del backoffice no entra y la pantalla
+  se queda en `/login`**: falta
   `CORS_ORIGINS` en `dev_backend` o no incluye `http://localhost:3001` y
   `http://localhost:3002` (con `localhost`, no `127.0.0.1`).
 - **Con `NODE_ENV=qa` o `production` no arranca**: falta `SITES_PREVIEW_SECRET`
