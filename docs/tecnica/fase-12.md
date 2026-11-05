@@ -114,3 +114,12 @@ Totales: **394 unitarios** (29 nuevos: `fee.policy.spec.ts`, `settlement.policy.
 - Con cuotas de términos de honorarios distintos en una misma liquidación, `fee_deducted` sigue a la cuota más reciente y `mixedFeeTerms` avisa (D-87): si pasa seguido, dividir el `fee_total` entre descontado y a cobrar.
 - Un pago cobrado por el propietario no abre sus cargos por concepto: para la base del honorario (`feeIncludesCharges`) todos sus cargos se toman como del propietario (D-91).
 - Lo que Micaela confirme de A-15 a A-21.
+
+## Ajustes posteriores a la verificación de las respuestas de Micaela
+
+- **Depósito (D-227)**: `deposit_returns` suma `mode` y `reference_amount` (migración `20261107120000_deposit_return_reference`, rellena con `FIXED` y el depósito). `DepositReturnPolicy.resolveReference` fija la referencia según el modo y `settle` calcula `referencia - Σ deducciones`; `assertBalanced` se retiró. Nuevos errores: `DEPOSIT_RETURN_DEDUCTIONS_EXCEED` y `DEPOSIT_RETURN_INVALID_REFERENCE`. `RegisterDepositReturnDto.returnedAmount` es opcional y se suma `referenceAmount`. Los movimientos de depósito de la cuenta corriente traen `amount` y `amountCurrency`. Tests: `deposit-return.policy.spec.ts`, `test/billing.e2e-spec.ts` ("devolución del depósito según el modo del contrato").
+- **Envío (D-229)**: `StatementClosedPayload.settlements` (aditivo) y `NotificationEventsConsumer` leen `statementSendMode` del propietario (aviso individual) y `sendMode` del consolidado (aviso del consolidado y reenvío de comprobantes retenidos). Tests: `test/notifications.e2e-spec.ts` ("modo de envío del consolidado").
+
+## Consolidado: retenciones y adelantos por separado (D-236)
+
+`OwnerStatementTotal` suma `withholdings_total`, `advances_total` y `other_adjustments_total` (migración `20261108120000_statement_totals_adjustments_breakdown`, con backfill de los consolidados cerrados). `SettlementPolicy.adjustmentsBreakdown` abre los ajustes vigentes por concepto, con signo; `statementTotals` lo suma por moneda; `SettlementSummaryView` y `OwnerStatementTotals` lo exponen y la plantilla del PDF muestra tres columnas en lugar de "Ajustes". `adjustmentsTotal` se conserva. Tests: `settlement.policy.spec.ts`, `templates.spec.ts`, `test/settlements.e2e-spec.ts`.

@@ -408,7 +408,7 @@ describe('Automatizaciones (e2e, Postgres)', () => {
       const scheduler = app.get(JobScheduler)
 
       const first = await scheduler.enqueueDue(at)
-      expect(first).toBe(2 * 13 + 1)
+      expect(first).toBe(2 * 13 + 2)
       expect(await scheduler.enqueueDue(at)).toBe(0)
 
       const executions = app.get(JobExecutionRepository)
@@ -430,16 +430,115 @@ describe('Automatizaciones (e2e, Postgres)', () => {
         {},
         { skip: 0, take: 100 },
       )
-      expect(rowsA.filter((r) => r.tenantId === tenantA.id)).toHaveLength(12)
-      expect(rowsB.filter((r) => r.tenantId === tenantB.id)).toHaveLength(12)
+      expect(rowsA.filter((r) => r.tenantId === tenantA.id)).toHaveLength(13)
+      expect(rowsB.filter((r) => r.tenantId === tenantB.id)).toHaveLength(13)
       expect([...rowsA, ...rowsB].filter((r) => r.status === 'FAILED')).toEqual(
         [],
       )
 
-      // A las 12:10 corre la segunda de índices; los demás ya están.
+      // A las 12:10 corren la segunda de índices (1) y la segunda de
+      // `crm.pull-channel-inquiries` de cada inmobiliaria (2); los demás ya están.
       expect(await scheduler.enqueueDue(new Date('2026-10-31T15:10:00Z'))).toBe(
-        1,
+        3,
       )
+      // Esperar a que esas tres corridas terminen antes de salir: si el
+      // `beforeEach` del test siguiente trunca la tabla mientras la cola aún las
+      // tiene, el worker no encuentra su fila y crea una de reemplazo (sin slot)
+      // que se cuela en el conteo del test de las réplicas (29 en vez de 28).
+      await waitFor(async () => {
+        const running = await prisma.db.jobExecution.count({
+          where: { status: 'RUNNING' },
+        })
+        return running === 0
+      })
+    })
+
+    it('dos réplicas del cron a la vez encolan cada corrida una sola vez', async () => {
+      // Antes la única barrera era la singletonKey de pg-boss, que en una cola
+      // estándar no deduplica: ambas réplicas leían "0 corridas hoy" y cada job
+      // de cada inmobiliaria corría dos veces.
+      // Otro día que el test anterior: los jobs globales (sin tenant) comparten
+      // `singletonKey` entre tests y, si el mensaje del test anterior sigue en
+      // pgboss.job, se descartan como duplicados y el conteo baja.
+      const at = new Date('2026-10-30T13:00:00Z')
+      const scheduler = app.get(JobScheduler)
+
+      const [a, b] = await Promise.all([
+        scheduler.enqueueDue(at),
+        scheduler.enqueueDue(at),
+      ])
+
+      expect(a + b).toBe(2 * 13 + 2)
+      const rows = await prisma.db.jobExecution.findMany({
+        where: { triggeredBy: 'SCHEDULE' },
+      })
+      expect(rows).toHaveLength(2 * 13 + 2)
+      // Que la cola termine de correr antes de cerrar el test.
+      await waitFor(async () => {
+        const pending = await prisma.db.jobExecution.count({
+          where: { status: 'RUNNING' },
+        })
+        return pending === 0
+      })
+    })
+
+    it('reservar dos veces la misma corrida programada devuelve null la segunda', async () => {
+      const executions = app.get(JobExecutionRepository)
+      const data = {
+        job: 'installments.generate',
+        tenantId: tenantA.id,
+        scheduledFor: '2026-10-31',
+        triggeredBy: JobTrigger.SCHEDULE,
+        triggeredByUserId: null,
+      }
+
+      expect(await executions.createScheduled(data, 0)).not.toBeNull()
+      expect(await executions.createScheduled(data, 0)).toBeNull()
+      expect(await executions.createScheduled(data, 1)).not.toBeNull()
+      // Un job global (tenant NULL) también se deduplica.
+      const global = { ...data, job: 'indices.fetch', tenantId: null }
+      expect(await executions.createScheduled(global, 0)).not.toBeNull()
+      expect(await executions.createScheduled(global, 0)).toBeNull()
+    })
+
+    it('lastByJob devuelve la última corrida de cada job para el tenant y los globales, sin las de otro tenant', async () => {
+      // Se resuelve con DISTINCT ON en la base: el `distinct` de Prisma 6 traía
+      // todo el historial a memoria y filtraba ahí.
+      const executions = app.get(JobExecutionRepository)
+      const base = {
+        scheduledFor: '2026-10-31',
+        triggeredBy: JobTrigger.SCHEDULE,
+        triggeredByUserId: null,
+      }
+      await executions.create({
+        ...base,
+        job: 'installments.generate',
+        tenantId: tenantA.id,
+      })
+      const latestA = await executions.create({
+        ...base,
+        job: 'installments.generate',
+        tenantId: tenantA.id,
+      })
+      await executions.create({
+        ...base,
+        job: 'contracts.finish-expired',
+        tenantId: tenantB.id,
+      })
+      const globalRun = await executions.create({
+        ...base,
+        job: 'indices.fetch',
+        tenantId: null,
+      })
+
+      const last = await executions.lastByJob(tenantA.id)
+
+      expect([...last.keys()].sort()).toEqual([
+        'indices.fetch',
+        'installments.generate',
+      ])
+      expect(last.get('installments.generate')?.id).toBe(latestA.id)
+      expect(last.get('indices.fetch')?.id).toBe(globalRun.id)
     })
 
     it('antes de las 00:10 no hay nada que encolar', async () => {
@@ -598,7 +697,11 @@ describe('Automatizaciones (e2e, Postgres)', () => {
 
       await api(adminToken)
         .post(`/contracts/${contract.id}/rent-updates`)
-        .send({ newRent: '105000' })
+        .send({
+          newRent: '105000',
+          reason: 'Acuerdo por refacciones',
+          authorizedBy: 'Juan Pérez (propietario)',
+        })
         .expect(201)
 
       // Falta aplicar el del mes en curso; con uno solo, las cuotas ≥ prev1 cambian.

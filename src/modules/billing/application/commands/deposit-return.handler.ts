@@ -2,7 +2,9 @@ import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs'
 
 import { UsersFacade } from '@/modules/auth/public'
 import {
+  Currency,
   DepositDeductionConcept,
+  DepositReturnMode,
   Installment,
   Payment,
   PaymentKind,
@@ -40,7 +42,8 @@ import { RegisterDepositReturnCommand } from './billing.commands'
  * cuota se cobra con el depósito: nace un pago `DEPOSIT` sobre la cuota
  * (recibido por la inmobiliaria, confirmado) imputado con el orden por
  * defecto, así la cuenta corriente y la liquidación lo ven como cualquier
- * cobro. Todo en una transacción (D-52).
+ * cobro. Todo en una transacción (D-52). El monto a devolver sale del modo del
+ * contrato, no del depósito recibido (D-227).
  */
 @CommandHandler(RegisterDepositReturnCommand)
 export class RegisterDepositReturnHandler implements ICommandHandler<
@@ -76,14 +79,21 @@ export class RegisterDepositReturnHandler implements ICommandHandler<
       data.returnedAt,
       today,
     )
-    const returnedAmount = DepositReturnPolicy.normalizeReturnedAmount(
-      data.returnedAmount,
+    const { mode, referenceAmount } = DepositReturnPolicy.resolveReference(
+      {
+        ...contract,
+        depositReturnMode: DepositReturnMode[contract.depositReturnMode],
+        currency: Currency[contract.currency],
+      },
+      data.referenceAmount,
     )
     const deductions = DepositReturnPolicy.normalizeDeductions(data.deductions)
-    DepositReturnPolicy.assertBalanced(
-      contract.deposit,
-      returnedAmount,
+    const returnedAmount = DepositReturnPolicy.settle(
+      referenceAmount,
       deductions,
+      data.returnedAmount === null
+        ? null
+        : DepositReturnPolicy.normalizeReturnedAmount(data.returnedAmount),
     )
     const notes = InstallmentPolicy.normalizeNotes(data.notes)
 
@@ -139,6 +149,8 @@ export class RegisterDepositReturnHandler implements ICommandHandler<
         returnedAt,
         depositAmount: contract.deposit,
         depositCurrency: contract.depositCurrency,
+        mode,
+        referenceAmount,
         returnedAmount,
         method: data.method,
         notes,

@@ -358,21 +358,39 @@ export class DepositDeductionInputDto {
   installmentId?: string
 }
 
-/** Fase 12, 2.2: `returnedAmount + Σ deducciones` tiene que ser el depósito. */
+/**
+ * Fase 12, 2.2 + D-227: lo devuelto es el monto de referencia que fija el modo
+ * del contrato menos las deducciones justificadas. El depósito recibido no
+ * es el tope ni la referencia salvo en modo FIXED.
+ */
 export class RegisterDepositReturnDto {
   @ApiProperty({ format: 'date', example: '2026-10-31' })
   @Matches(ISO_DATE, { message: 'returnedAt tiene que ser AAAA-MM-DD' })
   returnedAt: string
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    type: String,
+    example: '260000.00',
+    description:
+      'Monto del que se descuentan las deducciones. FIXED: lo recibido; FOLLOWS_RENT: el alquiler vigente (misma moneda que el depósito). Obligatorio en MANUAL o si el alquiler está en otra moneda; en los automáticos, si viene, tiene que coincidir.',
+  })
+  @IsOptional()
+  @Matches(MONEY_AMOUNT_PATTERN, {
+    message: 'referenceAmount debe ser un monto con hasta 2 decimales',
+  })
+  referenceAmount?: string
+
+  @ApiPropertyOptional({
     type: String,
     example: '80000.00',
-    description: 'Lo que se le devuelve al inquilino; puede ser 0.',
+    description:
+      'Lo que se le devuelve al inquilino (puede ser 0). Se calcula como referencia menos deducciones; si se manda, tiene que coincidir.',
   })
+  @IsOptional()
   @Matches(MONEY_AMOUNT_PATTERN, {
     message: 'returnedAmount debe ser un monto con hasta 2 decimales',
   })
-  returnedAmount: string
+  returnedAmount?: string
 
   @ApiProperty({ enum: PaymentMethod })
   @IsEnum(PaymentMethod, { message: 'El medio no es válido' })
@@ -638,6 +656,11 @@ export class InstallmentGenerationResultDto {
   contracts: number
   @ApiProperty() created: number
   @ApiProperty({ description: 'Ya tenían su cuota' }) skipped: number
+  @ApiProperty({
+    description:
+      'Saldos a favor aplicados solos a las cuotas nuevas (sólo si la inmobiliaria eligió el modo automático)',
+  })
+  creditsApplied: number
 }
 
 export class RegisterPaymentResultDto {
@@ -713,6 +736,12 @@ export class ContractAccountTotalsDto {
   @ApiProperty({ type: String }) collected: string
   @ApiProperty({ type: String }) collectedByAgency: string
   @ApiProperty({ type: String }) collectedByOwner: string
+  @ApiProperty({
+    type: String,
+    description:
+      'Por liquidar al propietario: lo cobrado por la inmobiliaria y confirmado que todavía no está en una liquidación confirmada (alquiler + punitorios + cargos del propietario, antes de honorarios y gastos)',
+  })
+  pendingSettlement: string
   @ApiProperty({ type: String }) pendingConfirmation: string
   @ApiProperty({ type: String }) balance: string
   @ApiProperty({ type: String }) creditsAvailable: string
@@ -743,6 +772,15 @@ export class ContractAccountMovementDto {
   @ApiProperty({ type: String, nullable: true }) credit: string | null
   @ApiProperty({
     type: String,
+    nullable: true,
+    description:
+      'Importe informativo de los movimientos del depósito; no entra en el saldo',
+  })
+  amount: string | null
+  @ApiProperty({ enum: Currency, nullable: true })
+  amountCurrency: Currency | null
+  @ApiProperty({
+    type: String,
     description: 'Saldo acumulado (deuda positiva)',
   })
   balance: string
@@ -766,6 +804,8 @@ export class DepositReturnDto {
   @ApiProperty({ format: 'date' }) returnedAt: string
   @ApiProperty({ type: String }) depositAmount: string
   @ApiProperty({ enum: Currency }) depositCurrency: Currency
+  @ApiProperty({ enum: DepositReturnMode }) mode: DepositReturnMode
+  @ApiProperty({ type: String }) referenceAmount: string
   @ApiProperty({ type: String }) returnedAmount: string
   @ApiProperty({ enum: PaymentMethod }) method: PaymentMethod
   @ApiProperty({ type: String, nullable: true }) notes: string | null

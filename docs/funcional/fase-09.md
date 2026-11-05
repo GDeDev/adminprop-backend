@@ -14,3 +14,9 @@
 - **Renovación:** desde un contrato vigente se crea el nuevo con los mismos datos precargados (alquiler vigente, condiciones, caución) y se cambia lo que haga falta, incluso el inquilino. El anterior queda finalizado y la propiedad pasa al contrato nuevo.
 - **Límites que quedan:** una propiedad con contrato vigente no se puede pasar a "disponible" a mano (sí a mantenimiento), y una que tuvo contratos no se elimina. Un inquilino con contrato vigente tampoco. Los contratos nunca se eliminan: los finalizados y rescindidos quedan como historial.
 - **Pendiente de confirmar con Micaela:** si el depósito en garantía se actualiza con los aumentos (hoy queda fijo). Los contratos en dólares guardan el monto en dólares; la cotización se resuelve al cobrar.
+
+## Ajuste manual del alquiler (respuestas de Micaela, ver D-230)
+
+Cuando el alquiler se ajusta a mano (en vez de por índice o por el porcentaje pactado), hay que indicar el motivo y quién lo autorizó. Quedan registrados en el historial del alquiler junto con el usuario que lo cargó. Los aumentos automáticos no piden nada.
+
+**Quién puede hacerlo (D-234):** por ahora, el ajuste manual lo carga sólo un administrador. Un empleado ve un mensaje claro y puede seguir aplicando los aumentos por índice o por porcentaje; si un contrato "Otro" o de porcentaje sin cargar necesita un monto a mano, se lo pide a un administrador.

@@ -1,8 +1,10 @@
-import { Currency, DepositDeductionConcept } from './billing'
+import { Currency, DepositDeductionConcept, DepositReturnMode } from './billing'
 import {
+  DepositDeductionsExceedReferenceException,
   DepositReturnContractActiveException,
   DepositReturnUnbalancedException,
   InvalidDepositDeductionException,
+  InvalidDepositReferenceException,
   InvalidDepositReturnDateException,
 } from './billing.exceptions'
 import { DepositReturnPolicy } from './deposit-return.policy'
@@ -13,6 +15,9 @@ const contract = {
   endDate: '2026-12-31',
   deposit: '100000.00',
   depositCurrency: Currency.ARS,
+  depositReturnMode: DepositReturnMode.FIXED,
+  currency: Currency.ARS,
+  currentRent: '130000.00',
 }
 
 describe('DepositReturnPolicy', () => {
@@ -97,17 +102,7 @@ describe('DepositReturnPolicy', () => {
       ).toThrow(InvalidDepositDeductionException)
     })
 
-    it('lo devuelto más las deducciones tiene que ser el depósito', () => {
-      expect(() =>
-        DepositReturnPolicy.assertBalanced('100000.00', '80000.00', [
-          { amount: '20000.00' },
-        ]),
-      ).not.toThrow()
-      expect(() =>
-        DepositReturnPolicy.assertBalanced('100000.00', '80000.00', [
-          { amount: '10000.00' },
-        ]),
-      ).toThrow(DepositReturnUnbalancedException)
+    it('normaliza el monto devuelto: 0 sí, negativo no', () => {
       expect(DepositReturnPolicy.normalizeReturnedAmount('0')).toBe('0.00')
       expect(() => DepositReturnPolicy.normalizeReturnedAmount('-1')).toThrow(
         InvalidDepositDeductionException,
@@ -148,6 +143,129 @@ describe('DepositReturnPolicy', () => {
           contract,
         ),
       ).toThrow(InvalidDepositDeductionException)
+    })
+  })
+
+  describe('monto de referencia según el modo (D-227, Micaela #1)', () => {
+    // Ejemplo de Micaela: se recibieron 200.000 y el alquiler subió 30 %.
+    const raised = {
+      ...contract,
+      deposit: '200000.00',
+      currentRent: '260000.00',
+    }
+
+    it('FIXED: lo recibido, aunque el alquiler haya subido; no se actualiza solo', () => {
+      expect(DepositReturnPolicy.resolveReference(raised, null)).toEqual({
+        mode: DepositReturnMode.FIXED,
+        referenceAmount: '200000.00',
+      })
+    })
+
+    it('FOLLOWS_RENT: el alquiler vigente (último mes), no el depósito recibido', () => {
+      const followsRent = {
+        ...raised,
+        depositReturnMode: DepositReturnMode.FOLLOWS_RENT,
+      }
+      expect(DepositReturnPolicy.resolveReference(followsRent, null)).toEqual({
+        mode: DepositReturnMode.FOLLOWS_RENT,
+        referenceAmount: '260000.00',
+      })
+      expect(
+        DepositReturnPolicy.resolveReference(followsRent, '260000'),
+      ).toMatchObject({ referenceAmount: '260000.00' })
+    })
+
+    it('en un modo automático, un monto distinto del que corresponde es un error', () => {
+      expect(() =>
+        DepositReturnPolicy.resolveReference(raised, '260000'),
+      ).toThrow(InvalidDepositReferenceException)
+    })
+
+    it('FOLLOWS_RENT con el alquiler en otra moneda exige indicar el monto (no hay cotización)', () => {
+      const usdRent = {
+        ...raised,
+        depositReturnMode: DepositReturnMode.FOLLOWS_RENT,
+        currency: Currency.USD,
+      }
+      expect(() => DepositReturnPolicy.resolveReference(usdRent, null)).toThrow(
+        InvalidDepositReferenceException,
+      )
+      expect(
+        DepositReturnPolicy.resolveReference(usdRent, '250000.00'),
+      ).toMatchObject({ referenceAmount: '250000.00' })
+    })
+
+    it('MANUAL: el monto es obligatorio y puede ser mayor que lo recibido', () => {
+      const manual = { ...raised, depositReturnMode: DepositReturnMode.MANUAL }
+      expect(() => DepositReturnPolicy.resolveReference(manual, null)).toThrow(
+        InvalidDepositReferenceException,
+      )
+      expect(() => DepositReturnPolicy.resolveReference(manual, '0')).toThrow(
+        InvalidDepositReferenceException,
+      )
+      expect(DepositReturnPolicy.resolveReference(manual, '310000')).toEqual({
+        mode: DepositReturnMode.MANUAL,
+        referenceAmount: '310000.00',
+      })
+    })
+  })
+
+  describe('settle: las deducciones se descuentan de la referencia', () => {
+    it('devuelve referencia menos deducciones, también cuando supera lo recibido', () => {
+      expect(
+        DepositReturnPolicy.settle('260000.00', [{ amount: '60000.00' }], null),
+      ).toBe('200000.00')
+      expect(DepositReturnPolicy.settle('260000.00', [], null)).toBe(
+        '260000.00',
+      )
+    })
+
+    it('si se manda lo devuelto tiene que coincidir', () => {
+      expect(
+        DepositReturnPolicy.settle(
+          '100000.00',
+          [{ amount: '20000.00' }],
+          '80000.00',
+        ),
+      ).toBe('80000.00')
+      expect(() =>
+        DepositReturnPolicy.settle(
+          '100000.00',
+          [{ amount: '10000.00' }],
+          '80000.00',
+        ),
+      ).toThrow(DepositReturnUnbalancedException)
+    })
+
+    it('las deducciones no pueden superar la referencia; igual a la referencia devuelve 0', () => {
+      expect(() =>
+        DepositReturnPolicy.settle(
+          '100000.00',
+          [{ amount: '100000.01' }],
+          null,
+        ),
+      ).toThrow(DepositDeductionsExceedReferenceException)
+      expect(
+        DepositReturnPolicy.settle(
+          '100000.00',
+          [{ amount: '60000.00' }, { amount: '40000.00' }],
+          null,
+        ),
+      ).toBe('0.00')
+    })
+
+    it('el motivo de la deducción es obligatorio (deuda, daño u otro)', () => {
+      for (const concept of [
+        DepositDeductionConcept.DEBT,
+        DepositDeductionConcept.DAMAGE,
+        DepositDeductionConcept.OTHER,
+      ]) {
+        expect(() =>
+          DepositReturnPolicy.normalizeDeductions([
+            { concept, description: '   ', amount: '1', installmentId: null },
+          ]),
+        ).toThrow(InvalidDepositDeductionException)
+      }
     })
   })
 })

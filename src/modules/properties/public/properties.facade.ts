@@ -2,14 +2,19 @@ import { Injectable } from '@nestjs/common'
 import { CommandBus, EventBus } from '@nestjs/cqrs'
 
 import { fillEmptyFields } from '@/shared/core/fill-empty-fields'
-import { IsoDate, toIsoDate } from '@/shared/dates/calendar-date'
+import { IsoDate, localDateOf } from '@/shared/dates/calendar-date'
 import {
   AddPropertyPhotosCommand,
   CreatePropertyCommand,
   UpdatePropertyCommand,
 } from '../application/commands/property.commands'
 import { PropertyTypeNames } from '../application/property-type-names'
-import { ListingCurrency, Property, PropertyStatus } from '../domain/property'
+import {
+  ListingCurrency,
+  ListingOperation,
+  Property,
+  PropertyStatus,
+} from '../domain/property'
 import { PaginatedResult, PaginationQueryDto } from '@/shared/pagination'
 import { paginateWith } from '@/shared/pagination/pagination'
 import {
@@ -19,8 +24,10 @@ import {
   PublicPropertyViews,
 } from '../application/public-property.views'
 import {
+  PUBLIC_PROPERTY_SORTS,
   PropertyRepository,
   PublicPropertyFilter,
+  PublicPropertySort,
 } from '../domain/property.ports'
 
 /** La propiedad pasó a alquilada (la publica `attachContract`). Lo escucha el CRM para cerrar sus publicaciones (Fase 23, A-87). */
@@ -49,8 +56,14 @@ export interface PropertyListingInfo {
   updatedAt: Date
 }
 
-export { ListingCurrency, PropertyStatus }
+export {
+  ListingCurrency,
+  ListingOperation,
+  PropertyStatus,
+  PUBLIC_PROPERTY_SORTS,
+}
 export type {
+  PublicPropertySort,
   PublicFiltersView,
   PublicPropertyDetailView,
   PublicPropertySummaryView,
@@ -266,6 +279,15 @@ export class PropertiesFacade {
   async createFromImport(data: PropertyImportData): Promise<string> {
     const created = await this.commands.execute(
       new CreatePropertyCommand({
+        // La migración no trae los datos de la ficha del sitio web: quedan vacíos.
+        bedrooms: null,
+        bathrooms: null,
+        rooms: null,
+        totalAreaM2: null,
+        coveredAreaM2: null,
+        ageYears: null,
+        latitude: null,
+        longitude: null,
         ...data,
         listingCurrency: data.listingCurrency ?? undefined,
       }),
@@ -336,7 +358,7 @@ export class PropertiesFacade {
       address: property.address,
       status: property.status,
       ownerId: property.ownerId,
-      createdAt: toIsoDate(property.createdAt),
+      createdAt: localDateOf(property.createdAt),
     }))
   }
 

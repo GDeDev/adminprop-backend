@@ -26,6 +26,7 @@ import { AuditModule } from '@/modules/audit/public'
 import { InventoryModule } from '@/modules/inventory/public'
 import { NotificationsModule as NotificationsDeliveryModule } from '@/modules/notifications/public'
 import { PublicModule } from '@/modules/public/public'
+import { SiteModule } from '@/modules/site/public'
 import { ReportsModule } from '@/modules/reports/public'
 import { MigrationModule } from '@/modules/migration/public'
 import { ValuationModule } from '@/modules/valuation/public'
@@ -91,6 +92,7 @@ import { SharedModule } from './shared/shared.module'
     ReportsModule,
     InventoryModule,
     PublicModule,
+    SiteModule,
     NotificationsDeliveryModule,
     MigrationModule,
     ValuationModule,

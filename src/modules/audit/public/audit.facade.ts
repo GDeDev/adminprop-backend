@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common'
 
-import { AuditEventInput, writeAuditEvent } from '@/shared/audit/audit-event'
+import {
+  AuditAction,
+  AuditEventInput,
+  writeAuditEvent,
+} from '@/shared/audit/audit-event'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 
 /**
@@ -15,5 +19,20 @@ export class AuditFacade {
 
   record(event: AuditEventInput): Promise<void> {
     return writeAuditEvent(this.prisma, event)
+  }
+
+  /**
+   * Cuántas filas de ese evento hay desde `since` para esa IP, sin inmobiliaria
+   * (filas globales). Sirve para no escribir una fila por cada intento de un
+   * atacante: ver `SignInService.rejectUnknown`.
+   */
+  countGlobalSince(
+    action: AuditAction,
+    ip: string | null,
+    since: Date,
+  ): Promise<number> {
+    return this.prisma.auditLog.count({
+      where: { action, tenantId: null, ip, createdAt: { gte: since } },
+    })
   }
 }

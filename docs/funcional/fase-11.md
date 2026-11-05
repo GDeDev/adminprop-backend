@@ -17,3 +17,17 @@
 - **Cuenta corriente del contrato:** totales (devengado, cargos, punitorios, cobrado y por quién, pendiente de confirmación, saldo, saldos a favor, honorarios devengados), las cuotas y todos los movimientos en orden cronológico con el saldo acumulado, más el depósito con la devolución sugerida según el modo elegido.
 - **Mora:** para cada inquilino se puede saber si está al día, con cuotas pendientes en gracia o con alguna vencida, cuántas vencidas tiene, cuántos días de atraso lleva la peor, y el punitorio y el saldo que debe por moneda. Es el badge de los listados y las fichas.
 - **Lo que queda para otras fases:** cobrar los honorarios y liquidar al propietario (Fase 12, que se entera de cada cuota cobrada por un aviso automático), la generación automática de cuotas y los recordatorios (Fase 13), y lo que Micaela confirme de los supuestos A-7 a A-14 (mes entero sin prorrateo, orden de imputación, cotización manual, cargos sin punitorio, pagos informados que cuentan como pagados, honorarios sobre el alquiler, depósito en la Fase 12, pago anticipado generando antes la cuota).
+
+## Ajustes posteriores (respuestas de Micaela, ver D-228)
+
+- **El 5 % diario ya no es un valor fijo del sistema.** Las inmobiliarias que ya existían conservan el punitorio que tenían. Las nuevas se crean con el punitorio que se indique (o sin ninguno) y, si no tienen uno por defecto, cada contrato tiene que indicar el suyo al crearse.
+- **Un administrador puede cambiar el punitorio diario y los días de gracia de la inmobiliaria** desde la configuración. Los contratos que no tienen uno propio usan el nuevo valor en las cuotas que se generen de ahí en adelante; las cuotas ya generadas no cambian.
+- **"Desde cuándo corre":** además de los días de gracia, el contrato puede indicar el día del mes desde el que corre el punitorio (día 11 equivale a 10 días de gracia). Se usa uno u otro, no los dos.
+
+## Saldo a favor al generar la cuota (D-237)
+
+Ahora la aplicación del saldo a favor puede ser **manual** (como hasta ahora) o **automática**, a elección de la inmobiliaria en Configuración (sólo administradores). En modo automático, cuando se genera la cuota de un mes, el saldo a favor del inquilino (en la misma moneda) se descuenta solo de esa cuota, sin duplicarse si se vuelve a generar el mes. Los contratos con cobro directo al propietario quedan afuera: ahí el saldo se aplica a mano.
+
+## Cuenta corriente: cuánto se le debe liquidar al propietario (D-238)
+
+La cuenta corriente del contrato suma el total **por liquidar**: lo que la inmobiliaria cobró y confirmó (alquiler, punitorios y cargos del propietario) y todavía no está en una liquidación confirmada. Es un monto bruto, antes de honorarios y gastos; el neto a transferir se ve en la liquidación. Lo que cobró directamente el propietario no cuenta.

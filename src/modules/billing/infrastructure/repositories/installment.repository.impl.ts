@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 
 import {
+  Currency,
   Installment,
   InstallmentCharge,
   InstallmentStatus,
@@ -16,7 +17,9 @@ import {
   NewInstallment,
   NewLateFeeAdjustment,
   PageArgs,
+  RentPeriodTotal,
 } from '@/modules/billing/domain/billing.ports'
+import { RequestContext } from '@/shared/context/request-context'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import {
   adjustmentToDomain,
@@ -62,6 +65,62 @@ export class InstallmentRepositoryImpl extends InstallmentRepository {
       include: INSTALLMENT_INCLUDE,
     })
     return row ? installmentToDomain(row) : null
+  }
+
+  async lockForUpdate(id: string): Promise<void> {
+    // SQL directo: Prisma no tiene FOR UPDATE. El tenant se filtra a mano
+    // porque el SQL crudo no pasa por la extensión de tenant.
+    const tenantId = RequestContext.tenantId
+    if (!tenantId) throw new Error('Lock de cuota sin tenant en el contexto')
+    await this.prisma.db.$queryRaw`
+      SELECT id FROM installments
+      WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
+      FOR UPDATE
+    `
+  }
+
+  async rentTotalsByPeriod(
+    periodFrom: string,
+    periodTo: string,
+  ): Promise<RentPeriodTotal[]> {
+    const tenantId = RequestContext.tenantId
+    if (!tenantId)
+      throw new Error('Totales de alquiler sin tenant en el contexto')
+    // SQL directo: Prisma no agrupa por una columna de la cuota sumando
+    // columnas de sus pagos. Los pagos se suman primero por cuota y recién
+    // después se unen, para que la suma de las cuotas no se multiplique por la
+    // cantidad de pagos. `numeric` sale como texto: ningún monto pasa por
+    // `number`. "Vigente" es lo mismo que `activePayments`: todo menos anulado.
+    const rows = await this.prisma.db.$queryRaw<
+      {
+        period: string
+        currency: string
+        base_amount: string
+        rent_paid: string
+      }[]
+    >`
+      SELECT i.period,
+             i.currency::text AS currency,
+             SUM(i.base_amount)::text AS base_amount,
+             COALESCE(SUM(p.rent), 0)::text AS rent_paid
+      FROM installments i
+      LEFT JOIN (
+        SELECT installment_id, SUM(rent_applied) AS rent
+        FROM payments
+        WHERE tenant_id = ${tenantId}::uuid AND status <> 'VOIDED'
+        GROUP BY installment_id
+      ) p ON p.installment_id = i.id
+      WHERE i.tenant_id = ${tenantId}::uuid
+        AND i.period >= ${periodFrom} AND i.period <= ${periodTo}
+      GROUP BY i.period, i.currency
+      ORDER BY i.period, i.currency
+    `
+    return rows.map((row) => ({
+      period: row.period,
+      currency: Currency[row.currency as keyof typeof Currency],
+      baseAmount: row.base_amount,
+      rentPaid: row.rent_paid,
+    }))
   }
 
   async list(

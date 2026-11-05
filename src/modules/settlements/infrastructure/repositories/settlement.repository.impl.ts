@@ -112,6 +112,27 @@ export class SettlementRepositoryImpl extends SettlementRepository {
     return this.require(id)
   }
 
+  async updateWhilePending(
+    id: string,
+    changes: SettlementChanges,
+  ): Promise<Settlement | null> {
+    try {
+      await this.prisma.db.settlement.update({
+        where: { id, status: 'PENDING' },
+        data: changes,
+      })
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        return null
+      }
+      throw error
+    }
+    return this.require(id)
+  }
+
   async replaceLines(
     id: string,
     payments: NewSettlementPaymentLine[],

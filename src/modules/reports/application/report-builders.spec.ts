@@ -10,6 +10,7 @@ import {
   buildArrearsRows,
   buildHistory,
   buildIncomeRows,
+  buildIncomeTotals,
   buildInstallmentBuckets,
   buildPaymentRows,
   buildPropertyRows,
@@ -158,12 +159,79 @@ describe('buildIncomeRows', () => {
       rentCollected: '200000.00',
       lateFeesCollected: '2500.00',
       chargesCollected: '300.00',
+      collectedByReceiver: {
+        agency: {
+          rent: '200000.00',
+          lateFees: '2500.00',
+          charges: '300.00',
+          total: '202800.00',
+        },
+        owner: {
+          rent: '0.00',
+          lateFees: '0.00',
+          charges: '0.00',
+          total: '0.00',
+        },
+      },
       feesAccrued: '10000.00',
       // 5000 descontados en la liquidación + 5000 que pagó el propietario.
       feesCollected: '10000.00',
       netSettled: '195000.00',
       netTransferred: '95000.00',
     })
+  })
+
+  it('separa lo cobrado por la inmobiliaria de lo percibido por el propietario, sin mezclar monedas (D-235)', () => {
+    const rows = buildIncomeRows(
+      '2026-10',
+      '2026-10',
+      [
+        payment({ receivedBy: 'AGENCY' }),
+        payment({
+          receivedBy: 'OWNER',
+          rentApplied: '80000.00',
+          lateFeeApplied: '1000.00',
+          chargesApplied: '500.50',
+        }),
+        payment({
+          receivedBy: 'OWNER',
+          currency: 'USD',
+          rentApplied: '300.00',
+        }),
+      ],
+      [],
+      [],
+    )
+    const ars = rows.find((r) => r.currency === 'ARS')
+    // Los campos de siempre siguen sumando todo lo confirmado.
+    expect(ars).toMatchObject({
+      rentCollected: '180000.00',
+      lateFeesCollected: '1000.00',
+      chargesCollected: '500.50',
+    })
+    expect(ars?.collectedByReceiver).toEqual({
+      agency: {
+        rent: '100000.00',
+        lateFees: '0.00',
+        charges: '0.00',
+        total: '100000.00',
+      },
+      owner: {
+        rent: '80000.00',
+        lateFees: '1000.00',
+        charges: '500.50',
+        total: '81500.50',
+      },
+    })
+
+    const totals = buildIncomeTotals(rows)
+    expect(totals.map((t) => t.currency)).toEqual(['ARS', 'USD'])
+    expect(totals[0].collected.total).toBe('181500.50')
+    expect(totals[0].collectedByReceiver.agency.total).toBe('100000.00')
+    expect(totals[0].collectedByReceiver.owner.total).toBe('81500.50')
+    expect(totals[1].collected.total).toBe('300.00')
+    expect(totals[1].collectedByReceiver.owner.rent).toBe('300.00')
+    expect(totals[1].collectedByReceiver.agency.total).toBe('0.00')
   })
 
   it('un mes sin movimientos no genera fila', () => {

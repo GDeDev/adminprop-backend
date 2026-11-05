@@ -296,14 +296,38 @@ export class DepositReturnContractActiveException extends DomainException {
   }
 }
 
-/** `returnedAmount + Σ deducciones` tiene que ser exactamente el depósito. */
+/** `returnedAmount + Σ deducciones` tiene que ser exactamente el monto de referencia. */
 export class DepositReturnUnbalancedException extends DomainException {
-  constructor(deposit: string, accounted: string) {
+  constructor(reference: string, accounted: string) {
     super(
       'DEPOSIT_RETURN_UNBALANCED',
-      `Lo devuelto más las deducciones (${accounted}) tiene que ser igual al depósito (${deposit})`,
+      `Lo devuelto más las deducciones (${accounted}) tiene que ser igual al monto a devolver según el contrato (${reference})`,
       DomainErrorKind.InvalidInput,
-      { deposit, accounted },
+      { reference, accounted },
+    )
+  }
+}
+
+/** Las deducciones no pueden superar el monto de referencia de la devolución. */
+export class DepositDeductionsExceedReferenceException extends DomainException {
+  constructor(reference: string, deductions: string) {
+    super(
+      'DEPOSIT_RETURN_DEDUCTIONS_EXCEED',
+      `Las deducciones (${deductions}) superan el monto a devolver según el contrato (${reference})`,
+      DomainErrorKind.InvalidInput,
+      { reference, deductions },
+    )
+  }
+}
+
+/** Falta el monto de referencia (modo manual o alquiler en otra moneda) o no coincide. */
+export class InvalidDepositReferenceException extends DomainException {
+  constructor(reason: string) {
+    super(
+      'DEPOSIT_RETURN_INVALID_REFERENCE',
+      `El monto a devolver según el contrato no sirve: ${reason}`,
+      DomainErrorKind.InvalidInput,
+      { field: 'referenceAmount' },
     )
   }
 }

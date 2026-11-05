@@ -21,6 +21,7 @@ const ROUTES: Array<['get' | 'post' | 'patch', string]> = [
   ['get', `/migration/batches/${ID}`],
   ['post', `/migration/batches/${ID}/confirm`],
   ['get', `/migration/batches/${ID}/report.xlsx`],
+  ['post', `/contracts/${ID}/rent-updates`],
   ['get', '/crm/pipeline'],
   ['get', '/crm/inquiries'],
   ['post', '/crm/inquiries'],

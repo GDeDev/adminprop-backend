@@ -2,6 +2,7 @@ import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs'
 import { ContractTerminatedEvent } from '../events/contract-terminated.event'
 import { randomUUID } from 'node:crypto'
 
+import { BillingTermsResolver } from '../billing-terms-resolver'
 import {
   billingTermsInForce,
   CollectionMode,
@@ -17,6 +18,7 @@ import {
   ContractNotActiveException,
   ContractNotFoundException,
   InvalidContractDocumentException,
+  ManualRentAdjustmentForbiddenException,
   RentUpdateNotDueException,
 } from '@/modules/contracts/domain/contract.exceptions'
 import { ContractPolicy } from '@/modules/contracts/domain/contract.policy'
@@ -135,7 +137,12 @@ export function normalizeBillingTerms(
             input.lateFeePercentage,
             'lateFeePercentage',
           ),
-    lateFeeGraceDays: ContractPolicy.normalizeGraceDays(input.lateFeeGraceDays),
+    lateFeeGraceDays: ContractPolicy.normalizeGraceDays(
+      ContractPolicy.resolveGraceInput(
+        input.lateFeeGraceDays,
+        input.lateFeeStartDay,
+      ) ?? null,
+    ),
   }
 }
 
@@ -157,6 +164,7 @@ export class CreateContractHandler implements ICommandHandler<
     private readonly renters: RentersFacade,
     private readonly prisma: PrismaService,
     private readonly views: ContractViews,
+    private readonly termsResolver: BillingTermsResolver,
   ) {}
 
   async execute(command: CreateContractCommand): Promise<ContractDetailView> {
@@ -172,6 +180,11 @@ export class CreateContractHandler implements ICommandHandler<
     const feePercentage = await this.parties.feePercentage(ownerId, false)
 
     const { billing, ...contractTerms } = terms
+    const billingTerms = normalizeBillingTerms(billing, feePercentage)
+    ContractPolicy.assertLateFeeSource(
+      billingTerms.lateFeePercentage,
+      await this.termsResolver.defaults(),
+    )
     const data: NewContract = {
       ...contractTerms,
       propertyId: property.id,
@@ -180,7 +193,7 @@ export class CreateContractHandler implements ICommandHandler<
       guarantorId,
       feePercentage,
       renewedFromId: null,
-      billingTerms: normalizeBillingTerms(billing, feePercentage),
+      billingTerms,
     }
     const contract = await this.prisma.transaction(async () => {
       const created = await this.contracts.create(data)
@@ -261,6 +274,7 @@ export class ChangeBillingTermsHandler implements ICommandHandler<
   constructor(
     private readonly contracts: ContractRepository,
     private readonly views: ContractViews,
+    private readonly termsResolver: BillingTermsResolver,
   ) {}
 
   async execute(
@@ -304,13 +318,22 @@ export class ChangeBillingTermsHandler implements ICommandHandler<
                 changes.lateFeePercentage,
                 'lateFeePercentage',
               ),
-      lateFeeGraceDays:
-        changes.lateFeeGraceDays === undefined
+      lateFeeGraceDays: (() => {
+        const grace = ContractPolicy.resolveGraceInput(
+          changes.lateFeeGraceDays,
+          changes.lateFeeStartDay,
+        )
+        return grace === undefined
           ? latest.lateFeeGraceDays
-          : ContractPolicy.normalizeGraceDays(changes.lateFeeGraceDays),
+          : ContractPolicy.normalizeGraceDays(grace)
+      })(),
       notes: PersonPolicy.normalizeNotes(changes.notes ?? null),
       changedById: RequestContext.userId ?? null,
     }
+    ContractPolicy.assertLateFeeSource(
+      terms.lateFeePercentage,
+      await this.termsResolver.defaults(),
+    )
     const updated = await this.contracts.addBillingTerms(contract.id, terms)
     return this.views.detail(updated)
   }
@@ -392,6 +415,13 @@ export class UploadContractDocumentHandler implements ICommandHandler<
  * aumento: si hay varios atrasados, se llama varias veces (el cron de la
  * Fase 13 hace lo mismo).
  */
+const MANUAL_ADJUSTMENT_ROLE = 'ADMIN'
+
+function assertCanAdjustRentManually(command: ApplyRentUpdateCommand): void {
+  if (command.actorRole !== MANUAL_ADJUSTMENT_ROLE)
+    throw new ManualRentAdjustmentForbiddenException()
+}
+
 @CommandHandler(ApplyRentUpdateCommand)
 export class ApplyRentUpdateHandler implements ICommandHandler<
   ApplyRentUpdateCommand,
@@ -404,6 +434,11 @@ export class ApplyRentUpdateHandler implements ICommandHandler<
   ) {}
 
   async execute(command: ApplyRentUpdateCommand): Promise<ContractDetailView> {
+    // Un monto a mano es sólo de administradores (D-234). Se corta antes de
+    // mirar el contrato para que el empleado no averigüe su estado por los
+    // 409 y el mensaje sea siempre el mismo.
+    if (command.newRent !== undefined) assertCanAdjustRentManually(command)
+
     const contract = await requireContract(this.contracts, command.id)
     requireActive(contract)
 
@@ -439,9 +474,19 @@ export class ApplyRentUpdateHandler implements ICommandHandler<
         fixedPercentage,
       )
     } else {
+      // FIXED sin % u OTHER sin monto: el monto a mano es obligatorio y
+      // también es sólo de administradores (D-234).
+      assertCanAdjustRentManually(command)
+      const newRent = ContractPolicy.normalizeNewRent(command.newRent)
+      // Todo monto a mano deja motivo y autorizante (D-230, Micaela #8).
+      const justification = ContractPolicy.normalizeManualAdjustment(
+        command.reason,
+        command.authorizedBy,
+      )
       updated = await this.applier.record(contract, {
         effectiveFrom,
-        newRent: ContractPolicy.normalizeNewRent(command.newRent),
+        newRent,
+        ...justification,
         source: RentUpdateSource.MANUAL,
         indexType: null,
         indexFromPeriod: null,
@@ -549,6 +594,7 @@ export class RenewContractHandler implements ICommandHandler<
     private readonly renters: RentersFacade,
     private readonly prisma: PrismaService,
     private readonly views: ContractViews,
+    private readonly termsResolver: BillingTermsResolver,
   ) {}
 
   async execute(command: RenewContractCommand): Promise<ContractDetailView> {
@@ -576,7 +622,15 @@ export class RenewContractHandler implements ICommandHandler<
       surety: { ...original.surety, ...overrides.surety },
       // Los términos vigentes hoy siguen en el contrato nuevo, salvo lo que
       // se indique; el % de honorarios se fija de nuevo (D-57).
-      billing: { ...currentBillingInput(original), ...overrides.billing },
+      // Si el override indica el día de inicio, la gracia heredada se descarta
+      // (los dos juntos son ambiguos).
+      billing: {
+        ...currentBillingInput(original),
+        ...(overrides.billing?.lateFeeStartDay != null
+          ? { lateFeeGraceDays: null }
+          : {}),
+        ...overrides.billing,
+      },
     })
     ContractPolicy.assertRenewalStart(terms.startDate, original.startDate)
 
@@ -593,6 +647,11 @@ export class RenewContractHandler implements ICommandHandler<
     )
 
     const { billing, ...contractTerms } = terms
+    const billingTerms = normalizeBillingTerms(billing, feePercentage)
+    ContractPolicy.assertLateFeeSource(
+      billingTerms.lateFeePercentage,
+      await this.termsResolver.defaults(),
+    )
     const data: NewContract = {
       ...contractTerms,
       propertyId: original.propertyId,
@@ -601,7 +660,7 @@ export class RenewContractHandler implements ICommandHandler<
       guarantorId,
       feePercentage,
       renewedFromId: original.id,
-      billingTerms: normalizeBillingTerms(billing, feePercentage),
+      billingTerms,
     }
     const renewed = await this.prisma.transaction(async () => {
       // Primero se cierra el original: el índice único de "un activo por

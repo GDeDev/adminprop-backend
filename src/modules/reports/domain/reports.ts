@@ -59,20 +59,53 @@ export interface DashboardReport extends ReportMeta {
   }[]
 }
 
+/**
+ * Lo cobrado en un mes y moneda, abierto por concepto. `total` es la suma de
+ * los tres: alquiler + punitorios + cargos (D-235).
+ */
+export interface CollectedBreakdown {
+  rent: string
+  lateFees: string
+  charges: string
+  total: string
+}
+
+/**
+ * Quién recibió la plata (Micaela #9 y #10): `agency` es lo que cobró la
+ * inmobiliaria (y administra); `owner` es lo que percibió directamente el
+ * propietario, que nunca pasó por la inmobiliaria.
+ */
+export interface CollectedByReceiver {
+  agency: CollectedBreakdown
+  owner: CollectedBreakdown
+}
+
 export interface IncomeReportRow {
   period: string
   currency: ReportCurrency
+  /** Suma de lo cobrado por la inmobiliaria y lo percibido por el propietario. */
   rentCollected: string
   lateFeesCollected: string
   chargesCollected: string
+  /** Lo mismo, separado por quién lo recibió. */
+  collectedByReceiver: CollectedByReceiver
   feesAccrued: string
   feesCollected: string
   netSettled: string
   netTransferred: string
 }
 
+/** Total del rango para una moneda; las monedas nunca se mezclan (D-118). */
+export interface IncomeReportTotal {
+  currency: ReportCurrency
+  collected: CollectedBreakdown
+  collectedByReceiver: CollectedByReceiver
+}
+
 export interface IncomeReport extends ReportMeta {
   rows: IncomeReportRow[]
+  /** Un total por moneda con movimientos, en el orden ARS, USD. */
+  totals: IncomeReportTotal[]
 }
 
 export interface PaymentReportRow {

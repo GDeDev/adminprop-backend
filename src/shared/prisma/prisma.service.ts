@@ -40,8 +40,12 @@ function extendClient(
     : client
 
   const extended = scoped
-    .$extends(softDeleteExtension(ref))
-    .$extends(auditExtension(client as never))
+    .$extends(
+      softDeleteExtension(ref, { useTransaction: options.tenantScoped }),
+    )
+    .$extends(
+      auditExtension(client as never, { useTransaction: options.tenantScoped }),
+    )
 
   // Cierra la circularidad: soft-delete necesita el cliente completo para que
   // el `update` en que convierte un `delete` pase también por la auditoría.
@@ -98,9 +102,8 @@ export class PrismaService
    * —incluidos los repositorios de otros módulos llamados por sus facades—
    * se confirma o se deshace junto. Si ya hay una abierta, se suma a ella.
    *
-   * La auditoría escribe fuera de la transacción (con el cliente base), así
-   * que un rollback puede dejar filas de historial de cambios que no
-   * ocurrieron; quedan visibles en los logs.
+   * La auditoría de los modelos con filtro de tenant escribe con el cliente de
+   * la transacción: se confirma o se deshace junto con el cambio.
    */
   async transaction<T>(fn: () => Promise<T>): Promise<T> {
     if (TransactionContext.current()) return fn()

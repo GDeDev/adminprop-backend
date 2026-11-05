@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { IsoDate, Period } from '@/shared/dates/calendar-date'
+import { isPositiveMoney } from '@/shared/money'
 import { FeeAccountTotals, FeePolicy } from '../domain/fee.policy'
 import { SettlementNothingToAcknowledgeException } from '../domain/settlement.exceptions'
 import {
@@ -81,7 +82,7 @@ export class SettlementsFacade {
     const settlement = await this.settlements.findById(id)
     if (!isVisibleTo(settlement, ownerId)) return null
     if (settlement.acknowledgedAt === null) {
-      if (Number(settlement.transferredTotal) <= 0) {
+      if (!isPositiveMoney(settlement.transferredTotal)) {
         throw new SettlementNothingToAcknowledgeException(id)
       }
       await this.settlements.update(id, { acknowledgedAt: new Date() })

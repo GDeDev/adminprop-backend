@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common'
 
 import {
   compareMoney,
+  isPositiveMoney,
   Money,
   subtractMoney,
+  sumMoney,
   toMoneyString,
 } from '@/shared/money'
 import { IsoDate, Period, todayIso } from '@/shared/dates/calendar-date'
@@ -26,7 +28,6 @@ import {
   MoneyByCurrency,
   RenterArrearsView,
   sumByCurrency,
-  sumMoney,
 } from '../application/installment.views'
 import {
   activePayments,
@@ -141,6 +142,14 @@ export interface ReportInstallmentRef {
   lateFeeBalance: string
   /** Honorarios devengados sobre lo cobrado (regla 9). */
   feeOnCollected: string
+}
+
+/** Alquiler devengado y cobrado de un mes y una moneda, ya sumado. */
+export interface ReportRentTotalRef {
+  period: Period
+  currency: Currency
+  baseAmount: string
+  rentPaid: string
 }
 
 /** Un pago confirmado con los datos de su cuota, para los reportes. */
@@ -424,7 +433,7 @@ export class BillingFacade {
     })
     return installments.flatMap((i) => {
       const { rentBalance } = InstallmentPolicy.balances(i, today)
-      return Number(rentBalance) > 0 ? [toRentDue(i, rentBalance)] : []
+      return isPositiveMoney(rentBalance) ? [toRentDue(i, rentBalance)] : []
     })
   }
 
@@ -440,7 +449,7 @@ export class BillingFacade {
         installment,
         balances: InstallmentPolicy.balances(installment, today),
       }))
-      .filter((r) => Number(r.balances.totalDue) > 0)
+      .filter((r) => isPositiveMoney(r.balances.totalDue))
       .map(({ installment, balances }) => ({
         id: installment.id,
         contractId: installment.contractId,
@@ -571,6 +580,17 @@ export class BillingFacade {
   }
 
   /**
+   * Alquiler devengado y cobrado por mes y moneda en un rango de períodos
+   * (historial del dashboard). Se suma en la base: no hidrata las cuotas.
+   */
+  async reportRentTotals(
+    periodFrom: Period,
+    periodTo: Period,
+  ): Promise<ReportRentTotalRef[]> {
+    return this.installments.rentTotalsByPeriod(periodFrom, periodTo)
+  }
+
+  /**
    * Los pagos confirmados con `paidAt` en el rango (inclusive), con los datos
    * de su cuota. Filtra por propietario, propiedad o inquilino. Los anulados
    * y los que esperan confirmación no figuran.
@@ -630,11 +650,7 @@ export class BillingFacade {
 
   /** Pagos informados que esperan confirmación (dashboard de la Fase 19). */
   async countPaymentsToConfirm(): Promise<number> {
-    return (
-      await this.payments.listAll({
-        status: PaymentStatus.PENDING_CONFIRMATION,
-      })
-    ).length
+    return this.payments.count({ status: PaymentStatus.PENDING_CONFIRMATION })
   }
 }
 

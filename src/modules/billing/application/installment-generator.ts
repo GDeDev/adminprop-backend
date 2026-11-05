@@ -6,6 +6,7 @@ import { createLogger } from '@/shared/logging/root-logger'
 import { CollectionMode, Currency, FeeMode } from '../domain/billing'
 import { InstallmentRepository } from '../domain/billing.ports'
 import { InstallmentPolicy } from '../domain/installment.policy'
+import { InstallmentCreditApplier } from './installment-credit-applier'
 
 export interface GenerationResult {
   period: Period
@@ -14,6 +15,8 @@ export interface GenerationResult {
   created: number
   /** Ya tenían su cuota: no se duplica (spec 3.1). */
   skipped: number
+  /** Saldos a favor aplicados solos a las cuotas nuevas (D-237). */
+  creditsApplied: number
 }
 
 /**
@@ -29,6 +32,7 @@ export class InstallmentGenerator {
   constructor(
     private readonly installments: InstallmentRepository,
     private readonly contracts: ContractsFacade,
+    private readonly creditApplier: InstallmentCreditApplier,
   ) {}
 
   async generate(requested: string | null): Promise<GenerationResult> {
@@ -39,6 +43,7 @@ export class InstallmentGenerator {
 
     let created = 0
     let skipped = 0
+    let creditsApplied = 0
     for (const contract of contracts) {
       // La base es el alquiler vigente al generar (D-72), mes entero (A-7);
       // los términos vigentes al mes quedan copiados en la cuota (D-71).
@@ -62,14 +67,23 @@ export class InstallmentGenerator {
         feePercentage: terms.feePercentage,
         feeAmount: terms.feeAmount,
       })
-      if (installment) created += 1
-      else skipped += 1
+      if (installment) {
+        created += 1
+        // Sólo a la recién creada: una cuota que ya existía no se toca.
+        creditsApplied += await this.creditApplier.applyIfAutomatic(installment)
+      } else skipped += 1
     }
 
     this.logger.info(
-      { period, contracts: contracts.length, created, skipped },
+      { period, contracts: contracts.length, created, skipped, creditsApplied },
       'Cuotas generadas',
     )
-    return { period, contracts: contracts.length, created, skipped }
+    return {
+      period,
+      contracts: contracts.length,
+      created,
+      skipped,
+      creditsApplied,
+    }
   }
 }

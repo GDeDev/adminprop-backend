@@ -696,9 +696,36 @@ describe('Contratos (e2e, Postgres)', () => {
         .expect(400)
       expect(missing.body.code).toBe('CONTRACT_NEW_RENT_REQUIRED')
 
-      const applied = await api(employeeToken)
+      // D-234: el empleado no puede cargar un monto a mano (ni mandando uno,
+      // ni en un contrato que lo exige), y el alquiler no se toca.
+      for (const body of [
+        {
+          newRent: '120000',
+          reason: 'Acuerdo por refacciones',
+          authorizedBy: 'Juan Pérez (propietario)',
+        },
+        {},
+      ]) {
+        const denied = await api(employeeToken)
+          .post(`/contracts/${id}/rent-updates`)
+          .send(body)
+          .expect(403)
+        expect(denied.body.code).toBe(
+          'CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY',
+        )
+      }
+      expect(
+        (await api(adminToken).get(`/contracts/${id}`).expect(200)).body.data
+          .currentRent,
+      ).toBe('100000.00')
+
+      const applied = await api(adminToken)
         .post(`/contracts/${id}/rent-updates`)
-        .send({ newRent: '120000' })
+        .send({
+          newRent: '120000',
+          reason: 'Acuerdo por refacciones',
+          authorizedBy: 'Juan Pérez (propietario)',
+        })
         .expect(201)
       expect(applied.body.data.currentRent).toBe('120000.00')
       expect(applied.body.data.rentUpdates).toHaveLength(2)
@@ -708,6 +735,8 @@ describe('Contratos (e2e, Postgres)', () => {
         newRent: '120000.00',
         source: 'MANUAL',
         indexType: null,
+        adjustmentReason: 'Acuerdo por refacciones',
+        authorizedBy: 'Juan Pérez (propietario)',
       })
 
       const notDue = await api(adminToken)
@@ -715,6 +744,63 @@ describe('Contratos (e2e, Postgres)', () => {
         .send({ newRent: '130000' })
         .expect(409)
       expect(notDue.body.code).toBe('CONTRACT_RENT_UPDATE_NOT_DUE')
+    })
+
+    it('un ajuste manual sin motivo o sin autorizante se rechaza y no cambia el alquiler (D-230)', async () => {
+      const startDate = addMonths(today, -3)
+      const { id } = await createContract({ startDate })
+      for (const body of [
+        { newRent: '120000' },
+        { newRent: '120000', reason: 'Refacciones' },
+        { newRent: '120000', authorizedBy: 'Juan Pérez' },
+        { newRent: '120000', reason: '   ', authorizedBy: 'Juan Pérez' },
+      ]) {
+        const rejected = await api(adminToken)
+          .post(`/contracts/${id}/rent-updates`)
+          .send(body)
+          .expect(400)
+        expect(rejected.body.code).toBe(
+          'CONTRACT_MANUAL_ADJUSTMENT_JUSTIFICATION_REQUIRED',
+        )
+      }
+      const detail = await api(adminToken).get(`/contracts/${id}`).expect(200)
+      expect(detail.body.data.currentRent).toBe('100000.00')
+      expect(detail.body.data.rentUpdates).toHaveLength(1)
+    })
+
+    it('el empleado sí aplica el aumento por % fijo, que no es un ajuste manual (D-234)', async () => {
+      const startDate = addMonths(today, -2)
+      const { id } = await createContract({
+        startDate,
+        rentUpdateType: 'FIXED',
+        rentUpdateFrequency: 'MONTHLY',
+        fixedIncreasePercentage: '10',
+      })
+      const applied = await api(employeeToken)
+        .post(`/contracts/${id}/rent-updates`)
+        .send({})
+        .expect(201)
+      expect(applied.body.data.currentRent).toBe('110000.00')
+    })
+
+    it('el aumento por índice o por % fijo no pide motivo ni autorizante', async () => {
+      const startDate = addMonths(today, -2)
+      const { id } = await createContract({
+        startDate,
+        rentUpdateType: 'FIXED',
+        rentUpdateFrequency: 'MONTHLY',
+        fixedIncreasePercentage: '10',
+      })
+      const applied = await api(adminToken)
+        .post(`/contracts/${id}/rent-updates`)
+        .send({})
+        .expect(201)
+      expect(applied.body.data.rentUpdates[0]).toMatchObject({
+        newRent: '110000.00',
+        fixedPercentage: '10.00',
+        adjustmentReason: null,
+        authorizedBy: null,
+      })
     })
 
     it('ICL: usa los índices de los dos períodos; si falta uno, 422 con el período', async () => {
@@ -1241,7 +1327,11 @@ describe('Contratos (e2e, Postgres)', () => {
       })
       const manual = await api(adminToken)
         .post(`/contracts/${indexed.id}/rent-updates`)
-        .send({ newRent: '105000' })
+        .send({
+          newRent: '105000',
+          reason: 'Acuerdo por refacciones',
+          authorizedBy: 'Juan Pérez (propietario)',
+        })
         .expect(201)
       expect(manual.body.data.rentUpdates[0]).toMatchObject({
         newRent: '105000.00',
@@ -1295,6 +1385,114 @@ describe('Contratos (e2e, Postgres)', () => {
         depositCurrency: 'ARS',
         currentRent: '100000.00',
         billingTerms: { feePercentage: '5.00' },
+      })
+    })
+  })
+
+  describe('punitorio sin 5 % por defecto y fecha de inicio (D-228, Micaela #3)', () => {
+    const clearTenantDefault = () =>
+      prisma.tenant.update({
+        where: { id: tenantA.id },
+        data: { dailyLateFeePercentage: null },
+      })
+
+    it('sin punitorio propio ni de la inmobiliaria el alta se rechaza; con uno propio entra', async () => {
+      await clearTenantDefault()
+      const [propertyId, renterId] = await partyIds()
+      const rejected = await api(adminToken)
+        .post('/contracts')
+        .send(contractBody(propertyId, renterId))
+        .expect(400)
+      expect(rejected.body.code).toBe('CONTRACT_LATE_FEE_PERCENTAGE_REQUIRED')
+
+      const ok = await api(adminToken)
+        .post('/contracts')
+        .send(
+          contractBody(propertyId, renterId, {
+            lateFeePercentage: '0.50',
+          }),
+        )
+        .expect(201)
+      expect(ok.body.data.billingTerms).toMatchObject({
+        lateFeePercentage: '0.50',
+        inheritedLateFeePercentage: false,
+      })
+    })
+
+    it('si la inmobiliaria fija uno por defecto, el contrato lo hereda', async () => {
+      await prisma.tenant.update({
+        where: { id: tenantA.id },
+        data: { dailyLateFeePercentage: '0.75' },
+      })
+      const { id } = await createContract()
+      const detail = await api(adminToken).get(`/contracts/${id}`).expect(200)
+      expect(detail.body.data.billingTerms).toMatchObject({
+        lateFeePercentage: '0.75',
+        inheritedLateFeePercentage: true,
+      })
+    })
+
+    it('cambiar los términos a "el de la inmobiliaria" también exige que exista', async () => {
+      const { id } = await createContract({
+        lateFeePercentage: '2.00',
+      })
+      await clearTenantDefault()
+      const rejected = await api(adminToken)
+        .post(`/contracts/${id}/billing-terms`)
+        .send({ lateFeePercentage: null })
+        .expect(400)
+      expect(rejected.body.code).toBe('CONTRACT_LATE_FEE_PERCENTAGE_REQUIRED')
+    })
+
+    it('"desde cuándo corre": el día de inicio equivale a la gracia, no se combina con ella y no toca los contratos existentes', async () => {
+      const existing = await createContract()
+      const { id } = await createContract({
+        lateFeeStartDay: 16,
+      })
+      const detail = await api(adminToken).get(`/contracts/${id}`).expect(200)
+      expect(detail.body.data.billingTerms).toMatchObject({
+        lateFeeGraceDays: 15,
+        lateFeeStartDay: 16,
+        inheritedLateFeeGraceDays: false,
+      })
+      expect(detail.body.data.billingTermsHistory[0].lateFeeGraceDays).toBe(15)
+
+      // El contrato anterior sigue como estaba: gracia 10, inicio el día 11.
+      const before = await api(adminToken)
+        .get(`/contracts/${existing.id}`)
+        .expect(200)
+      expect(before.body.data.billingTerms).toMatchObject({
+        lateFeeGraceDays: 10,
+        lateFeeStartDay: 11,
+      })
+
+      const [propertyId, renterId] = await partyIds()
+      const both = await api(adminToken)
+        .post('/contracts')
+        .send(
+          contractBody(propertyId, renterId, {
+            lateFeeStartDay: 5,
+            lateFeeGraceDays: 3,
+          }),
+        )
+        .expect(400)
+      expect(both.body.code).toBe('CONTRACT_INVALID_BILLING_TERMS')
+      await api(adminToken)
+        .post('/contracts')
+        .send(
+          contractBody(propertyId, renterId, {
+            lateFeeStartDay: 0,
+          }),
+        )
+        .expect(400)
+
+      const changed = await api(adminToken)
+        .post(`/contracts/${id}/billing-terms`)
+        .send({ lateFeeStartDay: 6 })
+        .expect(201)
+      expect(changed.body.data.billingTerms).toMatchObject({
+        lateFeeGraceDays: 5,
+        lateFeeStartDay: 6,
       })
     })
   })

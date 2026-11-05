@@ -11,6 +11,7 @@ import {
   compareMoney,
   roundMoney,
   subtractMoney,
+  sumMoney,
   toDecimal,
   toMoneyString,
 } from '@/shared/money'
@@ -46,10 +47,6 @@ import {
 export const MAX_RECEIPT_BYTES = 10 * 1024 * 1024
 
 const ZERO = toMoneyString('0')
-
-function sum(values: string[]): string {
-  return toMoneyString(addMoney(ZERO, ...values))
-}
 
 /** Lo que se calcula al crear o recalcular: líneas y totales sin los ajustes. */
 export interface SettlementComputation extends Omit<
@@ -100,9 +97,11 @@ export const SettlementPolicy = {
       const computed = FeePolicy.feeForInstallment(
         terms,
         {
-          rentApplied: sum(group.map((p) => p.rentApplied)),
-          lateFeeApplied: sum(group.map((p) => p.lateFeeApplied)),
-          ownerChargesApplied: sum(group.map((p) => p.ownerChargesApplied)),
+          rentApplied: sumMoney(group.map((p) => p.rentApplied)),
+          lateFeeApplied: sumMoney(group.map((p) => p.lateFeeApplied)),
+          ownerChargesApplied: sumMoney(
+            group.map((p) => p.ownerChargesApplied),
+          ),
         },
         rules,
       )
@@ -122,20 +121,22 @@ export const SettlementPolicy = {
       payments,
       expenses: included,
       skippedExpenses: expenses.filter((e) => e.currency !== currency),
-      rentTotal: sum(payments.map((p) => p.rentApplied)),
-      lateFeeTotal: sum(payments.map((p) => p.lateFeeApplied)),
-      ownerChargesTotal: sum(payments.map((p) => p.ownerChargesApplied)),
-      serviceChargesTotal: sum(payments.map((p) => p.serviceChargesApplied)),
-      feeBase: sum(fees.map((f) => f.base)),
+      rentTotal: sumMoney(payments.map((p) => p.rentApplied)),
+      lateFeeTotal: sumMoney(payments.map((p) => p.lateFeeApplied)),
+      ownerChargesTotal: sumMoney(payments.map((p) => p.ownerChargesApplied)),
+      serviceChargesTotal: sumMoney(
+        payments.map((p) => p.serviceChargesApplied),
+      ),
+      feeBase: sumMoney(fees.map((f) => f.base)),
       feePercentage: toMoneyString(
         latest?.terms.feePercentage ?? fallbackTerms.feePercentage,
       ),
       feeAmountFixed: latest?.terms.feeAmount ?? null,
-      feeTotal: sum(fees.map((f) => f.amount)),
+      feeTotal: sumMoney(fees.map((f) => f.amount)),
       feeMode,
       feeDeducted: FeePolicy.isDeducted(feeMode),
       mixedFeeTerms: fees.some((f) => !sameTerms(f, latest)),
-      expensesTotal: sum(included.map((e) => e.amount)),
+      expensesTotal: sumMoney(included.map((e) => e.amount)),
     }
   },
 
@@ -152,11 +153,47 @@ export const SettlementPolicy = {
       'concept' | 'amount' | 'voidedAt'
     >[],
   ): string {
-    return sum(
+    return sumMoney(
       adjustments
         .filter((a) => a.voidedAt === null)
         .map((a) => this.signedAmount(a.concept, a.amount)),
     )
+  },
+
+  /**
+   * Los ajustes vigentes abiertos en retenciones, adelantos y el resto
+   * (deducciones y créditos varios), con signo (D-236). La suma de los tres es
+   * `adjustmentsTotal`.
+   */
+  adjustmentsBreakdown(
+    adjustments: Pick<
+      SettlementAdjustment,
+      'concept' | 'amount' | 'voidedAt'
+    >[],
+  ): {
+    withholdingsTotal: string
+    advancesTotal: string
+    otherAdjustmentsTotal: string
+  } {
+    const sumOf = (pick: (concept: SettlementAdjustmentConcept) => boolean) =>
+      sumMoney(
+        adjustments
+          .filter((a) => a.voidedAt === null && pick(a.concept))
+          .map((a) => this.signedAmount(a.concept, a.amount)),
+      )
+    return {
+      withholdingsTotal: sumOf(
+        (c) => c === SettlementAdjustmentConcept.WITHHOLDING,
+      ),
+      advancesTotal: sumOf(
+        (c) => c === SettlementAdjustmentConcept.OWNER_ADVANCE,
+      ),
+      otherAdjustmentsTotal: sumOf(
+        (c) =>
+          c !== SettlementAdjustmentConcept.WITHHOLDING &&
+          c !== SettlementAdjustmentConcept.OWNER_ADVANCE,
+      ),
+    }
   },
 
   /**
@@ -193,7 +230,7 @@ export const SettlementPolicy = {
 
   /** Σ transferencias vigentes. */
   transferredTotal(settlement: Pick<Settlement, 'transfers'>): string {
-    return sum(activeTransfers(settlement).map((t) => t.amount))
+    return sumMoney(activeTransfers(settlement).map((t) => t.amount))
   },
 
   /** El estado después de tocar las transferencias (4.5). */
@@ -334,7 +371,7 @@ export const SettlementPolicy = {
     lateFeeApplied: string
     ownerChargesApplied: string
   }): string {
-    return sum([
+    return sumMoney([
       voided.rentApplied,
       voided.lateFeeApplied,
       voided.ownerChargesApplied,
@@ -356,6 +393,7 @@ export const SettlementPolicy = {
       | 'feeTotal'
       | 'expensesTotal'
       | 'adjustmentsTotal'
+      | 'adjustments'
       | 'netAmount'
       | 'transferredTotal'
     >[],
@@ -364,7 +402,10 @@ export const SettlementPolicy = {
     return currencies.map((currency) => {
       const group = settlements.filter((s) => s.currency === currency)
       const total = (pick: (s: (typeof group)[number]) => string) =>
-        sum(group.map(pick))
+        sumMoney(group.map(pick))
+      const breakdowns = group.map((s) =>
+        SettlementPolicy.adjustmentsBreakdown(s.adjustments),
+      )
       return {
         currency,
         rentTotal: total((s) => s.rentTotal),
@@ -373,6 +414,11 @@ export const SettlementPolicy = {
         feeTotal: total((s) => s.feeTotal),
         expensesTotal: total((s) => s.expensesTotal),
         adjustmentsTotal: total((s) => s.adjustmentsTotal),
+        withholdingsTotal: sumMoney(breakdowns.map((b) => b.withholdingsTotal)),
+        advancesTotal: sumMoney(breakdowns.map((b) => b.advancesTotal)),
+        otherAdjustmentsTotal: sumMoney(
+          breakdowns.map((b) => b.otherAdjustmentsTotal),
+        ),
         netTotal: total((s) => s.netAmount),
         transferredTotal: total((s) => s.transferredTotal),
       }

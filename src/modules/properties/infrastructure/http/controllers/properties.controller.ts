@@ -56,6 +56,7 @@ import {
   PropertySummaryDto,
   UpdatePropertyDto,
 } from '../dtos/property.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 /** 10 MB por foto: alcanza para una foto de celular y frena abusos. */
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024
@@ -142,6 +143,15 @@ export class PropertiesController {
         listingPrice: dto.listingPrice ?? null,
         listingCurrency: dto.listingCurrency,
         publicDescription: dto.publicDescription ?? null,
+        listingOperation: dto.listingOperation,
+        bedrooms: dto.bedrooms ?? null,
+        bathrooms: dto.bathrooms ?? null,
+        rooms: dto.rooms ?? null,
+        totalAreaM2: dto.totalAreaM2 ?? null,
+        coveredAreaM2: dto.coveredAreaM2 ?? null,
+        ageYears: dto.ageYears ?? null,
+        latitude: dto.latitude ?? null,
+        longitude: dto.longitude ?? null,
       }),
     )
     return { success: true, message: 'Propiedad creada', data: property }
@@ -169,6 +179,15 @@ export class PropertiesController {
         listingCurrency: dto.listingCurrency,
         publicDescription: dto.publicDescription,
         needsReview: dto.needsReview,
+        listingOperation: dto.listingOperation,
+        bedrooms: dto.bedrooms,
+        bathrooms: dto.bathrooms,
+        rooms: dto.rooms,
+        totalAreaM2: dto.totalAreaM2,
+        coveredAreaM2: dto.coveredAreaM2,
+        ageYears: dto.ageYears,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
       }),
     )
     return { success: true, message: 'Propiedad actualizada', data: property }
@@ -201,7 +220,7 @@ export class PropertiesController {
   @Post(':id/photos')
   @UseInterceptors(
     FilesInterceptor('files', MAX_PHOTOS_PER_PROPERTY, {
-      limits: { fileSize: MAX_PHOTO_BYTES },
+      limits: uploadLimits(MAX_PHOTO_BYTES, MAX_PHOTOS_PER_PROPERTY),
     }),
   )
   @ApiOperation({

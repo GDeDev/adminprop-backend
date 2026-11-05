@@ -4,6 +4,7 @@ import { BillingFacade, PaymentStatus } from '@/modules/billing/public'
 import { ContractsFacade } from '@/modules/contracts/public'
 import { OwnersFacade } from '@/modules/owners/public'
 import { SettlementsFacade } from '@/modules/settlements/public'
+import { localDateOf } from '@/shared/dates/calendar-date'
 import {
   DocumentCurrency,
   DocumentData,
@@ -17,7 +18,7 @@ import {
 import { DocumentSourceNotFoundException } from '../domain/document.exceptions'
 
 const day = (date: Date | null): string | null =>
-  date ? date.toISOString().slice(0, 10) : null
+  date ? localDateOf(date) : null
 
 /**
  * Arma el JSON de cada documento a partir de las facades de los módulos
@@ -149,6 +150,9 @@ export class DocumentDataBuilder {
         fee: summary.feeTotal,
         expenses: summary.expensesTotal,
         adjustments: summary.adjustmentsTotal,
+        withholdings: summary.withholdingsTotal,
+        advances: summary.advancesTotal,
+        otherAdjustments: summary.otherAdjustmentsTotal,
         net: summary.netAmount,
         transferred: summary.transferredTotal,
         currency: summary.currency as DocumentCurrency,
@@ -167,6 +171,9 @@ export class DocumentDataBuilder {
         fee: t.feeTotal,
         expenses: t.expensesTotal,
         adjustments: t.adjustmentsTotal,
+        withholdings: t.withholdingsTotal,
+        advances: t.advancesTotal,
+        otherAdjustments: t.otherAdjustmentsTotal,
         net: t.netTotal,
         transferred: t.transferredTotal,
       })),

@@ -31,14 +31,15 @@ import {
 } from '../domain/reports'
 import {
   buildArrearsRows,
-  buildHistory,
   buildIncomeRows,
+  buildIncomeTotals,
   buildInstallmentBuckets,
   buildPaymentRows,
   buildPropertyRows,
   hasRenewal,
   totalsOf,
 } from './report-builders'
+import { buildHistoryFromTotals } from './report-history'
 
 export interface PaymentsFilter {
   from?: string
@@ -90,25 +91,25 @@ export class ReportsService {
     const current = period ?? periodOf(today)
     const periods = lastPeriods(current, HISTORY_MONTHS)
 
+    // Sólo las cuotas del mes se traen completas (estados, punitorio a hoy);
+    // el historial de seis meses sale de totales sumados en la base.
     const [
-      installments,
+      ofMonth,
+      rentTotals,
       paymentsToConfirm,
       workload,
       due,
       unreadAlerts,
       expiringContracts,
     ] = await Promise.all([
-      this.billing.reportInstallments(
-        { periodFrom: periods[0], periodTo: current },
-        today,
-      ),
+      this.billing.reportInstallments({ period: current }, today),
+      this.billing.reportRentTotals(periods[0], current),
       this.billing.countPaymentsToConfirm(),
       this.settlements.workload(),
       this.contracts.listDueForRentUpdate(today),
       this.automations.countUnreadAlerts(),
       this.expiringRows(undefined, today),
     ])
-    const ofMonth = installments.filter((i) => i.period === current)
 
     return {
       ...this.meta({ period: current }),
@@ -138,7 +139,7 @@ export class ReportsService {
         unreadAlerts,
       },
       expiringContracts,
-      history: buildHistory(periods, installments),
+      history: buildHistoryFromTotals(periods, rentTotals),
     }
   }
 
@@ -154,15 +155,17 @@ export class ReportsService {
       this.settlements.reportSettlements(range.fromPeriod, range.toPeriod),
       this.settlements.reportFeePayments(range.fromDate, range.toDate),
     ])
+    const rows = buildIncomeRows(
+      range.fromPeriod,
+      range.toPeriod,
+      payments,
+      settlements,
+      feePayments,
+    )
     return {
       ...this.meta({ from: range.fromPeriod, to: range.toPeriod }),
-      rows: buildIncomeRows(
-        range.fromPeriod,
-        range.toPeriod,
-        payments,
-        settlements,
-        feePayments,
-      ),
+      rows,
+      totals: buildIncomeTotals(rows),
     }
   }
 

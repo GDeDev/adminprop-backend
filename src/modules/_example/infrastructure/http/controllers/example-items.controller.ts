@@ -37,6 +37,7 @@ import {
   JobAcceptedDto,
   RecalculateExamplePricesDto,
 } from '../dtos/example-item.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 /** 5 MB: suficiente para una foto o un PDF, y frena abusos. */
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
@@ -105,7 +106,7 @@ export class ExampleItemsController {
 
   @Post(':id/attachment')
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_ATTACHMENT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_ATTACHMENT_BYTES) }),
   )
   @ApiOperation({ summary: 'Adjuntar un archivo (imagen o PDF, hasta 5 MB)' })
   @ApiConsumes('multipart/form-data')

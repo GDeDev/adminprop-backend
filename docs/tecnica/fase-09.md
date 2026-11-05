@@ -68,3 +68,11 @@ Totales: 308 unitarios (36 nuevos: `calendar-date.spec.ts`, `index-value.policy.
 - **Fase 11**: `monthlyStatus` de la ficha, cobro de la multa de rescisión, cotización de los contratos en USD (A-2).
 - **Fase 13**: job de índices (`source` distinto de `manual`), cron que llama a `listDueForRentUpdate` + `ApplyRentUpdateCommand` y a `finishExpired`, alertas de vencimiento de contrato y de póliza (RN-12, RN-16).
 - **Consultas a Micaela**: depósito estático o actualizable (A-1); si confirma, ver qué cambia en D-56/A-1.
+
+## Ajuste manual del alquiler (D-230)
+
+`contract_rent_updates.adjustment_reason` y `authorized_by` (migración `20261107140000_rent_update_manual_justification`, nullable). `ContractPolicy.normalizeManualAdjustment` los exige cuando el aumento trae `newRent`; `ApplyRentUpdateCommand` suma `reason` y `authorizedBy`. Error: `CONTRACT_MANUAL_ADJUSTMENT_JUSTIFICATION_REQUIRED`. Tests: `contract.handlers.spec.ts`, `test/contracts.e2e-spec.ts`.
+
+### Sólo administradores (D-234)
+
+`ApplyRentUpdateCommand.actorRole` (el controller lo toma de `@CurrentUser('role')`). `ApplyRentUpdateHandler` lanza `ManualRentAdjustmentForbiddenException` (403, `CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY`) si hay `newRent` (o el contrato lo exige) y el rol no es ADMIN; el chequeo va antes de leer el contrato. El aumento por índice o por % fijo, el cron y el resto de la edición no miran el rol. Tests: `contract.handlers.spec.ts`, `test/contracts.e2e-spec.ts`, `test/roles-default-deny.e2e-spec.ts`.

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -17,6 +18,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiHeader,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -33,6 +35,7 @@ import {
   VoidChargeCommand,
   VoidPaymentCommand,
 } from '@/modules/billing/application/commands/billing.commands'
+import { IdempotencyService } from '@/shared/idempotency/idempotency.service'
 import { RegisterPaymentResult } from '@/modules/billing/application/commands/payment.handlers'
 import {
   InstallmentDetailView,
@@ -68,6 +71,7 @@ import {
   RenterCreditsDto,
   VoidDto,
 } from '../dtos/billing.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 /**
  * Pagos, cargos, ajustes del punitorio y saldos a favor (rediseño 5). Admin
@@ -138,12 +142,18 @@ export class PaymentsController {
   @Post('installments/:id/payments')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_RECEIPT_BYTES } }),
+    FileInterceptor('file', { limits: uploadLimits(MAX_RECEIPT_BYTES) }),
   )
   @ApiOperation({
     summary: 'Registrar un pago',
     description:
       'Multipart. Parcial o total, en la moneda del contrato o en la otra con cotización (fuente, fecha, valor). Se aplican antes los saldos a favor (`applyCredit`, default true); después el pago se imputa punitorio → alquiler → cargos, o según `allocation` (JSON). El exceso queda como saldo a favor. Recibido por el propietario nace pendiente de confirmación.',
+  })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: false,
+    description:
+      'Opcional, hasta 128 caracteres sin espacios. Repetir el pedido con la misma clave y el mismo cuerpo (reintento de red, doble click) devuelve el pago ya registrado en vez de crear otro; con otro cuerpo es 409 `IDEMPOTENCY_KEY_REUSED`. Vale 24 horas.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -184,6 +194,7 @@ export class PaymentsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: RegisterPaymentDto,
     @UploadedFile() file: Express.Multer.File | undefined,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
   ): Promise<ApiSuccessDto<RegisterPaymentResult>> {
     const result = await this.commandBus.execute<
       RegisterPaymentCommand,
@@ -205,6 +216,7 @@ export class PaymentsController {
           notes: dto.notes ?? null,
         },
         file?.buffer ?? Buffer.alloc(0),
+        IdempotencyService.normalizeKey(idempotencyKey),
       ),
     )
     return { success: true, message: 'Pago registrado', data: result }

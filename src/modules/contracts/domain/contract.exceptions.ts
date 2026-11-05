@@ -146,6 +146,20 @@ export class ContractNotActiveException extends DomainException {
   }
 }
 
+/**
+ * D-234: el monto del alquiler a mano lo carga sólo un administrador; un
+ * empleado puede aplicar los aumentos por índice o por % fijo.
+ */
+export class ManualRentAdjustmentForbiddenException extends DomainException {
+  constructor() {
+    super(
+      'CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY',
+      'Sólo un administrador puede ajustar el alquiler a mano. Pedile a un administrador que cargue el monto.',
+      DomainErrorKind.Forbidden,
+    )
+  }
+}
+
 export class RentUpdateNotDueException extends DomainException {
   constructor(nextUpdateOn: string | null) {
     super(
@@ -236,6 +250,33 @@ export class InvalidBillingTermsException extends DomainException {
     super(
       'CONTRACT_INVALID_BILLING_TERMS',
       `${field}: ${reason}`,
+      DomainErrorKind.InvalidInput,
+      { field },
+    )
+  }
+}
+
+/**
+ * Ni el contrato ni la inmobiliaria definen un punitorio diario (D-228). No
+ * hay un valor por defecto del sistema: tiene que decidirlo la inmobiliaria.
+ */
+export class LateFeePercentageRequiredException extends DomainException {
+  constructor() {
+    super(
+      'CONTRACT_LATE_FEE_PERCENTAGE_REQUIRED',
+      'Indicá el punitorio diario del contrato o configurá el de la inmobiliaria',
+      DomainErrorKind.InvalidInput,
+      { field: 'lateFeePercentage' },
+    )
+  }
+}
+
+/** Un ajuste manual del alquiler sin motivo o sin quién lo autorizó (D-230). */
+export class ManualRentAdjustmentJustificationException extends DomainException {
+  constructor(field: 'reason' | 'authorizedBy', reason: string) {
+    super(
+      'CONTRACT_MANUAL_ADJUSTMENT_JUSTIFICATION_REQUIRED',
+      `Un ajuste manual del alquiler necesita motivo y autorizante: ${field} ${reason}`,
       DomainErrorKind.InvalidInput,
       { field },
     )

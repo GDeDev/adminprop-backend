@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 
 import { TenantBrandingData, TenantsFacade } from '@/modules/tenants/public'
 import { createLogger } from '@/shared/logging/root-logger'
+import { isSafeSvg } from '@/shared/security/svg-safety'
 import { DEFAULT_PRIMARY_COLOR, DocumentBranding } from './templates/layout'
 
 const LOGO_TIMEOUT_MS = 5_000
@@ -25,9 +26,41 @@ function dataUriOf(file: Buffer): string | null {
       file.subarray(0, 1024).toString('utf8'),
     )
   ) {
+    // Logos subidos antes del chequeo pueden ser inseguros: sin logo es mejor
+    // que un SVG con referencias externas dentro del generador de PDFs.
+    if (!isSafeSvg(file)) return null
     return `data:image/svg+xml;base64,${encoded}`
   }
   return null
+}
+
+/**
+ * Lee el cuerpo cortando en cuanto pasa `maxBytes`. Antes se bajaba entero con
+ * `arrayBuffer()` y recién después se comprobaba el tamaño, así que un logo
+ * enorme (o sin fin) ocupaba memoria igual. Devuelve `null` si se pasa.
+ */
+export async function readAtMost(
+  response: Response,
+  maxBytes: number,
+): Promise<Buffer | null> {
+  const declared = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > maxBytes) return null
+  if (!response.body) return null
+
+  const chunks: Buffer[] = []
+  let total = 0
+  const reader = response.body.getReader()
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.length
+    if (total > maxBytes) {
+      await reader.cancel()
+      return null
+    }
+    chunks.push(Buffer.from(value))
+  }
+  return Buffer.concat(chunks)
 }
 
 /**
@@ -61,8 +94,8 @@ export class DocumentBrandingResolver {
         signal: AbortSignal.timeout(LOGO_TIMEOUT_MS),
       })
       if (!response.ok) return undefined
-      const file = Buffer.from(await response.arrayBuffer())
-      if (file.length === 0 || file.length > MAX_LOGO_BYTES) return undefined
+      const file = await readAtMost(response, MAX_LOGO_BYTES)
+      if (!file || file.length === 0) return undefined
       return dataUriOf(file) ?? undefined
     } catch (error) {
       this.logger.warn(

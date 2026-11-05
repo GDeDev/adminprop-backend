@@ -229,6 +229,10 @@ export interface OwnerStatementTotals {
   feeTotal: string
   expensesTotal: string
   adjustmentsTotal: string
+  /** Con signo (negativos), junto con los dos siguientes: suman `adjustmentsTotal`. */
+  withholdingsTotal: string
+  advancesTotal: string
+  otherAdjustmentsTotal: string
   netTotal: string
   transferredTotal: string
 }

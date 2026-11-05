@@ -42,6 +42,33 @@ export class SignInService {
   }
 
   /**
+   * Tope de filas de auditoría por IP para logins de usuarios inexistentes.
+   * Cada fila guarda un email que escribió el atacante, y el throttle de login
+   * limita la frecuencia pero no el volumen acumulado: sin este tope una IP (o
+   * muchas) llenaba `audit_logs` sin límite. Pasado el tope el intento se sigue
+   * rechazando y logueando, sólo que no se persiste.
+   */
+  private static readonly UNKNOWN_ATTEMPTS_WINDOW_MS = 15 * 60 * 1000
+  private static readonly UNKNOWN_ATTEMPTS_MAX_ROWS = 10
+
+  private async mayRecordUnknownAttempt(ip?: string | null): Promise<boolean> {
+    const since = new Date(
+      Date.now() - SignInService.UNKNOWN_ATTEMPTS_WINDOW_MS,
+    )
+    try {
+      const recent = await this.audit.countGlobalSince(
+        'LOGIN_FAILED',
+        ip ?? null,
+        since,
+      )
+      return recent < SignInService.UNKNOWN_ATTEMPTS_MAX_ROWS
+    } catch {
+      // Contar es un lujo: si falla, se registra como antes.
+      return true
+    }
+  }
+
+  /**
    * Rechaza un login cuyo usuario no se encontró, tardando lo mismo que uno
    * real: si respondiéramos de una, el atacante podría distinguir cuentas que
    * existen de las que no.
@@ -57,7 +84,7 @@ export class SignInService {
     },
   ): Promise<never> {
     await this.passwordService.burnCompare(password)
-    if (attempt) {
+    if (attempt && (await this.mayRecordUnknownAttempt(attempt.context.ip))) {
       await this.audit.record({
         action: 'LOGIN_FAILED',
         entity: 'User',
