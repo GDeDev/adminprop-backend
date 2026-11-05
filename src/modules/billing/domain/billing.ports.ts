@@ -164,7 +164,7 @@ export interface NewPayment {
   creditId: string | null
   receiptKey: string | null
   receiptUrl: string | null
-  registeredById: string
+  registeredById: string | null
   notes: string | null
 }
 

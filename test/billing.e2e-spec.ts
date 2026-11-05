@@ -167,6 +167,7 @@ describe('Cobros (e2e, Postgres)', () => {
       contracts: number
       created: number
       skipped: number
+      creditsApplied: number
     }
   }
 
@@ -281,9 +282,21 @@ describe('Cobros (e2e, Postgres)', () => {
       })
 
       const first = await generate(period, employeeToken)
-      expect(first).toEqual({ period, contracts: 2, created: 2, skipped: 0 })
+      expect(first).toEqual({
+        period,
+        contracts: 2,
+        created: 2,
+        skipped: 0,
+        creditsApplied: 0,
+      })
       const second = await generate()
-      expect(second).toEqual({ period, contracts: 2, created: 0, skipped: 2 })
+      expect(second).toEqual({
+        period,
+        contracts: 2,
+        created: 0,
+        skipped: 2,
+        creditsApplied: 0,
+      })
 
       const installment = await installmentOf(contract.id)
       expect(installment).toMatchObject({
@@ -352,6 +365,106 @@ describe('Cobros (e2e, Postgres)', () => {
       const result = response.body.data
       expect(result.period).toBe(nextPeriod(period))
       expect(result.created).toBe(1)
+    })
+  })
+
+  describe('saldo a favor al generar la cuota (Micaela #6, D-237)', () => {
+    /** Un contrato con la cuota del mes pasado pagada de más: 30.000 a favor. */
+    const withCredit = async (
+      overrides: Record<string, unknown> = {},
+      payment: Record<string, string> = { amount: '130000' },
+    ) => {
+      const contract = await createContract({
+        lateFeeGraceDays: 31,
+        ...overrides,
+      })
+      await generate(previous)
+      const first = await installmentOf(contract.id, previous)
+      await pay(first.id, { paidAt: day(5), ...payment }).expect(201)
+      return contract
+    }
+    const creditsOf = async (renterId: string) =>
+      (
+        await api(adminToken)
+          .get(`/billing/renters/${renterId}/credits`)
+          .expect(200)
+      ).body.data
+
+    it('en modo manual (el de siempre) la cuota nueva nace sin aplicar el saldo', async () => {
+      const contract = await withCredit()
+      const result = await generate(period)
+      expect(result).toMatchObject({ created: 1, creditsApplied: 0 })
+      const installment = await detail(
+        (await installmentOf(contract.id, period)).id,
+      )
+      expect(installment.status).toBe('PENDING')
+      expect(installment.creditsAvailable).toBe('30000.00')
+    })
+
+    it('en modo automático aplica el saldo a la cuota recién creada, sin usuario, y volver a generar no lo duplica', async () => {
+      const contract = await withCredit()
+      const settings = await api(adminToken)
+        .patch('/tenants/current/settings')
+        .send({ autoApplyCreditOnGeneration: true })
+        .expect(200)
+      expect(settings.body.data.autoApplyCreditOnGeneration).toBe(true)
+
+      const result = await generate(period)
+      expect(result).toMatchObject({ created: 1, creditsApplied: 1 })
+      const installment = await detail(
+        (await installmentOf(contract.id, period)).id,
+      )
+      expect(installment).toMatchObject({
+        status: 'PARTIAL',
+        rentBalance: '70000.00',
+        creditsAvailable: '0.00',
+      })
+      const applications = installment.payments.filter(
+        (p: { kind: string }) => p.kind === 'CREDIT_APPLICATION',
+      )
+      expect(applications).toHaveLength(1)
+      expect(applications[0]).toMatchObject({
+        amount: '30000.00',
+        rentApplied: '30000.00',
+        status: 'CONFIRMED',
+      })
+      const credits = await creditsOf(contract.renterId)
+      expect(credits.credits[0]).toMatchObject({
+        remaining: '0.00',
+        status: 'APPLIED',
+      })
+
+      // La segunda vuelta no toca nada: la cuota ya existía.
+      const again = await generate(period)
+      expect(again).toMatchObject({ created: 0, skipped: 1, creditsApplied: 0 })
+      const after = await detail(installment.id)
+      expect(
+        after.payments.filter(
+          (p: { kind: string }) => p.kind === 'CREDIT_APPLICATION',
+        ),
+      ).toHaveLength(1)
+    })
+
+    it('no aplica a un cobro directo al propietario: queda para aplicar a mano', async () => {
+      const direct = await withCredit({ collectionMode: 'OWNER_DIRECT' })
+      await api(adminToken)
+        .patch('/tenants/current/settings')
+        .send({ autoApplyCreditOnGeneration: true })
+        .expect(200)
+      const result = await generate(period)
+      expect(result).toMatchObject({ created: 1, creditsApplied: 0 })
+      const installment = await detail(
+        (await installmentOf(direct.id, period)).id,
+      )
+      expect(installment.status).toBe('PENDING')
+      expect(installment.creditsAvailable).toBe('30000.00')
+    })
+
+    it('el empleado no puede cambiar el modo', async () => {
+      await api(employeeToken)
+        .patch('/tenants/current/settings')
+        .send({ autoApplyCreditOnGeneration: true })
+        .expect(403)
     })
   })
 

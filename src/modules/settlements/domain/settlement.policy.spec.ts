@@ -3,6 +3,7 @@ import {
   Currency,
   FeeMode,
   PaymentMethod,
+  Settlement,
   SettlementAdjustmentConcept,
   SettlementStatus,
 } from './settlement'
@@ -180,6 +181,12 @@ describe('SettlementPolicy', () => {
         },
       ]
       expect(SettlementPolicy.adjustmentsTotal(adjustments)).toBe('-700.00')
+      // Lo anulado no cuenta; el crédito suma en "otros" (D-236).
+      expect(SettlementPolicy.adjustmentsBreakdown(adjustments)).toEqual({
+        withholdingsTotal: '-1000.00',
+        advancesTotal: '0.00',
+        otherAdjustmentsTotal: '300.00',
+      })
       expect(SettlementPolicy.net(totals, '-700.00')).toBe('99800.00')
       expect(
         SettlementPolicy.net({ ...totals, feeDeducted: false }, '0.00'),
@@ -344,6 +351,23 @@ describe('SettlementPolicy', () => {
         feeTotal: '5000.00',
         expensesTotal: '200.00',
         adjustmentsTotal: '-100.00',
+        adjustments: [
+          {
+            concept: SettlementAdjustmentConcept.WITHHOLDING,
+            amount: '60.00',
+            voidedAt: null,
+          },
+          {
+            concept: SettlementAdjustmentConcept.OWNER_ADVANCE,
+            amount: '30.00',
+            voidedAt: null,
+          },
+          {
+            concept: SettlementAdjustmentConcept.OTHER_DEDUCTION,
+            amount: '10.00',
+            voidedAt: null,
+          },
+        ] as Settlement['adjustments'],
         netAmount: '96200.00',
         transferredTotal: '96200.00',
       }
@@ -367,6 +391,9 @@ describe('SettlementPolicy', () => {
           feeTotal: '10000.00',
           expensesTotal: '400.00',
           adjustmentsTotal: '-200.00',
+          withholdingsTotal: '-120.00',
+          advancesTotal: '-60.00',
+          otherAdjustmentsTotal: '-20.00',
           netTotal: '96195.00',
           transferredTotal: '96200.00',
         },

@@ -853,6 +853,9 @@ describe('Liquidaciones (e2e, Postgres)', () => {
           feeTotal: '5000.00',
           expensesTotal: '0.00',
           adjustmentsTotal: '0.00',
+          withholdingsTotal: '0.00',
+          advancesTotal: '0.00',
+          otherAdjustmentsTotal: '0.00',
           netTotal: '95000.00',
           transferredTotal: '0.00',
         },
@@ -968,6 +971,99 @@ describe('Liquidaciones (e2e, Postgres)', () => {
       expect(pdf?.settlements[0].owner?.id).toBe(ownerId)
       const history = await inTenantA(() => facade.listByOwner(ownerId))
       expect(history).toHaveLength(3)
+    })
+  })
+
+  describe('consolidado: retenciones y adelantos por separado (D-236)', () => {
+    it('abre los ajustes en retenciones, adelantos y otros, en la liquidación, en el consolidado abierto y en el congelado al cerrar', async () => {
+      const ownerId = await createOwner()
+      const contract = await createContract({}, { ownerId })
+      await payInstallment(contract.id, previous)
+      const settlementId = await waitForDraft(contract.id)
+      for (const body of [
+        { concept: 'WITHHOLDING', description: 'IIBB', amount: '500' },
+        { concept: 'WITHHOLDING', description: 'Ganancias', amount: '250.50' },
+        { concept: 'OWNER_ADVANCE', description: 'Adelanto', amount: '1000' },
+        { concept: 'OTHER_CREDIT', description: 'Bonif.', amount: '100' },
+        { concept: 'OTHER_DEDUCTION', description: 'Varios', amount: '20' },
+      ]) {
+        await api(adminToken)
+          .post(`/settlements/${settlementId}/adjustments`)
+          .send(body)
+          .expect(201)
+      }
+      await api(adminToken)
+        .post(`/settlements/${settlementId}/confirm`)
+        .expect(200)
+
+      const statement = await api(adminToken)
+        .post('/statements')
+        .send({ ownerId, period })
+        .expect(201)
+      const id = statement.body.data.id as string
+      const added = await api(adminToken)
+        .post(`/statements/${id}/settlements`)
+        .send({ settlementIds: [settlementId] })
+        .expect(200)
+      const expected = {
+        currency: 'ARS',
+        // El campo de siempre sigue siendo la suma de los tres.
+        adjustmentsTotal: '-1670.50',
+        withholdingsTotal: '-750.50',
+        advancesTotal: '-1000.00',
+        otherAdjustmentsTotal: '80.00',
+      }
+      expect(added.body.data.totals[0]).toMatchObject(expected)
+      expect(added.body.data.settlements[0]).toMatchObject({
+        adjustmentsTotal: '-1670.50',
+        withholdingsTotal: '-750.50',
+        advancesTotal: '-1000.00',
+        otherAdjustmentsTotal: '80.00',
+      })
+
+      const closed = await api(adminToken)
+        .post(`/statements/${id}/close`)
+        .send({ sendMode: 'BOTH' })
+        .expect(200)
+      expect(closed.body.data.totals[0]).toMatchObject(expected)
+      const frozen = await api(adminToken).get(`/statements/${id}`).expect(200)
+      expect(frozen.body.data.totals[0]).toMatchObject(expected)
+    })
+  })
+
+  describe('cuenta corriente del contrato: por liquidar (D-238)', () => {
+    it('suma lo cobrado y confirmado por la inmobiliaria hasta que la liquidación se confirma, y no cuenta lo que cobró el propietario', async () => {
+      const contract = await createContract({})
+      const account = async () =>
+        (
+          await api(adminToken)
+            .get(`/contracts/${contract.id}/account`)
+            .expect(200)
+        ).body.data.totals
+      expect((await account()).pendingSettlement).toBe('0.00')
+
+      await payInstallment(contract.id, previous)
+      const settlementId = await waitForDraft(contract.id)
+      // Cobrado y confirmado, con la liquidación todavía pendiente.
+      expect(await account()).toMatchObject({
+        collectedByAgency: '100000.00',
+        pendingSettlement: '100000.00',
+      })
+
+      await api(adminToken)
+        .post(`/settlements/${settlementId}/confirm`)
+        .expect(200)
+      expect(await account()).toMatchObject({
+        collectedByAgency: '100000.00',
+        pendingSettlement: '0.00',
+      })
+
+      const direct = await createContract({ collectionMode: 'OWNER_DIRECT' })
+      await payInstallment(direct.id, previous)
+      const directAccount = (
+        await api(adminToken).get(`/contracts/${direct.id}/account`).expect(200)
+      ).body.data.totals
+      expect(directAccount.pendingSettlement).toBe('0.00')
     })
   })
 

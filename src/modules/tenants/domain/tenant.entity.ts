@@ -29,6 +29,8 @@ export interface Tenant {
   dailyLateFeePercentage: string | null
   /** Día del mes en que se generan las cuotas del mes siguiente. */
   installmentGenerationDay: number
+  /** Aplica solo el saldo a favor del inquilino al generar la cuota (D-237). */
+  autoApplyCreditOnGeneration: boolean
   /** Día del mes en que sale el recordatorio de pago. */
   paymentReminderDay: number
   /** Día del mes en que se revisa el cierre de los consolidados a propietarios. */
@@ -58,6 +60,7 @@ export interface TenantSettingsPatch {
   /** Parámetros de cobro (D-228). El punitorio no se puede quitar, sólo cambiar. */
   dailyLateFeePercentage?: string
   paymentGraceDays?: number
+  autoApplyCreditOnGeneration?: boolean
   primaryColor?: string | null
   legalName?: string | null
   taxId?: string | null

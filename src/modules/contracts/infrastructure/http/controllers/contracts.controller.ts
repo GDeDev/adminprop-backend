@@ -23,7 +23,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger'
 
-import { Role, Roles } from '@/modules/auth/public'
+import { CurrentUser, Role, Roles } from '@/modules/auth/public'
 import {
   ApplyRentUpdateCommand,
   ChangeBillingTermsCommand,
@@ -404,12 +404,18 @@ export class ContractsController {
   @ApiOperation({
     summary: 'Aplicar el próximo aumento programado',
     description:
-      'Con ICL/IPC el nuevo alquiler sale de la variación del índice entre el mes del aumento anterior y el del nuevo. Con FIXED/OTHER, `newRent` es obligatorio. Aplica un aumento por llamada.',
+      'Con ICL/IPC el nuevo alquiler sale de la variación del índice entre el mes del aumento anterior y el del nuevo. Con FIXED/OTHER, `newRent` es obligatorio. Aplica un aumento por llamada. Cargar `newRent` a mano (ajuste manual) es sólo de administradores: un empleado recibe 403 y sólo puede aplicar los aumentos por índice o por % fijo.',
   })
   @ApiResponse({ status: 201, type: ContractDetailDto })
   @ApiResponse({
     status: 400,
     description: 'Falta `newRent` en un contrato FIXED/OTHER',
+    type: ApiErrorDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description:
+      'Un empleado intentó un ajuste manual (`CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY`)',
     type: ApiErrorDto,
   })
   @ApiResponse({
@@ -426,11 +432,20 @@ export class ContractsController {
   async applyRentUpdate(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ApplyRentUpdateDto,
+    @CurrentUser('role') role: string,
   ): Promise<ApiSuccessDto<ContractDetailView>> {
     const contract = await this.commandBus.execute<
       ApplyRentUpdateCommand,
       ContractDetailView
-    >(new ApplyRentUpdateCommand(id, dto.newRent, dto.reason, dto.authorizedBy))
+    >(
+      new ApplyRentUpdateCommand(
+        id,
+        dto.newRent,
+        dto.reason,
+        dto.authorizedBy,
+        role,
+      ),
+    )
     return { success: true, message: 'Aumento aplicado', data: contract }
   }
 

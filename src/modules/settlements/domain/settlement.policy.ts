@@ -161,6 +161,42 @@ export const SettlementPolicy = {
   },
 
   /**
+   * Los ajustes vigentes abiertos en retenciones, adelantos y el resto
+   * (deducciones y créditos varios), con signo (D-236). La suma de los tres es
+   * `adjustmentsTotal`.
+   */
+  adjustmentsBreakdown(
+    adjustments: Pick<
+      SettlementAdjustment,
+      'concept' | 'amount' | 'voidedAt'
+    >[],
+  ): {
+    withholdingsTotal: string
+    advancesTotal: string
+    otherAdjustmentsTotal: string
+  } {
+    const sumOf = (pick: (concept: SettlementAdjustmentConcept) => boolean) =>
+      sumMoney(
+        adjustments
+          .filter((a) => a.voidedAt === null && pick(a.concept))
+          .map((a) => this.signedAmount(a.concept, a.amount)),
+      )
+    return {
+      withholdingsTotal: sumOf(
+        (c) => c === SettlementAdjustmentConcept.WITHHOLDING,
+      ),
+      advancesTotal: sumOf(
+        (c) => c === SettlementAdjustmentConcept.OWNER_ADVANCE,
+      ),
+      otherAdjustmentsTotal: sumOf(
+        (c) =>
+          c !== SettlementAdjustmentConcept.WITHHOLDING &&
+          c !== SettlementAdjustmentConcept.OWNER_ADVANCE,
+      ),
+    }
+  },
+
+  /**
    * Neto a transferir (4.3): `alquiler + punitorios + cargos del propietario
    * − (honorarios si se descuentan) − gastos + ajustes`. Los cargos SERVICE
    * quedan afuera (A-16: la inmobiliaria paga el servicio con esa plata).
@@ -357,6 +393,7 @@ export const SettlementPolicy = {
       | 'feeTotal'
       | 'expensesTotal'
       | 'adjustmentsTotal'
+      | 'adjustments'
       | 'netAmount'
       | 'transferredTotal'
     >[],
@@ -366,6 +403,9 @@ export const SettlementPolicy = {
       const group = settlements.filter((s) => s.currency === currency)
       const total = (pick: (s: (typeof group)[number]) => string) =>
         sumMoney(group.map(pick))
+      const breakdowns = group.map((s) =>
+        SettlementPolicy.adjustmentsBreakdown(s.adjustments),
+      )
       return {
         currency,
         rentTotal: total((s) => s.rentTotal),
@@ -374,6 +414,11 @@ export const SettlementPolicy = {
         feeTotal: total((s) => s.feeTotal),
         expensesTotal: total((s) => s.expensesTotal),
         adjustmentsTotal: total((s) => s.adjustmentsTotal),
+        withholdingsTotal: sumMoney(breakdowns.map((b) => b.withholdingsTotal)),
+        advancesTotal: sumMoney(breakdowns.map((b) => b.advancesTotal)),
+        otherAdjustmentsTotal: sumMoney(
+          breakdowns.map((b) => b.otherAdjustmentsTotal),
+        ),
         netTotal: total((s) => s.netAmount),
         transferredTotal: total((s) => s.transferredTotal),
       }

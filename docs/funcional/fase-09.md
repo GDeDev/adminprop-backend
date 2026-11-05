@@ -18,3 +18,5 @@
 ## Ajuste manual del alquiler (respuestas de Micaela, ver D-230)
 
 Cuando el alquiler se ajusta a mano (en vez de por índice o por el porcentaje pactado), hay que indicar el motivo y quién lo autorizó. Quedan registrados en el historial del alquiler junto con el usuario que lo cargó. Los aumentos automáticos no piden nada.
+
+**Quién puede hacerlo (D-234):** por ahora, el ajuste manual lo carga sólo un administrador. Un empleado ve un mensaje claro y puede seguir aplicando los aumentos por índice o por porcentaje; si un contrato "Otro" o de porcentaje sin cargar necesita un monto a mano, se lo pide a un administrador.

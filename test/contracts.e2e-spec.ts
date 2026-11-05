@@ -696,7 +696,30 @@ describe('Contratos (e2e, Postgres)', () => {
         .expect(400)
       expect(missing.body.code).toBe('CONTRACT_NEW_RENT_REQUIRED')
 
-      const applied = await api(employeeToken)
+      // D-234: el empleado no puede cargar un monto a mano (ni mandando uno,
+      // ni en un contrato que lo exige), y el alquiler no se toca.
+      for (const body of [
+        {
+          newRent: '120000',
+          reason: 'Acuerdo por refacciones',
+          authorizedBy: 'Juan Pérez (propietario)',
+        },
+        {},
+      ]) {
+        const denied = await api(employeeToken)
+          .post(`/contracts/${id}/rent-updates`)
+          .send(body)
+          .expect(403)
+        expect(denied.body.code).toBe(
+          'CONTRACT_MANUAL_RENT_ADJUSTMENT_ADMIN_ONLY',
+        )
+      }
+      expect(
+        (await api(adminToken).get(`/contracts/${id}`).expect(200)).body.data
+          .currentRent,
+      ).toBe('100000.00')
+
+      const applied = await api(adminToken)
         .post(`/contracts/${id}/rent-updates`)
         .send({
           newRent: '120000',
@@ -743,6 +766,21 @@ describe('Contratos (e2e, Postgres)', () => {
       const detail = await api(adminToken).get(`/contracts/${id}`).expect(200)
       expect(detail.body.data.currentRent).toBe('100000.00')
       expect(detail.body.data.rentUpdates).toHaveLength(1)
+    })
+
+    it('el empleado sí aplica el aumento por % fijo, que no es un ajuste manual (D-234)', async () => {
+      const startDate = addMonths(today, -2)
+      const { id } = await createContract({
+        startDate,
+        rentUpdateType: 'FIXED',
+        rentUpdateFrequency: 'MONTHLY',
+        fixedIncreasePercentage: '10',
+      })
+      const applied = await api(employeeToken)
+        .post(`/contracts/${id}/rent-updates`)
+        .send({})
+        .expect(201)
+      expect(applied.body.data.currentRent).toBe('110000.00')
     })
 
     it('el aumento por índice o por % fijo no pide motivo ni autorizante', async () => {

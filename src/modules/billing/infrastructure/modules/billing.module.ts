@@ -20,6 +20,7 @@ import {
   RelayPaymentConfirmedHandler,
   RelayPaymentVoidedHandler,
 } from '@/modules/billing/application/events/relay-payment-events.handler'
+import { InstallmentCreditApplier } from '@/modules/billing/application/installment-credit-applier'
 import { InstallmentGenerator } from '@/modules/billing/application/installment-generator'
 import { PaymentReceipts } from '@/modules/billing/application/payment-receipts'
 import { InstallmentRebaser } from '@/modules/billing/application/installment-rebaser'
@@ -77,6 +78,7 @@ import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.reposi
     BillingReferences,
     InstallmentViews,
     InstallmentGenerator,
+    InstallmentCreditApplier,
     InstallmentRecalculator,
     InstallmentRebaser,
     PaymentReceipts,

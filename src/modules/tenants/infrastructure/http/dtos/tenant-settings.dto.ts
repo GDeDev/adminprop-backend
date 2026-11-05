@@ -4,6 +4,7 @@ import {
   IsEmail,
   IsOptional,
   IsString,
+  IsBoolean,
   IsInt,
   Matches,
   Max,
@@ -134,6 +135,17 @@ export class UpdateTenantSettingsDto {
   @Min(0)
   @Max(60)
   paymentGraceDays?: number
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description:
+      'Saldo a favor del inquilino: true = se aplica solo al generar la cuota; false (por defecto) = se aplica a mano o al registrar un pago.',
+  })
+  @IsOptional()
+  @IsBoolean({
+    message: 'autoApplyCreditOnGeneration tiene que ser true o false',
+  })
+  autoApplyCreditOnGeneration?: boolean
 }
 
 export class TenantSettingsDto {
@@ -168,6 +180,11 @@ export class TenantSettingsDto {
   })
   dailyLateFeePercentage: string | null
   @ApiProperty({ example: 10 }) paymentGraceDays: number
+  @ApiProperty({
+    description:
+      'El saldo a favor del inquilino se aplica solo al generar la cuota (si no, a mano)',
+  })
+  autoApplyCreditOnGeneration: boolean
   @ApiProperty({
     example: 11,
     description: 'Día del mes desde el que corre el punitorio (gracia + 1)',

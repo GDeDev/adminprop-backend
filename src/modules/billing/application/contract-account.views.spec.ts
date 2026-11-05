@@ -7,6 +7,7 @@ import {
   FeeMode as ContractFeeMode,
 } from '@/modules/contracts/public'
 import {
+  ChargeConcept,
   CreditStatus,
   Currency,
   DepositDeductionConcept,
@@ -369,6 +370,76 @@ describe('buildContractAccount', () => {
         '0.00',
       )
       expect(account.totals.balance).toBe('0.00')
+    })
+
+    it('por liquidar: lo cobrado por la inmobiliaria y confirmado que no está en una liquidación cerrada, sin cargos de servicio (D-238)', () => {
+      const installment = makeInstallment({
+        graceEndDate: '2026-10-31',
+        // El de servicio se cobró primero: no es del propietario (A-16).
+        charges: [
+          makeCharge({
+            concept: ChargeConcept.SERVICE,
+            amount: '10000.00',
+            createdAt: at('2026-10-02'),
+          }),
+          makeCharge({
+            concept: ChargeConcept.OTHER,
+            amount: '5000.00',
+            createdAt: at('2026-10-03'),
+          }),
+        ],
+        payments: [
+          // Entra: 100.000 de alquiler + 2.500 de punitorio + 5.000 de cargo
+          // propio (los 10.000 de servicio se aplican antes, A-16).
+          makePayment({
+            paidAt: '2026-10-05',
+            rentApplied: '100000.00',
+            lateFeeApplied: '2500.00',
+            chargesApplied: '15000.00',
+          }),
+          // Saldo a favor aplicado: también es plata de la inmobiliaria.
+          makePayment({
+            paidAt: '2026-10-06',
+            rentApplied: '20000.00',
+            kind: PaymentKind.CREDIT_APPLICATION,
+            method: PaymentMethod.CREDIT,
+          }),
+          // Ya en una liquidación confirmada.
+          makePayment({
+            paidAt: '2026-10-07',
+            rentApplied: '30000.00',
+            settlementId: 'settlement-1',
+          }),
+          // Lo cobró el propietario, está sin confirmar o se anuló.
+          makePayment({
+            paidAt: '2026-10-08',
+            rentApplied: '40000.00',
+            receivedBy: PaymentReceiver.OWNER,
+          }),
+          makePayment({
+            paidAt: '2026-10-09',
+            rentApplied: '50000.00',
+            status: PaymentStatus.PENDING_CONFIRMATION,
+          }),
+          makePayment({
+            paidAt: '2026-10-10',
+            rentApplied: '60000.00',
+            status: PaymentStatus.VOIDED,
+          }),
+        ],
+      })
+      const account = buildContractAccount(
+        contract(),
+        [installment],
+        [],
+        '2026-10-11',
+      )
+      expect(account.totals.pendingSettlement).toBe('127500.00')
+      // Sin cobros no hay nada por liquidar.
+      expect(
+        buildContractAccount(contract(), [], [], TODAY).totals
+          .pendingSettlement,
+      ).toBe('0.00')
     })
 
     it('aplicar un saldo a favor figura como CREDIT_APPLIED', () => {
