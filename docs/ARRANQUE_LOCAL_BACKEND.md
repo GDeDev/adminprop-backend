@@ -273,11 +273,10 @@ Notas:
 - URLs una vez arriba: API `http://localhost:3000/api/v1`, Swagger
   `http://localhost:3000/swagger`, health `http://localhost:3000/health`.
 - **Build y arranque de producción:** `npm run build` deja el resultado en
-  `dist/main.js`, pero `npm run start:prod` (y `start:qa`, `start:production` y
-  el `CMD` del `Dockerfile`) apuntan a `dist/src/main`, que **no existe** con el
-  builder SWC actual (ya figura como pendiente en `docs/tecnica/fase-04.md`,
-  para antes de la Fase 16). Hasta que se corrija, arrancar con
-  `node dist/main.js` y las variables ya inyectadas (o con `doppler run --`).
+  `dist/main.js` y `npm run start:prod` (igual que `start:qa`, `start:production`
+  y el `CMD` del `Dockerfile`) arranca `node dist/main`. Estos scripts no usan
+  Doppler: las variables tienen que venir ya inyectadas (o correr con
+  `doppler run --`).
 
 ## 6. Tests
 
