@@ -91,6 +91,16 @@ export interface NewLateFeeAdjustment {
   reason: string
 }
 
+/** Alquiler devengado y cobrado de un mes en una moneda (strings de dinero). */
+export interface RentPeriodTotal {
+  period: string
+  currency: Currency
+  /** Σ del alquiler base de las cuotas. */
+  baseAmount: string
+  /** Σ del alquiler imputado por los pagos vigentes. */
+  rentPaid: string
+}
+
 /**
  * Puerto del repositorio de cuotas. Dentro del tenant del contexto; sin
  * bajas. La cuota se lee siempre completa: cargos, pagos, ajustes y detalle
@@ -112,6 +122,17 @@ export abstract class InstallmentRepository {
    * no sirve de nada.
    */
   abstract lockForUpdate(id: string): Promise<void>
+
+  /**
+   * Alquiler devengado y cobrado por mes y moneda, sumado en la base: las
+   * cuotas del rango y los pagos vigentes (no anulados, informados incluidos)
+   * de cada una. Para el historial del dashboard, que no necesita cada cuota.
+   * Una fila por (período, moneda) que tenga cuotas.
+   */
+  abstract rentTotalsByPeriod(
+    periodFrom: string,
+    periodTo: string,
+  ): Promise<RentPeriodTotal[]>
 
   /** Período descendente, y dentro del mes por alta. */
   abstract list(

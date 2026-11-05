@@ -252,6 +252,36 @@ describe('Contrato del dashboard (e2e, Postgres)', () => {
     expect(history).toEqual(buildHistory(periods, rows))
   })
 
+  it('una cuota con varios pagos suma su alquiler una sola vez (el JOIN no multiplica)', async () => {
+    const split = await installment({
+      period: periods[0],
+      baseAmount: '90000',
+      status: 'PAID',
+    })
+    await payment(split, { rent: '30000' })
+    await payment(split, { rent: '30000' })
+    await payment(split, { rent: '30000', lateFee: '1500' })
+
+    const { history } = await dashboard()
+    const rows = await RequestContext.run({ correlationId: 'oracle' }, () =>
+      RequestContext.runInTenant(tenant.id, () =>
+        app
+          .get(BillingFacade)
+          .reportInstallments({ periodFrom: periods[0], periodTo: current }),
+      ),
+    )
+
+    expect(history[0]).toEqual({
+      period: periods[0],
+      accrued: [
+        { currency: 'ARS', amount: '270000.00' },
+        { currency: 'USD', amount: '500.00' },
+      ],
+      collected: [{ currency: 'ARS', amount: '220000.00' }],
+    })
+    expect(history).toEqual(buildHistory(periods, rows))
+  })
+
   it('un mes sin cuotas aparece igual, con importes vacíos', async () => {
     await prisma.payment.deleteMany({
       where: { installment: { period: periods[1] }, tenantId: tenant.id },
