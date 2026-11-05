@@ -120,6 +120,8 @@ function configureSecurity(
         'Authorization',
         'x-correlation-id',
         'x-request-id',
+        // El navegador hace preflight por este header al registrar un pago.
+        'Idempotency-Key',
       ],
       exposedHeaders: ['x-correlation-id', 'Retry-After'],
       maxAge: 86_400,

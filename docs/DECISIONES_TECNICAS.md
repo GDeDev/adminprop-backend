@@ -1612,3 +1612,10 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 
 - **Antes** (pendiente A2 de la auditoría): el `delete` convertido en `update` de `deletedAt` corría por `ref.extended`, fuera de la transacción: un rollback no lo deshacía, pedía una segunda conexión del pool mientras la transacción retenía la suya (P2024 con pocas conexiones) y el "registro actual" se leía sin ver lo creado por la propia transacción, así que no lo encontraba y el `delete` terminaba **borrando de verdad**.
 - **Ahora**: `softDeleteExtension(ref, { useTransaction })` usa el cliente de la transacción en curso para la lectura y la escritura derivadas, con el mismo criterio que la auditoría (sólo el cliente con filtro de tenant). Lo cubre `test/soft-delete-transaction.e2e-spec.ts` (4 de sus 6 casos fallan sin el arreglo).
+
+### D-246 · CORS permite el header `Idempotency-Key`
+
+- **Problema**: `allowedHeaders` de `app.setup.ts` listaba sólo `Content-Type`, `Authorization`, `x-correlation-id` y `x-request-id`. `Idempotency-Key` (D-243) no es un header "simple", así que el navegador hace preflight y, sin permiso, el POST de registrar un pago no sale: el usuario ve un error de red.
+- **Ahora**: `Idempotency-Key` está en la lista. El controller lo lee con `@Headers('idempotency-key')`; Express baja a minúsculas todos los nombres, así que el match no depende de cómo lo escriba el cliente.
+- **Sin cambios**: los orígenes permitidos (`CORS_ORIGINS`) y el cierre por defecto. Un origen no listado sigue sin recibir `Access-Control-Allow-Origin`, que es lo que el navegador usa para bloquear.
+- **Test**: `test/cors.e2e-spec.ts` (preflight desde un origen permitido y desde uno ajeno).
