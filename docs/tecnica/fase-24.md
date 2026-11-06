@@ -134,7 +134,7 @@ Todas opcionales, con default; sólo `ANTHROPIC_API_KEY` vive en Doppler (vacía
 - `valuation_zones.requested_count` reemplaza a `requested_by_tenants` (D-173): se cuenta cuántas veces se pidió, no cuántos tenants.
 - `valuation_source_states` es una tabla aparte (no estaba en el rediseño): hace falta para el bloqueo de 24 h y las 3 corridas seguidas entre ejecuciones (D-180).
 - Códigos de error nuevos no previstos: `VALUATION_NO_ZONE`, `VALUATION_PROPERTY_NOT_FOUND`, `VALUATION_LOCATION_NOT_FOUND`. `VALUATION_NO_AREA` del rediseño no existe: sin superficie se tasa por precio absoluto y se avisa en la justificación.
-- El comentario de `valuation-narrative.ts` y de `narrators.ts` cita «A-70» para la regla «el redactor sólo ve los hechos calculados»; ese número ya lo usa el rediseño de la Fase 21 (análisis y confirmación sobre el mismo lote). Es la regla D-178, no un supuesto del rediseño de la 24.
+- Los comentarios de `valuation-narrative.ts` y de `narrators.ts` citaban «A-70» (número que ya usa el rediseño de la Fase 21) para la regla «el redactor sólo ve los hechos calculados»; en la integración se corrigieron a D-178.
 
 ## Tests
 
