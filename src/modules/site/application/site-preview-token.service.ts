@@ -30,7 +30,11 @@ export class SitePreviewTokenService {
   ): Promise<{ token: string; expiresAt: Date }> {
     const token = await this.jwt.signAsync(
       { typ: TYPE, tid: tenantId, sub: userId ?? undefined },
-      { secret: this.secret, expiresIn: PREVIEW_TTL_SECONDS },
+      {
+        secret: this.secret,
+        expiresIn: PREVIEW_TTL_SECONDS,
+        algorithm: 'HS256',
+      },
     )
     return {
       token,
@@ -44,7 +48,7 @@ export class SitePreviewTokenService {
       const payload = await this.jwt.verifyAsync<{
         typ?: string
         tid?: string
-      }>(token, { secret: this.secret })
+      }>(token, { secret: this.secret, algorithms: ['HS256'] })
       return payload.typ === TYPE && payload.tid ? payload.tid : null
     } catch {
       return null
