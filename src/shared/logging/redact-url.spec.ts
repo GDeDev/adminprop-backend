@@ -22,6 +22,18 @@ describe('redactUrlQuery', () => {
     expect(redactUrlQuery('/a?page=2&sort=name')).toBe('/a?page=2&sort=name')
   })
 
+  // Antes el callback OAuth de Mercado Libre dejaba `code` (canjeable por
+  // tokens) y `state` en cada línea de log.
+  it('tapa el code y el state del callback OAuth', () => {
+    expect(
+      redactUrlQuery(
+        '/api/v1/listings/oauth/mercadolibre/callback?code=TG-1&state=abc.def',
+      ),
+    ).toBe(
+      '/api/v1/listings/oauth/mercadolibre/callback?code=[REDACTED]&state=[REDACTED]',
+    )
+  })
+
   it('respeta el fragmento', () => {
     expect(redactUrlQuery('/a?preview=x#top')).toBe('/a?preview=[REDACTED]#top')
   })

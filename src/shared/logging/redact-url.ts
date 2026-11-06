@@ -17,6 +17,10 @@ export const SENSITIVE_QUERY_PARAMS = [
   'apikey',
   'password',
   'signature',
+  // OAuth (callback de Mercado Libre): `code` se canjea por tokens y `state`
+  // es el estado firmado; los dos quedaban en el log del callback.
+  'code',
+  'state',
 ]
 
 const REDACTED = '[REDACTED]'

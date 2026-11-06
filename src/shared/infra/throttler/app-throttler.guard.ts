@@ -6,6 +6,7 @@ import { Request, Response } from 'express'
 import { Configuration } from '../../config/configuration'
 import { AppException } from '../../errors/app.exception'
 import { createLogger } from '@/shared/logging/root-logger'
+import { redactUrlQuery } from '@/shared/logging/redact-url'
 import { getCorrelationId } from '../../context/request-context.middleware'
 import {
   isTrustedServerSecret,
@@ -87,7 +88,7 @@ export class AppThrottlerGuard extends ThrottlerGuard {
         correlationId: getCorrelationId(request),
         operation: 'rate_limit_exceeded',
         method: request.method,
-        url: request.originalUrl ?? request.url,
+        url: redactUrlQuery(request.originalUrl ?? request.url),
         tracker: await this.getTracker(request),
         limit: detail.limit,
         totalHits: detail.totalHits,

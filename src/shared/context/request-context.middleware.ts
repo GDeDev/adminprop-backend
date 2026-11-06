@@ -2,6 +2,7 @@ import { Injectable, NestMiddleware } from '@nestjs/common'
 import { NextFunction, Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 
+import { redactUrlQuery } from '../logging/redact-url'
 import { RequestContext } from './request-context'
 
 export const CORRELATION_ID_HEADER = 'x-correlation-id'
@@ -52,7 +53,7 @@ export class RequestContextMiddleware implements NestMiddleware {
             ? userAgent.slice(0, MAX_USER_AGENT_LENGTH)
             : undefined,
         method: req.method,
-        url: req.originalUrl ?? req.url,
+        url: redactUrlQuery(req.originalUrl ?? req.url),
       },
       () => next(),
     )

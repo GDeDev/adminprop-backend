@@ -16,6 +16,7 @@ import { DomainErrorKind, DomainException } from '../../errors/domain.exception'
 import { ErrorCode, ErrorDetail } from '../../errors/error-codes'
 import { getCorrelationId } from '../../context/request-context.middleware'
 import { redact } from '../logging/redact'
+import { redactUrlQuery } from '@/shared/logging/redact-url'
 import { buildErrorBody } from './error-body'
 
 const STATUS_TO_CODE: Record<number, ErrorCode> = {
@@ -262,7 +263,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       correlationId,
       operation: 'request_failed',
       method: request.method,
-      url: request.originalUrl ?? request.url,
+      url: redactUrlQuery(request.originalUrl ?? request.url),
       statusCode: normalized.status,
       errorCode: normalized.code,
       ip: request.ip,

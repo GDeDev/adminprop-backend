@@ -18,6 +18,7 @@ import {
 import { Configuration } from '../../config/configuration'
 import { ErrorCode, ErrorDetail } from '../../errors/error-codes'
 import { getCorrelationId } from '../../context/request-context.middleware'
+import { redactUrlQuery } from '@/shared/logging/redact-url'
 import { buildErrorBody } from './error-body'
 
 interface MappedPrismaError {
@@ -67,7 +68,7 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       correlationId,
       operation: 'database_error',
       method: request.method,
-      url: request.originalUrl ?? request.url,
+      url: redactUrlQuery(request.originalUrl ?? request.url),
       statusCode: mapped.status,
       errorCode: mapped.code,
       prismaCode:
