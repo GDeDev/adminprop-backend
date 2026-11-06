@@ -1704,3 +1704,9 @@ Arreglos de la revisión de performance, seguridad y deuda de las Fases 21 y 24 
 - **Contexto**: las fotos del inventario (Fase 25) se subían públicas: muestran el interior de la vivienda y el estado de las cosas del inquilino, y la URL de Cloudinary no vence.
 - **Decisión**: se suben con `access: 'private'` (D-196) y salen firmadas por `SignedUrlsInterceptor`, igual que los comprobantes. Las fotos ya subidas siguen públicas hasta que se vuelvan a cargar; no se migran.
 - **Frontend**: la URL firmada vence (`SIGNED_URL_TTL_SECONDS`); el backoffice no debe cachear `photo.url` más que eso (patrón `PrivateFileLink`: volver a pedir el inventario). Un privado se guarda como `raw` en Cloudinary: verificar en local que `<img>` lo muestre.
+
+### D-249 · Los topes no se saltean por URL; `/health` sólo dice `status`
+
+- **Contexto**: el `skipIf` global salteaba todo pedido cuya URL contuviera `/health`, query string incluida: `POST /auth/login?x=/health` probaba contraseñas sin ningún tope (OWASP H1). Además `GET /health` devolvía versión, entorno y uptime sin autenticación (H13).
+- **Decisión**: `skipIf` sólo mira `THROTTLE_ENABLED`. Las probes `/health` y `/health/live` llevan `@SkipAllThrottles()` (los tres perfiles globales por nombre: `@SkipThrottle()` a secas sólo saltea `default`, que acá no existe). `/health/ready` consulta Postgres y queda con los topes globales por IP (10/s, 120/min): sigue pública porque la usan docker y el balanceador, que la pegan cada varios segundos. `GET /health` responde `{ status: 'ok' }`.
+- **Infra**: si un orquestador pega `/health/ready` más de 10 veces por segundo desde una IP, que use `/health/live`.
