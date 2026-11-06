@@ -91,10 +91,20 @@ Reglas para las variables (del dueño):
   sección 5). **A confirmar** el valor actual cargado en Doppler.
 
 Sin Doppler también se puede levantar para una prueba rápida exportando a mano
-las tres variables obligatorias (ver sección 4), pero no es el flujo normal.
-Es lo que se hizo en la auditoría: `export DATABASE_URL=... JWT_ACCESS_SECRET=...
-JWT_REFRESH_SECRET=...` en el shell y `npx prisma migrate deploy`,
+las variables obligatorias (ver sección 4), pero no es el flujo normal.
+Es lo que se hizo en la auditoría: `export NODE_ENV=development DATABASE_URL=...
+JWT_ACCESS_SECRET=... JWT_REFRESH_SECRET=...` en el shell y `npx prisma migrate deploy`,
 `npm run build`, `node dist/main.js`.
+
+**`NODE_ENV` es obligatoria (D-251).** `npm run start`, `start:dev`, `start:debug`
+y `seed:demo` la fijan en `development` si Doppler no la trae (o la trae vacía),
+con `scripts/with-node-env.cjs`; no hace falta cargarla en `dev_backend`. Lo que
+corre `node dist/main` a mano (o un despliegue) tiene que definirla: sin ella la
+app no arranca. Los tests la fijan solos.
+
+**Los secretos JWT de ejemplo de `.env.example` (`REEMPLAZAME...`) se rechazan**
+fuera de `NODE_ENV=test`, también en desarrollo. Si `dev_backend` los tiene,
+generar unos propios con `openssl rand -base64 48`.
 
 ## 4. Variables de entorno
 
@@ -322,7 +332,8 @@ npm run test:e2e -- test/<archivo>.e2e-spec.ts   # e2e de a UN archivo
 - **El puerto 5432 ya está ocupado** (otro Postgres local): parar ese servicio o
   cambiar el puerto publicado en `docker-compose.yml` y en `DATABASE_URL`.
 - **La app no arranca y lista variables**: es la validación de entorno; falta
-  `DATABASE_URL` o un `JWT_*_SECRET`, o son iguales entre sí.
+  `DATABASE_URL` o un `JWT_*_SECRET`, o son iguales entre sí, o son los de
+  ejemplo (`REEMPLAZAME...`), o falta `NODE_ENV` (fuera de los scripts de npm).
 - **El navegador dice "CORS" / el login del backoffice no entra y la pantalla
   se queda en `/login`**: falta
   `CORS_ORIGINS` en `dev_backend` o no incluye `http://localhost:3001` y

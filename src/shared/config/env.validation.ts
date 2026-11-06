@@ -700,9 +700,30 @@ function withoutBlankOptionals(
  * Valida `process.env` contra `EnvironmentVariables`.
  * La pasamos a `ConfigModule.forRoot({ validate })`.
  */
+/**
+ * Prefijo de los secretos de ejemplo de `.env.example`: son públicos (están en
+ * el repo), así que firmar con ellos es como no firmar.
+ */
+const EXAMPLE_SECRET_PREFIX = 'reemplazame'
+
 export function validateEnv(
   config: Record<string, unknown>,
 ): EnvironmentVariables {
+  // Sin NODE_ENV la app caía en `development`: un despliegue al que se le
+  // olvidó la variable arrancaba con Swagger, secretos de desarrollo y sin las
+  // exigencias de producción (D-251). Fuera de jest tiene que ser explícito;
+  // los scripts locales lo fijan con `scripts/with-node-env.cjs`.
+  const rawNodeEnv = config.NODE_ENV
+  if (
+    (typeof rawNodeEnv !== 'string' || rawNodeEnv.trim() === '') &&
+    !process.env.JEST_WORKER_ID
+  ) {
+    throw new Error(
+      '\n❌ NODE_ENV es obligatoria (development, test, qa o production).\n' +
+        'Los scripts de npm la fijan en development; un despliegue tiene que definirla.\n',
+    )
+  }
+
   const validated = plainToInstance(
     EnvironmentVariables,
     withoutBlankOptionals(config),
@@ -763,6 +784,17 @@ export function validateEnv(
       `\n❌ CORS_ORIGINS="*" no está permitido con NODE_ENV=${validated.NODE_ENV}.\n` +
         'Listá los orígenes permitidos separados por comas.\n',
     )
+  }
+
+  if (validated.NODE_ENV !== Environment.Test) {
+    for (const name of ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'] as const) {
+      if (validated[name].toLowerCase().startsWith(EXAMPLE_SECRET_PREFIX)) {
+        throw new Error(
+          `\n❌ ${name} es el valor de ejemplo de .env.example, que es público.\n` +
+            'Generá uno propio con: openssl rand -base64 48\n',
+        )
+      }
+    }
   }
 
   if (validated.JWT_ACCESS_SECRET === validated.JWT_REFRESH_SECRET) {

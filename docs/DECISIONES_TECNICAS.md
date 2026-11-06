@@ -1716,3 +1716,9 @@ Arreglos de la revisión de performance, seguridad y deuda de las Fases 21 y 24 
 - **Contexto**: el login de una cuenta bloqueada respondía 403 `ACCOUNT_LOCKED` con `lockedUntil` y sin pasar por bcrypt: el código y el tiempo confirmaban que el email existe (OWASP H4), justo lo que el login evita en el resto de los casos.
 - **Decisión**: responde 401 `INVALID_CREDENTIALS`, después de comparar la contraseña (resultado descartado: bloqueada no entra ni con la correcta). La auditoría sigue registrando `account_locked` y el log lleva `lockedUntil`. `ACCOUNT_LOCKED` queda en el catálogo de códigos (lo tipa el frontend) pero ya no se emite.
 - **Costo**: el usuario bloqueado ve «Email o contraseña incorrectos» y no sabe que tiene que esperar 15 minutos; el mensaje del login del frontend puede sugerirlo de forma genérica («si fallaste varias veces, esperá unos minutos»).
+
+### D-251 · `NODE_ENV` explícito y secretos JWT de ejemplo rechazados
+
+- **Contexto**: sin `NODE_ENV` la configuración caía en `development` (Swagger prendido, valores fijos de desarrollo, sin las exigencias de producción): un despliegue que olvidara la variable arrancaba en modo desarrollo sin avisar (OWASP H9). Y `env.validation` aceptaba los secretos JWT de `.env.example` (`REEMPLAZAME...`, 32+ caracteres y públicos en el repo).
+- **Decisión**: `validateEnv` falla si `NODE_ENV` falta o está vacía, salvo dentro de jest (`JEST_WORKER_ID`). Los scripts locales (`start`, `start:dev`, `start:debug`, `seed:demo`) la fijan en `development` con `scripts/with-node-env.cjs` sólo si no viene de Doppler (la sintaxis `NODE_ENV=x cmd` no anda en Windows y así no se suma `cross-env`); `openapi:export` también. El Dockerfile, `docker-compose.yml` y el CI ya la definen. Los secretos JWT que empiezan con `REEMPLAZAME` (sin importar mayúsculas) se rechazan fuera de `NODE_ENV=test`.
+- **Costo**: `node dist/main` a mano sin `NODE_ENV` ya no arranca; está en `docs/ARRANQUE_LOCAL_BACKEND.md`.

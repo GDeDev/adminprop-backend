@@ -189,3 +189,50 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...VALID_ENV, CORS_ORIGINS: '*' })).not.toThrow()
   })
 })
+
+describe('validateEnv: NODE_ENV explícito y secretos de ejemplo (D-251)', () => {
+  const savedWorker = process.env.JEST_WORKER_ID
+  afterEach(() => {
+    process.env.JEST_WORKER_ID = savedWorker
+  })
+
+  // Antes, sin NODE_ENV la app arrancaba como development (Swagger prendido y
+  // sin las exigencias de producción).
+  it('fuera de jest, falla si NODE_ENV no está o está vacía', () => {
+    delete process.env.JEST_WORKER_ID
+    const { NODE_ENV: _omit, ...withoutNodeEnv } = VALID_ENV
+    expect(() => validateEnv(withoutNodeEnv)).toThrow(/NODE_ENV es obligatoria/)
+    expect(() => validateEnv({ ...VALID_ENV, NODE_ENV: '' })).toThrow(
+      /NODE_ENV es obligatoria/,
+    )
+    expect(() => validateEnv(VALID_ENV)).not.toThrow()
+  })
+
+  it('dentro de jest, NODE_ENV puede faltar', () => {
+    const { NODE_ENV: _omit, ...withoutNodeEnv } = VALID_ENV
+    expect(() => validateEnv(withoutNodeEnv)).not.toThrow()
+  })
+
+  // Los de .env.example están en el repo: con ellos cualquiera firma tokens.
+  it('rechaza los secretos JWT de ejemplo fuera de test', () => {
+    const example = 'REEMPLAZAME_con_openssl_rand_base64_48_minimo_32_chars'
+    expect(() =>
+      validateEnv({ ...VALID_ENV, JWT_ACCESS_SECRET: example }),
+    ).toThrow(/JWT_ACCESS_SECRET es el valor de ejemplo/)
+    expect(() =>
+      validateEnv({
+        ...VALID_ENV,
+        NODE_ENV: 'production',
+        SITES_PREVIEW_SECRET: 'p'.repeat(40),
+        JWT_REFRESH_SECRET: `${example}_otro`,
+      }),
+    ).toThrow(/JWT_REFRESH_SECRET es el valor de ejemplo/)
+    expect(() =>
+      validateEnv({
+        ...VALID_ENV,
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: example,
+      }),
+    ).not.toThrow()
+  })
+})

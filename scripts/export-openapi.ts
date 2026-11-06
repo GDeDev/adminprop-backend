@@ -23,6 +23,8 @@ const PLACEHOLDER_ENV: Record<string, string> = {
   FEATURE_FLAGS_PROVIDER: 'memory',
   STORAGE_PROVIDER: 'local',
   EMAIL_PROVIDER: 'console',
+  // La app exige NODE_ENV explícito (D-251); el documento no depende de él.
+  NODE_ENV: 'development',
 }
 
 async function main(): Promise<void> {
