@@ -1692,3 +1692,15 @@ Se encontró al probar contra la API real: sin `@toBool()` el valor `"false"` (s
 - **Supuesto**: es un 422 y no un 400 porque el pedido estaba bien formado y es la regla de datos la que lo rechaza; el dominio ya valida casi todo esto antes, así que llegar acá es un hueco de validación a cerrar, no un caso normal.
 - **Sin cambios**: cualquier otro error desconocido del ORM sigue siendo `DATABASE_ERROR` 500, y `P2002` sigue siendo 409.
 - **Tests**: `prisma-exception.filter.spec.ts` (los tres caminos, sin fuga de nombres, los otros códigos intactos); `src/openapi-refs.spec.ts` sigue pasando.
+
+---
+
+## Revisión 2026-11-06 (`integration/consolidado-6`)
+
+Arreglos de la revisión de performance, seguridad y deuda de las Fases 21 y 24 sobre `integration/consolidado-5`.
+
+### D-248 · Las fotos del inventario son privadas
+
+- **Contexto**: las fotos del inventario (Fase 25) se subían públicas: muestran el interior de la vivienda y el estado de las cosas del inquilino, y la URL de Cloudinary no vence.
+- **Decisión**: se suben con `access: 'private'` (D-196) y salen firmadas por `SignedUrlsInterceptor`, igual que los comprobantes. Las fotos ya subidas siguen públicas hasta que se vuelvan a cargar; no se migran.
+- **Frontend**: la URL firmada vence (`SIGNED_URL_TTL_SECONDS`); el backoffice no debe cachear `photo.url` más que eso (patrón `PrivateFileLink`: volver a pedir el inventario). Un privado se guarda como `raw` en Cloudinary: verificar en local que `<img>` lo muestre.

@@ -211,7 +211,9 @@ export class AddInventoryPhotosHandler implements ICommandHandler<
           await this.storage.upload(
             file,
             `${prefix}/${randomUUID()}.${kinds[index].extension}`,
-            { contentType: kinds[index].contentType },
+            // Privadas (D-248): muestran el interior de la vivienda del
+            // inquilino; salen con URL firmada por `SignedUrlsInterceptor`.
+            { contentType: kinds[index].contentType, access: 'private' },
           ),
         )
       }

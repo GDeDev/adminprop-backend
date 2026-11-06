@@ -130,6 +130,10 @@ describe('inventory handlers', () => {
       expect(storage.upload.mock.calls[0][1]).toMatch(
         /^inventories\/ten-1\/inv-1\/[0-9a-f-]+\.jpg$/,
       )
+      // Antes se subían públicas: con la URL, cualquiera veía el interior de la vivienda.
+      expect(storage.upload.mock.calls[0][2]).toMatchObject({
+        access: 'private',
+      })
       expect(repo.addPhotos).toHaveBeenCalledWith('item-1', [
         { storageKey: 'new-1', url: 'n1' },
       ])
