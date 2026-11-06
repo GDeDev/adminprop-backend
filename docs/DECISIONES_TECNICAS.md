@@ -1710,3 +1710,9 @@ Arreglos de la revisión de performance, seguridad y deuda de las Fases 21 y 24 
 - **Contexto**: el `skipIf` global salteaba todo pedido cuya URL contuviera `/health`, query string incluida: `POST /auth/login?x=/health` probaba contraseñas sin ningún tope (OWASP H1). Además `GET /health` devolvía versión, entorno y uptime sin autenticación (H13).
 - **Decisión**: `skipIf` sólo mira `THROTTLE_ENABLED`. Las probes `/health` y `/health/live` llevan `@SkipAllThrottles()` (los tres perfiles globales por nombre: `@SkipThrottle()` a secas sólo saltea `default`, que acá no existe). `/health/ready` consulta Postgres y queda con los topes globales por IP (10/s, 120/min): sigue pública porque la usan docker y el balanceador, que la pegan cada varios segundos. `GET /health` responde `{ status: 'ok' }`.
 - **Infra**: si un orquestador pega `/health/ready` más de 10 veces por segundo desde una IP, que use `/health/live`.
+
+### D-250 · Cuenta bloqueada: el mismo 401 que una contraseña incorrecta
+
+- **Contexto**: el login de una cuenta bloqueada respondía 403 `ACCOUNT_LOCKED` con `lockedUntil` y sin pasar por bcrypt: el código y el tiempo confirmaban que el email existe (OWASP H4), justo lo que el login evita en el resto de los casos.
+- **Decisión**: responde 401 `INVALID_CREDENTIALS`, después de comparar la contraseña (resultado descartado: bloqueada no entra ni con la correcta). La auditoría sigue registrando `account_locked` y el log lleva `lockedUntil`. `ACCOUNT_LOCKED` queda en el catálogo de códigos (lo tipa el frontend) pero ya no se emite.
+- **Costo**: el usuario bloqueado ve «Email o contraseña incorrectos» y no sabe que tiene que esperar 15 minutos; el mensaje del login del frontend puede sugerirlo de forma genérica («si fallaste varias veces, esperá unos minutos»).

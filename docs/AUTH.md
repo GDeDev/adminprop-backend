@@ -189,7 +189,10 @@ refresh tokens no son usables.
 ### Bloqueo de cuenta
 
 Tras `LOGIN_MAX_FAILED_ATTEMPTS` (5) intentos fallidos, la cuenta se bloquea
-`LOGIN_LOCK_DURATION_MINUTES` (15).
+`LOGIN_LOCK_DURATION_MINUTES` (15). Mientras dura, el login responde el mismo
+401 `INVALID_CREDENTIALS` que una contraseña incorrecta (y gasta el mismo bcrypt):
+un código propio confirmaría que el email existe (D-250). El motivo queda en la
+auditoría (`account_locked`) y en el log.
 
 Es complementario al rate limiting, no redundante: el throttle frena a una IP
 probando muchas cuentas; el bloqueo frena a muchas IPs probando una sola cuenta.
@@ -315,7 +318,7 @@ de él:
 | `REFRESH_TOKEN_REUSED`     | 401  | Reuso detectado, se cerraron todas las sesiones                                                            |
 | `SESSION_REVOKED`          | 401  | Usuario borrado o desactivado, inmobiliaria deshabilitada, o token anterior al último cambio de contraseña |
 | `ACCOUNT_INACTIVE`         | 403  | Sólo al refrescar: cuenta o inmobiliaria deshabilitada                                                     |
-| `ACCOUNT_LOCKED`           | 403  | Bloqueada por intentos fallidos                                                                            |
+| `ACCOUNT_LOCKED`           | 403  | Reservado. El login de una cuenta bloqueada responde `INVALID_CREDENTIALS` 401 (D-250)                     |
 | `INSUFFICIENT_PERMISSIONS` | 403  | El rol no alcanza para ese endpoint                                                                        |
 | `EMAIL_ALREADY_REGISTERED` | 409  | Ya hay una cuenta con ese email                                                                            |
 | `CURRENT_PASSWORD_INVALID` | 400  | La contraseña actual no coincide                                                                           |

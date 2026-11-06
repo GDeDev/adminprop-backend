@@ -40,13 +40,6 @@ export const AuthErrors = {
       ErrorCode.ACCOUNT_INACTIVE,
     ),
 
-  accountLocked: (until: Date) =>
-    AppException.forbidden(
-      'La cuenta está bloqueada temporalmente por demasiados intentos fallidos',
-      ErrorCode.ACCOUNT_LOCKED,
-      { metadata: { lockedUntil: until.toISOString() } },
-    ),
-
   tokenMissing: () =>
     AppException.unauthorized(
       'Falta el token de autenticación',

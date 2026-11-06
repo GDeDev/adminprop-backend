@@ -119,18 +119,25 @@ export class SignInService {
     password: string,
     context: SessionContext,
   ): Promise<AuthResult> {
+    // Cuenta bloqueada: el mismo 401 genérico que una contraseña incorrecta
+    // (D-250). Un 403 `ACCOUNT_LOCKED` le confirmaba a quien prueba que el
+    // email existe, y responder sin bcrypt lo delataba por el tiempo. El
+    // resultado de la comparación se descarta: estando bloqueada no entra ni
+    // con la contraseña correcta.
     const lockedUntil = activeLockUntil(user)
     if (lockedUntil) {
+      await this.passwordService.compare(password, user.passwordHash)
       await this.recordFailure(user, context, 'account_locked')
       this.logger.warn(
         {
           operation: 'auth_login_failed',
           reason: 'account_locked',
           userId: user.id,
+          lockedUntil: lockedUntil.toISOString(),
         },
         'Login rechazado: cuenta bloqueada',
       )
-      throw AuthErrors.accountLocked(lockedUntil)
+      throw AuthErrors.invalidCredentials({ reason: 'account_locked' })
     }
 
     const passwordMatches = await this.passwordService.compare(
