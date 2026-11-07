@@ -1,4 +1,7 @@
-import { isTrustedServerSecret } from './trusted-server'
+import {
+  isTrustedServerSecret,
+  shouldSkipForTrustedServer,
+} from './trusted-server'
 
 describe('isTrustedServerSecret', () => {
   it('acepta solo el secreto exacto', () => {
@@ -41,5 +44,46 @@ describe('isTrustedServerSecret', () => {
       )
       expect(isTrustedServerSecret('x', [])).toBe(false)
     })
+  })
+})
+
+describe('shouldSkipForTrustedServer', () => {
+  const secrets = ['secreto-largo']
+
+  it('con el secreto y sin X-Client-IP se saltea (lecturas cacheadas)', () => {
+    expect(
+      shouldSkipForTrustedServer(
+        { 'x-sites-secret': 'secreto-largo' },
+        secrets,
+      ),
+    ).toBe(true)
+  })
+
+  it('con el secreto y una X-Client-IP válida NO se saltea: cuenta por esa IP', () => {
+    expect(
+      shouldSkipForTrustedServer(
+        { 'x-sites-secret': 'secreto-largo', 'x-client-ip': '203.0.113.9' },
+        secrets,
+      ),
+    ).toBe(false)
+  })
+
+  it('una X-Client-IP inválida se ignora y se saltea como sin IP', () => {
+    expect(
+      shouldSkipForTrustedServer(
+        { 'x-sites-secret': 'secreto-largo', 'x-client-ip': 'no-es-ip' },
+        secrets,
+      ),
+    ).toBe(true)
+  })
+
+  it('sin secreto válido nunca se saltea, con o sin IP', () => {
+    expect(shouldSkipForTrustedServer({}, secrets)).toBe(false)
+    expect(
+      shouldSkipForTrustedServer(
+        { 'x-sites-secret': 'otro', 'x-client-ip': '203.0.113.9' },
+        secrets,
+      ),
+    ).toBe(false)
   })
 })

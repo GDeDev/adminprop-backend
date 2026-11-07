@@ -10,9 +10,8 @@ import { redactUrlQuery } from '@/shared/logging/redact-url'
 import { getCorrelationId } from '../../context/request-context.middleware'
 import { resolveClientIp } from '../http/client-ip'
 import {
-  isTrustedServerSecret,
+  shouldSkipForTrustedServer,
   SKIP_THROTTLE_FOR_TRUSTED_SERVER,
-  TRUSTED_SERVER_HEADER,
 } from './trusted-server'
 
 /**
@@ -38,8 +37,11 @@ export class AppThrottlerGuard extends ThrottlerGuard {
 
   /**
    * Los endpoints marcados con `@SkipThrottleForTrustedServer()` no cuentan si
-   * el pedido trae el secreto compartido del servidor de `apps/sites` (ver
-   * `trusted-server.ts`). Cualquier otro pedido se limita como siempre.
+   * el pedido trae el secreto compartido del servidor de `apps/sites` Y no
+   * declara la IP del visitante (ver `trusted-server.ts`). Con `X-Client-IP`
+   * válida se cuenta por esa IP, así un bot contra un sitio no se lleva el
+   * cupo de los demás pero tampoco queda sin tope. Cualquier otro pedido se
+   * limita como siempre.
    */
   protected override async shouldSkip(
     context: ExecutionContext,
@@ -51,9 +53,8 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     if (!marked) return false
 
     const request = context.switchToHttp().getRequest<Request>()
-    const header = request.headers[TRUSTED_SERVER_HEADER]
-    return isTrustedServerSecret(
-      Array.isArray(header) ? header[0] : header,
+    return shouldSkipForTrustedServer(
+      request.headers,
       this.config.get('sites', { infer: true }).serverSecrets,
     )
   }
