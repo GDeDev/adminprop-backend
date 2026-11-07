@@ -1,8 +1,22 @@
-import { PropertyStatus } from '@/modules/properties/domain/property'
+import {
+  ListingCurrency,
+  ListingOperation,
+  PropertyStatus,
+} from '@/modules/properties/domain/property'
 import { PropertyData } from '@/modules/properties/domain/property.ports'
 
+/** Sin moneda, se usa la de la inmobiliaria. */
+export type CreatePropertyData = Omit<
+  PropertyData,
+  'listingCurrency' | 'listingOperation'
+> & {
+  listingCurrency?: ListingCurrency
+  /** Sin operación, la propiedad se publica en alquiler. */
+  listingOperation?: ListingOperation
+}
+
 export class CreatePropertyCommand {
-  constructor(public readonly data: PropertyData) {}
+  constructor(public readonly data: CreatePropertyData) {}
 }
 
 export class UpdatePropertyCommand {

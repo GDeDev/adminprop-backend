@@ -60,6 +60,6 @@ Totales: 272 unitarios (30 nuevos: `person-policy.spec.ts` y `renter.policy.spec
 ## Pendiente
 
 - **Frontend de la fase** (listado, ficha con WhatsApp, alta/edición con garante inline, pantalla de garantes): no empezado.
-- **Fase 9**: reemplazar `NoContractsYet` por la implementación que consulta contratos; hacer filtrar `propertyId`; completar `activeContract`; usar `RentersFacade` al armar contratos.
+- **Fase 9**: hecho (D-51): `RenterContractsImpl` reemplaza a `NoContractsYet`, `activeContract` trae `{ id }` y `RentersFacade` valida y vincula inquilinos en los contratos. `propertyId` sigue sin filtrar: usar `GET /contracts?renterId=`.
 - **Fase 11**: calcular `paymentStatus` y hacer filtrar el parámetro; completar `payments`.
 - **Fase 14**: mandar por email la contraseña del portal (hoy se muestra una vez en pantalla).

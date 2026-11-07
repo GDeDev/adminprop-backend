@@ -2,10 +2,16 @@ import type { StringValue } from 'ms'
 
 import {
   EmailProvider,
+  IndexSourceProvider,
+  NotificationsProvider,
+  PdfProvider,
   Environment,
   FeatureFlagsProvider,
   QueueProvider,
   StorageProvider,
+  TokkoSourceProvider,
+  ValuationNarratorProvider,
+  ListingPublisherProvider,
 } from './env.validation'
 
 export interface AppConfig {
@@ -17,7 +23,11 @@ export interface AppConfig {
   logLevel: string
   swaggerEnabled: boolean
   bodyLimit: string
-  trustProxy: boolean
+  /**
+   * Cuántos proxies propios hay delante (`trust proxy` de Express). 0 = ninguno:
+   * `req.ip` es la conexión directa (D-252).
+   */
+  trustProxyHops: number
 }
 
 export interface DatabaseConfig {
@@ -86,6 +96,89 @@ export interface FeatureFlagsConfig {
 
 export interface EmailConfig {
   provider: EmailProvider
+  /** Remitente (`notificaciones@dominio`); sin valor sale desde un default de desarrollo. */
+  from: string
+  /** Base del link al portal que llevan los mails; sin valor, la variable queda vacía. */
+  portalBaseUrl: string | null
+  resendApiKey: string | null
+  /** Secreto Svix del webhook; sin él, el webhook responde 503. */
+  resendWebhookSecret: string | null
+}
+
+export interface NotificationsConfig {
+  provider: NotificationsProvider
+}
+
+export interface PdfConfig {
+  provider: PdfProvider
+}
+
+export interface TokkoConfig {
+  source: TokkoSourceProvider
+  /** Sólo con `source: http`. Nunca se loguea ni se guarda en la base. */
+  apiKey: string | null
+  /** La única inmobiliaria que puede usar la key con `source: http` (D-253). */
+  ownerTenantId: string | null
+}
+
+export interface AutomationsConfig {
+  /** Si el scheduler dispara los jobs solo. Los manuales no dependen de esto. */
+  enabled: boolean
+  indexSource: IndexSourceProvider
+}
+
+export interface ValuationConfig {
+  /** Fuentes activas (`fake`, `zonaprop`...). */
+  sources: string[]
+  maxAgeDays: number
+  minComparables: number
+  zonesPerRun: number
+  dailyLimit: number
+  narrator: ValuationNarratorProvider
+  /** Sólo con narrador `llm`. Nunca se loguea. */
+  anthropicApiKey: string | null
+  llmModel: string
+  scraperContact: string
+}
+
+export interface SecurityConfig {
+  /** 32 bytes en hex o base64; cifra los tokens de los portales (A-84). */
+  encryptionKey: string | null
+}
+
+export interface ListingsConfig {
+  provider: ListingPublisherProvider
+  /** Base del backoffice, para volver del OAuth de un portal. */
+  backofficeBaseUrl: string | null
+  mercadolibre: {
+    appId: string | null
+    clientSecret: string | null
+    redirectUri: string | null
+  }
+}
+
+export interface SitesConfig {
+  /** Dominio de los subdominios de sitios, en minúsculas; null si no hay. */
+  baseDomain: string | null
+  protocol: 'http' | 'https'
+  /** Base del acceso por slug (`/_s/<slug>`); null en producción. */
+  devUrl: string | null
+  /** Hosts https permitidos para imágenes además de nuestro storage. */
+  allowedImageHosts: string[]
+  /** Secreto del token de vista previa. */
+  previewSecret: string
+  /** Exige verificar con un TXT el dominio propio (default true). */
+  domainVerification: boolean
+  /**
+   * Secretos válidos para `X-Sites-Secret`: quien manda uno de ellos no cuenta
+   * contra el tope por IP de las lecturas públicas del sitio. Son
+   * `SITES_SERVER_SECRET` y `SITES_REVALIDATE_SECRET` (el que realmente manda
+   * `apps/sites`), los que estén definidos y no vacíos. Vacío = nadie se saltea
+   * el tope.
+   */
+  serverSecrets: string[]
+  /** Aviso a `apps/sites` al publicar; sin URL o secreto no se avisa. */
+  revalidate: { url: string; secret: string } | null
 }
 
 export interface Configuration {
@@ -99,6 +192,14 @@ export interface Configuration {
   storage: StorageConfig
   featureFlags: FeatureFlagsConfig
   email: EmailConfig
+  notifications: NotificationsConfig
+  automations: AutomationsConfig
+  pdf: PdfConfig
+  tokko: TokkoConfig
+  valuation: ValuationConfig
+  security: SecurityConfig
+  listings: ListingsConfig
+  sites: SitesConfig
 }
 
 const num = (value: string | undefined, fallback: number): number =>
@@ -131,6 +232,11 @@ const required = (value: string | undefined, name: string): string => {
   return value
 }
 
+function firstCorsOrigin(raw: string | undefined): string | null {
+  const origins = parseCorsOrigins(raw)
+  return Array.isArray(origins) ? (origins[0] ?? null) : null
+}
+
 function parseCorsOrigins(raw: string | undefined): string[] | boolean {
   if (!raw || raw.trim() === '') return false
   if (raw.trim() === '*') return true
@@ -146,7 +252,7 @@ function parseCorsOrigins(raw: string | undefined): string[] | boolean {
  * por acá vía `ConfigService`.
  */
 export function configuration(): Configuration {
-  const env = (process.env.NODE_ENV as Environment) ?? Environment.Development
+  const env = (process.env.NODE_ENV || Environment.Development) as Environment
   const isProduction = env === Environment.Production
   const isDevelopment = env === Environment.Development
 
@@ -158,10 +264,20 @@ export function configuration(): Configuration {
       isProduction,
       isDevelopment,
       logLevel: str(process.env.LOG_LEVEL, isProduction ? 'info' : 'debug'),
-      // En producción el Swagger queda apagado salvo que lo pidas explícitamente.
-      swaggerEnabled: bool(process.env.SWAGGER_ENABLED, !isProduction),
+      // Swagger sólo arranca solo en desarrollo y test. En cualquier otro entorno
+      // (qa incluido) queda apagado salvo que lo pidas con SWAGGER_ENABLED.
+      swaggerEnabled: bool(
+        process.env.SWAGGER_ENABLED,
+        env === Environment.Development || env === Environment.Test,
+      ),
       bodyLimit: str(process.env.BODY_LIMIT, '1mb'),
-      trustProxy: bool(process.env.TRUST_PROXY, isProduction),
+      // TRUST_PROXY_HOPS manda; si no está, TRUST_PROXY=true equivale a un salto
+      // (el comportamiento anterior).
+      trustProxyHops: process.env.TRUST_PROXY_HOPS
+        ? num(process.env.TRUST_PROXY_HOPS, 0)
+        : bool(process.env.TRUST_PROXY, isProduction)
+          ? 1
+          : 0,
     },
     database: {
       url: required(process.env.DATABASE_URL, 'DATABASE_URL'),
@@ -282,6 +398,116 @@ export function configuration(): Configuration {
         process.env.EMAIL_PROVIDER,
         EmailProvider.Console,
       ) as EmailProvider,
+      from: str(process.env.EMAIL_FROM, 'notificaciones@adminprop.local'),
+      portalBaseUrl: process.env.PORTAL_BASE_URL || null,
+      resendApiKey: process.env.RESEND_API_KEY || null,
+      resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET || null,
+    },
+    notifications: {
+      provider: str(
+        process.env.NOTIFICATIONS_PROVIDER,
+        NotificationsProvider.Console,
+      ) as NotificationsProvider,
+    },
+    pdf: {
+      provider: str(
+        process.env.PDF_PROVIDER,
+        PdfProvider.Pdfmake,
+      ) as PdfProvider,
+    },
+    tokko: {
+      source: str(
+        process.env.TOKKO_SOURCE,
+        TokkoSourceProvider.Fixture,
+      ) as TokkoSourceProvider,
+      apiKey: process.env.TOKKO_API_KEY || null,
+      ownerTenantId: process.env.TOKKO_TENANT_ID?.trim() || null,
+    },
+    sites: {
+      baseDomain:
+        str(process.env.SITES_BASE_DOMAIN, '').trim().toLowerCase() || null,
+      protocol:
+        str(process.env.SITES_PROTOCOL, 'https') === 'http' ? 'http' : 'https',
+      devUrl: process.env.SITES_DEV_URL
+        ? process.env.SITES_DEV_URL.replace(/\/+$/, '')
+        : isProduction
+          ? null
+          : 'http://localhost:3003',
+      allowedImageHosts: str(process.env.SITES_ALLOWED_IMAGE_HOSTS, '')
+        .split(',')
+        .map((h) => h.trim().toLowerCase())
+        .filter(Boolean),
+      domainVerification: bool(process.env.SITES_DOMAIN_VERIFICATION, true),
+      // `apps/sites` manda su SITES_REVALIDATE_SECRET como X-Sites-Secret (no
+      // tiene otra variable), así que se acepta ese y también el propio del
+      // throttle si existe: antes, definir SITES_SERVER_SECRET dejaba a sitios
+      // limitado como cualquier visitante.
+      serverSecrets: [
+        process.env.SITES_SERVER_SECRET,
+        process.env.SITES_REVALIDATE_SECRET,
+      ].filter((secret): secret is string => !!secret),
+      revalidate:
+        process.env.SITES_REVALIDATE_URL && process.env.SITES_REVALIDATE_SECRET
+          ? {
+              url: process.env.SITES_REVALIDATE_URL.replace(/\/+$/, ''),
+              secret: process.env.SITES_REVALIDATE_SECRET,
+            }
+          : null,
+      // Fuera de desarrollo y test `validateEnv` ya exigió un secreto propio y
+      // largo. En desarrollo y test hay un valor fijo: NO se deriva de
+      // JWT_ACCESS_SECRET (un secreto distinto para una cosa distinta).
+      previewSecret: str(
+        process.env.SITES_PREVIEW_SECRET,
+        'desarrollo-solo-secreto-de-vista-previa-no-usar-en-produccion',
+      ),
+    },
+    automations: {
+      enabled: bool(process.env.AUTOMATIONS_ENABLED, true),
+      indexSource: str(
+        process.env.INDEX_SOURCE_PROVIDER,
+        IndexSourceProvider.BcraIndec,
+      ) as IndexSourceProvider,
+    },
+    security: {
+      encryptionKey: process.env.APP_ENCRYPTION_KEY || null,
+    },
+    listings: {
+      provider: str(
+        process.env.LISTING_PUBLISHER_PROVIDER,
+        ListingPublisherProvider.Fake,
+      ) as ListingPublisherProvider,
+      // Sin BACKOFFICE_BASE_URL la vuelta del OAuth era una ruta relativa, que
+      // el navegador resolvía contra el host de la API. Cae al primer origen
+      // de CORS_ORIGINS (el backoffice va primero); con Mercado Libre fuera de
+      // desarrollo es obligatoria (validateEnv).
+      backofficeBaseUrl:
+        process.env.BACKOFFICE_BASE_URL?.trim() ||
+        firstCorsOrigin(process.env.CORS_ORIGINS),
+      mercadolibre: {
+        appId: process.env.MERCADOLIBRE_APP_ID || null,
+        clientSecret: process.env.MERCADOLIBRE_CLIENT_SECRET || null,
+        redirectUri: process.env.MERCADOLIBRE_REDIRECT_URI || null,
+      },
+    },
+    valuation: {
+      sources: str(process.env.COMPARABLES_SOURCES, 'fake')
+        .split(',')
+        .map((name) => name.trim().toLowerCase())
+        .filter(Boolean),
+      maxAgeDays: num(process.env.VALUATION_MAX_AGE_DAYS, 45),
+      minComparables: num(process.env.VALUATION_MIN_COMPARABLES, 3),
+      zonesPerRun: num(process.env.VALUATION_ZONES_PER_RUN, 10),
+      dailyLimit: num(process.env.VALUATION_DAILY_LIMIT, 30),
+      narrator: str(
+        process.env.VALUATION_NARRATOR,
+        ValuationNarratorProvider.Template,
+      ) as ValuationNarratorProvider,
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY || null,
+      llmModel: str(process.env.VALUATION_LLM_MODEL, 'claude-sonnet-5-5'),
+      scraperContact: str(
+        process.env.VALUATION_SCRAPER_CONTACT,
+        'contacto@adminprop.example',
+      ),
     },
   }
 }

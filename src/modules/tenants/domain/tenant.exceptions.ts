@@ -13,3 +13,26 @@ export class TenantNotFoundException extends DomainException {
     )
   }
 }
+
+/** El logo tiene que ser PNG, JPG, WebP o SVG de hasta 2 MB. */
+export class InvalidTenantLogoException extends DomainException {
+  constructor(reason: string) {
+    super(
+      'TENANT_INVALID_LOGO',
+      `El logo no sirve: ${reason}`,
+      DomainErrorKind.InvalidInput,
+    )
+  }
+}
+
+/** Un parámetro de cobro de la inmobiliaria fuera de rango (D-228). */
+export class InvalidTenantBillingSettingException extends DomainException {
+  constructor(field: string, reason: string) {
+    super(
+      'TENANT_INVALID_BILLING_SETTING',
+      `${field}: ${reason}`,
+      DomainErrorKind.InvalidInput,
+      { field },
+    )
+  }
+}

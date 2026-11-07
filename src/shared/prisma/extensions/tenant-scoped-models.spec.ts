@@ -10,6 +10,8 @@ const NOT_SCOPED_ON_PURPOSE: Record<string, string> = {
   // La escribe la auditoría también desde procesos sin tenant; su lectura por
   // tenant llega con la pantalla de auditoría (Fase 20).
   AuditLog: 'escritura de sistema',
+  JobExecution:
+    'tenantId opcional: los jobs globales (índices) no tienen inmobiliaria; se filtra a mano',
 }
 
 describe('modelos con tenant', () => {
@@ -41,5 +43,17 @@ describe('modelos con tenant', () => {
       )
 
     expect(misconfigured).toEqual([])
+  })
+
+  it('los modelos de mercado de la tasación no llevan tenantId (D-173)', () => {
+    // El caché de comparables es global a propósito: si alguien le agregara
+    // `tenantId`, dejaría de compartirse entre inmobiliarias y la tasación
+    // volvería a depender de que cada una scrapee lo suyo.
+    const market = ['MarketComparable', 'ValuationZone', 'ValuationSourceState']
+    for (const name of market) {
+      const model = Prisma.dmmf.datamodel.models.find((m) => m.name === name)
+      expect(model).toBeDefined()
+      expect(model?.fields.some((f) => f.name === 'tenantId')).toBe(false)
+    }
   })
 })

@@ -9,6 +9,8 @@ import {
   UpdatePropertyHandler,
 } from '@/modules/properties/application/commands/property.handlers'
 import { MasterDataReferences } from '@/modules/properties/application/master-data-references'
+import { PropertyTypeNames } from '../../application/property-type-names'
+import { PublicPropertyViews } from '../../application/public-property.views'
 import { PropertyViews } from '@/modules/properties/application/property.views'
 import {
   GetPropertyHandler,
@@ -20,9 +22,10 @@ import {
 } from '@/modules/properties/domain/property.ports'
 import { MasterDataModule } from '@/modules/master-data/public'
 import { OwnersModule } from '@/modules/owners/public'
+import { TenantsModule } from '@/modules/tenants/public'
 import { PropertiesFacade } from '@/modules/properties/public/properties.facade'
 import { PropertiesController } from '../http/controllers/properties.controller'
-import { NoContractsYet } from '../repositories/no-contracts-yet'
+import { PropertyContractsImpl } from '../repositories/property-contracts.impl'
 import { PropertyRepositoryImpl } from '../repositories/property.repository.impl'
 
 /**
@@ -30,13 +33,14 @@ import { PropertyRepositoryImpl } from '../repositories/property.repository.impl
  * explicado en `OwnersModule`.
  */
 @Module({
-  imports: [MasterDataModule, forwardRef(() => OwnersModule)],
+  imports: [MasterDataModule, TenantsModule, forwardRef(() => OwnersModule)],
   controllers: [PropertiesController],
   providers: [
     { provide: PropertyRepository, useClass: PropertyRepositoryImpl },
-    // Fase 9: reemplazar por la implementación que consulta contratos.
-    { provide: PropertyContracts, useClass: NoContractsYet },
+    { provide: PropertyContracts, useClass: PropertyContractsImpl },
     PropertyViews,
+    PropertyTypeNames,
+    PublicPropertyViews,
     MasterDataReferences,
     CreatePropertyHandler,
     UpdatePropertyHandler,

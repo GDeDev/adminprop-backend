@@ -31,7 +31,7 @@ import { RentersFacade } from '@/modules/renters/public/renters.facade'
 import { GuarantorsController } from '../http/controllers/guarantors.controller'
 import { RentersController } from '../http/controllers/renters.controller'
 import { GuarantorRepositoryImpl } from '../repositories/guarantor.repository.impl'
-import { NoContractsYet } from '../repositories/no-contracts-yet'
+import { RenterContractsImpl } from '../repositories/renter-contracts.impl'
 import { RenterRepositoryImpl } from '../repositories/renter.repository.impl'
 
 /**
@@ -44,8 +44,7 @@ import { RenterRepositoryImpl } from '../repositories/renter.repository.impl'
   providers: [
     { provide: RenterRepository, useClass: RenterRepositoryImpl },
     { provide: GuarantorRepository, useClass: GuarantorRepositoryImpl },
-    // Fase 9: reemplazar por la implementación que consulta contratos.
-    { provide: RenterContracts, useClass: NoContractsYet },
+    { provide: RenterContracts, useClass: RenterContractsImpl },
     RenterViews,
     RentersFacade,
     CreateRenterHandler,

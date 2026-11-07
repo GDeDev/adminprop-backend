@@ -55,8 +55,13 @@ const DEMO_USERS = [
 ] as const
 
 async function main() {
-  if (process.env.NODE_ENV === 'production') {
-    console.error('❌ El seed de demo no corre con NODE_ENV=production.')
+  // Sólo en desarrollo (o sin NODE_ENV): en qa u otro ambiente compartido las
+  // credenciales publicadas del demo serían una puerta abierta.
+  const nodeEnv = process.env.NODE_ENV
+  if (nodeEnv && nodeEnv !== 'development') {
+    console.error(
+      `❌ El seed de demo sólo corre en desarrollo (NODE_ENV=${nodeEnv}).`,
+    )
     process.exit(1)
   }
 
@@ -70,6 +75,8 @@ async function main() {
   } else {
     const provisioned = await provisionTenant(prisma, {
       ...DEMO_TENANT,
+      // Dato de demo, no un default del sistema (D-228).
+      dailyLateFeePercentage: '5',
       bcryptSaltRounds: saltRounds,
     })
     tenant = await prisma.tenant.findUniqueOrThrow({

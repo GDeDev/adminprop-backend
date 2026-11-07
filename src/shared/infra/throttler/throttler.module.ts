@@ -1,8 +1,25 @@
 import { Module } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { ThrottlerModule } from '@nestjs/throttler'
+import { ThrottlerModule, ThrottlerModuleOptions } from '@nestjs/throttler'
 
-import { Configuration } from '../../config/configuration'
+import { Configuration, ThrottleConfig } from '../../config/configuration'
+
+/** Opciones del módulo, aparte para poder probarlas sin levantar Nest. */
+export function throttlerOptions(
+  throttle: ThrottleConfig,
+): ThrottlerModuleOptions {
+  return {
+    throttlers: throttle.profiles.map((profile) => ({
+      name: profile.name,
+      ttl: profile.ttl,
+      limit: profile.limit,
+    })),
+    // Nada se saltea por URL: `includes('/health')` dejaba pasar
+    // `/auth/login?x=/health` sin tope (D-249). Las probes usan
+    // `@SkipAllThrottles()`.
+    skipIf: () => !throttle.enabled,
+  }
+}
 
 /**
  * Rate limiting global.
@@ -47,28 +64,8 @@ import { Configuration } from '../../config/configuration'
   imports: [
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService<Configuration, true>) => {
-        const throttle = configService.get('throttle', {
-          infer: true,
-        })
-
-        return {
-          throttlers: throttle.profiles.map((profile) => ({
-            name: profile.name,
-            ttl: profile.ttl,
-            limit: profile.limit,
-          })),
-          // Los health checks no se limitan: los pega Kubernetes cada pocos
-          // segundos y un 429 ahí haría reiniciar el pod.
-          skipIf: (context) => {
-            if (!throttle.enabled) return true
-
-            const request = context.switchToHttp().getRequest()
-            const url: string = request?.originalUrl ?? request?.url ?? ''
-            return url.includes('/health')
-          },
-        }
-      },
+      useFactory: (configService: ConfigService<Configuration, true>) =>
+        throttlerOptions(configService.get('throttle', { infer: true })),
     }),
   ],
   exports: [ThrottlerModule],

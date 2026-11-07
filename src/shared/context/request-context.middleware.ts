@@ -1,7 +1,11 @@
 import { Injectable, NestMiddleware } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { NextFunction, Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 
+import { Configuration } from '../config/configuration'
+import { resolveClientIp } from '../infra/http/client-ip'
+import { redactUrlQuery } from '../logging/redact-url'
 import { RequestContext } from './request-context'
 
 export const CORRELATION_ID_HEADER = 'x-correlation-id'
@@ -35,6 +39,8 @@ const MAX_USER_AGENT_LENGTH = 255
  */
 @Injectable()
 export class RequestContextMiddleware implements NestMiddleware {
+  constructor(private readonly config: ConfigService<Configuration, true>) {}
+
   use(req: Request, res: Response, next: NextFunction): void {
     const correlationId = this.resolveCorrelationId(req)
 
@@ -46,13 +52,16 @@ export class RequestContextMiddleware implements NestMiddleware {
     RequestContext.run(
       {
         correlationId,
-        ip: this.resolveIp(req),
+        ip: resolveClientIp(
+          req,
+          this.config.get('sites', { infer: true }).serverSecrets,
+        ),
         userAgent:
           typeof userAgent === 'string'
             ? userAgent.slice(0, MAX_USER_AGENT_LENGTH)
             : undefined,
         method: req.method,
-        url: req.originalUrl ?? req.url,
+        url: redactUrlQuery(req.originalUrl ?? req.url),
       },
       () => next(),
     )
@@ -70,12 +79,6 @@ export class RequestContextMiddleware implements NestMiddleware {
     }
 
     return uuidv4()
-  }
-
-  /** Con `TRUST_PROXY` activo, `req.ips[0]` es el cliente y no el balanceador. */
-  private resolveIp(req: Request): string | undefined {
-    if (Array.isArray(req.ips) && req.ips.length) return req.ips[0]
-    return req.ip
   }
 }
 

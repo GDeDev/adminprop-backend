@@ -18,7 +18,7 @@ export interface RenterFilter {
   search?: string
   /** Se acepta desde ya; filtra recién con el motor de cobros (Fase 11). */
   paymentStatus?: PaymentStatus
-  /** Se acepta desde ya; filtra recién con los contratos (Fase 9). */
+  /** Se acepta desde ya; no filtra: la propiedad vive en el contrato (D-51). */
   propertyId?: string
 }
 
@@ -39,6 +39,9 @@ export abstract class RenterRepository {
   abstract findByIds(ids: string[]): Promise<Renter[]>
 
   abstract findByNationalId(nationalId: string): Promise<Renter | null>
+
+  /** Los de esos DNI/CUIT, en una sola consulta (migración, Fase 21). */
+  abstract findByNationalIds(nationalIds: string[]): Promise<Renter[]>
 
   /** Por apellido y nombre. */
   abstract list(
@@ -61,14 +64,22 @@ export abstract class RenterRepository {
 
   abstract setPortalUser(id: string, portalUserId: string): Promise<void>
 
+  /** El renter cuya cuenta de portal es ese usuario (Fase 15: autorizar descargas). */
+  abstract findByPortalUser(portalUserId: string): Promise<Renter | null>
+
+  /** Vincula (o desvincula, con null) el contrato activo. Sólo la facade. */
+  abstract setActiveContract(
+    id: string,
+    contractId: string | null,
+  ): Promise<void>
+
   abstract softDelete(id: string): Promise<void>
 }
 
 /**
- * Lo que las reglas de inquilinos necesitan saber de los contratos (Fase 9).
- * Hasta que existan, la implementación responde que no hay ninguno; la Fase
- * 9 la reemplaza por una que le pregunta al módulo de contratos, sin tocar
- * las reglas (mismo patrón que `PropertyContracts`).
+ * Lo que las reglas de inquilinos necesitan saber de los contratos. El módulo
+ * de contratos no se importa (sería un ciclo): se lee el vínculo que ese
+ * módulo deja en la propia fila por la facade (D-51, como `PropertyContracts`).
  */
 export abstract class RenterContracts {
   abstract hasActiveContract(renterId: string): Promise<boolean>

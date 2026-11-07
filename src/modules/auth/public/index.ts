@@ -7,6 +7,7 @@
  * auth se extraiga a su propio servicio.
  */
 export { CurrentUser } from '../infrastructure/decorators/current-user.decorator'
+export { AnyRole } from '../infrastructure/decorators/any-role.decorator'
 export { IsPublic } from '../infrastructure/decorators/is-public.decorator'
 export { Roles } from '../infrastructure/decorators/roles.decorator'
 export type { AuthenticatedUser } from '../infrastructure/types/jwt-payload.type'
@@ -22,5 +23,7 @@ export {
   PortalEmailTakenException,
 } from './portal-accounts.facade'
 export type { PortalCredentials } from './portal-accounts.facade'
+export { UsersFacade } from './users.facade'
+export type { StaffContact, UserRef } from './users.facade'
 export type { PortalRole } from '../domain/enums/role.enum'
 export { PortalCredentialsDto } from './portal-credentials.dto'

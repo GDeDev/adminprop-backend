@@ -25,6 +25,7 @@ import {
   IssueOwnerPortalCredentialsCommand,
   UpdateOwnerBankAccountCommand,
   UpdateOwnerCommand,
+  UpdateOwnerFeeSettingsCommand,
 } from '@/modules/owners/application/commands/owner.commands'
 import {
   OwnerDetailView,
@@ -55,6 +56,7 @@ import {
   OwnerDetailDto,
   OwnerSummaryDto,
   UpdateOwnerDto,
+  UpdateOwnerFeeSettingsDto,
 } from '../dtos/owner.dtos'
 
 function toBankAccount(dto: BankAccountDto | undefined): BankAccount {
@@ -221,6 +223,34 @@ export class OwnersController {
       message: 'Cuenta bancaria actualizada',
       data: owner,
     }
+  }
+
+  @Patch(':id/fee-settings')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Honorarios y modo de envío (sólo admin)',
+    description:
+      'Override del % de honorarios (null = regla por umbral de la inmobiliaria), qué conceptos cobrados entran en la base además del alquiler, y qué se le manda al cerrar el consolidado. Lo que no viene no cambia.',
+  })
+  @ApiResponse({ status: 200, type: OwnerDetailDto })
+  @ApiResponse({ status: 400, description: '% inválido', type: ApiErrorDto })
+  @ApiResponse({ status: 404, type: ApiErrorDto })
+  async updateFeeSettings(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateOwnerFeeSettingsDto,
+  ): Promise<ApiSuccessDto<OwnerDetailView>> {
+    const owner = await this.commandBus.execute<
+      UpdateOwnerFeeSettingsCommand,
+      OwnerDetailView
+    >(
+      new UpdateOwnerFeeSettingsCommand(id, {
+        feePercentage: dto.feePercentage,
+        feeIncludesLateFees: dto.feeIncludesLateFees,
+        feeIncludesCharges: dto.feeIncludesCharges,
+        statementSendMode: dto.statementSendMode,
+      }),
+    )
+    return { success: true, message: 'Honorarios actualizados', data: owner }
   }
 
   @Post(':id/portal-credentials')

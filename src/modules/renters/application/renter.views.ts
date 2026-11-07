@@ -33,19 +33,25 @@ export interface RenterSummaryView {
   moveInDate: string | null
   guarantor: GuarantorRefView | null
   hasPortalAccess: boolean
+  /** Contrato activo del que es titular, si lo hay. */
+  activeContractId: string | null
   /** Siempre null hasta el motor de cobros (Fase 11). */
   paymentStatus: PaymentStatus | null
   createdAt: Date
   updatedAt: Date
 }
 
-/** La ficha (spec 3.1). Contrato y pagos son placeholders tipados. */
+/** Referencia al contrato activo: el detalle se pide a `GET /contracts/:id`. */
+export interface RenterActiveContractView {
+  id: string
+}
+
+/** La ficha (spec 3.1). Los pagos son un placeholder tipado (Fase 11). */
 export interface RenterDetailView extends RenterSummaryView {
   address: string | null
   notes: string | null
   guarantor: RenterGuarantorView | null
-  /** Siempre null hasta los contratos (Fase 9). */
-  activeContract: null
+  activeContract: RenterActiveContractView | null
   /** Siempre vacío hasta el motor de cobros (Fase 11). */
   payments: never[]
 }
@@ -100,7 +106,9 @@ export class RenterViews {
       address: renter.address,
       notes: renter.notes,
       guarantor: guarantor ? toRenterGuarantor(guarantor) : null,
-      activeContract: null,
+      activeContract: renter.activeContractId
+        ? { id: renter.activeContractId }
+        : null,
       payments: [],
     }
   }
@@ -157,6 +165,7 @@ function toRenterSummary(
       ? { id: guarantor.id, fullName: fullNameOf(guarantor) }
       : null,
     hasPortalAccess: renter.portalUserId !== null,
+    activeContractId: renter.activeContractId,
     paymentStatus: null,
     createdAt: renter.createdAt,
     updatedAt: renter.updatedAt,

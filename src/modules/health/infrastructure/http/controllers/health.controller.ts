@@ -10,6 +10,7 @@ import { HealthCheck, HealthCheckResult } from '@nestjs/terminus'
 
 import { CustomHealthService } from '../../services/health.service'
 import { IsPublic, Role, Roles } from '@/modules/auth/public'
+import { SkipAllThrottles } from '@/shared/infra/throttler/skip-all-throttles.decorator'
 
 /**
  * Endpoints de salud.
@@ -22,6 +23,12 @@ import { IsPublic, Role, Roles } from '@/modules/auth/public'
  * relevando el sistema antes de atacarlo. Requieren rol ADMIN.
  *
  * Las probes no se loguean: pino-http las filtra por path.
+ *
+ * Topes (D-249): `/health` y `/health/live` no cuentan (no tocan la base y las
+ * pega la infraestructura cada pocos segundos). `/health/ready` consulta
+ * Postgres, así que sigue con los topes globales por IP; sigue siendo pública
+ * porque la usan docker y el balanceador. `/health` responde sólo
+ * `{ status }`: versión, entorno y uptime son relevamiento gratis.
  */
 @ApiTags('Health')
 @Controller({ path: 'health', version: VERSION_NEUTRAL })
@@ -29,11 +36,12 @@ export class HealthController {
   constructor(private readonly healthService: CustomHealthService) {}
 
   @IsPublic()
+  @SkipAllThrottles()
   @Get()
   @ApiOperation({
     summary: 'Basic health check',
     description:
-      'Simple health check endpoint that returns basic application status',
+      'Simple health check endpoint that only returns the status (no version, environment or uptime)',
   })
   @ApiResponse({
     status: 200,
@@ -42,23 +50,12 @@ export class HealthController {
       type: 'object',
       properties: {
         status: { type: 'string', example: 'ok' },
-        timestamp: { type: 'string', example: '2023-12-01T10:00:00Z' },
-        uptime: { type: 'number', example: 12345 },
-        version: { type: 'string', example: '1.0.0' },
-        environment: { type: 'string', example: 'development' },
       },
     },
   })
   @ApiProduces('application/json')
-  async checkHealth() {
-    const appInfo = await this.healthService.getApplicationInfo()
-    return {
-      status: 'ok',
-      timestamp: appInfo.timestamp,
-      uptime: appInfo.uptime,
-      version: appInfo.version,
-      environment: appInfo.environment,
-    }
+  checkHealth(): { status: 'ok' } {
+    return { status: 'ok' }
   }
 
   @IsPublic()
@@ -83,6 +80,7 @@ export class HealthController {
   }
 
   @IsPublic()
+  @SkipAllThrottles()
   @Get('live')
   @HealthCheck()
   @ApiOperation({

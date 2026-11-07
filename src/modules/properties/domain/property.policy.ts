@@ -1,4 +1,9 @@
-import { MAX_PHOTOS_PER_PROPERTY, PropertyStatus } from './property'
+import { roundMoney } from '@/shared/money'
+import {
+  MAX_PHOTOS_PER_PROPERTY,
+  MAX_PUBLIC_DESCRIPTION,
+  PropertyStatus,
+} from './property'
 import {
   InvalidStatusTransitionException,
   PropertyHasActiveContractException,
@@ -29,6 +34,23 @@ export const PropertyPolicy = {
   /** "  Av.  Corrientes   1234 " → "Av. Corrientes 1234". */
   normalizeAddress(address: string): string {
     return address.trim().replace(/\s+/g, ' ')
+  },
+
+  /** Descripción pública vacía = null; se recorta al máximo permitido. */
+  normalizePublicDescription(text: string | null | undefined): string | null {
+    const trimmed = text?.trim()
+    return trimmed ? trimmed.slice(0, MAX_PUBLIC_DESCRIPTION) : null
+  },
+
+  /**
+   * "150000", "150000.5" y "150000.50" son el mismo precio; vacío o cero es
+   * "Consultar" (null), no un precio gratis.
+   */
+  normalizeListingPrice(price: string | null | undefined): string | null {
+    const trimmed = price?.trim()
+    if (!trimmed) return null
+    const amount = roundMoney(trimmed)
+    return amount.isZero() ? null : amount.toFixed(2)
   },
 
   /** Notas vacías se guardan como null, no como "". */

@@ -20,6 +20,7 @@ import { Logger } from 'nestjs-pino'
 import { createLogger } from '@/shared/logging/root-logger'
 import { GlobalExceptionFilter } from './shared/infra/filters/global-exception.filter'
 import { PrismaExceptionFilter } from './shared/infra/filters/prisma-exception.filter'
+import { noStoreForPrivateApi } from './shared/infra/http/no-store.middleware'
 import { CustomValidationPipe } from './shared/infra/pipes/custom-validation.pipe'
 
 /**
@@ -94,6 +95,8 @@ function configureSecurity(
     }),
   )
 
+  app.use(noStoreForPrivateApi)
+
   // CORS cerrado por defecto: sin CORS_ORIGINS no se habilita ningún origen.
   // El `app.enableCors()` sin argumentos que traía el template dejaba entrar a
   // cualquier sitio.
@@ -117,6 +120,8 @@ function configureSecurity(
         'Authorization',
         'x-correlation-id',
         'x-request-id',
+        // El navegador hace preflight por este header al registrar un pago.
+        'Idempotency-Key',
       ],
       exposedHeaders: ['x-correlation-id', 'Retry-After'],
       maxAge: 86_400,
@@ -125,8 +130,10 @@ function configureSecurity(
 
   // Detrás de un balanceador, sin esto `req.ip` es la IP del proxy y el rate
   // limiting contaría todo el tráfico como un solo cliente.
-  if (appConfig.trustProxy) {
-    app.set('trust proxy', 1)
+  // El número de saltos (y no `true`) para que un X-Forwarded-For inventado
+  // por el cliente no cuente como su IP (D-252).
+  if (appConfig.trustProxyHops > 0) {
+    app.set('trust proxy', appConfig.trustProxyHops)
   }
 
   // No regalar la tecnología del backend.
@@ -140,7 +147,18 @@ function configureRequestHandling(
   app.use(compression())
 
   // Límite explícito de payload: sin tope, un body gigante es un DoS barato.
-  app.use(json({ limit: appConfig.bodyLimit }))
+  app.use(
+    json({
+      limit: appConfig.bodyLimit,
+      // La firma de un webhook se calcula sobre los bytes exactos que llegaron;
+      // un JSON re-serializado no la reproduce. Sólo se guarda para /webhooks.
+      verify: (req, _res, buf) => {
+        if (req.url?.includes('/webhooks/')) {
+          ;(req as typeof req & { rawBody?: Buffer }).rawBody = buf
+        }
+      },
+    }),
+  )
   app.use(urlencoded({ extended: true, limit: appConfig.bodyLimit }))
 
   app.useGlobalPipes(new CustomValidationPipe())

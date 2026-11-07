@@ -1,4 +1,4 @@
-import { BankAccount, Owner } from './owner'
+import { BankAccount, Owner, OwnerFeeSettings } from './owner'
 
 /** Datos personales: los bancarios tienen su propio camino (spec 3.5). */
 export interface OwnerPersonalData {
@@ -36,6 +36,9 @@ export abstract class OwnerRepository {
 
   abstract findByNationalId(nationalId: string): Promise<Owner | null>
 
+  /** Los de esos DNI/CUIT, en una sola consulta (migración, Fase 21). */
+  abstract findByNationalIds(nationalIds: string[]): Promise<Owner[]>
+
   /** Los que ya tienen ese CBU (puede haber más de uno: no se bloquea). */
   abstract findByCbu(cbu: string): Promise<Owner[]>
 
@@ -49,7 +52,15 @@ export abstract class OwnerRepository {
 
   abstract updateBankAccount(id: string, account: BankAccount): Promise<Owner>
 
+  abstract updateFeeSettings(
+    id: string,
+    settings: OwnerFeeSettings,
+  ): Promise<Owner>
+
   abstract setPortalUser(id: string, portalUserId: string): Promise<void>
+
+  /** El owner cuya cuenta de portal es ese usuario (Fase 15: autorizar descargas). */
+  abstract findByPortalUser(portalUserId: string): Promise<Owner | null>
 
   abstract softDelete(id: string): Promise<void>
 }

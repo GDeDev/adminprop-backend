@@ -25,6 +25,7 @@ import {
   IssueOwnerPortalCredentialsCommand,
   UpdateOwnerBankAccountCommand,
   UpdateOwnerCommand,
+  UpdateOwnerFeeSettingsCommand,
 } from './owner.commands'
 
 async function requireOwner(
@@ -137,6 +138,33 @@ export class UpdateOwnerBankAccountHandler implements ICommandHandler<
     const owner = await requireOwner(this.owners, command.id)
     const account = OwnerPolicy.normalizeBankAccount(command.bankAccount)
     const updated = await this.owners.updateBankAccount(owner.id, account)
+    return this.views.detail(updated)
+  }
+}
+
+/**
+ * Honorarios y envíos (Fase 12, 2.1; Micaela #5 y #7). Endpoint aparte y
+ * sólo admin: cambia cuánto cobra la inmobiliaria.
+ */
+@CommandHandler(UpdateOwnerFeeSettingsCommand)
+export class UpdateOwnerFeeSettingsHandler implements ICommandHandler<
+  UpdateOwnerFeeSettingsCommand,
+  OwnerDetailView
+> {
+  constructor(
+    private readonly owners: OwnerRepository,
+    private readonly views: OwnerViews,
+  ) {}
+
+  async execute(
+    command: UpdateOwnerFeeSettingsCommand,
+  ): Promise<OwnerDetailView> {
+    const owner = await requireOwner(this.owners, command.id)
+    const settings = OwnerPolicy.normalizeFeeSettings(
+      owner.feeSettings,
+      command.changes,
+    )
+    const updated = await this.owners.updateFeeSettings(owner.id, settings)
     return this.views.detail(updated)
   }
 }

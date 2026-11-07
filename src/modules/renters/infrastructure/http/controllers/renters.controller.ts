@@ -78,7 +78,7 @@ export class RentersController {
     summary: 'Listar, con búsqueda por nombre o DNI',
     description:
       'Cada inquilino trae a su garante. Los filtros `paymentStatus` (Fase 11) y ' +
-      '`propertyId` (Fase 9) se aceptan y validan desde ya, pero todavía no filtran: ' +
+      '`propertyId` (D-51) se aceptan y validan desde ya, pero todavía no filtran: ' +
       'no hay cuotas ni contratos contra qué cruzar.',
   })
   @ApiPaginatedResponse(RenterSummaryDto, 'Inquilinos de la inmobiliaria')
@@ -122,7 +122,7 @@ export class RentersController {
   @ApiOperation({
     summary: 'Ficha completa, con el garante expandido',
     description:
-      '`activeContract` (Fase 9) y `payments` (Fase 11) vienen vacíos hasta esas fases.',
+      '`activeContract` trae el id del contrato activo; `payments` (Fase 11) viene vacío hasta esa fase.',
   })
   @ApiResponse({ status: 200, type: RenterDetailDto })
   @ApiResponse({ status: 404, type: ApiErrorDto })

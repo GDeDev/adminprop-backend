@@ -35,6 +35,9 @@ export abstract class UserRepository {
   /** Busca dentro del tenant del contexto. */
   abstract findById(id: string): Promise<User | null>
 
+  /** Varios por id, dentro del tenant del contexto. Los borrados no aparecen. */
+  abstract findByIds(ids: string[]): Promise<User[]>
+
   /**
    * Busca un usuario **interno** (admin o empleado) en **todos** los tenants:
    * el login del backoffice todavía no sabe a qué inmobiliaria pertenece y lo

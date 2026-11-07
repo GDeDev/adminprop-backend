@@ -7,8 +7,11 @@ import {
   toPublicUser,
   User,
 } from '@/modules/auth/domain/entities/user.entity'
+import { PortalRole } from '@/modules/auth/domain/enums/role.enum'
+import { RequestContext } from '@/shared/context/request-context'
 import { AuthErrors } from '@/modules/auth/domain/exceptions/auth.exceptions'
 import { UserRepository } from '@/modules/auth/domain/repositories/user.repository'
+import { AuditFacade, actorKindOf } from '@/modules/audit/public'
 import { AuthTokenIssuer } from '@/modules/auth/infrastructure/services/auth-token-issuer.service'
 import { PasswordService } from '@/modules/auth/infrastructure/services/password.service'
 import { AccountLockConfig, Configuration } from '@/shared/config/configuration'
@@ -32,9 +35,37 @@ export class SignInService {
     private readonly userRepository: UserRepository,
     private readonly passwordService: PasswordService,
     private readonly tokenIssuer: AuthTokenIssuer,
+    private readonly audit: AuditFacade,
     configService: ConfigService<Configuration, true>,
   ) {
     this.lockConfig = configService.get('accountLock', { infer: true })
+  }
+
+  /**
+   * Tope de filas de auditoría por IP para logins de usuarios inexistentes.
+   * Cada fila guarda un email que escribió el atacante, y el throttle de login
+   * limita la frecuencia pero no el volumen acumulado: sin este tope una IP (o
+   * muchas) llenaba `audit_logs` sin límite. Pasado el tope el intento se sigue
+   * rechazando y logueando, sólo que no se persiste.
+   */
+  private static readonly UNKNOWN_ATTEMPTS_WINDOW_MS = 15 * 60 * 1000
+  private static readonly UNKNOWN_ATTEMPTS_MAX_ROWS = 10
+
+  private async mayRecordUnknownAttempt(ip?: string | null): Promise<boolean> {
+    const since = new Date(
+      Date.now() - SignInService.UNKNOWN_ATTEMPTS_WINDOW_MS,
+    )
+    try {
+      const recent = await this.audit.countGlobalSince(
+        'LOGIN_FAILED',
+        ip ?? null,
+        since,
+      )
+      return recent < SignInService.UNKNOWN_ATTEMPTS_MAX_ROWS
+    } catch {
+      // Contar es un lujo: si falla, se registra como antes.
+      return true
+    }
   }
 
   /**
@@ -46,8 +77,29 @@ export class SignInService {
     password: string,
     reason: string,
     metadata: Record<string, unknown> = {},
+    attempt?: {
+      email: string
+      context: SessionContext
+      portalRole?: PortalRole
+    },
   ): Promise<never> {
     await this.passwordService.burnCompare(password)
+    if (attempt && (await this.mayRecordUnknownAttempt(attempt.context.ip))) {
+      await this.audit.record({
+        action: 'LOGIN_FAILED',
+        entity: 'User',
+        summary: 'Intento de acceso fallido: usuario inexistente',
+        changes: { reason: { after: reason } },
+        // Sin inmobiliaria conocida la fila es global: no la ve ninguna.
+        tenantId: RequestContext.tenantId ?? null,
+        userId: null,
+        userEmail: attempt.email,
+        ip: attempt.context.ip ?? null,
+        actorKind: attempt.portalRole
+          ? actorKindOf(attempt.portalRole, true)
+          : 'SYSTEM',
+      })
+    }
     this.logger.warn(
       { operation: 'auth_login_failed', reason, ...metadata },
       'Login fallido: usuario inexistente',
@@ -67,17 +119,25 @@ export class SignInService {
     password: string,
     context: SessionContext,
   ): Promise<AuthResult> {
+    // Cuenta bloqueada: el mismo 401 genérico que una contraseña incorrecta
+    // (D-250). Un 403 `ACCOUNT_LOCKED` le confirmaba a quien prueba que el
+    // email existe, y responder sin bcrypt lo delataba por el tiempo. El
+    // resultado de la comparación se descarta: estando bloqueada no entra ni
+    // con la contraseña correcta.
     const lockedUntil = activeLockUntil(user)
     if (lockedUntil) {
+      await this.passwordService.compare(password, user.passwordHash)
+      await this.recordFailure(user, context, 'account_locked')
       this.logger.warn(
         {
           operation: 'auth_login_failed',
           reason: 'account_locked',
           userId: user.id,
+          lockedUntil: lockedUntil.toISOString(),
         },
         'Login rechazado: cuenta bloqueada',
       )
-      throw AuthErrors.accountLocked(lockedUntil)
+      throw AuthErrors.invalidCredentials({ reason: 'account_locked' })
     }
 
     const passwordMatches = await this.passwordService.compare(
@@ -86,6 +146,7 @@ export class SignInService {
     )
 
     if (!passwordMatches) {
+      await this.recordFailure(user, context, 'bad_password')
       await this.userRepository.registerFailedLogin(
         user.id,
         this.lockConfig.maxFailedAttempts,
@@ -108,6 +169,7 @@ export class SignInService {
     // de validar la contraseña para gastar el mismo tiempo de bcrypt.
     if (!canSignIn(user)) {
       const reason = user.isActive ? 'tenant_inactive' : 'inactive'
+      await this.recordFailure(user, context, reason)
       this.logger.warn(
         { operation: 'auth_login_failed', reason, userId: user.id },
         'Login rechazado: cuenta inactiva',
@@ -130,11 +192,45 @@ export class SignInService {
 
     const tokens = await this.tokenIssuer.issueNewSession(user, context)
 
+    await this.audit.record({
+      action: 'LOGIN',
+      entity: 'User',
+      entityId: user.id,
+      summary: 'Inició sesión',
+      ...this.actorOf(user, context),
+    })
+
     this.logger.info(
       { operation: 'auth_login', userId: user.id, role: user.role },
       'Login exitoso',
     )
 
     return { user: toPublicUser(user), tokens }
+  }
+
+  private async recordFailure(
+    user: User,
+    context: SessionContext,
+    reason: string,
+  ): Promise<void> {
+    await this.audit.record({
+      action: 'LOGIN_FAILED',
+      entity: 'User',
+      entityId: user.id,
+      summary: 'Intento de acceso fallido',
+      changes: { reason: { after: reason } },
+      ...this.actorOf(user, context),
+    })
+  }
+
+  /** Quién es y desde dónde: el login todavía no tiene `RequestContext` de usuario. */
+  private actorOf(user: User, context: SessionContext) {
+    return {
+      tenantId: user.tenantId,
+      userId: user.id,
+      userEmail: user.email,
+      ip: context.ip ?? null,
+      actorKind: actorKindOf(user.role, true),
+    }
   }
 }

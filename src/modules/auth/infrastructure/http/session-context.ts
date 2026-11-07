@@ -1,6 +1,7 @@
 import { Request } from 'express'
 
 import { SessionContext } from '@/modules/auth/application/results/auth-result'
+import { RequestContext } from '@/shared/context/request-context'
 
 /** Largo de la columna `refresh_tokens.user_agent`. */
 const MAX_USER_AGENT_LENGTH = 255
@@ -18,10 +19,8 @@ export function sessionContextFrom(request: Request): SessionContext {
       typeof userAgent === 'string'
         ? userAgent.slice(0, MAX_USER_AGENT_LENGTH)
         : null,
-    // Con TRUST_PROXY activo, `req.ips[0]` es el cliente real y no el balanceador.
-    ip:
-      (Array.isArray(request.ips) && request.ips.length
-        ? request.ips[0]
-        : request.ip) ?? null,
+    // La resolvió el middleware de contexto (`resolveClientIp`, D-252): la del
+    // visitante aunque el login llegue por el BFF del backoffice.
+    ip: RequestContext.get()?.ip ?? request.ip ?? null,
   }
 }

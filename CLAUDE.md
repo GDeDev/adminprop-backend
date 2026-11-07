@@ -202,6 +202,8 @@ Cosas que están así a propósito y conviene no "simplificar":
 
 - **`JwtAuthGuard` es global y cierra por defecto.** Un endpoint nuevo nace
   protegido; se abre con `@IsPublic()`.
+- **`RolesGuard` también cierra por defecto (D-195).** Un handler sin `@Roles`, `@AnyRole` ni `@IsPublic` da 403 a todos; un test recorre los controllers y lo exige.
+- **Los PDFs y comprobantes son privados (D-196).** Se suben con `access: 'private'` y salen con URL firmada de vida corta; no devuelvas `storage.upload().url` a mano.
 - **El login no revela si un email existe.** Mismo error, mismo mensaje, y un
   bcrypt descartable para igualar los tiempos.
 - **Los refresh tokens rotan y se guarda su hash.** Reusar uno ya rotado revoca

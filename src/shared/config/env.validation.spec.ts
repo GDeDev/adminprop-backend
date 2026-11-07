@@ -17,6 +17,39 @@ describe('validateEnv', () => {
     expect(result.NODE_ENV).toBe(Environment.Development)
   })
 
+  it('acepta las variables de los sitios web, con el booleano como texto', () => {
+    // Doppler y los .env entregan siempre strings: "false" tiene que ser false.
+    // Antes SITES_DOMAIN_VERIFICATION=false se rechazaba (faltaba @toBool).
+    const result = validateEnv({
+      ...VALID_ENV,
+      SITES_DOMAIN_VERIFICATION: 'false',
+      SITES_BASE_DOMAIN: 'sitios.test',
+      SITES_REVALIDATE_URL: 'http://localhost:3003',
+      SITES_REVALIDATE_SECRET: 'secreto',
+    })
+
+    expect(result.SITES_DOMAIN_VERIFICATION).toBe(false)
+    expect(validateEnv(VALID_ENV).SITES_DOMAIN_VERIFICATION).toBeUndefined()
+  })
+
+  it('SITES_PREVIEW_SECRET es obligatoria y larga en producción, y opcional afuera', () => {
+    const production = { ...VALID_ENV, NODE_ENV: 'production' }
+
+    expect(() => validateEnv(production)).toThrow(/SITES_PREVIEW_SECRET/)
+    expect(() =>
+      validateEnv({ ...production, SITES_PREVIEW_SECRET: 'corta' }),
+    ).toThrow(/SITES_PREVIEW_SECRET/)
+    expect(() =>
+      validateEnv({ ...production, SITES_PREVIEW_SECRET: 'p'.repeat(40) }),
+    ).not.toThrow()
+    // Antes qa quedaba con el valor fijo del repo, que es público.
+    expect(() => validateEnv({ ...VALID_ENV, NODE_ENV: 'qa' })).toThrow(
+      /SITES_PREVIEW_SECRET/,
+    )
+    // En desarrollo y test alcanza con el valor de desarrollo.
+    expect(() => validateEnv(VALID_ENV)).not.toThrow()
+  })
+
   it('falla si falta DATABASE_URL', () => {
     const { DATABASE_URL: _omitted, ...withoutDb } = VALID_ENV
 
@@ -100,5 +133,130 @@ describe('validateEnv', () => {
         validateEnv({ ...VALID_ENV, STORAGE_PROVIDER: 's3' }),
       ).toThrow(/STORAGE_PROVIDER/)
     })
+  })
+
+  describe('fuentes de comparables (Fase 24)', () => {
+    it('acepta una lista válida', () => {
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          COMPARABLES_SOURCES: 'zonaprop, argenprop',
+        }),
+      ).not.toThrow()
+    })
+
+    it('rechaza una fuente desconocida', () => {
+      expect(() =>
+        validateEnv({ ...VALID_ENV, COMPARABLES_SOURCES: 'zonaprop,tokko' }),
+      ).toThrow(/tokko/)
+    })
+
+    it('rechaza la fuente de prueba en producción', () => {
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          NODE_ENV: 'production',
+          COMPARABLES_SOURCES: 'fake',
+        }),
+      ).toThrow(/fake/)
+    })
+  })
+
+  // Antes sólo se advertía con un log al arrancar y la API quedaba abierta.
+  it('rechaza CORS_ORIGINS con * fuera de desarrollo y test', () => {
+    const preview = { SITES_PREVIEW_SECRET: 'p'.repeat(40) }
+    for (const NODE_ENV of ['production', 'qa']) {
+      expect(() =>
+        validateEnv({ ...VALID_ENV, ...preview, NODE_ENV, CORS_ORIGINS: '*' }),
+      ).toThrow(/CORS_ORIGINS/)
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          ...preview,
+          NODE_ENV,
+          CORS_ORIGINS: 'https://a.com, *',
+        }),
+      ).toThrow(/CORS_ORIGINS/)
+      expect(() =>
+        validateEnv({
+          ...VALID_ENV,
+          ...preview,
+          NODE_ENV,
+          CORS_ORIGINS: 'https://a.com,https://b.com',
+        }),
+      ).not.toThrow()
+    }
+    expect(() => validateEnv({ ...VALID_ENV, CORS_ORIGINS: '*' })).not.toThrow()
+  })
+})
+
+describe('validateEnv: NODE_ENV explícito y secretos de ejemplo (D-251)', () => {
+  const savedWorker = process.env.JEST_WORKER_ID
+  afterEach(() => {
+    process.env.JEST_WORKER_ID = savedWorker
+  })
+
+  // Antes, sin NODE_ENV la app arrancaba como development (Swagger prendido y
+  // sin las exigencias de producción).
+  it('fuera de jest, falla si NODE_ENV no está o está vacía', () => {
+    delete process.env.JEST_WORKER_ID
+    const { NODE_ENV: _omit, ...withoutNodeEnv } = VALID_ENV
+    expect(() => validateEnv(withoutNodeEnv)).toThrow(/NODE_ENV es obligatoria/)
+    expect(() => validateEnv({ ...VALID_ENV, NODE_ENV: '' })).toThrow(
+      /NODE_ENV es obligatoria/,
+    )
+    expect(() => validateEnv(VALID_ENV)).not.toThrow()
+  })
+
+  it('dentro de jest, NODE_ENV puede faltar', () => {
+    const { NODE_ENV: _omit, ...withoutNodeEnv } = VALID_ENV
+    expect(() => validateEnv(withoutNodeEnv)).not.toThrow()
+  })
+
+  // Los de .env.example están en el repo: con ellos cualquiera firma tokens.
+  it('rechaza los secretos JWT de ejemplo fuera de test', () => {
+    const example = 'REEMPLAZAME_con_openssl_rand_base64_48_minimo_32_chars'
+    expect(() =>
+      validateEnv({ ...VALID_ENV, JWT_ACCESS_SECRET: example }),
+    ).toThrow(/JWT_ACCESS_SECRET es el valor de ejemplo/)
+    expect(() =>
+      validateEnv({
+        ...VALID_ENV,
+        NODE_ENV: 'production',
+        SITES_PREVIEW_SECRET: 'p'.repeat(40),
+        JWT_REFRESH_SECRET: `${example}_otro`,
+      }),
+    ).toThrow(/JWT_REFRESH_SECRET es el valor de ejemplo/)
+    expect(() =>
+      validateEnv({
+        ...VALID_ENV,
+        NODE_ENV: 'test',
+        JWT_ACCESS_SECRET: example,
+      }),
+    ).not.toThrow()
+  })
+})
+
+describe('validateEnv: BACKOFFICE_BASE_URL con Mercado Libre', () => {
+  const production = {
+    ...VALID_ENV,
+    NODE_ENV: 'production',
+    SITES_PREVIEW_SECRET: 'p'.repeat(40),
+    LISTING_PUBLISHER_PROVIDER: 'mercadolibre',
+    MERCADOLIBRE_APP_ID: 'app',
+    MERCADOLIBRE_CLIENT_SECRET: 'secreto',
+    MERCADOLIBRE_REDIRECT_URI: 'https://api.ejemplo.com/cb',
+    APP_ENCRYPTION_KEY: 'a'.repeat(64),
+  }
+
+  // Antes, sin ella, la vuelta del OAuth era una ruta relativa al host de la API.
+  it('es obligatoria fuera de desarrollo', () => {
+    expect(() => validateEnv(production)).toThrow(/BACKOFFICE_BASE_URL/)
+    expect(() =>
+      validateEnv({
+        ...production,
+        BACKOFFICE_BASE_URL: 'https://app.ejemplo.com',
+      }),
+    ).not.toThrow()
   })
 })

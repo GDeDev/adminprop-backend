@@ -1,8 +1,13 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 import { randomUUID } from 'node:crypto'
 
+import { TenantsFacade } from '@/modules/tenants/public'
 import { OwnersFacade } from '@/modules/owners/public/owners.facade'
-import { Property } from '@/modules/properties/domain/property'
+import {
+  ListingCurrency,
+  ListingOperation,
+  Property,
+} from '@/modules/properties/domain/property'
 import {
   InvalidOwnerReferenceException,
   PropertyNotFoundException,
@@ -56,6 +61,7 @@ export class CreatePropertyHandler implements ICommandHandler<
     private readonly properties: PropertyRepository,
     private readonly references: MasterDataReferences,
     private readonly owners: OwnersFacade,
+    private readonly tenants: TenantsFacade,
     private readonly views: PropertyViews,
   ) {}
 
@@ -73,6 +79,14 @@ export class CreatePropertyHandler implements ICommandHandler<
       address: PropertyPolicy.normalizeAddress(data.address),
       notes: PropertyPolicy.normalizeNotes(data.notes),
       amenityIds,
+      listingPrice: PropertyPolicy.normalizeListingPrice(data.listingPrice),
+      listingCurrency:
+        data.listingCurrency ??
+        ((await this.tenants.defaultCurrency()) as ListingCurrency),
+      publicDescription: PropertyPolicy.normalizePublicDescription(
+        data.publicDescription,
+      ),
+      listingOperation: data.listingOperation ?? ListingOperation.RENT,
     })
     return this.views.detail(property)
   }
@@ -124,6 +138,26 @@ export class UpdatePropertyHandler implements ICommandHandler<
     }
     if (changes.notes !== undefined) {
       changes.notes = PropertyPolicy.normalizeNotes(changes.notes)
+    }
+
+    if (changes.listingPrice !== undefined) {
+      changes.listingPrice = PropertyPolicy.normalizeListingPrice(
+        changes.listingPrice,
+      )
+    }
+    if (changes.publicDescription !== undefined) {
+      changes.publicDescription = PropertyPolicy.normalizePublicDescription(
+        changes.publicDescription,
+      )
+    }
+
+    // Elegir otra ubicación es justamente revisar la propiedad (A-77).
+    if (
+      changes.needsReview === undefined &&
+      changes.locationId !== undefined &&
+      changes.locationId !== current.locationId
+    ) {
+      changes.needsReview = false
     }
 
     const updated = await this.properties.update(current.id, changes)

@@ -20,6 +20,30 @@ describe('PropertyPolicy', () => {
     )
   })
 
+  describe('datos de publicación', () => {
+    it('normaliza el precio a dos decimales', () => {
+      expect(PropertyPolicy.normalizeListingPrice('150000')).toBe('150000.00')
+      expect(PropertyPolicy.normalizeListingPrice(' 99.5 ')).toBe('99.50')
+    })
+
+    it('sin precio, vacío o cero es "Consultar" (null)', () => {
+      expect(PropertyPolicy.normalizeListingPrice(null)).toBeNull()
+      expect(PropertyPolicy.normalizeListingPrice(undefined)).toBeNull()
+      expect(PropertyPolicy.normalizeListingPrice('  ')).toBeNull()
+      expect(PropertyPolicy.normalizeListingPrice('0.00')).toBeNull()
+    })
+
+    it('la descripción pública vacía es null y se recorta al máximo', () => {
+      expect(PropertyPolicy.normalizePublicDescription('   ')).toBeNull()
+      expect(PropertyPolicy.normalizePublicDescription('  Luminoso ')).toBe(
+        'Luminoso',
+      )
+      expect(
+        PropertyPolicy.normalizePublicDescription('a'.repeat(2500)),
+      ).toHaveLength(2000)
+    })
+  })
+
   describe('cambio manual de estado', () => {
     it.each([
       [AVAILABLE, RENTED],

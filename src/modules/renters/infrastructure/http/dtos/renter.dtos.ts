@@ -132,7 +132,7 @@ export class ListRentersQueryDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description:
-      'Se valida pero todavía no filtra: la propiedad del inquilino sale de su contrato (Fase 9).',
+      'Se valida pero todavía no filtra: inquilinos no conoce la propiedad de cada contrato (D-51).',
   })
   @IsOptional()
   @IsUUID('all')
@@ -186,6 +186,12 @@ export class RenterSummaryDto {
   guarantor: GuarantorRefDto | null
   @ApiProperty() hasPortalAccess: boolean
   @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Contrato activo del que es titular, si lo hay',
+  })
+  activeContractId: string | null
+  @ApiProperty({
     enum: PaymentStatus,
     nullable: true,
     description:
@@ -194,6 +200,10 @@ export class RenterSummaryDto {
   paymentStatus: PaymentStatus | null
   @ApiProperty() createdAt: Date
   @ApiProperty() updatedAt: Date
+}
+
+export class RenterActiveContractDto {
+  @ApiProperty() id: string
 }
 
 /** La ficha: el garante viene expandido, no sólo como referencia. */
@@ -205,12 +215,12 @@ export class RenterDetailDto extends OmitType(RenterSummaryDto, [
   @ApiProperty({ type: RenterGuarantorDto, nullable: true })
   guarantor: RenterGuarantorDto | null
   @ApiProperty({
-    type: 'object',
+    type: RenterActiveContractDto,
     nullable: true,
-    additionalProperties: false,
-    description: 'Contrato activo. Siempre null hasta los contratos (Fase 9).',
+    description:
+      'Contrato activo del que es titular. El detalle se pide a GET /contracts/:id.',
   })
-  activeContract: null
+  activeContract: RenterActiveContractDto | null
   @ApiProperty({
     type: 'array',
     items: { type: 'object', additionalProperties: false },

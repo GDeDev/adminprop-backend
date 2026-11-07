@@ -41,6 +41,9 @@ export interface SignedRefreshToken {
  * Cada token lleva un claim `typ`: aunque los secretos ya son distintos, evita
  * por completo que un access token pase por refresh o al revés.
  */
+/** HMAC con el secreto propio; se fija al firmar y al verificar. */
+const JWT_ALGORITHM = 'HS256'
+
 @Injectable()
 export class TokenService {
   private readonly config: JwtConfig
@@ -67,6 +70,7 @@ export class TokenService {
       expiresIn: this.config.accessTtl,
       issuer: this.config.issuer,
       audience: this.config.audience,
+      algorithm: JWT_ALGORITHM,
     })
 
     return { token, expiresIn: this.expiresInSeconds(token) }
@@ -95,6 +99,7 @@ export class TokenService {
       expiresIn: this.config.refreshTtl,
       issuer: this.config.issuer,
       audience: this.config.audience,
+      algorithm: JWT_ALGORITHM,
     })
 
     return {
@@ -156,6 +161,8 @@ export class TokenService {
         secret,
         issuer: this.config.issuer,
         audience: this.config.audience,
+        // Fijo (H14): sin lista, la librería acepta cualquier HS* con el secreto.
+        algorithms: [JWT_ALGORITHM],
       })
     } catch (error) {
       if (error instanceof TokenExpiredError) throw onExpired()

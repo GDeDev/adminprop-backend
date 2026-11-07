@@ -1,4 +1,10 @@
-import { Property, PropertyPhoto, PropertyStatus } from './property'
+import {
+  ListingCurrency,
+  ListingOperation,
+  Property,
+  PropertyPhoto,
+  PropertyStatus,
+} from './property'
 
 export interface PropertyData {
   address: string
@@ -7,6 +13,47 @@ export interface PropertyData {
   ownerId: string | null
   amenityIds: string[]
   notes: string | null
+  listingPrice: string | null
+  listingCurrency: ListingCurrency
+  publicDescription: string | null
+  /** Sólo la migración lo manda; una alta manual nace en false. */
+  needsReview?: boolean
+  listingOperation: ListingOperation
+  bedrooms: number | null
+  bathrooms: number | null
+  rooms: number | null
+  totalAreaM2: number | null
+  coveredAreaM2: number | null
+  ageYears: number | null
+  latitude: number | null
+  longitude: number | null
+}
+
+/** Orden del listado público. */
+export const PUBLIC_PROPERTY_SORTS = [
+  'recent',
+  'price_asc',
+  'price_desc',
+] as const
+export type PublicPropertySort = (typeof PUBLIC_PROPERTY_SORTS)[number]
+
+/** Filtros del portal público (Fase 22). Siempre sobre propiedades disponibles. */
+export interface PublicPropertyFilter {
+  locationId?: string
+  propertyTypeId?: string
+  /** Montos en string; sólo tienen sentido junto con `currency`. */
+  priceFrom?: string
+  priceTo?: string
+  currency?: ListingCurrency
+  /** Venta o alquiler. */
+  operation?: ListingOperation
+  /** Mínimos: "2 o más". */
+  bedroomsMin?: number
+  bathroomsMin?: number
+  /** Sólo estas (destacadas a mano del sitio web); las no disponibles no vuelven. */
+  ids?: string[]
+  /** Por defecto `recent`. */
+  sort?: PublicPropertySort
 }
 
 export interface PropertyFilter {
@@ -15,6 +62,8 @@ export interface PropertyFilter {
   propertyTypeId?: string
   /** Parte de la dirección, sin distinguir mayúsculas. */
   search?: string
+  /** Sólo las marcadas para revisar (o las que no) tras una migración. */
+  needsReview?: boolean
 }
 
 /**
@@ -32,9 +81,39 @@ export abstract class PropertyRepository {
     page: { skip: number; take: number },
   ): Promise<[Property[], number]>
 
+  /**
+   * Las disponibles para el portal público, más nuevas primero, con sus fotos
+   * y sin ningún filtro por propietario o contrato (Fase 22).
+   */
+  abstract listPublic(
+    filter: PublicPropertyFilter,
+    page: { skip: number; take: number },
+  ): Promise<[Property[], number]>
+
+  /** Una propiedad disponible con todas sus fotos; null si no lo está. */
+  abstract findPublicById(id: string): Promise<Property | null>
+
+  /** Ubicaciones y tipos de las propiedades disponibles (para los selects). */
+  abstract publicFilterOptions(): Promise<{
+    locationIds: string[]
+    propertyTypeIds: string[]
+  }>
+
+  /** Todas las que cumplen el filtro, sin paginar (reportes de la Fase 19). */
+  abstract listAll(filter: PropertyFilter): Promise<Property[]>
+
   abstract update(id: string, data: Partial<PropertyData>): Promise<Property>
 
   abstract setStatus(id: string, status: PropertyStatus): Promise<Property>
+
+  /**
+   * Vincula el contrato activo: la propiedad pasa a alquilada y el contrato
+   * queda también como el último que tuvo. Lo llama sólo la facade.
+   */
+  abstract attachContract(id: string, contractId: string): Promise<Property>
+
+  /** Desvincula el contrato activo: la propiedad vuelve a disponible. */
+  abstract detachContract(id: string): Promise<Property>
 
   abstract softDelete(id: string): Promise<void>
 
@@ -49,20 +128,26 @@ export abstract class PropertyRepository {
 
   abstract deletePhoto(propertyId: string, photoId: string): Promise<void>
 
-  /** Cantidad de propiedades de cada propietario, por estado. */
+  /**
+   * Cantidad de propiedades (no borradas) de cada propietario, y cuántas de
+   * ellas tienen contrato activo.
+   */
   abstract countByOwners(
     ownerIds: string[],
-  ): Promise<{ ownerId: string; status: PropertyStatus; count: number }[]>
+  ): Promise<{ ownerId: string; total: number; active: number }[]>
 
   /** Las propiedades de un propietario, por dirección. Con la foto principal. */
   abstract listByOwner(ownerId: string): Promise<Property[]>
+
+  /** Dirección de cada una, en una consulta. Las borradas no aparecen. */
+  abstract findByIds(ids: string[]): Promise<Property[]>
 }
 
 /**
- * Lo que las reglas de propiedades necesitan saber de los contratos (Fase 9).
- * Hasta que existan, la implementación responde que no hay ninguno; la Fase
- * 9 la reemplaza por una que le pregunta al módulo de contratos, sin tocar
- * las reglas.
+ * Lo que las reglas de propiedades necesitan saber de los contratos. El
+ * módulo de contratos no se importa (sería un ciclo: él depende de
+ * propiedades); se lee el vínculo que ese módulo deja en la propia fila por
+ * la facade (D-51).
  */
 export abstract class PropertyContracts {
   abstract hasActiveContract(propertyId: string): Promise<boolean>

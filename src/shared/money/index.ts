@@ -4,10 +4,12 @@ export {
   toDecimal,
   roundMoney,
   addMoney,
+  sumMoney,
   subtractMoney,
   multiplyMoney,
   percentageOf,
   compareMoney,
+  isPositiveMoney,
   toMoneyString,
   formatMoney,
 } from './money'

@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config'
 import { Test, TestingModule } from '@nestjs/testing'
 
+import { AuditFacade } from '@/modules/audit/public'
 import { User } from '@/modules/auth/domain/entities/user.entity'
 import { Role } from '@/modules/auth/domain/enums/role.enum'
 import { UserRepository } from '@/modules/auth/domain/repositories/user.repository'
@@ -73,6 +74,13 @@ describe('LoginHandler', () => {
         {
           provide: AuthTokenIssuer,
           useValue: { issueNewSession: jest.fn().mockResolvedValue(TOKENS) },
+        },
+        {
+          provide: AuditFacade,
+          useValue: {
+            record: jest.fn(),
+            countGlobalSince: jest.fn().mockResolvedValue(0),
+          },
         },
         {
           provide: ConfigService,
@@ -166,17 +174,22 @@ describe('LoginHandler', () => {
     )
   })
 
-  it('rechaza una cuenta bloqueada sin siquiera validar la contraseña', async () => {
+  // Antes respondía 403 ACCOUNT_LOCKED sin pasar por bcrypt: el código y el
+  // tiempo de respuesta confirmaban que el email existía.
+  it('rechaza una cuenta bloqueada con el mismo 401 genérico, aun con la contraseña correcta', async () => {
     userRepository.findInternalByEmail.mockResolvedValue(
       buildUser({ lockedUntil: new Date(Date.now() + 60_000) }),
     )
+    passwordService.compare.mockResolvedValue(true)
 
     const error = await handler
       .execute(new LoginCommand('ana@ejemplo.com', 'ClaveCorrecta1'))
       .catch((e) => e)
 
-    expect(error.code).toBe(ErrorCode.ACCOUNT_LOCKED)
-    expect(passwordService.compare).not.toHaveBeenCalled()
+    expect(error.code).toBe(ErrorCode.INVALID_CREDENTIALS)
+    expect(error.getStatus()).toBe(401)
+    expect(passwordService.compare).toHaveBeenCalled()
+    expect(userRepository.registerSuccessfulLogin).not.toHaveBeenCalled()
   })
 
   it('deja entrar si el bloqueo ya venció', async () => {

@@ -17,6 +17,10 @@ export enum ErrorCode {
   UNSUPPORTED_MEDIA_TYPE = 'UNSUPPORTED_MEDIA_TYPE',
   METHOD_NOT_ALLOWED = 'METHOD_NOT_ALLOWED',
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  /** Se alcanzó el máximo de tasaciones por día de la inmobiliaria (Fase 24). */
+  VALUATION_DAILY_LIMIT = 'VALUATION_DAILY_LIMIT',
+  /** La propiedad no cumple lo mínimo para publicarse en un portal; `errors` lista lo que falta (Fase 23). */
+  LISTING_NOT_READY = 'LISTING_NOT_READY',
   SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
   REQUEST_TIMEOUT = 'REQUEST_TIMEOUT',
 
@@ -49,6 +53,7 @@ export enum ErrorCode {
   // --------------------------------------------------------------- Base de datos
   DATABASE_ERROR = 'DATABASE_ERROR',
   UNIQUE_CONSTRAINT_VIOLATION = 'UNIQUE_CONSTRAINT_VIOLATION',
+  CHECK_CONSTRAINT_VIOLATION = 'CHECK_CONSTRAINT_VIOLATION',
   FOREIGN_KEY_CONSTRAINT_VIOLATION = 'FOREIGN_KEY_CONSTRAINT_VIOLATION',
   RECORD_NOT_FOUND = 'RECORD_NOT_FOUND',
   RELATED_RECORDS_EXIST = 'RELATED_RECORDS_EXIST',

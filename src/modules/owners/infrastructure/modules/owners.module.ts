@@ -5,8 +5,10 @@ import {
   DeleteOwnerHandler,
   IssueOwnerPortalCredentialsHandler,
   UpdateOwnerBankAccountHandler,
+  UpdateOwnerFeeSettingsHandler,
   UpdateOwnerHandler,
 } from '@/modules/owners/application/commands/owner.handlers'
+import { OwnerFeeResolver } from '@/modules/owners/application/owner-fee-resolver'
 import { OwnerViews } from '@/modules/owners/application/owner.views'
 import {
   CheckOwnerDataHandler,
@@ -35,10 +37,12 @@ import { OwnerRepositoryImpl } from '../repositories/owner.repository.impl'
   providers: [
     { provide: OwnerRepository, useClass: OwnerRepositoryImpl },
     OwnerViews,
+    OwnerFeeResolver,
     OwnersFacade,
     CreateOwnerHandler,
     UpdateOwnerHandler,
     UpdateOwnerBankAccountHandler,
+    UpdateOwnerFeeSettingsHandler,
     IssueOwnerPortalCredentialsHandler,
     DeleteOwnerHandler,
     ListOwnersHandler,

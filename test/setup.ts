@@ -31,7 +31,21 @@ process.env.THROTTLE_ENABLED = 'false'
 process.env.FEATURE_FLAGS_PROVIDER = 'memory'
 delete process.env.FLAGSMITH_ENVIRONMENT_KEY
 process.env.EMAIL_PROVIDER = 'console'
+process.env.NOTIFICATIONS_PROVIDER = 'console'
+// Secreto Svix descartable del webhook de Resend: los e2e firman con el mismo.
+process.env.RESEND_WEBHOOK_SECRET = `whsec_${Buffer.from('secreto-de-prueba-e2e').toString('base64')}`
+// Ni el scheduler ni la búsqueda de índices en internet corren solos en los
+// tests: se disparan a mano con una hora fija.
+process.env.AUTOMATIONS_ENABLED = 'false'
+process.env.INDEX_SOURCE_PROVIDER = 'manual'
 // Los e2e esperan a los consumidores de la cola: que busquen seguido.
 process.env.QUEUE_POLLING_INTERVAL_SECONDS = '0.5'
+process.env.SITES_BASE_DOMAIN = 'sites.test'
+process.env.SITES_REVALIDATE_SECRET = 'secreto-compartido-e2e'
+process.env.SITES_PREVIEW_SECRET = 'secreto-de-vista-previa-e2e-0123456789'
 process.env.STORAGE_PROVIDER = 'local'
 process.env.STORAGE_LOCAL_DIR = join(tmpdir(), 'adminprop-test-storage')
+
+// Fase 23: clave fija (32 bytes en base64) para cifrar tokens de portales en los tests.
+process.env.APP_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64')
+process.env.LISTING_PUBLISHER_PROVIDER = 'fake'

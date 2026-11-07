@@ -53,27 +53,56 @@ model Tenant {
 
   // ---------------------------------------------------- Parámetros de negocio
   /// Honorarios de administración estándar, en % (PRD: honorarios_pct_estandar).
-  standardFeePercentage    Decimal  @default(5) @map("standard_fee_percentage") @db.Decimal(5, 2)
+  standardFeePercentage       Decimal  @default(5) @map("standard_fee_percentage") @db.Decimal(5, 2)
   /// Honorarios reducidos para propietarios con varias propiedades.
-  reducedFeePercentage     Decimal  @default(3) @map("reduced_fee_percentage") @db.Decimal(5, 2)
+  reducedFeePercentage        Decimal  @default(3) @map("reduced_fee_percentage") @db.Decimal(5, 2)
   /// Cantidad de propiedades activas desde la que aplica el honorario reducido.
-  reducedFeeThreshold      Int      @default(3) @map("reduced_fee_threshold")
+  reducedFeeThreshold         Int      @default(3) @map("reduced_fee_threshold")
   /// Días del mes sin punitorio (del 1 al N).
-  paymentGraceDays         Int      @default(10) @map("payment_grace_days")
-  /// Punitorio diario, en %, a partir del día siguiente a la gracia.
-  dailyLateFeePercentage   Decimal  @default(5) @map("daily_late_fee_percentage") @db.Decimal(5, 2)
+  paymentGraceDays            Int      @default(10) @map("payment_grace_days")
+  /// Punitorio diario por defecto, en %, a partir del día siguiente a la gracia.
+  /// Sin default de esquema (D-228): null = la inmobiliaria no fijó uno y cada
+  /// contrato tiene que indicar el suyo.
+  dailyLateFeePercentage      Decimal? @map("daily_late_fee_percentage") @db.Decimal(5, 2)
   /// Día del mes en que se generan las cuotas del mes siguiente.
-  installmentGenerationDay Int      @default(28) @map("installment_generation_day")
+  installmentGenerationDay    Int      @default(28) @map("installment_generation_day")
+  /// Saldo a favor: false = se aplica a mano (o al registrar un pago); true =
+  /// además se aplica solo al generar la cuota (Micaela #6, D-237).
+  autoApplyCreditOnGeneration Boolean  @default(false) @map("auto_apply_credit_on_generation")
   /// Día del mes en que sale el recordatorio de pago.
-  paymentReminderDay       Int      @default(1) @map("payment_reminder_day")
+  paymentReminderDay          Int      @default(1) @map("payment_reminder_day")
   /// Anticipación, en días, del aviso de vencimiento de contrato.
-  contractExpiryNoticeDays Int      @default(60) @map("contract_expiry_notice_days")
+  contractExpiryNoticeDays    Int      @default(60) @map("contract_expiry_notice_days")
   /// Día del mes en que se envía el informe mensual a propietarios.
-  monthlyReportDay         Int      @default(10) @map("monthly_report_day")
-  defaultCurrency          Currency @default(ARS) @map("default_currency")
+  monthlyReportDay            Int      @default(10) @map("monthly_report_day")
+  defaultCurrency             Currency @default(ARS) @map("default_currency")
 
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  // ---------------------------------------------------- Datos legales (Fase 15)
+  /// Razón social, CUIT y contacto: encabezado y pie de los PDFs y datos del
+  /// recordatorio de pago. Todos opcionales.
+  legalName         String? @map("legal_name") @db.VarChar(200)
+  taxId             String? @map("tax_id") @db.VarChar(20)
+  address           String? @db.VarChar(250)
+  phone             String? @db.VarChar(40)
+  email             String? @db.VarChar(255)
+  /// Sólo dígitos con código de país (5491122334455): arma el link de WhatsApp.
+  whatsapp          String? @db.VarChar(20)
+  bankAccountHolder String? @map("bank_account_holder") @db.VarChar(150)
+  bankName          String? @map("bank_name") @db.VarChar(100)
+  bankCbu           String? @map("bank_cbu") @db.VarChar(22)
+  bankAlias         String? @map("bank_alias") @db.VarChar(60)
+  /// Leyenda al pie de los PDFs (A-34). Sin valor: se usa la fija.
+  documentFooter    String? @map("document_footer") @db.VarChar(500)
+  /// Clave del logo en el storage, para borrar el anterior al reemplazarlo.
+  logoKey           String? @map("logo_key") @db.VarChar(500)
+  /// Último número de recibo emitido; el siguiente es este + 1 (A-33).
+  receiptSequence   Int     @default(0) @map("receipt_sequence")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Quién editó la configuración (la auditoría los completa solos).
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
 
   users     User[]
   asyncJobs AsyncJob[]
@@ -87,11 +116,65 @@ model Tenant {
   operationTypes OperationType[]
   serviceTypes   ServiceType[]
 
+  notificationLogs NotificationLog[]
+  jobExecutions    JobExecution[]
+  idempotencyKeys  IdempotencyKey[]
+
+  generatedDocuments          GeneratedDocument[]
+  propertyInventories         PropertyInventory[]
+  inventoryItems              InventoryItem[]
+  inventoryPhotos             InventoryPhoto[]
+  publicInquiries             PublicInquiry[]
+  notificationTemplates       NotificationTemplate[]
+  notificationSettings        NotificationSetting[]
+  notificationUserPreferences NotificationUserPreference[]
+  emailEvents                 EmailEvent[]
+  whatsappTemplates           WhatsAppTemplate[]
+  importBatches               ImportBatch[]
+  valuationRequests           ValuationRequest[]
+  inquiryActivities           InquiryActivity[]
+  propertyViews               PropertyView[]
+  listingChannels             ListingChannelAccount[]
+  propertyListings            PropertyListing[]
+  importRows                  ImportRow[]
+  importLinks                 ImportLink[]
+  importAssetResults          ImportAssetResult[]
+
   properties     Property[]
   owners         Owner[]
   renters        Renter[]
   guarantors     Guarantor[]
   propertyPhotos PropertyPhoto[]
+
+  contracts            Contract[]
+  contractRentUpdates  ContractRentUpdate[]
+  contractBillingTerms ContractBillingTerms[]
+
+  propertyServices PropertyService[]
+  advanceExpenses  AdvanceExpense[]
+
+  installments            Installment[]
+  installmentCharges      InstallmentCharge[]
+  payments                Payment[]
+  installmentLateFeeDays  InstallmentLateFeeDay[]
+  lateFeeAdjustments      LateFeeAdjustment[]
+  renterCredits           RenterCredit[]
+  depositReturns          DepositReturn[]
+  depositReturnDeductions DepositReturnDeduction[]
+
+  settlements           Settlement[]
+  settlementPayments    SettlementPayment[]
+  settlementExpenses    SettlementExpense[]
+  settlementAdjustments SettlementAdjustment[]
+  settlementTransfers   SettlementTransfer[]
+  ownerStatements       OwnerStatement[]
+  ownerStatementTotals  OwnerStatementTotal[]
+  feeReceivables        FeeReceivable[]
+  feePayments           FeePayment[]
+  feePaymentAllocations FeePaymentAllocation[]
+
+  siteSettings SiteSettings?
+  siteAssets   SiteAsset[]
 
   @@map("tenants")
 }
@@ -159,7 +242,8 @@ model AuditLog {
 
   /// Nombre del modelo de Prisma: "User", "Property", ...
   entity   String      @db.VarChar(64)
-  entityId String      @map("entity_id") @db.VarChar(64)
+  /// Null en los eventos que no cuelgan de una entidad (login de un email desconocido).
+  entityId String?     @map("entity_id") @db.VarChar(64)
   action   AuditAction
 
   /// `{ "price": { "before": "120000.00", "after": "135000.00" } }`
@@ -170,6 +254,10 @@ model AuditLog {
   userId    String? @map("user_id") @db.Uuid
   userEmail String? @map("user_email") @db.VarChar(255)
 
+  /// Frase legible (Fase 20). Opcional: si falta, el módulo audit la arma al leer.
+  summary   String?        @db.VarChar(300)
+  actorKind AuditActorKind @default(USER) @map("actor_kind")
+
   /// Permite cruzar el cambio con los logs de la request que lo provocó.
   correlationId String? @map("correlation_id") @db.VarChar(128)
   ip            String? @db.VarChar(45)
@@ -177,6 +265,8 @@ model AuditLog {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([tenantId, entity, entityId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, action, createdAt(sort: Desc)])
   @@index([userId])
   @@index([createdAt])
   @@index([correlationId])
@@ -188,6 +278,19 @@ enum AuditAction {
   UPDATE
   DELETE
   RESTORE
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  NOTIFICATION_SENT
+  JOB_RUN
+  EXPORT
+}
+
+enum AuditActorKind {
+  USER
+  SYSTEM
+  PORTAL_OWNER
+  PORTAL_RENTER
 }
 
 /// Refresh tokens con rotación.
@@ -439,20 +542,52 @@ enum PropertyStatus {
 /// Ubicación, tipo y amenities son ids de los maestros, **sin FK** a propósito:
 /// los módulos no comparten tablas (se validan con MasterDataFacade al guardar).
 /// Lo mismo el propietario (Fase 7).
+/// Operación con la que se publica una propiedad en el sitio web.
+enum ListingOperation {
+  SALE
+  RENT
+}
+
 model Property {
   id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId String @map("tenant_id") @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  address        String         @db.VarChar(200)
-  locationId     String         @map("location_id") @db.Uuid
-  propertyTypeId String         @map("property_type_id") @db.Uuid
-  status         PropertyStatus @default(AVAILABLE)
+  address           String           @db.VarChar(200)
+  locationId        String           @map("location_id") @db.Uuid
+  propertyTypeId    String           @map("property_type_id") @db.Uuid
+  status            PropertyStatus   @default(AVAILABLE)
   /// Nullable: la propiedad se puede cargar antes que su propietario.
-  ownerId        String?        @map("owner_id") @db.Uuid
-  amenityIds     String[]       @default([]) @map("amenity_ids") @db.Uuid
+  ownerId           String?          @map("owner_id") @db.Uuid
+  amenityIds        String[]         @default([]) @map("amenity_ids") @db.Uuid
   /// Notas internas: nunca se exponen en el portal público.
-  notes          String?        @db.Text
+  notes             String?          @db.Text
+  /// Contrato activo (módulo de contratos, sin FK). Lo fija y lo limpia el
+  /// módulo de contratos por `PropertiesFacade`; acá sólo se lee (D-51).
+  activeContractId  String?          @map("active_contract_id") @db.Uuid
+  /// Último contrato que tuvo, activo o no. Nunca se limpia: es el "historial
+  /// de contratos" que bloquea el borrado (spec Fase 6, 3.8).
+  lastContractId    String?          @map("last_contract_id") @db.Uuid
+  /// Precio de publicación en el portal público (Fase 22). Null = "Consultar".
+  listingPrice      Decimal?         @map("listing_price") @db.Decimal(14, 2)
+  /// Moneda del precio de publicación; sin precio no se muestra.
+  listingCurrency   Currency         @default(ARS) @map("listing_currency")
+  /// Texto que ve el público (máx. 2000). Distinto de las notas internas.
+  publicDescription String?          @map("public_description") @db.VarChar(2000)
+  /// Datos de la ficha pública (sitio web de la inmobiliaria). Todos opcionales.
+  listingOperation  ListingOperation @default(RENT) @map("listing_operation")
+  bedrooms          Int?
+  bathrooms         Int?
+  rooms             Int?
+  totalAreaM2       Decimal?         @map("total_area_m2") @db.Decimal(10, 2)
+  coveredAreaM2     Decimal?         @map("covered_area_m2") @db.Decimal(10, 2)
+  ageYears          Int?             @map("age_years")
+  /// Sin uso en la v1 del sitio; se guardan para el mapa futuro.
+  latitude          Decimal?         @db.Decimal(9, 6)
+  longitude         Decimal?         @db.Decimal(9, 6)
+  /// Marca de la migración (Fase 21, A-77): cargada con datos dudosos (p. ej. sin
+  /// ubicación) y a la espera de que alguien la revise. Se limpia a mano.
+  needsReview       Boolean          @default(false) @map("needs_review")
 
   photos PropertyPhoto[]
 
@@ -464,9 +599,12 @@ model Property {
   deletedById String?   @map("deleted_by_id") @db.Uuid
 
   @@index([tenantId, status])
+  @@index([tenantId, status, createdAt])
   @@index([tenantId, ownerId])
+  @@index([tenantId, activeContractId])
   @@index([tenantId, propertyTypeId])
   @@index([tenantId, deletedAt])
+  @@index([tenantId, needsReview])
   /// Búsqueda por dirección parcial (ILIKE): trigramas. La extensión pg_trgm
   /// la crea la migración `add_properties`.
   @@index([address(ops: raw("gin_trgm_ops"))], type: Gin, map: "properties_address_trgm_idx")
@@ -528,6 +666,14 @@ model Owner {
 
   portalUserId String? @map("portal_user_id") @db.Uuid
 
+  // Honorarios y envíos (Fase 12, 2.1; Micaela #5 y #7). El % es un override
+  // de la regla por umbral del tenant (null = la regla); los booleanos dicen
+  // qué conceptos cobrados entran en la base además del alquiler.
+  feePercentage       Decimal?          @map("fee_percentage") @db.Decimal(5, 2)
+  feeIncludesLateFees Boolean           @default(false) @map("fee_includes_late_fees")
+  feeIncludesCharges  Boolean           @default(false) @map("fee_includes_charges")
+  statementSendMode   StatementSendMode @default(BOTH) @map("statement_send_mode")
+
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
@@ -538,7 +684,18 @@ model Owner {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, bankCbu])
   @@index([tenantId, deletedAt])
+  /// Único parcial `WHERE portal_user_id IS NOT NULL` (owners_portal_user_id_key)
+  /// sólo en SQL: Prisma no declara índices parciales.
+  @@index([portalUserId])
   @@map("owners")
+}
+
+/// Qué se le manda al propietario al cerrar el consolidado mensual (Micaela
+/// #7): sólo el resumen, sólo los comprobantes de cada liquidación, o ambos.
+enum StatementSendMode {
+  SUMMARY
+  RECEIPTS
+  BOTH
 }
 
 /// Con qué responde el garante (PRD 5.4): un inmueble propio o sus recibos de
@@ -614,6 +771,10 @@ model Renter {
 
   portalUserId String? @map("portal_user_id") @db.Uuid
 
+  /// Contrato activo del que es titular (módulo de contratos, sin FK). Lo
+  /// fija y lo limpia el módulo de contratos por `RentersFacade` (D-51).
+  activeContractId String? @map("active_contract_id") @db.Uuid
+
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
@@ -624,5 +785,2138 @@ model Renter {
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, guarantorId])
   @@index([tenantId, deletedAt])
+  /// Único parcial `WHERE portal_user_id IS NOT NULL` (renters_portal_user_id_key)
+  /// sólo en SQL: Prisma no declara índices parciales.
+  @@index([portalUserId])
   @@map("renters")
+}
+
+// ---------------------------------------------------------------------------
+// Índices de actualización de alquileres (Fase 9; la Fase 13 los carga sola)
+// ---------------------------------------------------------------------------
+
+enum IndexType {
+  ICL
+  IPC
+}
+
+/// Valor mensual de un índice público (ICL del BCRA, IPC del INDEC).
+///
+/// **Global, sin `tenantId`**: el índice es el mismo para todas las
+/// inmobiliarias (D-54). Hoy se carga a mano por `POST /indices`; la Fase 13
+/// lo trae de la fuente oficial y deja `source` con el nombre de la fuente.
+model IndexValue {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  indexType IndexType @map("index_type")
+  /// Mes al que corresponde el valor, `AAAA-MM`.
+  period    String    @db.VarChar(7)
+  /// Decimal(14,6): el ICL se publica con varios decimales.
+  value     Decimal   @db.Decimal(14, 6)
+  /// De dónde salió: `manual`, `bcra`, `indec`...
+  source    String    @db.VarChar(40)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([indexType, period])
+  @@map("index_values")
+}
+
+// ---------------------------------------------------------------------------
+// Contratos de alquiler (Fase 9, PRD 5.5)
+// ---------------------------------------------------------------------------
+
+/// Cómo se actualiza el alquiler (PRD 5.5: ICL / IPC / Fijo / Otro).
+enum RentUpdateType {
+  ICL
+  IPC
+  FIXED
+  OTHER
+}
+
+/// Cada cuántos meses se actualiza (PRD 5.5: mensual / trimestral / cuatrimestral).
+enum RentUpdateFrequency {
+  MONTHLY
+  QUARTERLY
+  FOUR_MONTHLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+/// Cómo se devuelve el depósito al terminar el contrato (Micaela #1).
+enum DepositReturnMode {
+  /// Se devuelve lo que se recibió.
+  FIXED
+  /// Se devuelve el equivalente al alquiler vigente al terminar.
+  FOLLOWS_RENT
+  /// El monto se define a mano al cerrar las cuentas.
+  MANUAL
+}
+
+/// Quién cobra el alquiler (Micaela #9).
+enum CollectionMode {
+  AGENCY
+  OWNER_DIRECT
+}
+
+/// Cómo cobra sus honorarios la inmobiliaria (Micaela #10).
+enum FeeMode {
+  /// Los descuenta de lo cobrado al liquidar.
+  DEDUCTED
+  /// El propietario los paga después.
+  OWNER_PAYS
+  /// El inquilino los paga aparte, por cuenta del propietario.
+  RENTER_PAYS_ON_BEHALF
+}
+
+enum ContractStatus {
+  ACTIVE
+  FINISHED
+  TERMINATED
+}
+
+/// De dónde salió cada valor del alquiler.
+enum RentUpdateSource {
+  /// El canon inicial, al crear el contrato.
+  INITIAL
+  /// Un aumento por índice (ICL/IPC), con los valores usados.
+  INDEX
+  /// Un aumento cargado a mano (contratos "Fijo"/"Otro").
+  MANUAL
+}
+
+/// Contrato de alquiler (PRD 5.5).
+///
+/// Propiedad, propietario, inquilino y garante son ids de otros módulos,
+/// **sin FK** (se validan por las facades). Nunca se borra: un contrato
+/// finalizado o rescindido es historial. El alquiler vigente no está acá:
+/// es la última fila de `contract_rent_updates` (D-53). Los servicios del
+/// contrato son de la Fase 10 (`property_services.contract_id`).
+model Contract {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  propertyId  String  @map("property_id") @db.Uuid
+  /// Copiado del propietario de la propiedad al crear el contrato.
+  ownerId     String  @map("owner_id") @db.Uuid
+  renterId    String  @map("renter_id") @db.Uuid
+  guarantorId String? @map("guarantor_id") @db.Uuid
+
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+
+  initialRent             Decimal             @map("initial_rent") @db.Decimal(14, 2)
+  currency                Currency
+  rentUpdateType          RentUpdateType      @map("rent_update_type")
+  rentUpdateFrequency     RentUpdateFrequency @map("rent_update_frequency")
+  /// Depósito en garantía, por el importe y la moneda recibidos (Micaela #1).
+  deposit                 Decimal             @db.Decimal(14, 2)
+  depositCurrency         Currency            @map("deposit_currency")
+  depositReturnMode       DepositReturnMode   @default(FIXED) @map("deposit_return_mode")
+  /// Con `rentUpdateType = FIXED`, el % que se aplica solo en cada aumento.
+  fixedIncreasePercentage Decimal?            @map("fixed_increase_percentage") @db.Decimal(5, 2)
+  /// Honorarios de administración, en %, fijados al crear (spec Fase 9, 4).
+  /// El vigente sale de `contract_billing_terms` (D-70).
+  feePercentage           Decimal             @map("fee_percentage") @db.Decimal(5, 2)
+
+  status ContractStatus @default(ACTIVE)
+
+  contractPdfKey String? @map("contract_pdf_key") @db.VarChar(500)
+  contractPdfUrl String? @map("contract_pdf_url") @db.VarChar(1000)
+  notes          String? @db.Text
+
+  // Seguro de caución (PRD 5.5)
+  hasSurety         Boolean   @default(false) @map("has_surety")
+  insurerName       String?   @map("insurer_name") @db.VarChar(150)
+  /// Obligatorio con caución: ahí va la alerta automática (RN-10).
+  insurerAlertEmail String?   @map("insurer_alert_email") @db.VarChar(255)
+  policyNumber      String?   @map("policy_number") @db.VarChar(100)
+  policyExpiresAt   DateTime? @map("policy_expires_at") @db.Date
+  policyPdfKey      String?   @map("policy_pdf_key") @db.VarChar(500)
+  policyPdfUrl      String?   @map("policy_pdf_url") @db.VarChar(1000)
+
+  // Rescisión anticipada (RN-09). Se completan al rescindir y no cambian más.
+  terminatedAt          DateTime? @map("terminated_at") @db.Date
+  terminationNotifiedAt DateTime? @map("termination_notified_at") @db.Date
+  terminationPenalty    Decimal?  @map("termination_penalty") @db.Decimal(14, 2)
+  terminationFutureRent Decimal?  @map("termination_future_rent") @db.Decimal(14, 2)
+  /// PDF del cálculo de la rescisión (Fase 15); lo escribe `documents`.
+  terminationPdfKey     String?   @map("termination_pdf_key") @db.VarChar(500)
+  terminationPdfUrl     String?   @map("termination_pdf_url") @db.VarChar(1000)
+
+  /// Contrato al que renueva (sin FK: autorreferencia que no hace falta navegar).
+  renewedFromId String? @map("renewed_from_id") @db.Uuid
+
+  rentUpdates  ContractRentUpdate[]
+  billingTerms ContractBillingTerms[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  /// Un solo contrato ACTIVO por propiedad (RN-04) y por inquilino (RN-05):
+  /// índices únicos parciales en la migración `add_contracts`.
+  @@index([tenantId, status, endDate])
+  @@index([tenantId, propertyId])
+  @@index([tenantId, renterId])
+  @@index([tenantId, ownerId])
+  @@map("contracts")
+}
+
+/// Historial del alquiler de un contrato. La primera fila es el canon
+/// inicial; cada aumento agrega una. El vigente es la de mayor
+/// `effective_from` (D-53). Con índice, guarda los valores usados para poder
+/// reconstruir la cuenta (PRD 9.5).
+model ContractRentUpdate {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contractId String   @map("contract_id") @db.Uuid
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  effectiveFrom DateTime         @map("effective_from") @db.Date
+  previousRent  Decimal?         @map("previous_rent") @db.Decimal(14, 2)
+  newRent       Decimal          @map("new_rent") @db.Decimal(14, 2)
+  source        RentUpdateSource
+
+  indexType       IndexType? @map("index_type")
+  /// `AAAA-MM` del valor anterior y del nuevo.
+  indexFromPeriod String?    @map("index_from_period") @db.VarChar(7)
+  indexToPeriod   String?    @map("index_to_period") @db.VarChar(7)
+  indexFromValue  Decimal?   @map("index_from_value") @db.Decimal(14, 6)
+  indexToValue    Decimal?   @map("index_to_value") @db.Decimal(14, 6)
+
+  /// % fijo aplicado (contratos FIXED con `fixedIncreasePercentage`).
+  fixedPercentage Decimal? @map("fixed_percentage") @db.Decimal(5, 2)
+
+  /// Usuario que lo aplicó. Null si lo aplicó el cron (Fase 13).
+  appliedById String? @map("applied_by_id") @db.Uuid
+
+  /// Ajuste manual (D-230, Micaela #8): por qué se hizo y quién lo autorizó
+  /// (texto libre: puede ser el propietario). Null en los aumentos automáticos
+  /// y en los anteriores a D-230.
+  adjustmentReason String? @map("adjustment_reason") @db.VarChar(500)
+  authorizedBy     String? @map("authorized_by") @db.VarChar(150)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  /// Un aumento por fecha: el job y el doble click no duplican (M7).
+  @@unique([contractId, effectiveFrom])
+  @@index([tenantId, contractId, effectiveFrom])
+  @@map("contract_rent_updates")
+}
+
+/// Términos de cobro de un contrato, como vigencias (D-70): nunca se pisan,
+/// cada cambio es una fila nueva con `effectiveFrom`. La primera nace con el
+/// contrato. El punitorio null hereda el del tenant.
+model ContractBillingTerms {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contractId String   @map("contract_id") @db.Uuid
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
+  effectiveFrom     DateTime       @map("effective_from") @db.Date
+  collectionMode    CollectionMode @map("collection_mode")
+  feeMode           FeeMode        @map("fee_mode")
+  /// % de honorarios vigente.
+  feePercentage     Decimal        @map("fee_percentage") @db.Decimal(5, 2)
+  /// Importe fijo de honorarios; si está, manda sobre el %.
+  feeAmount         Decimal?       @map("fee_amount") @db.Decimal(14, 2)
+  /// Null = el de la inmobiliaria (`daily_late_fee_percentage`).
+  lateFeePercentage Decimal?       @map("late_fee_percentage") @db.Decimal(5, 2)
+  /// Null = el de la inmobiliaria (`payment_grace_days`).
+  lateFeeGraceDays  Int?           @map("late_fee_grace_days")
+  notes             String?        @db.Text
+  /// Null en la fila inicial (la crea el alta del contrato).
+  changedById       String?        @map("changed_by_id") @db.Uuid
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, contractId, effectiveFrom])
+  @@map("contract_billing_terms")
+}
+
+// =============================================================================
+// Servicios y gastos adelantados (Fase 10)
+// =============================================================================
+
+/// Quién paga un servicio (spec Fase 10, 2.1: inquilino / propietario).
+enum ServicePayer {
+  RENTER
+  OWNER
+}
+
+/// Un servicio asociado a una propiedad (luz, gas, expensas...) y, si lo hay,
+/// al contrato. Sin `contract_id` es un servicio "de la propiedad", que los
+/// contratos heredan (D-66). Las referencias no llevan FK: se validan por las
+/// facades de propiedades, contratos y maestros. El estado (al día / vencido)
+/// no se guarda: se calcula al leer con `due_date` (spec 4, D-64).
+model PropertyService {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  propertyId    String  @map("property_id") @db.Uuid
+  contractId    String? @map("contract_id") @db.Uuid
+  serviceTypeId String  @map("service_type_id") @db.Uuid
+
+  paidBy   ServicePayer @map("paid_by")
+  currency Currency
+
+  hasDueDate        Boolean              @default(false) @map("has_due_date")
+  dueDate           DateTime?            @map("due_date") @db.Date
+  hasIncrease       Boolean              @default(false) @map("has_increase")
+  /// Misma escala que los aumentos del alquiler (mensual / trimestral / cuatrimestral).
+  increaseFrequency RentUpdateFrequency? @map("increase_frequency")
+  /// Si la inmobiliaria gestiona el pago o es sólo informativo (spec 7).
+  managedByAgency   Boolean              @default(false) @map("managed_by_agency")
+  notes             String?              @db.Text
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  deletedById String?   @map("deleted_by_id") @db.Uuid
+
+  @@index([tenantId, propertyId])
+  @@index([tenantId, contractId])
+  @@index([tenantId, hasDueDate, dueDate])
+  @@index([tenantId, deletedAt])
+  @@map("property_services")
+}
+
+/// Gasto que el inquilino adelantó (una reparación, un servicio) y que se le
+/// descuenta al propietario en la liquidación (RN-11). El comprobante es
+/// obligatorio (D-67). Con `settlement_id` cargado (Fase 12) la fila es
+/// inmutable (spec 4).
+model AdvanceExpense {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  contractId String @map("contract_id") @db.Uuid
+  /// Copiado del contrato al registrar el gasto.
+  renterId   String @map("renter_id") @db.Uuid
+
+  amount      Decimal  @db.Decimal(14, 2)
+  currency    Currency
+  description String   @db.VarChar(300)
+  expenseDate DateTime @map("expense_date") @db.Date
+
+  receiptKey String @map("receipt_key") @db.VarChar(500)
+  receiptUrl String @map("receipt_url") @db.VarChar(1000)
+
+  /// Liquidación que lo descontó (Fase 12, sin FK). Null = pendiente.
+  settlementId String?   @map("settlement_id") @db.Uuid
+  settledAt    DateTime? @map("settled_at") @db.Timestamptz(3)
+
+  /// Usuario que lo cargó.
+  registeredById String @map("registered_by_id") @db.Uuid
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+  deletedById String?   @map("deleted_by_id") @db.Uuid
+
+  @@index([tenantId, contractId, settlementId])
+  @@index([tenantId, deletedAt])
+  @@map("advance_expenses")
+}
+
+// =============================================================================
+// Cobros y punitorios (Fase 11, rediseño sección 3)
+// =============================================================================
+//
+// Todo con tenant, auditado y sin borrado lógico: plata nunca se borra, se
+// anula con registro. Sin FKs hacia otros módulos (contrato, inquilino,
+// propietario, propiedad y usuario son uuid copiados); FKs internas entre
+// cuotas, pagos, cargos, ajustes y detalle diario.
+
+/// Estado guardado de una cuota. "Vencida" (OVERDUE) se calcula al leer (D-71).
+enum InstallmentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+/// Conceptos que se cobran además del alquiler.
+enum ChargeConcept {
+  SERVICE
+  TERMINATION_PENALTY
+  OTHER
+}
+
+enum ExchangeRateSource {
+  OFFICIAL
+  MEP
+  OTHER
+}
+
+enum PaymentKind {
+  /// Entró plata.
+  CASH_IN
+  /// Se aplicó un saldo a favor: no entra plata.
+  CREDIT_APPLICATION
+}
+
+enum PaymentMethod {
+  TRANSFER
+  CASH
+  CREDIT
+  OTHER
+  /// Deuda cubierta con el depósito en garantía al devolverlo (Fase 12).
+  DEPOSIT
+}
+
+/// Por qué se descuenta algo del depósito al devolverlo (Micaela #1).
+enum DepositDeductionConcept {
+  /// Deuda del inquilino; con cuota, crea un pago `DEPOSIT` sobre ella.
+  DEBT
+  DAMAGE
+  OTHER
+}
+
+enum PaymentReceiver {
+  AGENCY
+  OWNER
+}
+
+enum PaymentStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  VOIDED
+}
+
+enum LateFeeAdjustmentKind {
+  REDUCE
+  WAIVE
+}
+
+enum CreditStatus {
+  AVAILABLE
+  APPLIED
+  REFUNDED
+  VOIDED
+}
+
+/// Cuota devengada: una por contrato y mes (PRD 5.6 "Pago").
+model Installment {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Copiados del contrato al generar (sin FK).
+  contractId String @map("contract_id") @db.Uuid
+  renterId   String @map("renter_id") @db.Uuid
+  ownerId    String @map("owner_id") @db.Uuid
+  propertyId String @map("property_id") @db.Uuid
+
+  /// `AAAA-MM`.
+  period       String   @db.VarChar(7)
+  /// Alquiler vigente al generar (D-72).
+  baseAmount   Decimal  @map("base_amount") @db.Decimal(14, 2)
+  currency     Currency
+  /// Último día sin punitorio: primer día + gracia − 1.
+  graceEndDate DateTime @map("grace_end_date") @db.Date
+
+  /// Snapshot de los términos resueltos al generar (D-71): cambiar el
+  /// contrato afecta cuotas futuras, no esta.
+  lateFeePercentage Decimal        @map("late_fee_percentage") @db.Decimal(5, 2)
+  lateFeeGraceDays  Int            @map("late_fee_grace_days")
+  collectionMode    CollectionMode @map("collection_mode")
+  feeMode           FeeMode        @map("fee_mode")
+  feePercentage     Decimal        @map("fee_percentage") @db.Decimal(5, 2)
+  feeAmount         Decimal?       @map("fee_amount") @db.Decimal(14, 2)
+
+  /// Condonación total del punitorio (ajuste WAIVE).
+  lateFeeWaived Boolean           @default(false) @map("late_fee_waived")
+  status        InstallmentStatus @default(PENDING)
+  /// Día en que el saldo de alquiler llegó a 0 (fecha del pago que lo cubrió).
+  paidAt        DateTime?         @map("paid_at") @db.Date
+  notes         String?           @db.Text
+
+  charges     InstallmentCharge[]
+  payments    Payment[]
+  feeDays     InstallmentLateFeeDay[]
+  adjustments LateFeeAdjustment[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, contractId, period])
+  @@index([tenantId, period, status])
+  @@index([tenantId, status, graceEndDate])
+  @@index([tenantId, renterId, status])
+  @@index([tenantId, propertyId])
+  @@index([tenantId, ownerId])
+  @@map("installments")
+}
+
+/// Un concepto además del alquiler (expensas, multa de rescisión, otro). Se
+/// anula, no se borra; anulado no cuenta. No devenga punitorio (A-10).
+model InstallmentCharge {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  installmentId String      @map("installment_id") @db.Uuid
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  concept     ChargeConcept
+  description String        @db.VarChar(300)
+  /// > 0, en la moneda de la cuota.
+  amount      Decimal       @db.Decimal(14, 2)
+
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(3)
+  voidedById String?   @map("voided_by_id") @db.Uuid
+  voidReason String?   @map("void_reason") @db.VarChar(500)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Quién lo cargó (lo completa la auditoría).
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, installmentId])
+  @@map("installment_charges")
+}
+
+/// Un pago (o una aplicación de saldo a favor) sobre una cuota. N por cuota:
+/// parciales, anticipados, en ARS o USD con cotización (Micaela #2, #6).
+model Payment {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  installmentId String      @map("installment_id") @db.Uuid
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Restrict)
+  /// Copiados de la cuota.
+  contractId    String      @map("contract_id") @db.Uuid
+  renterId      String      @map("renter_id") @db.Uuid
+
+  /// Fecha real del pago (no la de carga).
+  paidAt       DateTime @map("paid_at") @db.Date
+  paidCurrency Currency @map("paid_currency")
+  /// Lo que entregó el inquilino, en `paidCurrency`.
+  amount       Decimal  @db.Decimal(14, 2)
+
+  /// Obligatorios los tres cuando la moneda del pago no es la de la cuota
+  /// (A-9); prohibidos cuando coinciden. Pesos por 1 dólar.
+  exchangeRate             Decimal?            @map("exchange_rate") @db.Decimal(14, 4)
+  exchangeRateSource       ExchangeRateSource? @map("exchange_rate_source")
+  exchangeRateDate         DateTime?           @map("exchange_rate_date") @db.Date
+  /// El equivalente en la moneda de la cuota, con un solo redondeo.
+  amountInContractCurrency Decimal             @map("amount_in_contract_currency") @db.Decimal(14, 2)
+
+  kind       PaymentKind
+  method     PaymentMethod
+  receivedBy PaymentReceiver @map("received_by")
+  status     PaymentStatus
+
+  /// Imputación en moneda del contrato (A-8). Suman
+  /// `amountInContractCurrency − creditGenerated`.
+  lateFeeApplied  Decimal @map("late_fee_applied") @db.Decimal(14, 2)
+  rentApplied     Decimal @map("rent_applied") @db.Decimal(14, 2)
+  chargesApplied  Decimal @map("charges_applied") @db.Decimal(14, 2)
+  /// Exceso que fue a `renter_credits` (A-6).
+  creditGenerated Decimal @map("credit_generated") @db.Decimal(14, 2)
+  /// El crédito aplicado (sólo CREDIT_APPLICATION).
+  creditId        String? @map("credit_id") @db.Uuid
+
+  /// Comprobante opcional (D-74): efectivo puede no tener.
+  receiptKey String? @map("receipt_key") @db.VarChar(500)
+  receiptUrl String? @map("receipt_url") @db.VarChar(1000)
+
+  /// Recibo que emite la inmobiliaria (Fase 15): número correlativo del
+  /// tenant (`R-00000042`) y PDF vigente. Los escribe `documents` por la facade.
+  receiptNumber String? @map("receipt_number") @db.VarChar(20)
+  receiptPdfKey String? @map("receipt_pdf_key") @db.VarChar(500)
+  receiptPdfUrl String? @map("receipt_pdf_url") @db.VarChar(1000)
+
+  /// Null cuando lo registró el sistema: la aplicación automática de saldo a
+  /// favor al generar la cuota, sin usuario en el contexto (D-237).
+  registeredById String? @map("registered_by_id") @db.Uuid
+  notes          String? @db.Text
+
+  confirmedById String?   @map("confirmed_by_id") @db.Uuid
+  confirmedAt   DateTime? @map("confirmed_at") @db.Timestamptz(3)
+
+  voidedById String?   @map("voided_by_id") @db.Uuid
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(3)
+  voidReason String?   @map("void_reason") @db.VarChar(500)
+
+  /// Liquidación que lo incluyó (Fase 12, sin FK: lo escribe liquidaciones
+  /// por la facade). Null = todavía no se liquidó.
+  settlementId String? @map("settlement_id") @db.Uuid
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, receiptNumber])
+  @@index([tenantId, installmentId])
+  @@index([tenantId, contractId, paidAt])
+  @@index([tenantId, renterId])
+  @@index([tenantId, status, receivedBy])
+  @@index([tenantId, status, paidAt])
+  @@index([tenantId, creditId])
+  @@index([tenantId, settlementId])
+  @@map("payments")
+}
+
+/// Devolución del depósito en garantía al cerrar las cuentas del contrato
+/// (Fase 12, 2.2; Micaela #1): cuánto se devolvió y qué se descontó, con
+/// justificación. Una por contrato. `returned_amount + Σ deducciones =
+/// deposit_amount`.
+model DepositReturn {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  contractId String @map("contract_id") @db.Uuid
+
+  returnedAt      DateTime          @map("returned_at") @db.Date
+  /// Copiados del contrato al devolver.
+  depositAmount   Decimal           @map("deposit_amount") @db.Decimal(14, 2)
+  depositCurrency Currency          @map("deposit_currency")
+  /// Modo del contrato al devolver (D-227): decide el monto de referencia.
+  mode            DepositReturnMode @default(FIXED)
+  /// Monto del que se descuentan las deducciones (según `mode`); no tiene
+  /// por qué ser el depósito recibido.
+  referenceAmount Decimal           @default(0) @map("reference_amount") @db.Decimal(14, 2)
+  returnedAmount  Decimal           @map("returned_amount") @db.Decimal(14, 2)
+  method          PaymentMethod
+  notes           String?           @db.Text
+  registeredById  String            @map("registered_by_id") @db.Uuid
+
+  deductions DepositReturnDeduction[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, contractId])
+  @@map("deposit_returns")
+}
+
+model DepositReturnDeduction {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  depositReturnId String        @map("deposit_return_id") @db.Uuid
+  depositReturn   DepositReturn @relation(fields: [depositReturnId], references: [id], onDelete: Cascade)
+
+  concept       DepositDeductionConcept
+  description   String                  @db.VarChar(300)
+  amount        Decimal                 @db.Decimal(14, 2)
+  /// Cuota a la que se imputó una deuda (sin FK).
+  installmentId String?                 @map("installment_id") @db.Uuid
+  /// El pago `DEPOSIT` que se creó sobre esa cuota.
+  paymentId     String?                 @map("payment_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, depositReturnId])
+  @@map("deposit_return_deductions")
+}
+
+/// Un día de punitorio de una cuota saldada: cómo se armó el monto (A-4). Se
+/// escribe cuando el alquiler queda saldado (congela el cálculo); mientras
+/// está impaga se calcula al leer.
+model InstallmentLateFeeDay {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  installmentId String      @map("installment_id") @db.Uuid
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  day             DateTime @db.Date
+  /// 1 = primer día con punitorio.
+  dayNumber       Int      @map("day_number")
+  /// Alquiler impago ese día.
+  outstandingBase Decimal  @map("outstanding_base") @db.Decimal(14, 2)
+  dailyPercentage Decimal  @map("daily_percentage") @db.Decimal(5, 2)
+  amount          Decimal  @db.Decimal(14, 2)
+
+  @@unique([installmentId, dayNumber])
+  @@index([tenantId, installmentId])
+  @@map("installment_late_fee_days")
+}
+
+/// Reducción o condonación del punitorio de una cuota, con motivo (Micaela #4).
+model LateFeeAdjustment {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  installmentId String      @map("installment_id") @db.Uuid
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  kind   LateFeeAdjustmentKind
+  /// REDUCE: lo que se descuenta (> 0). WAIVE: el devengado al momento, informativo.
+  amount Decimal               @db.Decimal(14, 2)
+  reason String                @db.VarChar(500)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Quién lo hizo (lo completa la auditoría).
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, installmentId])
+  @@map("late_fee_adjustments")
+}
+
+/// Saldo a favor de un inquilino por un pago de más (A-6). Se aplica en partes
+/// (cada aplicación es un Payment CREDIT_APPLICATION) o se devuelve.
+model RenterCredit {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  renterId        String          @map("renter_id") @db.Uuid
+  contractId      String          @map("contract_id") @db.Uuid
+  currency        Currency
+  /// Original.
+  amount          Decimal         @db.Decimal(14, 2)
+  remaining       Decimal         @db.Decimal(14, 2)
+  /// El pago que lo generó.
+  originPaymentId String          @map("origin_payment_id") @db.Uuid
+  status          CreditStatus    @default(AVAILABLE)
+  /// Quién tiene la plata: el que cobró el pago de origen. Una aplicación de
+  /// un saldo que tiene el propietario no se liquida (revisión 2026-11-06).
+  heldBy          PaymentReceiver @default(AGENCY) @map("held_by")
+
+  refundedAt   DateTime?      @map("refunded_at") @db.Date
+  refundMethod PaymentMethod? @map("refund_method")
+  refundedById String?        @map("refunded_by_id") @db.Uuid
+  refundNotes  String?        @map("refund_notes") @db.Text
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, renterId, status])
+  @@index([tenantId, contractId])
+  /// Un pago genera un solo saldo a favor: un reintento no lo duplica (M7).
+  @@unique([tenantId, originPaymentId])
+  @@map("renter_credits")
+}
+
+// =============================================================================
+// Liquidaciones (Fase 12, rediseño sección 3). Todas con tenant, auditadas,
+// sin borrado lógico. Referencias a otros módulos como uuid sin FK.
+// =============================================================================
+
+enum SettlementStatus {
+  /// Recalculable; una sola por contrato.
+  PENDING
+  /// Inmutable: pagos y gastos marcados, honorarios devengados.
+  CONFIRMED
+  /// Las transferencias cubren el neto.
+  TRANSFERRED
+  /// Sólo desde PENDING (admin).
+  CANCELLED
+}
+
+/// Rubros manuales de la liquidación (A-20). Los tres primeros restan del
+/// neto; OTHER_CREDIT suma.
+enum SettlementAdjustmentConcept {
+  WITHHOLDING
+  OWNER_ADVANCE
+  OTHER_DEDUCTION
+  OTHER_CREDIT
+}
+
+enum StatementStatus {
+  OPEN
+  CLOSED
+}
+
+/// De dónde nace un honorario a cobrar: el propietario cobró el alquiler
+/// directo (modalidad B), o la liquidación no lo descontó (OWNER_PAYS /
+/// RENTER_PAYS_ON_BEHALF).
+enum FeeReceivableSource {
+  OWNER_DIRECT_PAYMENT
+  SETTLEMENT_NOT_DEDUCTED
+}
+
+enum FeePayer {
+  OWNER
+  RENTER
+}
+
+enum FeeReceivableStatus {
+  PENDING
+  PARTIAL
+  PAID
+  VOIDED
+}
+
+/// Liquidación individual: un contrato, una propiedad, un propietario (3.1).
+/// `period` es el mes en que se liquida, no el de la cuota; `sequence`
+/// numera las parciales del mismo mes.
+model Settlement {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Copiados del contrato (sin FK).
+  contractId String   @map("contract_id") @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  ownerId    String   @map("owner_id") @db.Uuid
+  renterId   String   @map("renter_id") @db.Uuid
+  currency   Currency
+
+  period   String           @db.VarChar(7)
+  sequence Int
+  status   SettlementStatus @default(PENDING)
+
+  /// Sumas de los pagos incluidos, en la moneda del contrato.
+  rentTotal           Decimal @map("rent_total") @db.Decimal(14, 2)
+  lateFeeTotal        Decimal @map("late_fee_total") @db.Decimal(14, 2)
+  /// Cargos TERMINATION_PENALTY y OTHER: van al propietario.
+  ownerChargesTotal   Decimal @map("owner_charges_total") @db.Decimal(14, 2)
+  /// Cargos SERVICE: se informan, no entran al neto (A-16).
+  serviceChargesTotal Decimal @map("service_charges_total") @db.Decimal(14, 2)
+
+  /// Honorarios (4.2): base según el propietario, % y fijo de la cuota más
+  /// reciente, total sumado por cuota, y si se descuentan del neto.
+  feeBase        Decimal  @map("fee_base") @db.Decimal(14, 2)
+  feePercentage  Decimal  @map("fee_percentage") @db.Decimal(5, 2)
+  feeAmountFixed Decimal? @map("fee_amount_fixed") @db.Decimal(14, 2)
+  feeTotal       Decimal  @map("fee_total") @db.Decimal(14, 2)
+  feeMode        FeeMode  @map("fee_mode")
+  feeDeducted    Boolean  @map("fee_deducted")
+  /// Las cuotas incluidas tenían términos distintos.
+  mixedFeeTerms  Boolean  @default(false) @map("mixed_fee_terms")
+
+  /// Gastos adelantados pendientes en la moneda del contrato (RN-11).
+  expensesTotal    Decimal @map("expenses_total") @db.Decimal(14, 2)
+  /// Σ ajustes vigentes con signo.
+  adjustmentsTotal Decimal @map("adjustments_total") @db.Decimal(14, 2)
+  /// Puede ser negativo: el propietario debe (4.3).
+  netAmount        Decimal @map("net_amount") @db.Decimal(14, 2)
+  transferredTotal Decimal @map("transferred_total") @db.Decimal(14, 2)
+
+  /// Consolidado al que pertenece (sin FK).
+  statementId       String? @map("statement_id") @db.Uuid
+  /// Un pago incluido se anuló después de confirmar (A-19).
+  hasVoidedPayments Boolean @default(false) @map("has_voided_payments")
+
+  confirmedAt   DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  confirmedById String?   @map("confirmed_by_id") @db.Uuid
+  cancelledAt   DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById String?   @map("cancelled_by_id") @db.Uuid
+  cancelReason  String?   @map("cancel_reason") @db.VarChar(500)
+  notes         String?   @db.Text
+
+  /// El propietario acusó recibo de la transferencia desde el portal (A-37).
+  acknowledgedAt DateTime? @map("acknowledged_at") @db.Timestamptz(3)
+
+  /// PDF vigente de la liquidación (Fase 15); lo escribe `documents`.
+  pdfKey String? @map("pdf_key") @db.VarChar(500)
+  pdfUrl String? @map("pdf_url") @db.VarChar(1000)
+
+  payments    SettlementPayment[]
+  expenses    SettlementExpense[]
+  adjustments SettlementAdjustment[]
+  transfers   SettlementTransfer[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  /// Una sola PENDING por contrato: índice único parcial en la migración
+  /// `add_settlements`.
+  @@unique([tenantId, contractId, period, sequence])
+  @@index([tenantId, contractId, period])
+  @@index([tenantId, ownerId, status])
+  @@index([tenantId, propertyId])
+  @@index([tenantId, status, period])
+  @@index([tenantId, statementId])
+  @@map("settlements")
+}
+
+/// Un pago incluido, con snapshot de lo que aportó. `payment_id` es único:
+/// un pago se liquida una vez (al cancelar la liquidación se liberan).
+model SettlementPayment {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  settlementId String     @map("settlement_id") @db.Uuid
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  paymentId             String   @map("payment_id") @db.Uuid
+  installmentId         String   @map("installment_id") @db.Uuid
+  installmentPeriod     String   @map("installment_period") @db.VarChar(7)
+  paidAt                DateTime @map("paid_at") @db.Date
+  rentApplied           Decimal  @map("rent_applied") @db.Decimal(14, 2)
+  lateFeeApplied        Decimal  @map("late_fee_applied") @db.Decimal(14, 2)
+  ownerChargesApplied   Decimal  @map("owner_charges_applied") @db.Decimal(14, 2)
+  serviceChargesApplied Decimal  @map("service_charges_applied") @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, paymentId])
+  @@index([tenantId, settlementId])
+  @@map("settlement_payments")
+}
+
+/// Un gasto adelantado descontado, con snapshot.
+model SettlementExpense {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  settlementId String     @map("settlement_id") @db.Uuid
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  expenseId   String   @map("expense_id") @db.Uuid
+  description String   @db.VarChar(300)
+  expenseDate DateTime @map("expense_date") @db.Date
+  amount      Decimal  @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, expenseId])
+  @@index([tenantId, settlementId])
+  @@map("settlement_expenses")
+}
+
+/// Retenciones, adelantos y otros rubros manuales (A-20), más la deducción
+/// automática por un pago anulado después de confirmar (A-19).
+model SettlementAdjustment {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  settlementId String     @map("settlement_id") @db.Uuid
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  concept         SettlementAdjustmentConcept
+  description     String                      @db.VarChar(300)
+  /// Siempre > 0; el signo lo da el concepto.
+  amount          Decimal                     @db.Decimal(14, 2)
+  /// El pago anulado que lo generó (idempotencia del listener).
+  originPaymentId String?                     @map("origin_payment_id") @db.Uuid
+
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(3)
+  voidedById String?   @map("voided_by_id") @db.Uuid
+  voidReason String?   @map("void_reason") @db.VarChar(500)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Null en los automáticos.
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, settlementId])
+  @@index([tenantId, originPaymentId])
+  @@map("settlement_adjustments")
+}
+
+/// Transferencia al propietario (4.5). Se anula (admin), no se edita (A-18).
+model SettlementTransfer {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String     @map("tenant_id") @db.Uuid
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  settlementId String     @map("settlement_id") @db.Uuid
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  transferredAt  DateTime      @map("transferred_at") @db.Date
+  amount         Decimal       @db.Decimal(14, 2)
+  method         PaymentMethod
+  receiptKey     String?       @map("receipt_key") @db.VarChar(500)
+  receiptUrl     String?       @map("receipt_url") @db.VarChar(1000)
+  notes          String?       @db.Text
+  registeredById String        @map("registered_by_id") @db.Uuid
+
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(3)
+  voidedById String?   @map("voided_by_id") @db.Uuid
+  voidReason String?   @map("void_reason") @db.VarChar(500)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, settlementId])
+  @@map("settlement_transfers")
+}
+
+/// Consolidado mensual por propietario, de cierre manual (3.2, Micaela #7).
+/// Uno por propietario y mes; se reabre (admin) si hace falta otro cierre.
+model OwnerStatement {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  ownerId          String            @map("owner_id") @db.Uuid
+  period           String            @db.VarChar(7)
+  status           StatementStatus   @default(OPEN)
+  sendMode         StatementSendMode @map("send_mode")
+  settlementsCount Int               @default(0) @map("settlements_count")
+
+  closedAt   DateTime? @map("closed_at") @db.Timestamptz(3)
+  closedById String?   @map("closed_by_id") @db.Uuid
+  notes      String?   @db.Text
+
+  /// PDF vigente del consolidado (Fase 15); lo escribe `documents`.
+  pdfKey String? @map("pdf_key") @db.VarChar(500)
+  pdfUrl String? @map("pdf_url") @db.VarChar(1000)
+
+  totals OwnerStatementTotal[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, ownerId, period])
+  @@index([tenantId, status, period])
+  @@map("owner_statements")
+}
+
+/// Totales del consolidado por moneda, congelados al cerrar.
+model OwnerStatementTotal {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  statementId String         @map("statement_id") @db.Uuid
+  statement   OwnerStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  currency              Currency
+  rentTotal             Decimal  @map("rent_total") @db.Decimal(14, 2)
+  lateFeeTotal          Decimal  @map("late_fee_total") @db.Decimal(14, 2)
+  chargesTotal          Decimal  @map("charges_total") @db.Decimal(14, 2)
+  feeTotal              Decimal  @map("fee_total") @db.Decimal(14, 2)
+  expensesTotal         Decimal  @map("expenses_total") @db.Decimal(14, 2)
+  adjustmentsTotal      Decimal  @map("adjustments_total") @db.Decimal(14, 2)
+  /// Con signo (negativo). `withholdingsTotal + advancesTotal +
+  /// otherAdjustmentsTotal = adjustmentsTotal` (D-236).
+  withholdingsTotal     Decimal  @default(0) @map("withholdings_total") @db.Decimal(14, 2)
+  advancesTotal         Decimal  @default(0) @map("advances_total") @db.Decimal(14, 2)
+  otherAdjustmentsTotal Decimal  @default(0) @map("other_adjustments_total") @db.Decimal(14, 2)
+  netTotal              Decimal  @map("net_total") @db.Decimal(14, 2)
+  transferredTotal      Decimal  @map("transferred_total") @db.Decimal(14, 2)
+
+  @@unique([statementId, currency])
+  @@index([tenantId, statementId])
+  @@map("owner_statement_totals")
+}
+
+/// Honorario devengado a cobrar (3.3, Micaela #9B y #10): cuenta corriente
+/// de honorarios de la inmobiliaria con cada propietario.
+model FeeReceivable {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  ownerId       String   @map("owner_id") @db.Uuid
+  contractId    String   @map("contract_id") @db.Uuid
+  /// La cuota, cuando nace de un pago; null cuando nace de una liquidación.
+  installmentId String?  @map("installment_id") @db.Uuid
+  period        String   @db.VarChar(7)
+  currency      Currency
+
+  source FeeReceivableSource
+  payer  FeePayer
+
+  /// Idempotencia: un pago o una liquidación generan un solo receivable.
+  originPaymentId    String? @map("origin_payment_id") @db.Uuid
+  originSettlementId String? @map("origin_settlement_id") @db.Uuid
+
+  amount     Decimal             @db.Decimal(14, 2)
+  paidAmount Decimal             @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  status     FeeReceivableStatus @default(PENDING)
+
+  /// Cómo se calculó.
+  feePercentage  Decimal  @map("fee_percentage") @db.Decimal(5, 2)
+  feeAmountFixed Decimal? @map("fee_amount_fixed") @db.Decimal(14, 2)
+  baseAmount     Decimal  @map("base_amount") @db.Decimal(14, 2)
+
+  /// El pago de origen se anuló con cobros ya imputados: revisar a mano.
+  needsReview Boolean   @default(false) @map("needs_review")
+  voidedAt    DateTime? @map("voided_at") @db.Timestamptz(3)
+
+  allocations FeePaymentAllocation[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, originPaymentId])
+  @@unique([tenantId, originSettlementId])
+  @@index([tenantId, ownerId, status])
+  @@index([tenantId, contractId])
+  @@map("fee_receivables")
+}
+
+/// Pago de honorarios a la inmobiliaria (lo paga el propietario o el
+/// inquilino por su cuenta), imputado a los receivables más viejos.
+model FeePayment {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  ownerId    String  @map("owner_id") @db.Uuid
+  contractId String? @map("contract_id") @db.Uuid
+
+  paidAt            DateTime      @map("paid_at") @db.Date
+  amount            Decimal       @db.Decimal(14, 2)
+  currency          Currency
+  method            PaymentMethod
+  paidBy            FeePayer      @map("paid_by")
+  /// Lo que no alcanzó a imputarse: se aplica a receivables futuros.
+  unallocatedAmount Decimal       @map("unallocated_amount") @db.Decimal(14, 2)
+
+  receiptKey     String? @map("receipt_key") @db.VarChar(500)
+  receiptUrl     String? @map("receipt_url") @db.VarChar(1000)
+  notes          String? @db.Text
+  registeredById String  @map("registered_by_id") @db.Uuid
+
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(3)
+  voidedById String?   @map("voided_by_id") @db.Uuid
+  voidReason String?   @map("void_reason") @db.VarChar(500)
+
+  allocations FeePaymentAllocation[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, ownerId, paidAt])
+  @@index([tenantId, contractId])
+  @@map("fee_payments")
+}
+
+/// Cuánto de un pago de honorarios fue a cada receivable.
+model FeePaymentAllocation {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  feePaymentId    String        @map("fee_payment_id") @db.Uuid
+  feePayment      FeePayment    @relation(fields: [feePaymentId], references: [id], onDelete: Cascade)
+  feeReceivableId String        @map("fee_receivable_id") @db.Uuid
+  feeReceivable   FeeReceivable @relation(fields: [feeReceivableId], references: [id], onDelete: Restrict)
+
+  amount Decimal @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([feePaymentId, feeReceivableId])
+  @@index([tenantId, feePaymentId])
+  @@index([tenantId, feeReceivableId])
+  @@map("fee_payment_allocations")
+}
+
+// ---------------------------------------------------------------------------
+// Automatizaciones (Fase 13)
+// ---------------------------------------------------------------------------
+
+enum JobExecutionStatus {
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+  SKIPPED
+}
+
+enum JobTrigger {
+  SCHEDULE
+  MANUAL
+}
+
+/// Una ejecución de un job de negocio (D-93). **`tenant_id` es opcional**: los
+/// jobs globales (índices) no pertenecen a una inmobiliaria. Por eso el modelo
+/// no pasa por el filtro de tenant y quien lee filtra a mano por el tenant del
+/// contexto o por `tenant_id IS NULL`. Se escribe fuera de un request (cron,
+/// worker de la cola).
+model JobExecution {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String? @map("tenant_id") @db.Uuid
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Nombre del job: `installments.generate`, `indices.fetch`...
+  job          String             @db.VarChar(60)
+  /// Día (hora local de la inmobiliaria) al que corresponde la corrida.
+  scheduledFor DateTime           @map("scheduled_for") @db.Date
+  startedAt    DateTime           @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt   DateTime?          @map("finished_at") @db.Timestamptz(3)
+  status       JobExecutionStatus @default(RUNNING)
+  /// Cuántas cosas tocó: cuotas creadas, avisos enviados, contratos cerrados.
+  affected     Int                @default(0)
+  /// Resumen legible: "3 cuotas creadas, 12 ya existían".
+  summary      String?            @db.Text
+  error        String?            @db.Text
+  /// Detalle estructurado (por tipo de índice, por contrato...).
+  details      Json?
+
+  triggeredBy       JobTrigger @default(SCHEDULE) @map("triggered_by")
+  triggeredByUserId String?    @map("triggered_by_user_id") @db.Uuid
+
+  /// Número de corrida del día (0, 1, ...) de las programadas. Junto con job,
+  /// tenant y día es único (índice parcial `job_executions_scheduled_slot_key`,
+  /// que vive sólo en SQL): así dos réplicas no encolan la misma corrida.
+  slot Int?
+
+  @@index([tenantId, job, scheduledFor])
+  @@index([job, startedAt])
+  /// `countScheduled` filtra sólo por día: sin esto recorre toda la tabla
+  /// cada 10 minutos en cada instancia.
+  @@index([scheduledFor])
+  @@map("job_executions")
+}
+
+enum NotificationRecipientKind {
+  RENTER
+  OWNER
+  TENANT_STAFF
+  INSURER
+  /// Un email suelto que no es persona del sistema (Fase 14).
+  EXTERNAL
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP_LINK
+  IN_APP
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/// Historial de avisos (D-95). La `dedupe_key` única por inmobiliaria es lo que
+/// hace idempotentes a los jobs: un aviso con la misma clave no se manda dos
+/// veces. Los avisos internos (`IN_APP` a `TENANT_STAFF`) son los que lee la
+/// campana del backoffice; `read_at` los marca leídos. La Fase 14 lo reutiliza
+/// como historial de envíos reales.
+model NotificationLog {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  type           String                    @db.VarChar(40)
+  recipientKind  NotificationRecipientKind @map("recipient_kind")
+  recipientId    String?                   @map("recipient_id") @db.Uuid
+  recipientEmail String?                   @map("recipient_email") @db.VarChar(255)
+  /// Null en los avisos que no cuelgan de una entidad (índice no disponible).
+  entityType     String?                   @map("entity_type") @db.VarChar(40)
+  entityId       String?                   @map("entity_id") @db.Uuid
+  dedupeKey      String                    @map("dedupe_key") @db.VarChar(200)
+  channel        NotificationChannel
+  status         NotificationStatus        @default(QUEUED)
+  /// Datos para la plantilla; en los internos, además `title`, `body` y `link`.
+  payload        Json
+  error          String?                   @db.Text
+  sentAt         DateTime?                 @map("sent_at") @db.Timestamptz(3)
+  readAt         DateTime?                 @map("read_at") @db.Timestamptz(3)
+
+  // Fase 14: plantilla usada, entrega con reintentos y trazabilidad del proveedor.
+  /// Plantilla con la que se armó el mensaje ("PAYMENT_REMINDER.EMAIL").
+  templateKey       String?   @map("template_key") @db.VarChar(60)
+  subject           String?   @db.VarChar(200)
+  /// Intentos de entrega hechos. "Reintentando" = QUEUED con attempts > 0.
+  attempts          Int       @default(0)
+  nextAttemptAt     DateTime? @map("next_attempt_at") @db.Timestamptz(3)
+  /// Id que devolvió el proveedor de email; une los eventos del webhook.
+  providerMessageId String?   @map("provider_message_id") @db.VarChar(100)
+  /// Por qué quedó SKIPPED (TYPE_DISABLED, CHANNEL_DISABLED, USER_OPTED_OUT, NO_RECIPIENT_EMAIL, NO_PHONE).
+  skipReason        String?   @map("skip_reason") @db.VarChar(40)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, recipientKind, channel, createdAt])
+  @@index([tenantId, entityType, entityId])
+  @@index([providerMessageId])
+  @@index([tenantId, status, createdAt])
+  @@map("notification_log")
+}
+
+// ------------------------------------------------------------ PDFs (Fase 15)
+
+enum DocumentKind {
+  SETTLEMENT
+  OWNER_STATEMENT
+  PAYMENT_RECEIPT
+  TERMINATION_NOTICE
+}
+
+enum DocumentStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+/// Un PDF generado, en una versión. La vigente de una entidad es la última
+/// `READY`; regenerar crea una versión nueva y no pisa el archivo anterior.
+/// `entity_id` apunta a la liquidación, el consolidado, el pago o el contrato
+/// según `kind` (sin FK: son cuatro tablas de tres módulos).
+model GeneratedDocument {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  kind          DocumentKind
+  entityId      String         @map("entity_id") @db.Uuid
+  version       Int
+  status        DocumentStatus @default(PENDING)
+  storageKey    String?        @map("storage_key") @db.VarChar(500)
+  url           String?        @db.VarChar(1000)
+  sizeBytes     Int?           @map("size_bytes")
+  error         String?        @db.Text
+  generatedAt   DateTime?      @map("generated_at") @db.Timestamptz(3)
+  /// Quién pidió la regeneración; null si salió de un evento.
+  requestedById String?        @map("requested_by_id") @db.Uuid
+  /// Los datos con los que se armó: permite re-renderizar igual y detectar
+  /// si un evento repetido trae algo distinto.
+  dataSnapshot  Json?          @map("data_snapshot")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, kind, entityId, version])
+  @@index([tenantId, kind, entityId, status])
+  @@index([tenantId, status, createdAt])
+  @@map("generated_documents")
+}
+
+// =============================================================================
+// Inventario del inmueble (Fase 25, rediseño sección 1)
+// =============================================================================
+
+enum InventoryType {
+  DELIVERY
+  RETURN
+}
+
+enum InventoryStatus {
+  DRAFT
+  CONFIRMED
+}
+
+enum ItemCondition {
+  GOOD
+  FAIR
+  POOR
+  NOT_APPLICABLE
+}
+
+/// Acta de entrega o de devolución de un contrato. Confirmada es inmutable:
+/// una corrección es otro inventario (`correctsInventoryId`) que, al
+/// confirmarse, deja al original marcado como reemplazado (`supersededById`).
+/// El contrato, el usuario y las demás referencias son ids planos (sin FK).
+model PropertyInventory {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  contractId String          @map("contract_id") @db.Uuid
+  type       InventoryType
+  date       DateTime        @db.Date
+  status     InventoryStatus @default(DRAFT)
+
+  performedById      String    @map("performed_by_id") @db.Uuid
+  /// El inquilino estuvo presente y de acuerdo.
+  tenantAcknowledged Boolean   @default(false) @map("tenant_acknowledged")
+  generalNotes       String?   @map("general_notes") @db.VarChar(2000)
+  confirmedAt        DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  confirmedById      String?   @map("confirmed_by_id") @db.Uuid
+
+  /// Inventario que esta corrección reemplaza (null salvo corrección).
+  correctsInventoryId String? @map("corrects_inventory_id") @db.Uuid
+  correctionReason    String? @map("correction_reason") @db.VarChar(1000)
+  /// Corrección confirmada que lo reemplazó; null = vigente.
+  supersededById      String? @map("superseded_by_id") @db.Uuid
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  items InventoryItem[]
+
+  @@index([tenantId, contractId, type])
+  @@map("property_inventories")
+}
+
+model InventoryItem {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String            @map("tenant_id") @db.Uuid
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  inventoryId String            @map("inventory_id") @db.Uuid
+  inventory   PropertyInventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  category    String        @db.VarChar(100)
+  description String        @db.VarChar(300)
+  condition   ItemCondition
+  notes       String?       @db.VarChar(1000)
+  position    Int
+
+  photos InventoryPhoto[]
+
+  @@index([tenantId, inventoryId, position])
+  @@map("inventory_items")
+}
+
+/// Foto de un ítem. En una corrección las filas se copian apuntando al mismo
+/// archivo: el archivo del storage se borra recién cuando no lo usa ninguna.
+model InventoryPhoto {
+  id       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String        @map("tenant_id") @db.Uuid
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  itemId   String        @map("item_id") @db.Uuid
+  item     InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  storageKey String   @map("storage_key") @db.VarChar(500)
+  url        String   @db.VarChar(1000)
+  position   Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, itemId, position])
+  @@index([tenantId, storageKey])
+  @@map("inventory_photos")
+}
+
+/// Columnas del tablero del CRM (Fase 23, 3.1).
+enum InquiryStage {
+  NEW
+  CONTACTED
+  VISIT_SCHEDULED
+  PROPOSAL_SENT
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum PublicInquirySource {
+  PORTAL
+  MERCADOLIBRE
+  ZONAPROP
+  ARGENPROP
+  WHATSAPP
+  PHONE
+  MANUAL
+}
+
+enum InquiryActivityType {
+  CREATED
+  STAGE_CHANGED
+  ASSIGNED
+  NOTE
+  CONTACT_ATTEMPT
+  FOLLOW_UP_SET
+  EDITED
+}
+
+/// Una consulta de alguien interesado en alquilar (la Fase 22 la creaba; desde
+/// la Fase 23 la administra el CRM). La tabla conserva su nombre
+/// `public_inquiries` (A-80). `property_id` y `contract_id` son ids planos (sin
+/// FK): la propiedad o el contrato pueden borrarse después. `ip` sólo sirve
+/// para frenar el spam y nunca sale por la API. Al menos uno entre `email` y
+/// `phone`, salvo en las consultas de un portal (CHECK en la migración, A-153).
+model PublicInquiry {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  name       String              @db.VarChar(120)
+  /// En minúsculas, para contar el límite por email.
+  email      String?             @db.VarChar(200)
+  phone      String?             @db.VarChar(40)
+  message    String              @default("") @db.VarChar(2000)
+  propertyId String?             @map("property_id") @db.Uuid
+  source     PublicInquirySource @default(PORTAL)
+  ip         String?             @db.VarChar(64)
+
+  stage          InquiryStage @default(NEW)
+  stageChangedAt DateTime     @default(now()) @map("stage_changed_at") @db.Timestamptz(3)
+  /// Orden dentro de la columna: se inserta entre vecinos sin renumerar (A-82).
+  boardPosition  Float        @default(0) @map("board_position")
+  assignedToId   String?      @map("assigned_to_id") @db.Uuid
+  nextActionAt   DateTime?    @map("next_action_at") @db.Date
+  lastContactAt  DateTime?    @map("last_contact_at") @db.Timestamptz(3)
+  lostReason     String?      @map("lost_reason") @db.VarChar(200)
+  closedAt       DateTime?    @map("closed_at") @db.Timestamptz(3)
+  contractId     String?      @map("contract_id") @db.Uuid
+  /// Id de la consulta en el portal de origen; evita duplicar al sincronizar.
+  externalId     String?      @map("external_id") @db.VarChar(120)
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdById String?   @map("created_by_id") @db.Uuid
+  updatedById String?   @map("updated_by_id") @db.Uuid
+
+  activities InquiryActivity[]
+
+  @@unique([tenantId, source, externalId])
+  @@index([tenantId, stage, boardPosition])
+  @@index([tenantId, assignedToId])
+  @@index([tenantId, nextActionAt])
+  @@index([tenantId, propertyId, createdAt])
+  @@index([tenantId, ip, createdAt])
+  @@index([tenantId, email, createdAt])
+  @@map("public_inquiries")
+}
+
+/// Línea de tiempo de una consulta. Inmutable: las notas tampoco se editan ni
+/// se borran. `author_id` null = el sistema.
+model InquiryActivity {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String        @map("tenant_id") @db.Uuid
+  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  inquiryId String        @map("inquiry_id") @db.Uuid
+  inquiry   PublicInquiry @relation(fields: [inquiryId], references: [id], onDelete: Restrict)
+
+  type     InquiryActivityType
+  authorId String?             @map("author_id") @db.Uuid
+  payload  Json                @default("{}")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([tenantId, inquiryId, createdAt])
+  @@map("inquiry_activities")
+}
+
+/// Vistas de la ficha pública por propiedad y día (A-83). Sin dato personal.
+model PropertyView {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  propertyId String   @map("property_id") @db.Uuid
+  day        DateTime @db.Date
+  views      Int      @default(0)
+
+  @@unique([tenantId, propertyId, day])
+  @@index([tenantId, day])
+  @@map("property_views")
+}
+
+enum ListingChannel {
+  MERCADOLIBRE
+  ZONAPROP
+  ARGENPROP
+}
+
+enum ListingChannelState {
+  DISCONNECTED
+  CONNECTED
+  ERROR
+}
+
+enum ListingState {
+  NOT_PUBLISHED
+  PUBLISHING
+  PUBLISHED
+  PAUSED
+  ERROR
+  CLOSED
+}
+
+/// Cuenta conectada de la inmobiliaria en un portal (Fase 23, 3.4). Los tokens
+/// se guardan cifrados (A-84) y nunca salen en un DTO ni en el log.
+model ListingChannelAccount {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  channel           ListingChannel
+  status            ListingChannelState @default(DISCONNECTED)
+  accountLabel      String?             @map("account_label") @db.VarChar(200)
+  accessTokenEnc    String?             @map("access_token_enc") @db.Text
+  refreshTokenEnc   String?             @map("refresh_token_enc") @db.Text
+  tokenExpiresAt    DateTime?           @map("token_expires_at") @db.Timestamptz(3)
+  connectedById     String?             @map("connected_by_id") @db.Uuid
+  connectedAt       DateTime?           @map("connected_at") @db.Timestamptz(3)
+  lastError         String?             @map("last_error") @db.VarChar(500)
+  /// Hasta cuándo se trajeron las consultas del portal.
+  lastInquirySyncAt DateTime?           @map("last_inquiry_sync_at") @db.Timestamptz(3)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, channel])
+  @@map("listing_channels")
+}
+
+/// Estado de una propiedad en un portal. `payload_hash` sirve para saber si la
+/// propiedad cambió desde que se publicó.
+model PropertyListing {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  /// Id plano: la propiedad puede borrarse después.
+  propertyId String @map("property_id") @db.Uuid
+
+  channel      ListingChannel
+  externalId   String?        @map("external_id") @db.VarChar(120)
+  externalUrl  String?        @map("external_url") @db.VarChar(500)
+  status       ListingState   @default(NOT_PUBLISHED)
+  payloadHash  String?        @map("payload_hash") @db.VarChar(64)
+  publishedAt  DateTime?      @map("published_at") @db.Timestamptz(3)
+  lastSyncedAt DateTime?      @map("last_synced_at") @db.Timestamptz(3)
+  lastError    String?        @map("last_error") @db.VarChar(500)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, propertyId, channel])
+  @@index([tenantId, status])
+  @@map("property_listings")
+}
+
+// ------------------------------------------------- Notificaciones (Fase 14)
+
+enum EmailEventType {
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  DELAYED
+}
+
+/// Override por inmobiliaria del texto de un mail. Sin fila se usa el default
+/// de código; borrar la fila = "restaurar el original" (A-50).
+model NotificationTemplate {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// "PAYMENT_REMINDER.EMAIL".
+  key         String  @db.VarChar(60)
+  subject     String  @db.VarChar(200)
+  bodyText    String  @map("body_text") @db.Text
+  createdById String? @map("created_by_id") @db.Uuid
+  updatedById String? @map("updated_by_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, key])
+  @@map("notification_templates")
+}
+
+/// Qué tipos de aviso y por qué canales los usa la inmobiliaria. Sin fila,
+/// rige el default del catálogo.
+model NotificationSetting {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  type     String                @db.VarChar(40)
+  enabled  Boolean
+  channels NotificationChannel[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, type])
+  @@map("notification_settings")
+}
+
+/// Preferencia personal de un usuario del personal sobre un tipo no obligatorio.
+model NotificationUserPreference {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  userId       String  @map("user_id") @db.Uuid
+  type         String  @db.VarChar(40)
+  emailEnabled Boolean @map("email_enabled")
+  inAppEnabled Boolean @map("in_app_enabled")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, userId, type])
+  @@map("notification_user_preferences")
+}
+
+/// Eventos que reporta el proveedor de email por webhook (entregado, abierto,
+/// rebotó...). Único por (mensaje, tipo): un evento repetido no duplica.
+model EmailEvent {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Id plano (sin FK) de la fila de `notification_log`.
+  notificationId    String?        @map("notification_id") @db.Uuid
+  providerMessageId String         @map("provider_message_id") @db.VarChar(100)
+  eventType         EmailEventType @map("event_type")
+  recipientEmail    String?        @map("recipient_email") @db.VarChar(255)
+  payloadRaw        Json           @map("payload_raw")
+  occurredAt        DateTime       @map("occurred_at") @db.Timestamptz(3)
+  receivedAt        DateTime       @default(now()) @map("received_at") @db.Timestamptz(3)
+
+  @@unique([providerMessageId, eventType])
+  @@index([tenantId, notificationId])
+  @@map("email_events")
+}
+
+/// Override por inmobiliaria del texto de un mensaje de WhatsApp (link wa.me).
+model WhatsAppTemplate {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  key   String @db.VarChar(60)
+  title String @db.VarChar(120)
+  body  String @db.Text
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@unique([tenantId, key])
+  @@map("whatsapp_templates")
+}
+
+// ------------------------------------------------- Migración de datos (Fase 21)
+
+enum ImportSource {
+  EXCEL
+  TOKKO
+}
+
+enum ImportBatchMode {
+  DRY_RUN
+  IMPORT
+}
+
+enum ImportBatchStatus {
+  ANALYZING
+  READY
+  IMPORTING
+  COMPLETED
+  PARTIAL
+  FAILED
+  DISCARDED
+}
+
+enum ImportEntity {
+  OWNER
+  RENTER
+  GUARANTOR
+  PROPERTY
+  CONTRACT
+}
+
+enum ImportRowStatus {
+  VALID
+  ERROR
+  CONFLICT
+  ALREADY_IMPORTED
+  IMPORTED
+  SKIPPED
+  FAILED
+}
+
+enum ImportResolution {
+  SKIP
+  MERGE_EMPTY_FIELDS
+}
+
+enum ImportAssetStatus {
+  PENDING
+  MIGRATED
+  FAILED
+}
+
+/// Un lote de migración: sale en `DRY_RUN` (análisis) y pasa a `IMPORT` al
+/// confirmarse. Lo analizado es exactamente lo que se importa (A-70).
+model ImportBatch {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  source        ImportSource
+  mode          ImportBatchMode   @default(DRY_RUN)
+  status        ImportBatchStatus @default(ANALYZING)
+  fileName      String?           @map("file_name") @db.VarChar(255)
+  /// El .xlsx subido, en el storage; se borra al confirmar, descartar o vencer.
+  fileKey       String?           @map("file_key") @db.VarChar(500)
+  analysisJobId String?           @map("analysis_job_id") @db.Uuid
+  importJobId   String?           @map("import_job_id") @db.Uuid
+  /// Hojas faltantes y maestros a crear / creados.
+  summary       Json?
+  /// Lo pedido al analizar (Tokko) y lo elegido al confirmar.
+  options       Json?
+  /// Por qué quedó en FAILED, en español.
+  errorMessage  String?           @map("error_message") @db.VarChar(500)
+  confirmedById String?           @map("confirmed_by_id") @db.Uuid
+  confirmedAt   DateTime?         @map("confirmed_at") @db.Timestamptz(3)
+
+  rows         ImportRow[]
+  assetResults ImportAssetResult[]
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
+  @@index([tenantId, source, status])
+  @@map("import_batches")
+}
+
+/// Una fila del lote ya normalizada y validada (área de staging, A-71).
+model ImportRow {
+  id       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String      @map("tenant_id") @db.Uuid
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  batchId  String      @map("batch_id") @db.Uuid
+  batch    ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  entity      ImportEntity
+  /// Fila del Excel (con encabezado, tal como la ve el usuario) o null en Tokko.
+  rowNumber   Int?              @map("row_number")
+  /// Id de Tokko, o el código de la hoja de propiedades del Excel.
+  externalId  String?           @map("external_id") @db.VarChar(100)
+  naturalKey  String            @map("natural_key") @db.VarChar(300)
+  label       String            @db.VarChar(200)
+  status      ImportRowStatus
+  /// La fila normalizada; su forma depende de la entidad.
+  data        Json
+  /// `{ field, code, message }[]`
+  errors      Json              @default("[]")
+  /// `{ entityId, reason, differingFields, kind }`
+  conflict    Json?
+  resolution  ImportResolution?
+  excluded    Boolean           @default(false)
+  targetId    String?           @map("target_id") @db.Uuid
+  needsReview Boolean           @default(false) @map("needs_review")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([batchId, entity, status])
+  @@index([batchId, entity, rowNumber])
+  @@index([tenantId, batchId])
+  @@map("import_rows")
+}
+
+/// Lo que hace idempotente a la migración: cada fila importada deja su vínculo.
+model ImportLink {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  source      ImportSource
+  entity      ImportEntity
+  /// Id de Tokko, o la clave natural normalizada en el Excel.
+  externalKey String       @map("external_key") @db.VarChar(300)
+  targetId    String       @map("target_id") @db.Uuid
+  batchId     String       @map("batch_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, source, entity, externalKey])
+  @@index([tenantId, batchId])
+  @@map("import_links")
+}
+
+/// Una foto de Tokko a traer al storage propio (migración de assets).
+model ImportAssetResult {
+  id       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String      @map("tenant_id") @db.Uuid
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  batchId  String      @map("batch_id") @db.Uuid
+  batch    ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  propertyId String            @map("property_id") @db.Uuid
+  sourceUrl  String            @map("source_url") @db.VarChar(1000)
+  /// Orden dentro de la propiedad (0 = principal).
+  position   Int               @default(0)
+  status     ImportAssetStatus @default(PENDING)
+  error      String?           @db.VarChar(300)
+  storageKey String?           @map("storage_key") @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([batchId, status])
+  @@index([batchId, propertyId])
+  @@map("import_asset_results")
+}
+
+// ------------------------------------------------------------------ Tasación (Fase 24)
+
+enum MarketSource {
+  ZONAPROP
+  ARGENPROP
+  MERCADOLIBRE
+  FAKE
+}
+
+/// Categoría global de propiedad para comparar: el tipo de cada inmobiliaria se
+/// mapea por nombre (A-61).
+enum MarketCategory {
+  APARTMENT
+  HOUSE
+  PH
+  COMMERCIAL
+  LAND
+  GARAGE
+  OFFICE
+  OTHER
+}
+
+enum MarketOperation {
+  RENT
+}
+
+enum ValuationConfidence {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ValuationEngine {
+  STATISTICAL
+  STATISTICAL_LLM
+}
+
+/// Cómo terminó el último refresco de una zona o una fuente.
+enum ZoneRefreshResult {
+  OK
+  EMPTY
+  BLOCKED
+  PARSE_ERROR
+}
+
+/// Un aviso de alquiler visto en un portal. GLOBAL: sin `tenant_id` a
+/// propósito (el mercado es el mismo para todas las inmobiliarias, D-173). Sólo
+/// atributos numéricos y la URL: ni título, ni descripción, ni fotos, ni
+/// contacto (A-62).
+model MarketComparable {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  source      MarketSource
+  /// Id del aviso en la fuente.
+  externalId  String          @map("external_id") @db.VarChar(120)
+  zoneKey     String          @map("zone_key") @db.VarChar(200)
+  category    MarketCategory
+  operation   MarketOperation @default(RENT)
+  price       Decimal         @db.Decimal(14, 2)
+  currency    Currency
+  areaM2      Decimal?        @map("area_m2") @db.Decimal(10, 2)
+  bedrooms    Int?
+  /// Texto normalizado: `balcon`, `cochera`...
+  amenities   String[]        @default([])
+  url         String          @db.VarChar(1000)
+  publishedAt DateTime?       @map("published_at") @db.Timestamptz(3)
+  firstSeenAt DateTime        @default(now()) @map("first_seen_at") @db.Timestamptz(3)
+  lastSeenAt  DateTime        @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  active      Boolean         @default(true)
+
+  @@unique([source, externalId])
+  @@index([zoneKey, category, currency, active, lastSeenAt])
+  @@index([active, lastSeenAt])
+  @@map("market_comparables")
+}
+
+/// Qué zonas se refrescan (A-63). GLOBAL.
+model ValuationZone {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  zoneKey             String             @map("zone_key") @db.VarChar(200)
+  category            MarketCategory
+  lastRefreshedAt     DateTime?          @map("last_refreshed_at") @db.Timestamptz(3)
+  lastResult          ZoneRefreshResult? @map("last_result")
+  consecutiveFailures Int                @default(0) @map("consecutive_failures")
+  /// Cuántas veces algún usuario pidió una tasación o una corrida de esta zona.
+  requestedCount      Int                @default(0) @map("requested_count")
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([zoneKey, category])
+  @@index([lastRefreshedAt])
+  @@map("valuation_zones")
+}
+
+/// Salud de cada fuente entre corridas (monitoreo de rotura silenciosa). GLOBAL.
+model ValuationSourceState {
+  source              MarketSource       @id
+  lastRunAt           DateTime?          @map("last_run_at") @db.Timestamptz(3)
+  /// Último momento en que la fuente aportó avisos.
+  lastIngestAt        DateTime?          @map("last_ingest_at") @db.Timestamptz(3)
+  lastResult          ZoneRefreshResult? @map("last_result")
+  consecutiveFailures Int                @default(0) @map("consecutive_failures")
+  /// Cortada hasta este momento por bloqueo (403/429/captcha sostenido).
+  blockedUntil        DateTime?          @map("blocked_until") @db.Timestamptz(3)
+
+  @@map("valuation_source_states")
+}
+
+/// Una tasación pedida. Por inmobiliaria, auditada y sin borrado. Es una
+/// sugerencia: nunca toca el precio de la propiedad (A-46).
+model ValuationRequest {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  propertyId           String              @map("property_id") @db.Uuid
+  /// Lo que se usó para calcular: superficie, ambientes, amenities, moneda.
+  input                Json
+  /// Hash del `input` y la zona, para reconocer una tasación idéntica (A-67).
+  inputHash            String              @map("input_hash") @db.VarChar(64)
+  currency             Currency
+  minPrice             Decimal             @map("min_price") @db.Decimal(14, 2)
+  maxPrice             Decimal             @map("max_price") @db.Decimal(14, 2)
+  suggestedPrice       Decimal             @map("suggested_price") @db.Decimal(14, 2)
+  confidence           ValuationConfidence
+  comparablesUsed      Int                 @map("comparables_used")
+  comparablesDiscarded Int                 @map("comparables_discarded")
+  zoneKeyUsed          String              @map("zone_key_used") @db.VarChar(200)
+  zoneLabel            String              @map("zone_label") @db.VarChar(200)
+  zoneWidened          Boolean             @map("zone_widened")
+  oldestComparableAt   DateTime?           @map("oldest_comparable_at") @db.Timestamptz(3)
+  engine               ValuationEngine
+  justification        String              @db.Text
+  requestedById        String              @map("requested_by_id") @db.Uuid
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([tenantId, propertyId, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, propertyId, inputHash, createdAt])
+  @@map("valuation_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Sitio web de la inmobiliaria (generador de sitios)
+// ---------------------------------------------------------------------------
+
+enum SiteTemplateKey {
+  CLASSIC
+  MODERN
+  LUXURY
+}
+
+/// Configuración del sitio web de una inmobiliaria (una fila por tenant). El
+/// editor escribe `draft`; el sitio público lee `published`, que se copia del
+/// borrador al publicar. Ambos son el `SiteSettingsDraft` del contrato.
+///
+/// ⚠️ ÍNDICE PARCIAL QUE VIVE SOLO EN SQL: `site_settings_custom_domain_verified_key`
+/// (`UNIQUE (custom_domain) WHERE custom_domain_verified_at IS NOT NULL`, creado a
+/// mano en la migración `add_site_domain_verification`). Prisma no puede declarar
+/// índices parciales, así que NO aparece en este schema, y `prisma migrate dev`
+/// podría proponer borrarlo como "deriva". No lo "arregles": sin ese índice dos
+/// inmobiliarias podrían verificar el mismo dominio. Si una migración generada lo
+/// elimina, hay que sacar esa línea del SQL antes de aplicarla. Las migraciones de
+/// este repo se generan con `migrate diff` y se aplican con `migrate deploy`.
+model SiteSettings {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @unique @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  enabled                Boolean         @default(false)
+  /// Espejo de `draft.template`; lo mantiene la aplicación.
+  templateKey            SiteTemplateKey @default(CLASSIC) @map("template_key")
+  /// Único global: minúsculas, [a-z0-9-], sin reservados.
+  subdomain              String?         @unique @db.VarChar(63)
+  /// Único solo entre los dominios VERIFICADOS (ver el aviso del modelo: es un
+  /// índice parcial que existe únicamente en SQL; la migración
+  /// `add_site_domain_verification`): reservar un dominio sin demostrar que es
+  /// tuyo no bloquea a nadie.
+  customDomain           String?         @map("custom_domain") @db.VarChar(253)
+  /// Cuándo se comprobó el registro TXT del dominio; solo un dominio verificado
+  /// resuelve el sitio.
+  customDomainVerifiedAt DateTime?       @map("custom_domain_verified_at") @db.Timestamptz(3)
+
+  draft         Json
+  published     Json?
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(3)
+  publishedById String?   @map("published_by_id") @db.Uuid
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+  updatedById String?  @map("updated_by_id") @db.Uuid
+
+  @@index([customDomain])
+  @@map("site_settings")
+}
+
+/// Imagen subida desde el editor del sitio. Sirve para saber qué URLs son
+/// nuestras al validar el contenido.
+model SiteAsset {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  storageKey  String @map("storage_key") @db.VarChar(500)
+  url         String @db.VarChar(1000)
+  contentType String @map("content_type") @db.VarChar(100)
+  sizeBytes   Int    @map("size_bytes")
+  width       Int?
+  height      Int?
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  createdById String?  @map("created_by_id") @db.Uuid
+
+  @@index([tenantId, url])
+  @@map("site_assets")
+}
+
+// ---------------------------------------------------------------------------
+// Idempotencia de POST (auditoría de datos, A3)
+// ---------------------------------------------------------------------------
+
+/// Clave `Idempotency-Key` de un POST que mueve dinero. Se escribe en la misma
+/// transacción que el pago: o están las dos filas o no hay ninguna. Dentro de
+/// `scope` y del tenant, la misma clave con el mismo pedido devuelve el
+/// resultado de la primera vez en vez de repetir el efecto; con otro pedido es
+/// un error. Vence (`expiresAt`): después vale como clave nueva.
+model IdempotencyKey {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  /// Qué operación (`billing.register-payment`): la misma clave en dos
+  /// operaciones distintas no se pisa.
+  scope       String   @db.VarChar(60)
+  key         String   @db.VarChar(128)
+  /// SHA-256 del pedido: detecta la reutilización de la clave con otro cuerpo.
+  requestHash String   @map("request_hash") @db.VarChar(64)
+  /// Con qué se puede reconstruir la respuesta (ids creados). Null mientras la
+  /// primera ejecución no terminó.
+  response    Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, scope, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
 }

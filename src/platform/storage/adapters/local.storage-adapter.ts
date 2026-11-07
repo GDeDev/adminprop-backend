@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 
 import {
@@ -41,6 +41,16 @@ export class LocalStorageAdapter extends StoragePort {
       key,
       url: `${this.publicBaseUrl.replace(/\/$/, '')}${LOCAL_FILES_ROUTE}/${key}`,
     }
+  }
+
+  async download(key: string): Promise<Buffer> {
+    assertKeyInTenant(key)
+    return readFile(join(this.root, key))
+  }
+
+  /** El disco local es sólo para desarrollo: no distingue privado de público. */
+  signUrl(url: string): string {
+    return url
   }
 
   async delete(key: string): Promise<void> {

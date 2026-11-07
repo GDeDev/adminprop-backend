@@ -66,3 +66,15 @@ export class OwnerHasPropertiesException extends DomainException {
     )
   }
 }
+
+/** Fase 12: el % de honorarios del propietario tiene que estar entre 0 y 100. */
+export class InvalidOwnerFeeSettingsException extends DomainException {
+  constructor(reason: string) {
+    super(
+      'OWNER_INVALID_FEE_SETTINGS',
+      `Los honorarios no sirven: ${reason}`,
+      DomainErrorKind.InvalidInput,
+      { field: 'feePercentage' },
+    )
+  }
+}

@@ -56,6 +56,7 @@ import {
   PropertySummaryDto,
   UpdatePropertyDto,
 } from '../dtos/property.dtos'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 
 /** 10 MB por foto: alcanza para una foto de celular y frena abusos. */
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024
@@ -94,6 +95,7 @@ export class PropertiesController {
           ownerId: query.ownerId,
           propertyTypeId: query.propertyTypeId,
           search: query.search || undefined,
+          needsReview: query.needsReview,
         },
         { page: query.page, limit: query.limit },
       ),
@@ -138,6 +140,18 @@ export class PropertiesController {
         ownerId: dto.ownerId ?? null,
         amenityIds: dto.amenityIds ?? [],
         notes: dto.notes ?? null,
+        listingPrice: dto.listingPrice ?? null,
+        listingCurrency: dto.listingCurrency,
+        publicDescription: dto.publicDescription ?? null,
+        listingOperation: dto.listingOperation,
+        bedrooms: dto.bedrooms ?? null,
+        bathrooms: dto.bathrooms ?? null,
+        rooms: dto.rooms ?? null,
+        totalAreaM2: dto.totalAreaM2 ?? null,
+        coveredAreaM2: dto.coveredAreaM2 ?? null,
+        ageYears: dto.ageYears ?? null,
+        latitude: dto.latitude ?? null,
+        longitude: dto.longitude ?? null,
       }),
     )
     return { success: true, message: 'Propiedad creada', data: property }
@@ -161,6 +175,19 @@ export class PropertiesController {
         ownerId: dto.ownerId,
         amenityIds: dto.amenityIds,
         notes: dto.notes,
+        listingPrice: dto.listingPrice,
+        listingCurrency: dto.listingCurrency,
+        publicDescription: dto.publicDescription,
+        needsReview: dto.needsReview,
+        listingOperation: dto.listingOperation,
+        bedrooms: dto.bedrooms,
+        bathrooms: dto.bathrooms,
+        rooms: dto.rooms,
+        totalAreaM2: dto.totalAreaM2,
+        coveredAreaM2: dto.coveredAreaM2,
+        ageYears: dto.ageYears,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
       }),
     )
     return { success: true, message: 'Propiedad actualizada', data: property }
@@ -171,7 +198,7 @@ export class PropertiesController {
   @ApiResponse({ status: 200, type: PropertyDetailDto })
   @ApiResponse({
     status: 409,
-    description: 'Tiene un contrato activo',
+    description: 'Tiene un contrato activo: el estado lo maneja el contrato',
     type: ApiErrorDto,
   })
   @ApiResponse({
@@ -193,7 +220,7 @@ export class PropertiesController {
   @Post(':id/photos')
   @UseInterceptors(
     FilesInterceptor('files', MAX_PHOTOS_PER_PROPERTY, {
-      limits: { fileSize: MAX_PHOTO_BYTES },
+      limits: uploadLimits(MAX_PHOTO_BYTES, MAX_PHOTOS_PER_PROPERTY),
     }),
   )
   @ApiOperation({

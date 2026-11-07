@@ -12,6 +12,11 @@ Alta de una inmobiliaria (cliente del SaaS) con su primer administrador.
   --slug          Identificador corto y único: minúsculas, números y guiones (obligatorio)
   --admin-email   Email del primer administrador (obligatorio)
   --admin-name    Nombre del administrador (opcional, default "Admin")
+  --late-fee-percentage
+                  Punitorio diario por defecto, en % (ej. 0.5). Opcional: sin él
+                  la inmobiliaria no tiene punitorio por defecto y cada contrato
+                  tiene que indicar el suyo (o se configura después en
+                  Configuración).
 
 La contraseña del administrador se genera acá y se muestra UNA sola vez. No se
 pasa por parámetro a propósito: quedaría en el historial de la terminal. El
@@ -27,6 +32,7 @@ async function main() {
       slug: { type: 'string' },
       'admin-email': { type: 'string' },
       'admin-name': { type: 'string' },
+      'late-fee-percentage': { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   })
@@ -43,6 +49,7 @@ async function main() {
       slug: values.slug,
       adminEmail: values['admin-email'],
       adminFirstName: values['admin-name'],
+      dailyLateFeePercentage: values['late-fee-percentage'],
       bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS ?? 12),
     })
 
@@ -56,7 +63,11 @@ async function main() {
    Email:       ${result.adminEmail}
    Contraseña:  ${result.generatedPassword}
 
-⚠️  Guardá la contraseña ahora: no se vuelve a mostrar ni se puede recuperar.
+${
+  values['late-fee-percentage']
+    ? ''
+    : 'ℹ️  Sin punitorio por defecto: cada contrato tiene que indicar el suyo (o configurarlo en Configuración).\n\n'
+}⚠️  Guardá la contraseña ahora: no se vuelve a mostrar ni se puede recuperar.
     Pedile al administrador que la cambie en su primer ingreso.
 `)
   } catch (error) {

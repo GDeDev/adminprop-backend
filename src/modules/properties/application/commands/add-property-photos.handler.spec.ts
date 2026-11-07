@@ -1,4 +1,9 @@
-import { Property, PropertyStatus } from '@/modules/properties/domain/property'
+import {
+  ListingCurrency,
+  ListingOperation,
+  Property,
+  PropertyStatus,
+} from '@/modules/properties/domain/property'
 import { PropertyRepository } from '@/modules/properties/domain/property.ports'
 import { StoragePort } from '@/platform/storage/storage.port'
 import { PropertyViews } from '../property.views'
@@ -14,6 +19,21 @@ const PROPERTY: Property = {
   ownerId: null,
   amenityIds: [],
   notes: null,
+  activeContractId: null,
+  lastContractId: null,
+  listingPrice: null,
+  listingCurrency: ListingCurrency.ARS,
+  publicDescription: null,
+  needsReview: false,
+  listingOperation: ListingOperation.RENT,
+  bedrooms: null,
+  bathrooms: null,
+  rooms: null,
+  totalAreaM2: null,
+  coveredAreaM2: null,
+  ageYears: null,
+  latitude: null,
+  longitude: null,
   photos: [],
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
@@ -33,7 +53,12 @@ describe('AddPropertyPhotosHandler', () => {
       findById: jest.fn().mockResolvedValue(PROPERTY),
       addPhotos: jest.fn().mockResolvedValue([]),
     }
-    storage = { upload: jest.fn(), delete: jest.fn() }
+    storage = {
+      upload: jest.fn(),
+      delete: jest.fn(),
+      download: jest.fn(),
+      signUrl: jest.fn(),
+    }
     const views = { detail: jest.fn().mockResolvedValue({}) }
     handler = new AddPropertyPhotosHandler(
       properties as unknown as PropertyRepository,

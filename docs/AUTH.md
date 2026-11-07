@@ -189,7 +189,10 @@ refresh tokens no son usables.
 ### Bloqueo de cuenta
 
 Tras `LOGIN_MAX_FAILED_ATTEMPTS` (5) intentos fallidos, la cuenta se bloquea
-`LOGIN_LOCK_DURATION_MINUTES` (15).
+`LOGIN_LOCK_DURATION_MINUTES` (15). Mientras dura, el login responde el mismo
+401 `INVALID_CREDENTIALS` que una contraseña incorrecta (y gasta el mismo bcrypt):
+un código propio confirmaría que el email existe (D-250). El motivo queda en la
+auditoría (`account_locked`) y en el log.
 
 Es complementario al rate limiting, no redundante: el throttle frena a una IP
 probando muchas cuentas; el bloqueo frena a muchas IPs probando una sola cuenta.
@@ -221,6 +224,21 @@ Cuesta una consulta por clave primaria por request.
 Con `JWT_VALIDATE_USER_ON_REQUEST=false` el access token vuelve a ser
 stateless: más barato, pero desactivar a alguien tarda hasta 15 minutos en
 hacer efecto (los refresh se revocan al instante igual).
+
+### Qué NO revoca el logout (aceptado, B-3 de la auditoría)
+
+`POST /logout` y `/logout-all` revocan los **refresh tokens**, no el access
+token que el cliente ya tiene: ese sigue sirviendo hasta que vence (15 min) en
+el endpoint donde se use, salvo que el usuario se desactive o cambie su
+contraseña, casos en que la validación contra la base lo corta al instante.
+No hay lista de `jti` revocados a propósito: sumaría una consulta o un
+almacén compartido por request para cerrar una ventana corta, y el robo de un
+access token ya exige acceso al dispositivo o al tráfico. Si el riesgo cambia,
+la opción es esa lista (con TTL igual al del access token).
+
+Los endpoints `@IsPublic()` que reciben un token opcional también lo validan
+contra la base (B-7): el de un usuario desactivado se ignora y el pedido sigue
+como anónimo.
 
 ---
 
@@ -300,7 +318,7 @@ de él:
 | `REFRESH_TOKEN_REUSED`     | 401  | Reuso detectado, se cerraron todas las sesiones                                                            |
 | `SESSION_REVOKED`          | 401  | Usuario borrado o desactivado, inmobiliaria deshabilitada, o token anterior al último cambio de contraseña |
 | `ACCOUNT_INACTIVE`         | 403  | Sólo al refrescar: cuenta o inmobiliaria deshabilitada                                                     |
-| `ACCOUNT_LOCKED`           | 403  | Bloqueada por intentos fallidos                                                                            |
+| `ACCOUNT_LOCKED`           | 403  | Reservado. El login de una cuenta bloqueada responde `INVALID_CREDENTIALS` 401 (D-250)                     |
 | `INSUFFICIENT_PERMISSIONS` | 403  | El rol no alcanza para ese endpoint                                                                        |
 | `EMAIL_ALREADY_REGISTERED` | 409  | Ya hay una cuenta con ese email                                                                            |
 | `CURRENT_PASSWORD_INVALID` | 400  | La contraseña actual no coincide                                                                           |

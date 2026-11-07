@@ -1,7 +1,13 @@
 import { Injectable } from '@nestjs/common'
 import { Owner as OwnerRow, Prisma } from '@prisma/client'
 
-import { BankAccount, fullNameOf, Owner } from '@/modules/owners/domain/owner'
+import {
+  BankAccount,
+  fullNameOf,
+  Owner,
+  OwnerFeeSettings,
+  StatementSendMode,
+} from '@/modules/owners/domain/owner'
 import { OwnerPolicy } from '@/modules/owners/domain/owner.policy'
 import {
   OwnerFilter,
@@ -45,6 +51,14 @@ export class OwnerRepositoryImpl extends OwnerRepository {
     if (ids.length === 0) return []
     const rows = await this.prisma.db.owner.findMany({
       where: { id: { in: ids } },
+    })
+    return rows.map(toDomain)
+  }
+
+  async findByNationalIds(nationalIds: string[]): Promise<Owner[]> {
+    if (nationalIds.length === 0) return []
+    const rows = await this.prisma.db.owner.findMany({
+      where: { nationalId: { in: nationalIds } },
     })
     return rows.map(toDomain)
   }
@@ -108,6 +122,24 @@ export class OwnerRepositoryImpl extends OwnerRepository {
     return toDomain(row)
   }
 
+  async updateFeeSettings(
+    id: string,
+    settings: OwnerFeeSettings,
+  ): Promise<Owner> {
+    const row = await this.prisma.db.owner.update({
+      where: { id },
+      data: settings,
+    })
+    return toDomain(row)
+  }
+
+  async findByPortalUser(portalUserId: string): Promise<Owner | null> {
+    const row = await this.prisma.db.owner.findFirst({
+      where: { portalUserId },
+    })
+    return row ? toDomain(row) : null
+  }
+
   async setPortalUser(id: string, portalUserId: string): Promise<void> {
     await this.prisma.db.owner.update({
       where: { id },
@@ -154,6 +186,12 @@ function toDomain(row: OwnerRow): Owner {
       alias: row.bankAlias,
       bankName: row.bankName,
       holder: row.bankHolder,
+    },
+    feeSettings: {
+      feePercentage: row.feePercentage ? row.feePercentage.toFixed(2) : null,
+      feeIncludesLateFees: row.feeIncludesLateFees,
+      feeIncludesCharges: row.feeIncludesCharges,
+      statementSendMode: StatementSendMode[row.statementSendMode],
     },
     portalUserId: row.portalUserId,
     createdAt: row.createdAt,

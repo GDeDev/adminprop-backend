@@ -8,6 +8,7 @@ import {
   softDeleteExtension,
 } from './extensions/soft-delete.extension'
 import { tenantExtension } from './extensions/tenant.extension'
+import { TransactionContext } from './transaction-context'
 
 const logger = createLogger('Prisma')
 
@@ -39,8 +40,12 @@ function extendClient(
     : client
 
   const extended = scoped
-    .$extends(softDeleteExtension(ref))
-    .$extends(auditExtension(client as never))
+    .$extends(
+      softDeleteExtension(ref, { useTransaction: options.tenantScoped }),
+    )
+    .$extends(
+      auditExtension(client as never, { useTransaction: options.tenantScoped }),
+    )
 
   // Cierra la circularidad: soft-delete necesita el cliente completo para que
   // el `update` en que convierte un `delete` pase también por la auditoría.
@@ -56,15 +61,24 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  private readonly scopedDb: ExtendedPrismaClient
+
   /**
    * Cliente con todas las extensiones: filtro de tenant, soft delete y
    * auditoría. **Es el que hay que usar en los repositorios.**
+   *
+   * Dentro de `transaction()`, devuelve el cliente de esa transacción: así
+   * los repositorios participan de ella sin enterarse (D-52). Una lista con
+   * `db.$transaction([...])` no se puede abrir adentro de otra: Prisma lo
+   * rechaza, y en ese caso hay que hacer las dos consultas por separado.
    *
    * `this` (sin extender) queda disponible para los casos que necesitan
    * saltearse el soft delete o la auditoría a propósito: migraciones de datos,
    * limpiezas, el borrado físico de tokens vencidos.
    */
-  readonly db: ExtendedPrismaClient
+  get db(): ExtendedPrismaClient {
+    return TransactionContext.current<ExtendedPrismaClient>() ?? this.scopedDb
+  }
 
   /**
    * Igual que `db` pero **sin filtro de tenant**. Para las pocas consultas que
@@ -79,8 +93,23 @@ export class PrismaService
 
   constructor() {
     super()
-    this.db = extendClient(this, { tenantScoped: true })
+    this.scopedDb = extendClient(this, { tenantScoped: true })
     this.unscoped = extendClient(this, { tenantScoped: false })
+  }
+
+  /**
+   * Corre `fn` en una transacción: todo lo que adentro use `prisma.db`
+   * —incluidos los repositorios de otros módulos llamados por sus facades—
+   * se confirma o se deshace junto. Si ya hay una abierta, se suma a ella.
+   *
+   * La auditoría de los modelos con filtro de tenant escribe con el cliente de
+   * la transacción: se confirma o se deshace junto con el cambio.
+   */
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    if (TransactionContext.current()) return fn()
+    return this.scopedDb.$transaction((tx) =>
+      TransactionContext.run(tx, async () => await fn()),
+    )
   }
 
   async onModuleInit() {

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 
 import {
+  ListingCurrency,
+  ListingOperation,
   Property,
   PropertyPhoto,
   PropertyStatus,
@@ -10,6 +12,8 @@ import {
   PropertyData,
   PropertyFilter,
   PropertyRepository,
+  PublicPropertyFilter,
+  PublicPropertySort,
 } from '@/modules/properties/domain/property.ports'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 
@@ -18,6 +22,28 @@ const ALL_PHOTOS = { photos: { orderBy: { position: 'asc' } } } as const
 const MAIN_PHOTO = {
   photos: { orderBy: { position: 'asc' }, take: 1 },
 } as const
+
+/**
+ * Orden del listado público. El precio se ordena en la base (es Decimal, nunca
+ * number) y las que no tienen precio ("Consultar") van siempre al final, sea
+ * cual sea el sentido. Todos los órdenes cierran con `id`: sin un desempate
+ * total, la paginación puede repetir u omitir filas entre páginas.
+ */
+function publicOrderBy(
+  sort: PublicPropertySort = 'recent',
+): Prisma.PropertyOrderByWithRelationInput[] {
+  if (sort === 'recent') return [{ createdAt: 'desc' }, { id: 'asc' }]
+  return [
+    {
+      listingPrice: {
+        sort: sort === 'price_asc' ? 'asc' : 'desc',
+        nulls: 'last',
+      },
+    },
+    { createdAt: 'desc' },
+    { id: 'asc' },
+  ]
+}
 
 type PropertyRow = Prisma.PropertyGetPayload<{ include: typeof ALL_PHOTOS }>
 type PhotoRow = PropertyRow['photos'][number]
@@ -58,6 +84,9 @@ export class PropertyRepositoryImpl extends PropertyRepository {
       ...(filter.propertyTypeId
         ? { propertyTypeId: filter.propertyTypeId }
         : {}),
+      ...(filter.needsReview !== undefined
+        ? { needsReview: filter.needsReview }
+        : {}),
       // ILIKE '%...%': lo resuelve el índice trigram de la dirección.
       ...(filter.search
         ? { address: { contains: filter.search, mode: 'insensitive' } }
@@ -76,6 +105,87 @@ export class PropertyRepositoryImpl extends PropertyRepository {
     return [rows.map(toDomain), total]
   }
 
+  async listPublic(
+    filter: PublicPropertyFilter,
+    page: { skip: number; take: number },
+  ): Promise<[Property[], number]> {
+    const hasPrice =
+      filter.priceFrom !== undefined || filter.priceTo !== undefined
+    const where: Prisma.PropertyWhereInput = {
+      status: PropertyStatus.AVAILABLE,
+      ...(filter.locationId ? { locationId: filter.locationId } : {}),
+      ...(filter.propertyTypeId
+        ? { propertyTypeId: filter.propertyTypeId }
+        : {}),
+      ...(filter.currency ? { listingCurrency: filter.currency } : {}),
+      ...(filter.operation ? { listingOperation: filter.operation } : {}),
+      ...(filter.bedroomsMin !== undefined
+        ? { bedrooms: { gte: filter.bedroomsMin } }
+        : {}),
+      ...(filter.bathroomsMin !== undefined
+        ? { bathrooms: { gte: filter.bathroomsMin } }
+        : {}),
+      ...(filter.ids ? { id: { in: filter.ids } } : {}),
+      // Con un rango de precio, las que no tienen precio (Consultar) quedan afuera.
+      ...(hasPrice
+        ? {
+            listingPrice: {
+              ...(filter.priceFrom !== undefined
+                ? { gte: filter.priceFrom }
+                : {}),
+              ...(filter.priceTo !== undefined ? { lte: filter.priceTo } : {}),
+            },
+          }
+        : {}),
+    }
+
+    const [rows, total] = await this.prisma.db.$transaction([
+      this.prisma.db.property.findMany({
+        where,
+        include: MAIN_PHOTO,
+        orderBy: publicOrderBy(filter.sort),
+        ...page,
+      }),
+      this.prisma.db.property.count({ where }),
+    ])
+    return [rows.map(toDomain), total]
+  }
+
+  async findPublicById(id: string): Promise<Property | null> {
+    const row = await this.prisma.db.property.findFirst({
+      where: { id, status: PropertyStatus.AVAILABLE },
+      include: ALL_PHOTOS,
+    })
+    return row ? toDomain(row) : null
+  }
+
+  async publicFilterOptions(): Promise<{
+    locationIds: string[]
+    propertyTypeIds: string[]
+  }> {
+    const rows = await this.prisma.db.property.findMany({
+      where: { status: PropertyStatus.AVAILABLE },
+      select: { locationId: true, propertyTypeId: true },
+      distinct: ['locationId', 'propertyTypeId'],
+    })
+    return {
+      locationIds: [...new Set(rows.map((row) => row.locationId))],
+      propertyTypeIds: [...new Set(rows.map((row) => row.propertyTypeId))],
+    }
+  }
+
+  async listAll(filter: PropertyFilter): Promise<Property[]> {
+    const rows = await this.prisma.db.property.findMany({
+      where: {
+        ...(filter.status ? { status: filter.status } : {}),
+        ...(filter.ownerId ? { ownerId: filter.ownerId } : {}),
+      },
+      include: MAIN_PHOTO,
+      orderBy: [{ address: 'asc' }, { id: 'asc' }],
+    })
+    return rows.map(toDomain)
+  }
+
   async update(id: string, data: Partial<PropertyData>): Promise<Property> {
     const row = await this.prisma.db.property.update({
       where: { id },
@@ -89,6 +199,28 @@ export class PropertyRepositoryImpl extends PropertyRepository {
     const row = await this.prisma.db.property.update({
       where: { id },
       data: { status },
+      include: ALL_PHOTOS,
+    })
+    return toDomain(row)
+  }
+
+  async attachContract(id: string, contractId: string): Promise<Property> {
+    const row = await this.prisma.db.property.update({
+      where: { id },
+      data: {
+        activeContractId: contractId,
+        lastContractId: contractId,
+        status: PropertyStatus.RENTED,
+      },
+      include: ALL_PHOTOS,
+    })
+    return toDomain(row)
+  }
+
+  async detachContract(id: string): Promise<Property> {
+    const row = await this.prisma.db.property.update({
+      where: { id },
+      data: { activeContractId: null, status: PropertyStatus.AVAILABLE },
       include: ALL_PHOTOS,
     })
     return toDomain(row)
@@ -130,24 +262,44 @@ export class PropertyRepositoryImpl extends PropertyRepository {
 
   async countByOwners(
     ownerIds: string[],
-  ): Promise<{ ownerId: string; status: PropertyStatus; count: number }[]> {
+  ): Promise<{ ownerId: string; total: number; active: number }[]> {
     if (ownerIds.length === 0) return []
-    const groups = await this.prisma.db.property.groupBy({
-      by: ['ownerId', 'status'],
-      where: { ownerId: { in: ownerIds } },
-      _count: { _all: true },
-    })
-    return groups.flatMap((group) =>
+    // `groupBy` no agrupa por "tiene o no contrato": se cuenta dos veces.
+    const [totals, actives] = await this.prisma.db.$transaction([
+      this.prisma.db.property.groupBy({
+        by: ['ownerId'],
+        where: { ownerId: { in: ownerIds } },
+        _count: { _all: true },
+      }),
+      this.prisma.db.property.groupBy({
+        by: ['ownerId'],
+        where: { ownerId: { in: ownerIds }, activeContractId: { not: null } },
+        _count: { _all: true },
+      }),
+    ])
+    const activeByOwner = new Map(
+      actives.map((group) => [group.ownerId, group._count._all]),
+    )
+    return totals.flatMap((group) =>
       group.ownerId
         ? [
             {
               ownerId: group.ownerId,
-              status: group.status as PropertyStatus,
-              count: group._count._all,
+              total: group._count._all,
+              active: activeByOwner.get(group.ownerId) ?? 0,
             },
           ]
         : [],
     )
+  }
+
+  async findByIds(ids: string[]): Promise<Property[]> {
+    if (ids.length === 0) return []
+    const rows = await this.prisma.db.property.findMany({
+      where: { id: { in: ids } },
+      include: MAIN_PHOTO,
+    })
+    return rows.map(toDomain)
   }
 
   async listByOwner(ownerId: string): Promise<Property[]> {
@@ -176,6 +328,21 @@ function toDomain(row: PropertyRow): Property {
     ownerId: row.ownerId,
     amenityIds: row.amenityIds,
     notes: row.notes,
+    activeContractId: row.activeContractId,
+    lastContractId: row.lastContractId,
+    listingPrice: row.listingPrice ? row.listingPrice.toFixed(2) : null,
+    listingCurrency: row.listingCurrency as ListingCurrency,
+    publicDescription: row.publicDescription,
+    needsReview: row.needsReview,
+    listingOperation: row.listingOperation as ListingOperation,
+    bedrooms: row.bedrooms,
+    bathrooms: row.bathrooms,
+    rooms: row.rooms,
+    totalAreaM2: row.totalAreaM2 ? row.totalAreaM2.toNumber() : null,
+    coveredAreaM2: row.coveredAreaM2 ? row.coveredAreaM2.toNumber() : null,
+    ageYears: row.ageYears,
+    latitude: row.latitude ? row.latitude.toNumber() : null,
+    longitude: row.longitude ? row.longitude.toNumber() : null,
     photos: row.photos.map(photoToDomain),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

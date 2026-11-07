@@ -46,6 +46,14 @@ export class RenterRepositoryImpl extends RenterRepository {
     return rows.map(toDomain)
   }
 
+  async findByNationalIds(nationalIds: string[]): Promise<Renter[]> {
+    if (nationalIds.length === 0) return []
+    const rows = await this.prisma.db.renter.findMany({
+      where: { nationalId: { in: nationalIds } },
+    })
+    return rows.map(toDomain)
+  }
+
   async findByNationalId(nationalId: string): Promise<Renter | null> {
     const row = await this.prisma.db.renter.findFirst({
       where: { nationalId },
@@ -55,7 +63,7 @@ export class RenterRepositoryImpl extends RenterRepository {
 
   /**
    * `paymentStatus` y `propertyId` llegan en el filtro pero todavía no
-   * filtran: no hay cuotas (Fase 11) ni contratos (Fase 9) contra qué
+   * filtran: no hay cuotas (Fase 11), y la propiedad vive en el contrato (D-51), contra qué
    * cruzar. Ver D-46.
    */
   async list(
@@ -124,10 +132,27 @@ export class RenterRepositoryImpl extends RenterRepository {
     return toDomain(row)
   }
 
+  async findByPortalUser(portalUserId: string): Promise<Renter | null> {
+    const row = await this.prisma.db.renter.findFirst({
+      where: { portalUserId },
+    })
+    return row ? toDomain(row) : null
+  }
+
   async setPortalUser(id: string, portalUserId: string): Promise<void> {
     await this.prisma.db.renter.update({
       where: { id },
       data: { portalUserId },
+    })
+  }
+
+  async setActiveContract(
+    id: string,
+    contractId: string | null,
+  ): Promise<void> {
+    await this.prisma.db.renter.update({
+      where: { id },
+      data: { activeContractId: contractId },
     })
   }
 
@@ -163,6 +188,7 @@ function toDomain(row: RenterRow): Renter {
     notes: row.notes,
     guarantorId: row.guarantorId,
     portalUserId: row.portalUserId,
+    activeContractId: row.activeContractId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }

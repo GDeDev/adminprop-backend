@@ -1,8 +1,11 @@
 import { INestApplication } from '@nestjs/common'
 import { Role } from '@prisma/client'
+import { randomUUID } from 'node:crypto'
 import request from 'supertest'
 
 import { seedBaseMasterData } from '../prisma/lib/master-data-seed'
+import { OwnersFacade } from '../src/modules/owners/public'
+import { RequestContext } from '../src/shared/context/request-context'
 import { PrismaService } from '../src/shared/prisma/prisma.service'
 import { createTestApp, loginAs } from './utils/app'
 import { createTenant, createUser, resetDatabase } from './utils/database'
@@ -59,10 +62,14 @@ describe('Propietarios (e2e, Postgres)', () => {
     return response.body.data.id
   }
 
-  /** Propiedades del propietario, cargadas directo: son preparación. */
+  /**
+   * Propiedades del propietario, cargadas directo: son preparación. Una
+   * `RENTED` lleva un contrato activo (lo que cuenta para RN-07 desde la
+   * Fase 9); `RENTED_BY_HAND` es alquilada a mano, sin contrato.
+   */
   const giveProperties = async (
     ownerId: string,
-    statuses: ('AVAILABLE' | 'RENTED' | 'MAINTENANCE')[],
+    statuses: ('AVAILABLE' | 'RENTED' | 'RENTED_BY_HAND' | 'MAINTENANCE')[],
   ) => {
     for (const [i, status] of statuses.entries()) {
       await prisma.property.create({
@@ -72,7 +79,8 @@ describe('Propietarios (e2e, Postgres)', () => {
           locationId: refs.tolosa,
           propertyTypeId: refs.casa,
           ownerId,
-          status,
+          status: status === 'RENTED_BY_HAND' ? 'RENTED' : status,
+          activeContractId: status === 'RENTED' ? randomUUID() : null,
         },
       })
     }
@@ -256,6 +264,18 @@ describe('Propietarios (e2e, Postgres)', () => {
       })
     })
 
+    it('una alquilada a mano, sin contrato, no cuenta (D-39 cerrada en la Fase 9)', async () => {
+      const id = await createOwner()
+      await giveProperties(id, ['RENTED', 'RENTED', 'RENTED_BY_HAND'])
+
+      const response = await api(adminToken).get(`/owners/${id}`).expect(200)
+      expect(response.body.data).toMatchObject({
+        propertyCount: 3,
+        activePropertyCount: 2,
+        reducedFee: false,
+      })
+    })
+
     it('respeta el umbral de cada inmobiliaria', async () => {
       await prisma.tenant.update({
         where: { id: tenantA.id },
@@ -284,6 +304,78 @@ describe('Propietarios (e2e, Postgres)', () => {
         activePropertyCount: 2,
         reducedFee: false,
       })
+    })
+  })
+
+  describe('honorarios y envíos (Fase 12, 2.1)', () => {
+    const inTenantA = <T>(fn: () => Promise<T>) =>
+      RequestContext.run({ correlationId: 'test' }, () =>
+        RequestContext.runInTenant(tenantA.id, fn),
+      )
+
+    it('nace con la regla del tenant y BOTH; el admin fija un % propio, los conceptos y el modo de envío', async () => {
+      const id = await createOwner()
+      const fresh = await api(adminToken).get(`/owners/${id}`).expect(200)
+      expect(fresh.body.data.feeSettings).toEqual({
+        feePercentage: null,
+        feeIncludesLateFees: false,
+        feeIncludesCharges: false,
+        statementSendMode: 'BOTH',
+      })
+      // Sin override, la facade aplica la regla por umbral (5 % estándar).
+      const facade = app.get(OwnersFacade)
+      expect(await inTenantA(() => facade.feePercentageFor(id))).toBe('5.00')
+      await giveProperties(id, ['RENTED', 'RENTED'])
+      // Con el contrato que se está creando llega al umbral de 3: 3 %.
+      expect(await inTenantA(() => facade.feePercentageFor(id, 1))).toBe('3.00')
+
+      await api(employeeToken)
+        .patch(`/owners/${id}/fee-settings`)
+        .send({ feePercentage: '4' })
+        .expect(403)
+
+      const updated = await api(adminToken)
+        .patch(`/owners/${id}/fee-settings`)
+        .send({
+          feePercentage: '4.5',
+          feeIncludesLateFees: true,
+          statementSendMode: 'SUMMARY',
+        })
+        .expect(200)
+      expect(updated.body.data.feeSettings).toEqual({
+        feePercentage: '4.50',
+        feeIncludesLateFees: true,
+        feeIncludesCharges: false,
+        statementSendMode: 'SUMMARY',
+      })
+      // El override manda sobre la regla por umbral.
+      expect(await inTenantA(() => facade.feePercentageFor(id, 1))).toBe('4.50')
+      expect(await inTenantA(() => facade.feeSettings(id))).toMatchObject({
+        feePercentage: '4.50',
+        feeIncludesLateFees: true,
+      })
+      expect(await inTenantA(() => facade.hasBankAccount(id))).toBe(true)
+
+      const bad = await api(adminToken)
+        .patch(`/owners/${id}/fee-settings`)
+        .send({ feePercentage: '150' })
+        .expect(400)
+      expect(bad.body.code).toBe('OWNER_INVALID_FEE_SETTINGS')
+
+      // Null vuelve a la regla; lo demás no cambia.
+      const back = await api(adminToken)
+        .patch(`/owners/${id}/fee-settings`)
+        .send({ feePercentage: null })
+        .expect(200)
+      expect(back.body.data.feeSettings).toMatchObject({
+        feePercentage: null,
+        feeIncludesLateFees: true,
+        statementSendMode: 'SUMMARY',
+      })
+      await api(adminBToken)
+        .patch(`/owners/${id}/fee-settings`)
+        .send({ feePercentage: '1' })
+        .expect(404)
     })
   })
 

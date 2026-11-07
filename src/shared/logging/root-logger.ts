@@ -34,6 +34,12 @@ export const REDACTED_PATHS = [
   '*.refreshToken',
   '*.secret',
   '*.apiKey',
+  // Datos personales y bancarios (M-6, Ley 25.326). Sólo claves que casi nunca
+  // hacen falta para depurar; el email se deja porque los logs de login y de
+  // notificaciones lo usan para seguir un caso, y se loguea con `userId`.
+  ...['dni', 'cuit', 'cuil', 'taxId', 'cbu', 'cbuAlias', 'phone'].flatMap(
+    (key) => [key, `*.${key}`],
+  ),
 ]
 
 /** El tipo que devuelve `createLogger`. Alias para no exponer pino en las firmas. */

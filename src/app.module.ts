@@ -1,10 +1,11 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common'
-import { APP_GUARD } from '@nestjs/core'
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { ScheduleModule } from '@nestjs/schedule'
 
 import { AppController } from './app.controller'
 import { AuthModule } from '@/modules/auth/infrastructure/modules/auth.module'
 import { JwtAuthGuard } from '@/modules/auth/infrastructure/guards/jwt-auth.guard'
+import { SignedUrlsInterceptor } from '@/platform/storage/signed-urls.interceptor'
 import { RolesGuard } from '@/modules/auth/infrastructure/guards/roles.guard'
 import { HealthModule } from '@/modules/health/infrastructure/modules/health.module'
 import { JobsModule } from '@/modules/jobs/public'
@@ -13,12 +14,35 @@ import { MasterDataModule } from '@/modules/master-data/public'
 import { PropertiesModule } from '@/modules/properties/public'
 import { OwnersModule } from '@/modules/owners/public'
 import { RentersModule } from '@/modules/renters/public'
+import { IndicesModule } from '@/modules/indices/public'
+import { ContractsModule } from '@/modules/contracts/public'
+import { ServicesModule } from '@/modules/services/public'
+import { BillingModule } from '@/modules/billing/public'
+import { SettlementsModule } from '@/modules/settlements/public'
+import { AutomationsModule } from '@/modules/automations/public'
+import { DocumentsModule } from '@/modules/documents/public'
+import { PortalModule } from '@/modules/portal/public'
+import { AuditModule } from '@/modules/audit/public'
+import { InventoryModule } from '@/modules/inventory/public'
+import { NotificationsModule as NotificationsDeliveryModule } from '@/modules/notifications/public'
+import { PublicModule } from '@/modules/public/public'
+import { SiteModule } from '@/modules/site/public'
+import { ReportsModule } from '@/modules/reports/public'
+import { MigrationModule } from '@/modules/migration/public'
+import { ValuationModule } from '@/modules/valuation/public'
+import { CrmModule } from '@/modules/crm/public'
+import { SecretsModule } from '@/platform/secrets/secrets.module'
 import { ExampleModule } from '@/modules/_example/public'
 import { ExampleListenerModule } from '@/modules/_example-listener/infrastructure/modules/example-listener.module'
 import { QueueModule } from '@/platform/queue/queue.module'
 import { StorageModule } from '@/platform/storage/storage.module'
 import { FeatureFlagsModule } from '@/platform/feature-flags/feature-flags.module'
 import { EmailModule } from '@/platform/email/email.module'
+import { NotificationsModule } from '@/platform/notifications/notifications.module'
+import { IndexSourceModule } from '@/platform/index-source/index-source.module'
+import { PdfModule } from '@/platform/pdf/pdf.module'
+import { ExportsModule } from '@/platform/exports/exports.module'
+import { TokkoModule } from '@/platform/tokko/tokko.module'
 import { PrismaModule } from '@/shared/prisma/prisma.module'
 import { AppConfigModule } from './shared/config/config.module'
 import { RequestContextMiddleware } from './shared/context/request-context.middleware'
@@ -43,6 +67,12 @@ import { SharedModule } from './shared/shared.module'
     StorageModule,
     FeatureFlagsModule,
     EmailModule,
+    NotificationsModule,
+    IndexSourceModule,
+    PdfModule,
+    ExportsModule,
+    SecretsModule,
+    TokkoModule,
     HealthModule,
     JobsModule,
     TenantsModule,
@@ -50,6 +80,23 @@ import { SharedModule } from './shared/shared.module'
     PropertiesModule,
     OwnersModule,
     RentersModule,
+    IndicesModule,
+    ContractsModule,
+    ServicesModule,
+    BillingModule,
+    SettlementsModule,
+    AutomationsModule,
+    DocumentsModule,
+    PortalModule,
+    AuditModule,
+    ReportsModule,
+    InventoryModule,
+    PublicModule,
+    SiteModule,
+    NotificationsDeliveryModule,
+    MigrationModule,
+    ValuationModule,
+    CrmModule,
     // Módulos de referencia (Fase 1). No se borran.
     ExampleModule,
     ExampleListenerModule,
@@ -69,6 +116,8 @@ import { SharedModule } from './shared/shared.module'
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    // Firma las URLs de archivos privados (PDFs, comprobantes) al responder.
+    { provide: APP_INTERCEPTOR, useClass: SignedUrlsInterceptor },
   ],
 })
 export class AppModule implements NestModule {

@@ -133,10 +133,17 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const payload = await this.tokenService.verifyAccessToken(token)
       const user = toAuthenticatedUser(payload)
-      request.user = user
       RequestContext.setUser(user)
+      // Sin esto un token de un usuario ya desactivado (o con la clave
+      // cambiada) seguía "funcionando" en las rutas públicas hasta vencer.
+      if (this.jwtConfig.validateUserOnRequest) {
+        await this.assertUserStillValid(payload.sub, payload.iat, user)
+      }
+      request.user = user
     } catch {
-      // Endpoint público: un token inválido simplemente se ignora.
+      // Endpoint público: un token inválido o revocado se ignora y el pedido
+      // sigue como anónimo, sin rastro del usuario en el contexto.
+      RequestContext.clearUser()
     }
   }
 
