@@ -14,6 +14,7 @@ import { RequestContext } from '@/shared/context/request-context'
 import { errorMessage } from '@/shared/core/error-message'
 import { todayIso } from '@/shared/dates/calendar-date'
 import { AppException, ErrorCode } from '@/shared/errors'
+import { IdempotencyService } from '@/shared/idempotency/idempotency.service'
 import { createLogger } from '@/shared/logging/root-logger'
 import {
   ChannelNotConnectedException,
@@ -63,7 +64,10 @@ import {
   PropertyListingView,
   PullSummary,
 } from './listing.views'
-import { OAuthStateSigner } from './oauth-state'
+import { OAUTH_STATE_TTL_MS, OAuthStateSigner } from './oauth-state'
+
+/** Dónde se anotan los `state` ya usados (tabla de claves de un solo uso). */
+const OAUTH_NONCE_SCOPE = 'crm.oauth-state'
 
 const REFRESH_MARGIN_MS = 60_000
 const FIRST_PULL_DAYS = 7
@@ -94,6 +98,7 @@ export class ListingService {
     private readonly signer: OAuthStateSigner,
     private readonly registrar: InquiryRegistrar,
     private readonly config: ConfigService<Configuration, true>,
+    private readonly nonces: IdempotencyService,
   ) {}
 
   // ------------------------------------------------------------- Canales
@@ -150,6 +155,18 @@ export class ListingService {
     // Un state de otro canal no vale acá: mismo error que uno manipulado.
     if (state.channel !== channel) throw new OAuthStateInvalidException()
     return RequestContext.runInTenant(state.tenantId, async () => {
+      // Un solo uso (D-255): antes un `state` filtrado (log, historial,
+      // Referer) servía 10 minutos para conectar OTRA cuenta del portal a esta
+      // inmobiliaria con el código de quien lo tuviera.
+      if (
+        !(await this.nonces.claimOnce(
+          OAUTH_NONCE_SCOPE,
+          state.nonce,
+          OAUTH_STATE_TTL_MS,
+        ))
+      ) {
+        throw new OAuthStateInvalidException()
+      }
       if (params.error || !params.code) {
         return this.backofficeUrl({ error: 'denied' })
       }

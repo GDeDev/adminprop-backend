@@ -1745,3 +1745,11 @@ Arreglos de la revisión de performance, seguridad y deuda de las Fases 21 y 24 
 - **Frontend**: en Configuración > Automatizaciones el botón de ejecutar de `valuation.refresh-comparables` ahora da 403; conviene ocultarlo (es el único `GLOBAL` sin corrida manual). El de índices muestra el mensaje del 409.
 - **Pendiente**: `POST /valuation/zones/refresh` (D-180) sigue disponible para el ADMIN de cada inmobiliaria; no se tocó en esta rama.
 - **e2e**: `test/valuation.e2e-spec.ts` («si todas las fuentes fallan…») ahora espera el 403 y encola el job con `JobScheduler`; **no se corrió** (no hay Postgres en esta sesión).
+
+### D-255 · `state` del OAuth de un solo uso
+
+- **Contexto**: el `state` firmado del OAuth de Mercado Libre valía 10 minutos y cuantas veces se quisiera, y el callback es `@IsPublic` (sin JWT). Quien viera un `state` (log, historial, Referer) podía volver al callback con el código de SU cuenta del portal y conectarla a la inmobiliaria del `state`.
+- **Decisión**: cada `state` lleva un nonce aleatorio y el callback lo reclama una sola vez en `idempotency_keys` (scope `crm.oauth-state`, vence con el `state`; `IdempotencyService.claimOnce`, sin migración). Un `state` repetido es 400 `OAUTH_STATE_INVALID`, como uno manipulado. Además `code` y `state` ya no quedan en los logs (`redact-url.ts`).
+- **Pendiente (necesita frontend y/o schema)**:
+  - Atar el callback al usuario que lo inició: el callback debería redirigir al backoffice con `code` y `state`, y el backoffice completar con un `POST` autenticado (JWT) que compare `state.userId` con el usuario. Requiere una ruta nueva en el backoffice; no se hizo.
+  - Rechazar una cuenta de Mercado Libre ya conectada en otra inmobiliaria: hace falta guardar el `user_id` de ML (columna nueva en `listing_channel_accounts`, aditiva) y una consulta entre tenants; hoy sólo se guarda el nickname (`accountLabel`), que puede faltar. No se hizo.

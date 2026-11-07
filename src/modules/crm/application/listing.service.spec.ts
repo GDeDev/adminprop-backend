@@ -132,6 +132,14 @@ function build(info: Partial<typeof READY> | null = {}) {
     })),
   }
   const config = { get: jest.fn().mockReturnValue({ backofficeBaseUrl: null }) }
+  const used = new Set<string>()
+  const nonces = {
+    claimOnce: jest.fn(async (_scope: string, key: string) => {
+      if (used.has(key)) return false
+      used.add(key)
+      return true
+    }),
+  }
 
   const service = new ListingService(
     channels as never,
@@ -144,6 +152,7 @@ function build(info: Partial<typeof READY> | null = {}) {
     new OAuthStateSigner('secreto'),
     registrar as never,
     config as never,
+    nonces as never,
   )
   const run = <T>(fn: () => Promise<T>) =>
     RequestContext.run(
@@ -436,6 +445,12 @@ describe('ListingService OAuth', () => {
       status: ChannelState.CONNECTED,
       accountLabel: 'Cuenta de prueba (simulada)',
     })
+
+    // Antes el mismo state servía 10 minutos: quien lo viera (log, Referer)
+    // podía conectar su propia cuenta a esta inmobiliaria.
+    await expect(
+      t.service.completeOAuth(CH, { code: 'fake-code', state }),
+    ).rejects.toMatchObject({ code: 'OAUTH_STATE_INVALID' })
   })
 
   it('un código inválido vuelve con error y no conecta', async () => {

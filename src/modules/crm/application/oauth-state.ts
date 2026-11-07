@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
 
 import { OAuthStateInvalidException } from '../domain/crm.exceptions'
 import { ListingChannel } from '../domain/listing'
@@ -12,6 +12,11 @@ export interface OAuthStatePayload {
   channel: ListingChannel
 }
 
+/** Lo que devuelve `verify`: el payload más su nonce de un solo uso (D-255). */
+export interface VerifiedOAuthState extends OAuthStatePayload {
+  nonce: string
+}
+
 /**
  * `state` del OAuth: `<payload en base64url>.<firma HMAC-SHA256>`. Lleva el
  * tenant, el usuario y la expiración, así el callback público (sin JWT) sabe
@@ -23,12 +28,16 @@ export class OAuthStateSigner {
 
   sign(payload: OAuthStatePayload, now: Date = new Date()): string {
     const body = Buffer.from(
-      JSON.stringify({ ...payload, exp: now.getTime() + OAUTH_STATE_TTL_MS }),
+      JSON.stringify({
+        ...payload,
+        exp: now.getTime() + OAUTH_STATE_TTL_MS,
+        nonce: randomUUID(),
+      }),
     ).toString('base64url')
     return `${body}.${this.signature(body)}`
   }
 
-  verify(state: string, now: Date = new Date()): OAuthStatePayload {
+  verify(state: string, now: Date = new Date()): VerifiedOAuthState {
     const [body, signature, extra] = state.split('.')
     if (!body || !signature || extra !== undefined) {
       throw new OAuthStateInvalidException()
@@ -44,13 +53,15 @@ export class OAuthStateSigner {
     try {
       const data = JSON.parse(
         Buffer.from(body, 'base64url').toString('utf8'),
-      ) as OAuthStatePayload & { exp: number }
+      ) as OAuthStatePayload & { exp: number; nonce?: string }
       if (
         typeof data.exp !== 'number' ||
         data.exp < now.getTime() ||
         !data.tenantId ||
         !data.userId ||
-        !data.channel
+        !data.channel ||
+        typeof data.nonce !== 'string' ||
+        !data.nonce
       ) {
         throw new OAuthStateInvalidException()
       }
@@ -58,6 +69,7 @@ export class OAuthStateSigner {
         tenantId: data.tenantId,
         userId: data.userId,
         channel: data.channel,
+        nonce: data.nonce,
       }
     } catch {
       throw new OAuthStateInvalidException()

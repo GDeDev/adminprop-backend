@@ -9,6 +9,7 @@ import { PropertiesModule } from '@/modules/properties/public'
 import { TenantsModule } from '@/modules/tenants/public'
 import { Configuration } from '@/shared/config/configuration'
 import { ListingPublisherProvider } from '@/shared/config/env.validation'
+import { IdempotencyService } from '@/shared/idempotency/idempotency.service'
 import {
   GetCrmOverviewHandler,
   GetPropertyAnalyticsHandler,
@@ -92,6 +93,8 @@ import { InquiryRepositoryImpl } from '../repositories/inquiry.repository.impl'
     PropertyListingsController,
   ],
   providers: [
+    // Nonces de un solo uso del `state` del OAuth (D-255).
+    IdempotencyService,
     { provide: InquiryRepository, useClass: InquiryRepositoryImpl },
     {
       provide: InquiryActivityRepository,

@@ -13,7 +13,7 @@ describe('OAuthStateSigner', () => {
   const signer = new OAuthStateSigner('secreto-de-prueba')
 
   it('firma y verifica tenant, usuario y canal', () => {
-    expect(signer.verify(signer.sign(PAYLOAD, NOW), NOW)).toEqual(PAYLOAD)
+    expect(signer.verify(signer.sign(PAYLOAD, NOW), NOW)).toMatchObject(PAYLOAD)
   })
 
   it('rechaza un state vencido', () => {
@@ -45,5 +45,13 @@ describe('OAuthStateSigner', () => {
         OAuthStateInvalidException,
       )
     }
+  })
+
+  // Cada state lleva su nonce: así el callback puede usarlo una sola vez (D-255).
+  it('cada state lleva un nonce distinto', () => {
+    const a = signer.verify(signer.sign(PAYLOAD, NOW), NOW)
+    const b = signer.verify(signer.sign(PAYLOAD, NOW), NOW)
+    expect(a.nonce).toEqual(expect.any(String))
+    expect(a.nonce).not.toBe(b.nonce)
   })
 })

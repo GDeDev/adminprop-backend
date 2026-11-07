@@ -100,6 +100,26 @@ export class IdempotencyService {
     return { replay: true, response: existing.response }
   }
 
+  /**
+   * Reclama una clave de un solo uso (un nonce): `true` la primera vez,
+   * `false` si ya se usó y no venció. Atómico (una sentencia), así dos pedidos
+   * a la vez no la ganan los dos. No necesita transacción.
+   */
+  async claimOnce(scope: string, key: string, ttlMs: number): Promise<boolean> {
+    const tenantId = RequestContext.tenantId
+    if (!tenantId) throw new Error('Idempotencia sin tenant en el contexto')
+    const expiresAt = new Date(Date.now() + ttlMs)
+    const claimed = await this.prisma.db.$queryRaw<{ id: string }[]>`
+      INSERT INTO idempotency_keys (tenant_id, scope, key, request_hash, expires_at, response)
+      VALUES (${tenantId}::uuid, ${scope}, ${key}, '', ${expiresAt}, '{}'::jsonb)
+      ON CONFLICT (tenant_id, scope, key) DO UPDATE
+        SET created_at = now(), expires_at = EXCLUDED.expires_at
+        WHERE idempotency_keys.expires_at < now()
+      RETURNING id
+    `
+    return claimed.length > 0
+  }
+
   /** Guarda con qué se reconstruye la respuesta si la clave se repite. */
   async complete(
     scope: string,
