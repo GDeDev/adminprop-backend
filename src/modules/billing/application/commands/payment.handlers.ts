@@ -195,9 +195,12 @@ export class RegisterPaymentHandler implements ICommandHandler<
         let remaining = balances
         let creditApplications: Payment[] = []
         if (data.applyCredit) {
-          const available = await this.credits.listAvailable(
-            installment.renterId,
-            installment.currency,
+          const available = PaymentPolicy.usableCredits(
+            await this.credits.listAvailable(
+              installment.renterId,
+              installment.currency,
+            ),
+            installment,
           )
           const plan = PaymentPolicy.planCreditApplications(
             available,
@@ -250,6 +253,7 @@ export class RegisterPaymentHandler implements ICommandHandler<
             currency: installment.currency,
             amount: allocation.creditGenerated,
             originPaymentId: payment.id,
+            heldBy: receivedBy,
           })
         }
         const updated = await this.recalculator.recalculate(installment.id)
@@ -354,9 +358,12 @@ export class ApplyCreditHandler implements ICommandHandler<
       if (compareMoney(balances.totalDue, '0') <= 0) {
         throw new InstallmentAlreadyPaidException(installment.id)
       }
-      const available = await this.credits.listAvailable(
-        installment.renterId,
-        installment.currency,
+      const available = PaymentPolicy.usableCredits(
+        await this.credits.listAvailable(
+          installment.renterId,
+          installment.currency,
+        ),
+        installment,
       )
       const plan = PaymentPolicy.planCreditApplications(
         available,

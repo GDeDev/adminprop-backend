@@ -26,6 +26,7 @@ const credit = {
   amount: '50000.00',
   remaining: '50000.00',
   status: CreditStatus.AVAILABLE,
+  heldBy: 'AGENCY',
 } as unknown as RenterCredit
 
 function setup(autoApply = true) {

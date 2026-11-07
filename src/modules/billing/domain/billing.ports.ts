@@ -301,6 +301,7 @@ export interface NewRenterCredit {
   currency: Currency
   amount: string
   originPaymentId: string
+  heldBy: PaymentReceiver
 }
 
 export interface RenterCreditChanges {

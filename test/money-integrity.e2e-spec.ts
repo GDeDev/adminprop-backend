@@ -381,4 +381,90 @@ describe('Integridad de la plata (e2e, Postgres)', () => {
       )
     })
   })
+
+  describe('crítico 3: un saldo a favor que tiene el propietario no se liquida como cobrado por la inmobiliaria', () => {
+    it('cobro directo: el crédito nacido de un pago al propietario se aplica como cobrado por él y no arma liquidación', async () => {
+      // Antes: el CREDIT_APPLICATION nacía "recibido por la inmobiliaria",
+      // entraba a una pendiente con neto 47.500 y la inmobiliaria transfería
+      // plata que nunca recibió (el propietario terminaba con 247.500).
+      const contract = await createContract({ collectionMode: 'OWNER_DIRECT' })
+      const current = periodOf(today)
+      await generate(previous)
+      const november = await installmentOf(contract.id, previous)
+      const over = await pay(november.id, {
+        amount: '150000',
+        receivedBy: 'OWNER',
+      }).expect(201)
+      await api()
+        .post(`/billing/payments/${over.body.data.payment.id}/confirm`)
+        .expect(200)
+      const credit = await prisma.renterCredit.findFirstOrThrow({
+        where: { originPaymentId: over.body.data.payment.id },
+      })
+      expect(credit.amount.toFixed(2)).toBe('50000.00')
+      expect(credit.heldBy).toBe('OWNER')
+
+      await generate(current)
+      const december = await installmentOf(contract.id, current)
+      const second = await pay(december.id, {
+        amount: '50000',
+        receivedBy: 'OWNER',
+        paidAt: today,
+      }).expect(201)
+      expect(second.body.data.creditApplications).toHaveLength(1)
+      expect(second.body.data.creditApplications[0]).toMatchObject({
+        kind: 'CREDIT_APPLICATION',
+        receivedBy: 'OWNER',
+        amountInContractCurrency: '50000.00',
+      })
+      await api()
+        .post(`/billing/payments/${second.body.data.payment.id}/confirm`)
+        .expect(200)
+
+      // Los dos meses devengan honorario por cobro directo (5.000 + 2.500 +
+      // 2.500) y no hay nada que la inmobiliaria tenga que transferir.
+      await waitFor(
+        async () =>
+          (await prisma.feeReceivable.count({
+            where: { contractId: contract.id },
+          })) === 3,
+        { what: 'los tres honorarios por cobro directo' },
+      )
+      const receivables = await prisma.feeReceivable.findMany({
+        where: { contractId: contract.id },
+      })
+      expect(
+        receivables.reduce((sum, r) => sum + Number(r.amount), 0).toFixed(2),
+      ).toBe('10000.00')
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      expect(await settlementsOf(contract.id)).toHaveLength(0)
+    })
+
+    it('un saldo que tiene el propietario no se aplica a la cuota de otro contrato', async () => {
+      // Un inquilino puede arrastrar un saldo de un contrato anterior con
+      // cobro directo: ese saldo lo tiene aquel propietario, no la
+      // inmobiliaria. Se arma directo en la base (un inquilino no puede tener
+      // dos contratos activos a la vez).
+      const other = await createContract()
+      await prisma.renterCredit.create({
+        data: {
+          tenantId: tenant.id,
+          renterId: other.renterId,
+          contractId: '00000000-0000-4000-8000-0000000000aa',
+          currency: 'ARS',
+          amount: '30000',
+          remaining: '30000',
+          originPaymentId: '00000000-0000-4000-8000-0000000000bb',
+          heldBy: 'OWNER',
+        },
+      })
+      await generate(previous)
+      const foreign = await installmentOf(other.id, previous)
+      const response = await api()
+        .post(`/billing/installments/${foreign.id}/apply-credit`)
+        .send({})
+      expect(response.status).toBe(409)
+      expect(response.body.code).toBe('CREDIT_NOT_AVAILABLE')
+    })
+  })
 })

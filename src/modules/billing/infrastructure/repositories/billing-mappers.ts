@@ -182,6 +182,7 @@ export function creditToDomain(row: CreditRow): RenterCredit {
     remaining: money(row.remaining),
     originPaymentId: row.originPaymentId,
     status: CreditStatus[row.status],
+    heldBy: PaymentReceiver[row.heldBy],
     refundedAt: fromDateColumn(row.refundedAt),
     refundMethod: row.refundMethod ? PaymentMethod[row.refundMethod] : null,
     refundedById: row.refundedById,

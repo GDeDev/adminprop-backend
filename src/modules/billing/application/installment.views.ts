@@ -216,6 +216,7 @@ export interface RenterCreditView {
   amount: string
   remaining: string
   status: CreditStatus
+  heldBy: PaymentReceiver
   originPaymentId: string
   createdAt: Date
   refundedAt: IsoDate | null
@@ -355,6 +356,7 @@ export function toCreditView(credit: RenterCredit): RenterCreditView {
     amount: credit.amount,
     remaining: credit.remaining,
     status: credit.status,
+    heldBy: credit.heldBy,
     originPaymentId: credit.originPaymentId,
     createdAt: credit.createdAt,
     refundedAt: credit.refundedAt,

@@ -1483,15 +1483,18 @@ model RenterCredit {
   tenantId String @map("tenant_id") @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
 
-  renterId        String       @map("renter_id") @db.Uuid
-  contractId      String       @map("contract_id") @db.Uuid
+  renterId        String          @map("renter_id") @db.Uuid
+  contractId      String          @map("contract_id") @db.Uuid
   currency        Currency
   /// Original.
-  amount          Decimal      @db.Decimal(14, 2)
-  remaining       Decimal      @db.Decimal(14, 2)
+  amount          Decimal         @db.Decimal(14, 2)
+  remaining       Decimal         @db.Decimal(14, 2)
   /// El pago que lo generó.
-  originPaymentId String       @map("origin_payment_id") @db.Uuid
-  status          CreditStatus @default(AVAILABLE)
+  originPaymentId String          @map("origin_payment_id") @db.Uuid
+  status          CreditStatus    @default(AVAILABLE)
+  /// Quién tiene la plata: el que cobró el pago de origen. Una aplicación de
+  /// un saldo que tiene el propietario no se liquida (revisión 2026-11-06).
+  heldBy          PaymentReceiver @default(AGENCY) @map("held_by")
 
   refundedAt   DateTime?      @map("refunded_at") @db.Date
   refundMethod PaymentMethod? @map("refund_method")

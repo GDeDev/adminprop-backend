@@ -6,7 +6,6 @@ import {
   Payment,
   PaymentKind,
   PaymentMethod,
-  PaymentReceiver,
   PaymentStatus,
 } from '@/modules/billing/domain/billing'
 import {
@@ -76,7 +75,11 @@ export async function applyCreditPlan(
       amountInContractCurrency: amount,
       kind: PaymentKind.CREDIT_APPLICATION,
       method: PaymentMethod.CREDIT,
-      receivedBy: PaymentReceiver.AGENCY,
+      // Lo recibió quien tiene la plata del saldo: si es el propietario, la
+      // aplicación no se liquida (devenga honorario como un cobro directo).
+      // Antes siempre era AGENCY y la inmobiliaria transfería plata que nunca
+      // recibió (crítico 3).
+      receivedBy: credit.heldBy,
       status: PaymentStatus.CONFIRMED,
       ...allocation,
       creditId: credit.id,

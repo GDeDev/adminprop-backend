@@ -36,6 +36,7 @@ function credit(overrides: Partial<RenterCredit> = {}): RenterCredit {
     remaining: '50000.00',
     originPaymentId: 'pay-0',
     status: CreditStatus.AVAILABLE,
+    heldBy: PaymentReceiver.AGENCY,
     refundedAt: null,
     refundMethod: null,
     refundedById: null,
@@ -250,6 +251,31 @@ describe('PaymentPolicy', () => {
         rentBalance: '100000.00',
         chargesBalance: '30000.00',
       })
+    })
+  })
+
+  describe('saldos que se pueden aplicar (crítico 3)', () => {
+    // Un saldo nacido de un cobro directo lo tiene el propietario: antes se
+    // aplicaba a cualquier cuota del inquilino como si lo tuviera la
+    // inmobiliaria y terminaba liquidándose (y transfiriéndose) otra vez.
+    const agency = credit({ id: 'agency', contractId: 'contract-2' })
+    const ownerSame = credit({
+      id: 'owner-same',
+      heldBy: PaymentReceiver.OWNER,
+      contractId: 'contract-1',
+    })
+    const ownerOther = credit({
+      id: 'owner-other',
+      heldBy: PaymentReceiver.OWNER,
+      contractId: 'contract-2',
+    })
+
+    it('el de la inmobiliaria va a cualquier contrato; el del propietario, sólo al suyo', () => {
+      expect(
+        PaymentPolicy.usableCredits([agency, ownerSame, ownerOther], {
+          contractId: 'contract-1',
+        }).map((c) => c.id),
+      ).toEqual(['agency', 'owner-same'])
     })
   })
 

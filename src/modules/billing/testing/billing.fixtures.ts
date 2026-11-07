@@ -152,6 +152,7 @@ export function makeCredit(
     remaining: '5000.00',
     originPaymentId: 'pay-origin',
     status: CreditStatus.AVAILABLE,
+    heldBy: PaymentReceiver.AGENCY,
     refundedAt: null,
     refundMethod: null,
     refundedById: null,

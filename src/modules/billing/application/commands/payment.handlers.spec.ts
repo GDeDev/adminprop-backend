@@ -252,6 +252,7 @@ describe('RegisterPaymentHandler', () => {
       currency: Currency.ARS,
       amount: '20000.00',
       originPaymentId: 'new-1',
+      heldBy: 'AGENCY',
     })
   })
 

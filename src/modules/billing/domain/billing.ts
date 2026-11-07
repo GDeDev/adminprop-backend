@@ -222,6 +222,11 @@ export interface RenterCredit {
   remaining: string
   originPaymentId: string
   status: CreditStatus
+  /**
+   * Quién tiene la plata: el que cobró el pago de origen. Un saldo que tiene
+   * el propietario no lo puede liquidar la inmobiliaria (revisión 2026-11-06).
+   */
+  heldBy: PaymentReceiver
   refundedAt: IsoDate | null
   refundMethod: PaymentMethod | null
   refundedById: string | null

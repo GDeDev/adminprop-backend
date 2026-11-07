@@ -11,6 +11,7 @@ import {
   CollectionMode,
   Currency,
   ExchangeRateSource,
+  Installment,
   PaymentReceiver,
   PaymentStatus,
   RenterCredit,
@@ -275,6 +276,25 @@ export const PaymentPolicy = {
         subtractMoney(balances.chargesBalance, allocation.chargesApplied),
       ),
     }
+  },
+
+  /**
+   * Los saldos que se pueden aplicar a esta cuota. Uno que tiene la
+   * inmobiliaria, a cualquiera del inquilino. Uno que tiene el propietario
+   * (nació de un cobro directo), sólo a cuotas de su mismo contrato: en otro
+   * contrato sería plata de un propietario cubriendo el alquiler de otro, o
+   * una cuota de la inmobiliaria pagada con plata que ella no tiene
+   * (crítico 3).
+   */
+  usableCredits(
+    credits: RenterCredit[],
+    installment: Pick<Installment, 'contractId'>,
+  ): RenterCredit[] {
+    return credits.filter(
+      (c) =>
+        c.heldBy === PaymentReceiver.AGENCY ||
+        c.contractId === installment.contractId,
+    )
   },
 
   /**
