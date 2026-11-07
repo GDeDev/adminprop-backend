@@ -77,6 +77,7 @@ describe('arranque del análisis: si no se puede encolar', () => {
       batches as never,
       jobs as never,
       queue as never,
+      { isAvailableFor: () => true } as never,
     )
 
     await expect(
@@ -222,5 +223,25 @@ describe('Fase 21: archivo del lote y fila revisada', () => {
         },
       }),
     )
+  })
+})
+
+describe('Tokko con la API real: sólo la inmobiliaria de la key (D-253)', () => {
+  it('otra inmobiliaria recibe 403 y no se crea ningún lote', async () => {
+    const batches = { create: jest.fn() }
+    const handler = new StartTokkoAnalysisHandler(
+      batches as never,
+      {} as never,
+      {} as never,
+      { isAvailableFor: (id?: string) => id === 'ten-dueno' } as never,
+    )
+    await expect(
+      inTenant(() =>
+        handler.execute(
+          new StartTokkoAnalysisCommand({ includeAssets: false }),
+        ),
+      ),
+    ).rejects.toMatchObject({ code: 'TOKKO_NOT_ENABLED' })
+    expect(batches.create).not.toHaveBeenCalled()
   })
 })

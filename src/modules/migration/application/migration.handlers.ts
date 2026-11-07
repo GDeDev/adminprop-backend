@@ -9,6 +9,7 @@ import { AuditFacade } from '@/modules/audit/public'
 import { AsyncJobsFacade } from '@/modules/jobs/public'
 import { QueuePort } from '@/platform/queue/queue.port'
 import { StoragePort } from '@/platform/storage/storage.port'
+import { TokkoSourcePort } from '@/platform/tokko/tokko-source.port'
 import { RequestContext } from '@/shared/context/request-context'
 import { PaginatedResult } from '@/shared/pagination'
 import { paginateWith } from '@/shared/pagination/pagination'
@@ -20,6 +21,7 @@ import {
   ImportBatchNotFoundException,
   ImportRowNotFoundException,
   InvalidResolutionException,
+  TokkoNotEnabledException,
 } from '../domain/migration.exceptions'
 import {
   ImportAssetRepository,
@@ -203,11 +205,17 @@ export class StartTokkoAnalysisHandler implements ICommandHandler<
     private readonly batches: ImportBatchRepository,
     private readonly jobs: AsyncJobsFacade,
     private readonly queue: QueuePort,
+    private readonly tokko: TokkoSourcePort,
   ) {}
 
   async execute({
     options,
   }: StartTokkoAnalysisCommand): Promise<StartedMigration> {
+    // Antes de crear el lote: con la API real, otra inmobiliaria importaría el
+    // stock de la dueña de la key (D-253).
+    if (!this.tokko.isAvailableFor(RequestContext.tenantId)) {
+      throw new TokkoNotEnabledException()
+    }
     const batch = await this.batches.create({
       source: ImportSource.TOKKO,
       fileName: null,

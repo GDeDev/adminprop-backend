@@ -11374,7 +11374,7 @@
     },
     "/api/v1/migration/tokko/analyze": {
       "post": {
-        "description": "Siempre es un análisis: no hay \"importar directo\". Con `TOKKO_SOURCE=fixture` usa una muestra incluida; con `http`, la API real.",
+        "description": "Siempre es un análisis: no hay \"importar directo\". Con `TOKKO_SOURCE=fixture` usa una muestra incluida; con `http`, la API real, sólo para la inmobiliaria de `TOKKO_TENANT_ID`.",
         "operationId": "MigrationController_analyzeTokko_api/v1",
         "parameters": [],
         "requestBody": {
@@ -11399,7 +11399,7 @@
             }
           },
           "403": {
-            "description": "Sólo el administrador migra datos",
+            "description": "TOKKO_NOT_ENABLED: con la API real, la inmobiliaria no es la dueña de la key",
             "content": {
               "application/json": {
                 "schema": {

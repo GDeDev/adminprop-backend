@@ -22,6 +22,17 @@ export class ImportRowNotFoundException extends DomainException {
   }
 }
 
+/** La API real de Tokko sólo la usa la inmobiliaria dueña de la key (D-253). */
+export class TokkoNotEnabledException extends DomainException {
+  constructor() {
+    super(
+      'TOKKO_NOT_ENABLED',
+      'La importación desde Tokko no está habilitada para esta inmobiliaria',
+      DomainErrorKind.Forbidden,
+    )
+  }
+}
+
 /** El archivo subido no es un .xlsx legible, o no tiene nada que importar. */
 export class InvalidXlsxException extends DomainException {
   constructor(reason: string) {

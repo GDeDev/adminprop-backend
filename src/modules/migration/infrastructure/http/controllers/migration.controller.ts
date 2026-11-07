@@ -181,9 +181,15 @@ export class MigrationController {
   @ApiOperation({
     summary: 'Analizar el stock de Tokko (dry-run)',
     description:
-      'Siempre es un análisis: no hay "importar directo". Con `TOKKO_SOURCE=fixture` usa una muestra incluida; con `http`, la API real.',
+      'Siempre es un análisis: no hay "importar directo". Con `TOKKO_SOURCE=fixture` usa una muestra incluida; con `http`, la API real, sólo para la inmobiliaria de `TOKKO_TENANT_ID`.',
   })
   @ApiResponse({ status: 202, type: StartMigrationResultDto })
+  @ApiResponse({
+    status: 403,
+    description:
+      'TOKKO_NOT_ENABLED: con la API real, la inmobiliaria no es la dueña de la key',
+    type: ApiErrorDto,
+  })
   async analyzeTokko(
     @Body() dto: AnalyzeTokkoDto,
   ): Promise<ApiSuccessDto<StartedMigration>> {

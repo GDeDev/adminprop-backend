@@ -1,3 +1,4 @@
+import { RequestContext } from '@/shared/context/request-context'
 import { HttpImageDownloader, isInternalAddress } from './http-image-downloader'
 import { TokkoFixtureSource } from './tokko-fixture.source'
 import { TokkoHttpSource } from './tokko-http.source'
@@ -87,12 +88,42 @@ describe('TokkoFixtureSource', () => {
 describe('TokkoHttpSource', () => {
   const sleep = jest.fn().mockResolvedValue(undefined)
   const source = (fetchImpl: jest.Mock, apiKey: string | null = 'secreta') =>
-    new TokkoHttpSource(apiKey, {
-      fetchImpl,
-      sleep,
-      pauseMs: 0,
-      retryBaseMs: 1,
-    })
+    new TokkoHttpSource(
+      apiKey,
+      { fetchImpl, sleep, pauseMs: 0, retryBaseMs: 1 },
+      'ten-dueno',
+    )
+
+  let currentTenant: string | undefined = 'ten-dueno'
+  beforeEach(() => {
+    currentTenant = 'ten-dueno'
+    jest
+      .spyOn(RequestContext, 'tenantId', 'get')
+      .mockImplementation(() => currentTenant)
+  })
+  afterEach(() => jest.restoreAllMocks())
+
+  // La key es de una sola cuenta de Tokko: antes cualquier inmobiliaria con
+  // TOKKO_SOURCE=http importaba el stock de la dueña de la key (D-253).
+  it('sólo la inmobiliaria dueña de la key puede leer', async () => {
+    const fetchImpl = jest.fn()
+    currentTenant = 'otra-inmobiliaria'
+    expect(source(fetchImpl).isAvailableFor('otra-inmobiliaria')).toBe(false)
+    expect(source(fetchImpl).isAvailableFor('ten-dueno')).toBe(true)
+    await expect(source(fetchImpl).dictionaries()).rejects.toThrow(
+      TokkoSourceError,
+    )
+    await expect(collect(source(fetchImpl).properties())).rejects.toThrow(
+      'no está habilitada',
+    )
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('sin TOKKO_TENANT_ID no la puede usar nadie', () => {
+    expect(new TokkoHttpSource('secreta').isAvailableFor('ten-dueno')).toBe(
+      false,
+    )
+  })
 
   it('pagina hasta que la API devuelve una página vacía', async () => {
     const fetchImpl = jest

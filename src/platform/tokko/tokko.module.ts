@@ -13,7 +13,8 @@ import { TokkoSourcePort } from './tokko-source.port'
 /**
  * Registra la fuente de Tokko y el descargador de fotos según `TOKKO_SOURCE`
  * (default: `fixture`). Con `http` la key sale de `TOKKO_API_KEY`; si falta, el
- * análisis falla con un mensaje claro en vez de impedir el arranque.
+ * análisis falla con un mensaje claro en vez de impedir el arranque. Con `http`
+ * sólo importa la inmobiliaria de `TOKKO_TENANT_ID` (D-253).
  */
 @Global()
 @Module({
@@ -22,9 +23,11 @@ import { TokkoSourcePort } from './tokko-source.port'
       provide: TokkoSourcePort,
       inject: [ConfigService],
       useFactory: (config: ConfigService<Configuration, true>) => {
-        const { source, apiKey } = config.get('tokko', { infer: true })
+        const { source, apiKey, ownerTenantId } = config.get('tokko', {
+          infer: true,
+        })
         return source === TokkoSourceProvider.Http
-          ? new TokkoHttpSource(apiKey)
+          ? new TokkoHttpSource(apiKey, {}, ownerTenantId)
           : new TokkoFixtureSource()
       },
     },

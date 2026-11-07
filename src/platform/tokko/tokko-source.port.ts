@@ -13,6 +13,13 @@ export abstract class TokkoSourcePort {
   abstract readonly provider: string
 
   /**
+   * Si esta inmobiliaria puede leer de la fuente. La key de Tokko es UNA y de
+   * una cuenta concreta (D-253): con la API real sólo la inmobiliaria dueña de
+   * la key puede importar; cualquier otra se traería el stock ajeno.
+   */
+  abstract isAvailableFor(tenantId: string | undefined): boolean
+
+  /**
    * Los diccionarios de Tokko (tipos, tags, operaciones). Además de servir
    * para el análisis, es la primera llamada: una key inválida falla acá, antes
    * de recorrer nada.

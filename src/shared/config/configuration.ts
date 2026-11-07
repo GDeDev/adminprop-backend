@@ -117,6 +117,8 @@ export interface TokkoConfig {
   source: TokkoSourceProvider
   /** Sólo con `source: http`. Nunca se loguea ni se guarda en la base. */
   apiKey: string | null
+  /** La única inmobiliaria que puede usar la key con `source: http` (D-253). */
+  ownerTenantId: string | null
 }
 
 export interface AutomationsConfig {
@@ -414,6 +416,7 @@ export function configuration(): Configuration {
         TokkoSourceProvider.Fixture,
       ) as TokkoSourceProvider,
       apiKey: process.env.TOKKO_API_KEY || null,
+      ownerTenantId: process.env.TOKKO_TENANT_ID?.trim() || null,
     },
     sites: {
       baseDomain:

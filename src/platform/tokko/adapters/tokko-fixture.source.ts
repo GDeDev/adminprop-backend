@@ -20,6 +20,11 @@ const PAGE_SIZE = 20
 export class TokkoFixtureSource extends TokkoSourcePort {
   readonly provider = 'fixture'
 
+  /** La muestra es pública y de mentira: cualquiera puede probarla. */
+  isAvailableFor(): boolean {
+    return true
+  }
+
   constructor(private readonly raw: unknown[] = TOKKO_FIXTURE_PROPERTIES) {
     super()
   }

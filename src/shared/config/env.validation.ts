@@ -8,6 +8,7 @@ import {
   IsString,
   Matches,
   Max,
+  IsUUID,
   Min,
   MinLength,
   validateSync,
@@ -435,6 +436,14 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   TOKKO_API_KEY?: string
+
+  /**
+   * Id de la inmobiliaria dueña de `TOKKO_API_KEY`. Con `TOKKO_SOURCE=http`
+   * sólo ella puede importar de Tokko; sin valor, ninguna (D-253).
+   */
+  @IsOptional()
+  @IsUUID()
+  TOKKO_TENANT_ID?: string
   // ------------------------------------------------------------ Sitios web
   /**
    * Dominio bajo el que viven los sitios por subdominio (`<sub>.<dominio>`).

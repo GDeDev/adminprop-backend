@@ -60,7 +60,7 @@ Cada `*FromImport` despacha el **comando de alta del propio módulo** por el `Co
 
 `GET /migration/excel/template`, `POST /migration/excel/analyze` (202), `POST /migration/tokko/analyze` (202), `GET /migration/batches`, `GET /migration/batches/:id`, `GET /migration/batches/:id/rows`, `PATCH /migration/batches/:id/rows/:rowId`, `POST /migration/batches/:id/confirm` (202), `POST /migration/batches/:id/discard`, `POST /migration/batches/:id/assets/retry` (202), `GET /migration/batches/:id/report.xlsx`. El avance de cualquier trabajo: `GET /jobs/:id/status` (genérico).
 
-Errores: 404 `IMPORT_BATCH_NOT_FOUND` (también de otra inmobiliaria), `IMPORT_ROW_NOT_FOUND`; 409 `BATCH_NOT_READY`, `BATCH_ALREADY_CONFIRMED`, `BATCH_NOT_IMPORTED`, `ASSETS_IN_PROGRESS`; 422 `INVALID_XLSX`, `TEMPLATE_VERSION_MISMATCH`, `IMPORT_TOO_MANY_ROWS`, `INVALID_RESOLUTION`.
+Errores: 403 `TOKKO_NOT_ENABLED` (API real de Tokko desde una inmobiliaria que no es la de `TOKKO_TENANT_ID`, D-253); 404 `IMPORT_BATCH_NOT_FOUND` (también de otra inmobiliaria), `IMPORT_ROW_NOT_FOUND`; 409 `BATCH_NOT_READY`, `BATCH_ALREADY_CONFIRMED`, `BATCH_NOT_IMPORTED`, `ASSETS_IN_PROGRESS`; 422 `INVALID_XLSX`, `TEMPLATE_VERSION_MISMATCH`, `IMPORT_TOO_MANY_ROWS`, `INVALID_RESOLUTION`.
 
 ## Plantilla
 

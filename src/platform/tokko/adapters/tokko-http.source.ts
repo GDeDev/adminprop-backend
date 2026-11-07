@@ -1,3 +1,4 @@
+import { RequestContext } from '@/shared/context/request-context'
 import { createLogger } from '@/shared/logging/root-logger'
 import {
   TokkoDictionaries,
@@ -49,6 +50,8 @@ export class TokkoHttpSource extends TokkoSourcePort {
   constructor(
     private readonly apiKey: string | null,
     options: TokkoHttpOptions = {},
+    /** La inmobiliaria dueña de la key (`TOKKO_TENANT_ID`). Sin ella, ninguna. */
+    private readonly ownerTenantId: string | null = null,
   ) {
     super()
     this.pauseMs = options.pauseMs ?? 400
@@ -57,7 +60,25 @@ export class TokkoHttpSource extends TokkoSourcePort {
     this.sleep = options.sleep ?? realSleep
   }
 
+  isAvailableFor(tenantId: string | undefined): boolean {
+    return !!this.ownerTenantId && tenantId === this.ownerTenantId
+  }
+
+  /**
+   * Segunda barrera, en la fuente misma: aunque alguien encole un análisis por
+   * otro camino, el worker corre dentro del tenant del lote y acá se corta.
+   */
+  private assertOwner(): void {
+    if (!this.isAvailableFor(RequestContext.tenantId)) {
+      throw new TokkoSourceError(
+        'La importación desde Tokko no está habilitada para esta inmobiliaria',
+        403,
+      )
+    }
+  }
+
   async dictionaries(): Promise<TokkoDictionaries> {
+    this.assertOwner()
     const [propertyTypes, propertyTags, operationTypes] = await Promise.all([
       this.dictionary('property_type'),
       this.dictionary('property_tags'),
@@ -67,6 +88,7 @@ export class TokkoHttpSource extends TokkoSourcePort {
   }
 
   async locationsSummary(): Promise<TokkoLocationSummary> {
+    this.assertOwner()
     const data = encodeURIComponent(
       JSON.stringify({
         current_localization_id: 1,
@@ -97,6 +119,7 @@ export class TokkoHttpSource extends TokkoSourcePort {
   }
 
   async *properties(): AsyncIterable<TokkoProperty[]> {
+    this.assertOwner()
     const data = encodeURIComponent(JSON.stringify({}))
     let offset = 0
     let previousFirstId: unknown

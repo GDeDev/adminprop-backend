@@ -1731,3 +1731,9 @@ Arreglos de la revisión de performance, seguridad y deuda de las Fases 21 y 24 
   - `apps/sites`, en cada pedido server-side a la API en nombre de un visitante: `X-Sites-Secret: <SITES_SERVER_SECRET>` y `X-Client-IP: <IP del visitante>`, tomada según `SITES_CLIENT_IP_HEADER`/`SITES_TRUSTED_PROXY_HOPS` de su propio proxy (no del `X-Forwarded-For` crudo).
   - El BFF de sesión del backoffice/portal (`packages/session`, rutas de login, refresh y logout): los mismos dos headers, con la IP del navegador. Necesita el mismo secreto de servidor en su entorno (nunca `NEXT_PUBLIC_*`).
   - Sin estos headers todo sigue andando; sólo que el tope por IP y la auditoría ven la IP del servidor Next.
+
+### D-253 · Tokko con la API real: sólo la inmobiliaria dueña de la key
+
+- **Contexto**: `TOKKO_API_KEY` es global y de una cuenta concreta (la de Oppido). Con `TOKKO_SOURCE=http`, cualquier otra inmobiliaria que lanzara un análisis de Tokko importaba el stock de esa cuenta (F21 P1 / OWASP alto).
+- **Decisión**: `TOKKO_TENANT_ID` (uuid) nombra a la única inmobiliaria que puede usar la key. `POST /migration/tokko/analyze` responde 403 `TOKKO_NOT_ENABLED` antes de crear el lote si el tenant no es ese (o si la variable falta), y `TokkoHttpSource` vuelve a chequearlo en cada lectura (el worker corre dentro del tenant del lote). Con `fixture` cualquiera puede probar la muestra.
+- **Pendiente**: la versión por tenant (cada inmobiliaria carga su key, cifrada con `SecretBoxPort` como los tokens de los portales) necesita una columna o tabla nueva y la pantalla para cargarla; no entra en esta rama. Mientras tanto, migrar a una segunda inmobiliaria desde Tokko es cambiar `TOKKO_API_KEY` y `TOKKO_TENANT_ID` juntos, para una corrida a la vez.
