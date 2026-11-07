@@ -191,6 +191,7 @@ export class RegisterPaymentHandler implements ICommandHandler<
         if (compareMoney(balances.totalDue, '0') <= 0) {
           throw new InstallmentAlreadyPaidException(installment.id)
         }
+        PaymentPolicy.assertNotBeforeLateFeePayment(current, paidAt)
 
         let remaining = balances
         let creditApplications: Payment[] = []

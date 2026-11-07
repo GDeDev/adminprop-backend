@@ -25,6 +25,7 @@ import {
   InvalidPaymentAmountException,
   InvalidPaymentDateException,
   InvalidPaymentReceiptException,
+  PaymentDateBeforeLateFeePaymentException,
 } from './billing.exceptions'
 import { InstallmentBalances } from './installment.policy'
 
@@ -275,6 +276,26 @@ export const PaymentPolicy = {
       chargesBalance: toMoneyString(
         subtractMoney(balances.chargesBalance, allocation.chargesApplied),
       ),
+    }
+  },
+
+  /**
+   * Un pago no puede ir antes que otro vigente que ya imputó punitorio: el
+   * punitorio de un día depende de qué pagos tienen fecha anterior, y lo ya
+   * imputado no se reimputa (alto 5, D-261).
+   */
+  assertNotBeforeLateFeePayment(
+    installment: Pick<Installment, 'payments'>,
+    paidAt: IsoDate,
+  ): void {
+    const later = installment.payments.find(
+      (p) =>
+        p.status !== PaymentStatus.VOIDED &&
+        p.paidAt > paidAt &&
+        compareMoney(p.lateFeeApplied, ZERO) > 0,
+    )
+    if (later) {
+      throw new PaymentDateBeforeLateFeePaymentException(later.id, later.paidAt)
     }
   },
 

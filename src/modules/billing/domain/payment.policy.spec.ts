@@ -3,6 +3,7 @@ import {
   CreditStatus,
   Currency,
   ExchangeRateSource,
+  Payment,
   PaymentReceiver,
   PaymentStatus,
   RenterCredit,
@@ -16,6 +17,7 @@ import {
   InvalidPaymentAmountException,
   InvalidPaymentDateException,
   InvalidPaymentReceiptException,
+  PaymentDateBeforeLateFeePaymentException,
 } from './billing.exceptions'
 import { PaymentPolicy } from './payment.policy'
 
@@ -251,6 +253,52 @@ describe('PaymentPolicy', () => {
         rentBalance: '100000.00',
         chargesBalance: '30000.00',
       })
+    })
+  })
+
+  describe('pago con fecha anterior a otro que cobró punitorio (alto 5)', () => {
+    // P1 del 20/11 cobró 1.000 de punitorio; P2 del 12/11 cargado después lo
+    // bajaba a 592 y los 408 de diferencia quedaban cobrados de más.
+    const withPayments = (payments: Partial<Payment>[]) => ({
+      payments: payments.map(
+        (p, i) =>
+          ({
+            id: `p${i}`,
+            status: PaymentStatus.CONFIRMED,
+            ...p,
+          }) as Payment,
+      ),
+    })
+
+    it('rechaza una fecha anterior a un pago vigente que imputó punitorio', () => {
+      expect(() =>
+        PaymentPolicy.assertNotBeforeLateFeePayment(
+          withPayments([{ paidAt: '2026-11-20', lateFeeApplied: '1000.00' }]),
+          '2026-11-12',
+        ),
+      ).toThrow(PaymentDateBeforeLateFeePaymentException)
+    })
+
+    it('acepta si el posterior no cobró punitorio, está anulado o la fecha es igual o posterior', () => {
+      for (const [payment, paidAt] of [
+        [{ paidAt: '2026-11-20', lateFeeApplied: '0.00' }, '2026-11-12'],
+        [
+          {
+            paidAt: '2026-11-20',
+            lateFeeApplied: '1000.00',
+            status: PaymentStatus.VOIDED,
+          },
+          '2026-11-12',
+        ],
+        [{ paidAt: '2026-11-20', lateFeeApplied: '1000.00' }, '2026-11-20'],
+      ] as const) {
+        expect(() =>
+          PaymentPolicy.assertNotBeforeLateFeePayment(
+            withPayments([payment]),
+            paidAt,
+          ),
+        ).not.toThrow()
+      }
     })
   })
 

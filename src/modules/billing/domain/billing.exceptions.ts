@@ -158,6 +158,22 @@ export class PaymentAlreadyConfirmedException extends DomainException {
   }
 }
 
+/**
+ * Un pago con fecha anterior a otro vigente que ya cobró punitorio bajaría el
+ * punitorio devengado por debajo de lo ya cobrado, y el excedente se perdía
+ * (revisión 2026-11-06, alto 5). Se pide anular y cargar en orden.
+ */
+export class PaymentDateBeforeLateFeePaymentException extends DomainException {
+  constructor(paymentId: string, paidAt: string) {
+    super(
+      'PAYMENT_DATE_BEFORE_LATE_FEE_PAYMENT',
+      `Hay un pago del ${paidAt} que ya cobró punitorio: un pago con fecha anterior cambia ese punitorio. Anulá ese pago, cargá este y volvé a cargarlo`,
+      DomainErrorKind.Conflict,
+      { paymentId, paidAt },
+    )
+  }
+}
+
 /** El crédito que generó el pago ya se usó, en parte o entero. */
 export class PaymentCreditAlreadyUsedException extends DomainException {
   constructor(creditId: string) {

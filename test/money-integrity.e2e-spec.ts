@@ -650,4 +650,54 @@ describe('Integridad de la plata (e2e, Postgres)', () => {
       expect(after.status).toBe('AVAILABLE')
     })
   })
+
+  describe('alto 5: un pago con fecha anterior a otro que ya cobró punitorio', () => {
+    it('se rechaza y, cargados en orden, el punitorio es el que de verdad se devengó', async () => {
+      // Base 100.000, gracia hasta el 10, punitorio 0,10 % diario. Antes: P1
+      // del 20 cobraba 1.000 de punitorio y P2 del 12 (cargado después) no lo
+      // corregía; quedaban 408 cobrados de más, liquidados al propietario
+      // como punitorio y sin saldo a favor para el inquilino.
+      const contract = await createContract({
+        lateFeeGraceDays: 10,
+        lateFeePercentage: '0.10',
+      })
+      await generate(previous)
+      const installment = await installmentOf(contract.id)
+      const p1 = await pay(installment.id, {
+        amount: '50000',
+        paidAt: day(20),
+      }).expect(201)
+      expect(p1.body.data.payment).toMatchObject({
+        lateFeeApplied: '1000.00',
+        rentApplied: '49000.00',
+      })
+
+      const late = await pay(installment.id, {
+        amount: '51000',
+        paidAt: day(12),
+      }).expect(409)
+      expect(late.body.code).toBe('PAYMENT_DATE_BEFORE_LATE_FEE_PAYMENT')
+
+      // Lo que se le pide al operador: anular y cargar en orden.
+      await voidPayment(p1.body.data.payment.id).expect(200)
+      const p2 = await pay(installment.id, {
+        amount: '51000',
+        paidAt: day(12),
+      }).expect(201)
+      expect(p2.body.data.payment).toMatchObject({
+        lateFeeApplied: '200.00',
+        rentApplied: '50800.00',
+      })
+      const again = await pay(installment.id, {
+        amount: '50000',
+        paidAt: day(20),
+      }).expect(201)
+      // Días 13 a 20 sobre 49.200: 8 × 49,20 = 393,60. El resto, a favor.
+      expect(again.body.data.payment).toMatchObject({
+        lateFeeApplied: '393.60',
+        rentApplied: '49200.00',
+        creditGenerated: '406.40',
+      })
+    })
+  })
 })
