@@ -173,9 +173,25 @@ export const InstallmentPolicy = {
     if (count <= 0) return []
     const percentage = toMoneyString(installment.lateFeePercentage)
     const days: LateFeeDay[] = []
+    // B-P1: el saldo de un día depende sólo de qué pagos tienen fecha anterior,
+    // y ese conjunto cambia como mucho una vez por pago. Se recalcula (con la
+    // misma función, así el resultado y el redondeo son idénticos) sólo cuando
+    // cambia, en vez de recorrer todos los pagos en cada día.
+    const paymentDates = activePayments(installment)
+      .map((p) => p.paidAt)
+      .sort()
+    let paymentsBefore = -1
+    let outstanding = ZERO
     for (let index = 0; index < count; index += 1) {
       const day = addDays(firstFeeDay, index)
-      const outstanding = this.outstandingRentOn(installment, day)
+      let before = Math.max(paymentsBefore, 0)
+      while (before < paymentDates.length && paymentDates[before] < day) {
+        before += 1
+      }
+      if (before !== paymentsBefore) {
+        outstanding = this.outstandingRentOn(installment, day)
+        paymentsBefore = before
+      }
       if (compareMoney(outstanding, ZERO) <= 0) break
       days.push({
         day,

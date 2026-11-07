@@ -575,3 +575,58 @@ describe('InstallmentPolicy', () => {
     })
   })
 })
+
+// B-P1: el detalle diario se calcula recalculando el saldo sólo cuando entra un
+// pago. Tiene que dar exactamente lo mismo que calcularlo día por día.
+describe('lateFeeDays: misma salida que el cálculo día por día', () => {
+  const naive = (inst: Installment, asOf: string) => {
+    const days = []
+    const first = new Date(`${inst.graceEndDate}T00:00:00Z`)
+    first.setUTCDate(first.getUTCDate() + 1)
+    for (let d = new Date(first); d.toISOString().slice(0, 10) <= asOf;) {
+      const day = d.toISOString().slice(0, 10)
+      const outstanding = InstallmentPolicy.outstandingRentOn(inst, day)
+      if (Number(outstanding) <= 0) break
+      days.push({ day, outstandingBase: outstanding })
+      d.setUTCDate(d.getUTCDate() + 1)
+    }
+    return days
+  }
+
+  it('con pagos parciales desordenados, uno anulado y uno el mismo día', () => {
+    const inst = installment({
+      baseAmount: '200000.33',
+      payments: [
+        payment({ paidAt: '2026-10-20', rentApplied: '50000.11' }),
+        payment({ paidAt: '2026-10-12', rentApplied: '30000.07' }),
+        payment({
+          paidAt: '2026-10-14',
+          rentApplied: '90000.00',
+          status: PaymentStatus.VOIDED,
+        }),
+        payment({ paidAt: '2026-10-12', rentApplied: '10000.01' }),
+        payment({ paidAt: '2026-10-25', rentApplied: '20000.00' }),
+      ],
+    })
+    const asOf = '2026-11-05'
+    const optimized = InstallmentPolicy.lateFeeDays(inst, asOf)
+    expect(
+      optimized.map(({ day, outstandingBase }) => ({ day, outstandingBase })),
+    ).toEqual(naive(inst, asOf))
+    expect(optimized.length).toBeGreaterThan(20)
+  })
+
+  it('se corta el día en que el saldo llega a cero', () => {
+    const inst = installment({
+      payments: [
+        payment({ paidAt: '2026-10-13', rentApplied: '150000.00' }),
+        payment({ paidAt: '2026-10-16', rentApplied: '50000.00' }),
+      ],
+    })
+    const days = InstallmentPolicy.lateFeeDays(inst, '2026-10-31')
+    expect(days.map((d) => d.day)).toEqual(
+      naive(inst, '2026-10-31').map((d) => d.day),
+    )
+    expect(days.at(-1)?.day).toBe('2026-10-16')
+  })
+})
