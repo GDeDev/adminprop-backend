@@ -1793,7 +1793,7 @@ No se tocaron; son decisiones de producto o de alcance:
 
 - **Contexto**: el punitorio de un día depende de qué pagos tienen fecha anterior. Un pago cargado después con fecha vieja bajaba el punitorio devengado por debajo del que ya había cobrado un pago posterior, y el excedente se perdía: no nacía saldo a favor y se liquidaba al propietario como punitorio (revisión 2026-11-06, alto 5; con base 100.000, gracia al 10 y 0,10 % diario: se cobraban 1.000 en vez de 592).
 - **Decisión**: se rechaza con 409 `PAYMENT_DATE_BEFORE_LATE_FEE_PAYMENT` un pago cuya fecha es anterior a la de un pago vigente de la misma cuota que imputó punitorio. El operador anula ese pago y los carga en orden; así cada uno se imputa contra el punitorio real y el exceso nace como saldo a favor. Es la opción que no deja plata cobrada de más en ningún lado; la alternativa (reimputar o generar un crédito automático) toca pagos ya liquidados.
-- **No cubre**: un ajuste manual de punitorio que lo baje por debajo de lo ya cobrado sigue sin generar saldo a favor.
+- **No cubre**: un ajuste manual de punitorio que lo baje por debajo de lo ya cobrado sigue sin generar saldo a favor. Tampoco las aplicaciones de saldo a favor (`CREDIT_APPLICATION`): el saldo aplicado solo al generar la cuota (D-237) se fecha hoy y, si contaran, impedirían cargar el pago real del mes con su fecha (lo hace el seed de demo). En ese caso puntual el punitorio que cobró la aplicación puede quedar por encima del devengado; queda pendiente reimputarlo o devolverlo como saldo.
 
 ### D-262 · Rescisión: las cuotas de los meses siguientes dejan de deberse — a confirmar con Micaela
 

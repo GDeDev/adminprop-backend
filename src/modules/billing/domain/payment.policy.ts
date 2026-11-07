@@ -12,6 +12,7 @@ import {
   Currency,
   ExchangeRateSource,
   Installment,
+  PaymentKind,
   PaymentReceiver,
   PaymentStatus,
   RenterCredit,
@@ -291,6 +292,10 @@ export const PaymentPolicy = {
     const later = installment.payments.find(
       (p) =>
         p.status !== PaymentStatus.VOIDED &&
+        // Una aplicación de saldo no es plata que entró ese día: el saldo
+        // aplicado solo al generar la cuota (D-237) se fecha hoy y no puede
+        // impedir cargar el pago real del mes (D-261).
+        p.kind !== PaymentKind.CREDIT_APPLICATION &&
         p.paidAt > paidAt &&
         compareMoney(p.lateFeeApplied, ZERO) > 0,
     )
