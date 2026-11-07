@@ -125,6 +125,12 @@ export abstract class SettlementRepository {
 
   abstract listAll(filter: SettlementFilter): Promise<Settlement[]>
 
+  /** Cuántas cumplen el filtro, sin hidratarlas (dashboard). */
+  abstract count(filter: SettlementFilter): Promise<number>
+
+  /** Cuántas cumplen el filtro, por propietario (recordatorio del consolidado). */
+  abstract countByOwner(filter: SettlementFilter): Promise<Map<string, number>>
+
   abstract update(id: string, changes: SettlementChanges): Promise<Settlement>
 
   /**
@@ -209,6 +215,9 @@ export abstract class OwnerStatementRepository {
   ): Promise<[OwnerStatement[], number]>
 
   abstract listAll(filter: OwnerStatementFilter): Promise<OwnerStatement[]>
+
+  /** Cuántos cumplen el filtro, sin hidratarlos (dashboard). */
+  abstract count(filter: OwnerStatementFilter): Promise<number>
 
   abstract update(
     id: string,

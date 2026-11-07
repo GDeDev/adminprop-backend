@@ -203,15 +203,13 @@ export class SettlementsFacade {
   async ownersPendingStatement(
     period: Period,
   ): Promise<{ ownerId: string; settlements: number }[]> {
-    const settlements = await this.settlements.listAll({
+    // Se cuenta en la base: antes se hidrataban todas las liquidaciones del mes
+    // (con transferencias y honorarios) sólo para contarlas.
+    const counts = await this.settlements.countByOwner({
       period,
       statuses: [SettlementStatus.CONFIRMED, SettlementStatus.TRANSFERRED],
       statementId: null,
     })
-    const counts = new Map<string, number>()
-    for (const settlement of settlements) {
-      counts.set(settlement.ownerId, (counts.get(settlement.ownerId) ?? 0) + 1)
-    }
     return [...counts].map(([ownerId, count]) => ({
       ownerId,
       settlements: count,
@@ -276,16 +274,13 @@ export class SettlementsFacade {
 
   /** Pendientes de acción: borradores, confirmadas sin transferir y consolidados abiertos. */
   async workload(): Promise<SettlementWorkload> {
+    // COUNT en la base en vez de hidratar todo para contar.
     const [toConfirm, toTransfer, openStatements] = await Promise.all([
-      this.settlements.listAll({ status: SettlementStatus.PENDING }),
-      this.settlements.listAll({ status: SettlementStatus.CONFIRMED }),
-      this.statements.listAll({ status: StatementStatus.OPEN }),
+      this.settlements.count({ status: SettlementStatus.PENDING }),
+      this.settlements.count({ status: SettlementStatus.CONFIRMED }),
+      this.statements.count({ status: StatementStatus.OPEN }),
     ])
-    return {
-      toConfirm: toConfirm.length,
-      toTransfer: toTransfer.length,
-      openStatements: openStatements.length,
-    }
+    return { toConfirm, toTransfer, openStatements }
   }
 }
 

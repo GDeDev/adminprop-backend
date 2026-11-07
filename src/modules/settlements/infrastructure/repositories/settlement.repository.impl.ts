@@ -107,6 +107,20 @@ export class SettlementRepositoryImpl extends SettlementRepository {
     return rows.map(settlementToDomain)
   }
 
+  async count(filter: SettlementFilter): Promise<number> {
+    return this.prisma.db.settlement.count({ where: toWhere(filter) })
+  }
+
+  async countByOwner(filter: SettlementFilter): Promise<Map<string, number>> {
+    const groups = await this.prisma.db.settlement.groupBy({
+      by: ['ownerId'],
+      where: toWhere(filter),
+      _count: { _all: true },
+      orderBy: { ownerId: 'asc' },
+    })
+    return new Map(groups.map((g) => [g.ownerId, g._count._all]))
+  }
+
   async update(id: string, changes: SettlementChanges): Promise<Settlement> {
     await this.prisma.db.settlement.update({ where: { id }, data: changes })
     return this.require(id)

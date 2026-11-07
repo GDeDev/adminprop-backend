@@ -82,6 +82,10 @@ export class OwnerStatementRepositoryImpl extends OwnerStatementRepository {
     return rows.map(statementToDomain)
   }
 
+  async count(filter: OwnerStatementFilter): Promise<number> {
+    return this.prisma.db.ownerStatement.count({ where: toWhere(filter) })
+  }
+
   async update(
     id: string,
     changes: OwnerStatementChanges,
