@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { createHash } from 'node:crypto'
 
+import { ContractsModule } from '@/modules/contracts/public'
 import { JobsModule } from '@/modules/jobs/public'
 import { NotificationsModule } from '@/modules/notifications/public'
 import { PropertiesModule } from '@/modules/properties/public'
@@ -77,7 +78,13 @@ import { InquiryRepositoryImpl } from '../repositories/inquiry.repository.impl'
  * público depende de este módulo, no al revés.
  */
 @Module({
-  imports: [PropertiesModule, TenantsModule, NotificationsModule, JobsModule],
+  imports: [
+    PropertiesModule,
+    TenantsModule,
+    NotificationsModule,
+    JobsModule,
+    ContractsModule,
+  ],
   controllers: [
     CrmController,
     ChannelsController,

@@ -208,15 +208,22 @@ describe('CRM (e2e, Postgres)', () => {
     ).toHaveLength(2)
   })
 
-  it('CLOSED_WON guarda el cierre y admite un contrato', async () => {
+  it('CLOSED_WON guarda el cierre; un contrato inexistente (o ajeno) es 404', async () => {
     const one = await create()
-    const won = await api(adminToken)
+    // Antes se guardaba cualquier id como contrato vinculado.
+    const unknown = await api(adminToken)
       .patch(`/crm/inquiries/${one.id}/stage`)
       .send({ stage: 'CLOSED_WON', contractId: UNKNOWN_ID })
+      .expect(404)
+    expect(unknown.body.code).toBe('CONTRACT_NOT_FOUND')
+
+    const won = await api(adminToken)
+      .patch(`/crm/inquiries/${one.id}/stage`)
+      .send({ stage: 'CLOSED_WON' })
       .expect(200)
     expect(won.body.data.stage).toBe('CLOSED_WON')
     const detail = await api(adminToken).get(`/crm/inquiries/${one.id}`)
-    expect(detail.body.data).toMatchObject({ contractId: UNKNOWN_ID })
+    expect(detail.body.data).toMatchObject({ contractId: null })
     expect(detail.body.data.closedAt).toEqual(expect.any(String))
   })
 

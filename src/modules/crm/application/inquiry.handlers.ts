@@ -6,6 +6,7 @@ import {
 } from '@nestjs/cqrs'
 
 import { UsersFacade } from '@/modules/auth/public'
+import { ContractsFacade } from '@/modules/contracts/public'
 import { NotificationsFacade } from '@/modules/notifications/public'
 import { PropertiesFacade } from '@/modules/properties/public'
 import { TenantsFacade } from '@/modules/tenants/public'
@@ -15,6 +16,7 @@ import { PaginatedResult } from '@/shared/pagination'
 import { paginateWith } from '@/shared/pagination/pagination'
 import { buildWhatsAppLink } from '@/shared/whatsapp/whatsapp'
 import {
+  CrmContractNotFoundException,
   CrmPropertyNotFoundException,
   InquiryContactRequiredException,
   InquiryNotFoundException,
@@ -222,12 +224,18 @@ export class MoveInquiryHandler implements ICommandHandler<
     private readonly inquiries: InquiryRepository,
     private readonly activities: InquiryActivityRepository,
     private readonly views: InquiryViews,
+    private readonly contracts: ContractsFacade,
   ) {}
 
   async execute({ id, move }: MoveInquiryCommand): Promise<InquiryCardView> {
     const current = await requireInquiry(this.inquiries, id)
     if (InquiryPolicy.lostReasonMissing(move.stage, move.lostReason)) {
       throw new LostReasonRequiredException()
+    }
+    // Como con la propiedad: antes se guardaba cualquier id, incluso el de un
+    // contrato de otra inmobiliaria, y la ficha lo mostraba como vinculado.
+    if (move.contractId && !(await this.contracts.exists(move.contractId))) {
+      throw new CrmContractNotFoundException(move.contractId)
     }
 
     const position = await this.positionFor(current, move)

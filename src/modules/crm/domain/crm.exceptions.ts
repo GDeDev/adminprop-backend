@@ -132,6 +132,18 @@ export class OAuthStateInvalidException extends DomainException {
 }
 
 /** La propiedad pedida (analítica, publicación) no existe en esta inmobiliaria. */
+/** Contrato inexistente o de otra inmobiliaria: el mismo 404. */
+export class CrmContractNotFoundException extends DomainException {
+  constructor(id: string) {
+    super(
+      'CONTRACT_NOT_FOUND',
+      'El contrato no existe',
+      DomainErrorKind.NotFound,
+      { id },
+    )
+  }
+}
+
 export class CrmPropertyNotFoundException extends DomainException {
   constructor(id: string) {
     super(

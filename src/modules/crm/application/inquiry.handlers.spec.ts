@@ -60,12 +60,27 @@ function repos(current: Inquiry | null = BASE) {
 }
 
 describe('MoveInquiryHandler', () => {
-  const build = (r: ReturnType<typeof repos>) =>
+  const build = (r: ReturnType<typeof repos>, contractExists = true) =>
     new MoveInquiryHandler(
       r.inquiries as never,
       r.activities as never,
       r.views as never,
+      { exists: jest.fn().mockResolvedValue(contractExists) } as never,
     )
+
+  // Antes se guardaba cualquier contractId, también el de otra inmobiliaria.
+  it('un contrato inexistente o de otro tenant es CONTRACT_NOT_FOUND', async () => {
+    const r = repos()
+    await expect(
+      build(r, false).execute(
+        new MoveInquiryCommand('x', {
+          stage: InquiryStage.CLOSED_WON,
+          contractId: 'c-ajeno',
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'CONTRACT_NOT_FOUND' })
+    expect(r.inquiries.update).not.toHaveBeenCalled()
+  })
 
   it('una consulta inexistente (o de otro tenant) es INQUIRY_NOT_FOUND', async () => {
     const r = repos(null)
