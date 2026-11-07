@@ -1758,3 +1758,19 @@ Arreglos de la revisión de performance, seguridad y deuda de las Fases 21 y 24 
 
 - **Contexto**: sin `BACKOFFICE_BASE_URL` el callback redirigía a `/configuracion/canales?...`, una ruta relativa que el navegador resolvía contra el host de la API.
 - **Decisión**: sin la variable se usa el primer origen de `CORS_ORIGINS` (por convención el backoffice va primero, como en `docs/ARRANQUE_LOCAL_BACKEND.md`). Con `LISTING_PUBLISHER_PROVIDER=mercadolibre` fuera de `development`/`test` es obligatoria: el arranque falla si falta.
+
+### D-257 · Performance: conteos en la base, altas en lote y punitorio por tramos
+
+- **Hecho**: `workload()` y `ownersPendingStatement()` cuentan con `COUNT`/`GROUP BY` (B-P2); `replaceFeeDays` es un solo `createMany` con `tenantId` explícito, que la extensión de tenant igual valida fila por fila (B-P5); el aviso de servicios vencidos resuelve inquilinos en dos consultas (`ContractsFacade.renterIds`, B-P6); el rebase de cuotas filtra `period >= desde` en la consulta (B-P7).
+- **Punitorio (B-P1)**: `lateFeeDays` recalcula el saldo impago sólo cuando la fecha cruza un pago, con la misma `outstandingRentOn`; la salida (días, bases, montos y redondeo) es idéntica por construcción, y un test la compara contra el cálculo día por día. Los tests de billing existentes pasan sin cambios.
+- **Pendiente**: B-P3 (`reportPayments`) y B-P4 (hidratación del resumen) son cambios más grandes en reportes; no entran en esta rama.
+
+### D-258 · Hallazgos de seguridad que quedan para el dueño
+
+No se tocaron; son decisiones de producto o de alcance:
+
+- **H20**: el EMPLOYEE ve/edita el CBU de los propietarios. Decidir si se restringe a ADMIN.
+- **H15**: MFA y recuperación de cuenta (no existen).
+- **H10, H12, H16, H19**: quedan como estaban en el informe OWASP, a decidir por el dueño.
+- **OAuth ML**: la atadura del callback al usuario y el rechazo de una cuenta ya conectada en otro tenant (ver D-255).
+- **Tokko por tenant**: la key propia de cada inmobiliaria (ver D-253).
