@@ -1,3 +1,4 @@
+import { IdempotencyService } from '@/shared/idempotency/idempotency.service'
 import { Module } from '@nestjs/common'
 
 import {
@@ -86,6 +87,7 @@ import { CronSchedulerTask } from '../tasks/cron-scheduler.task'
     { provide: AlertRepository, useClass: AlertRepositoryImpl },
     AutomationViews,
     JobScheduler,
+    IdempotencyService,
     JobRunner,
     JobRegistry,
     GenerateInstallmentsJob,

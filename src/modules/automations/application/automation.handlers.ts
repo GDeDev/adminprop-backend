@@ -11,6 +11,7 @@ import { NotificationsFacade } from '@/modules/notifications/public'
 import { IndexType, IndicesFacade } from '@/modules/indices/public'
 import { IndexSourcePort } from '@/platform/index-source/index-source.port'
 import { Configuration } from '@/shared/config/configuration'
+import { IdempotencyService } from '@/shared/idempotency/idempotency.service'
 import { RequestContext } from '@/shared/context/request-context'
 import { isValidPeriod } from '@/shared/dates/calendar-date'
 import { localMoment } from '@/shared/dates/zoned-time'
@@ -134,6 +135,9 @@ export class ListExecutionsHandler implements IQueryHandler<
   }
 }
 
+/** Scope de `idempotency_keys` del cooldown global de corridas manuales. */
+const GLOBAL_MANUAL_RUN_SCOPE = 'automations.global-manual-run'
+
 /**
  * Encola una corrida manual para la inmobiliaria del usuario (o global, en
  * índices). Responde enseguida con el id de la ejecución, que ya existe
@@ -149,6 +153,7 @@ export class RunJobHandler implements ICommandHandler<
     private readonly scheduler: JobScheduler,
     private readonly executions: JobExecutionRepository,
     private readonly audit: AuditFacade,
+    private readonly cooldowns: IdempotencyService,
   ) {}
 
   async execute(command: RunJobCommand): Promise<{ executionId: string }> {
@@ -160,14 +165,15 @@ export class RunJobHandler implements ICommandHandler<
 
     const tenantId =
       definition.scope === JobScope.GLOBAL ? null : requireTenant()
-    if (definition.scope === JobScope.GLOBAL) {
-      await this.assertGlobalManualRun(definition)
-    }
     const since = new Date(Date.now() - RUNNING_STALE_MINUTES * 60_000)
     if (
       await this.executions.findRecentRunning(definition.name, tenantId, since)
     ) {
       throw new JobAlreadyRunningException(definition.name)
+    }
+    // Al final de las validaciones: reclamar el cooldown lo consume.
+    if (definition.scope === JobScope.GLOBAL) {
+      await this.assertGlobalManualRun(definition)
     }
 
     const execution = await this.scheduler.enqueue(definition, tenantId, {
@@ -200,8 +206,15 @@ export class RunJobHandler implements ICommandHandler<
   private async assertGlobalManualRun(definition: JobDefinition) {
     const cooldown = definition.tenantManualCooldownMinutes
     if (!cooldown) throw new GlobalJobForbiddenException(definition.name)
-    const [last] = await this.executions.lastGlobal(definition.name, 1)
-    if (last && Date.now() - last.startedAt.getTime() < cooldown * 60_000) {
+    // Sólo cuentan las corridas manuales (las programadas de 06:00 y 12:00
+    // no deben darle 409 a quien pide "traer ahora") y el reclamo es atómico
+    // entre inmobiliarias: dos pedidos a la vez no lo ganan los dos.
+    const claimed = await this.cooldowns.claimGlobalOnce(
+      GLOBAL_MANUAL_RUN_SCOPE,
+      definition.name,
+      cooldown * 60_000,
+    )
+    if (!claimed) {
       throw new GlobalJobCooldownException(definition.name, cooldown)
     }
   }

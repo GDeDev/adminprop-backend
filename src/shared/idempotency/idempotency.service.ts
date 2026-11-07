@@ -120,6 +120,42 @@ export class IdempotencyService {
     return claimed.length > 0
   }
 
+  /**
+   * Como `claimOnce`, pero la clave es global: vale para TODOS los tenants (un
+   * cooldown de un job que trabaja para todas las inmobiliarias). La tabla es
+   * única por (tenant, scope, key), así que un INSERT con conflicto no alcanza
+   * entre tenants: se serializa con un lock advisory de transacción y, ya
+   * adentro, se mira si algún tenant tiene la clave sin vencer. La fila se
+   * guarda con el tenant del contexto.
+   */
+  async claimGlobalOnce(
+    scope: string,
+    key: string,
+    ttlMs: number,
+  ): Promise<boolean> {
+    const tenantId = RequestContext.tenantId
+    if (!tenantId) throw new Error('Idempotencia sin tenant en el contexto')
+    const lockKey = `${scope}:${key}`
+    return this.prisma.transaction(async () => {
+      const db = this.prisma.db
+      await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`
+      const busy = await db.$queryRaw<{ id: string }[]>`
+        SELECT id FROM idempotency_keys
+        WHERE scope = ${scope} AND key = ${key} AND expires_at > now()
+        LIMIT 1
+      `
+      if (busy.length > 0) return false
+      const expiresAt = new Date(Date.now() + ttlMs)
+      await db.$executeRaw`
+        INSERT INTO idempotency_keys (tenant_id, scope, key, request_hash, expires_at, response)
+        VALUES (${tenantId}::uuid, ${scope}, ${key}, '', ${expiresAt}, '{}'::jsonb)
+        ON CONFLICT (tenant_id, scope, key) DO UPDATE
+          SET created_at = now(), expires_at = EXCLUDED.expires_at
+      `
+      return true
+    })
+  }
+
   /** Guarda con qué se reconstruye la respuesta si la clave se repite. */
   async complete(
     scope: string,

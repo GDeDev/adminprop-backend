@@ -377,6 +377,38 @@ describe('Automatizaciones (e2e, Postgres)', () => {
         .expect(400)
     })
 
+    it('cooldown del job global: una corrida programada no cuenta y el reclamo es uno solo entre inmobiliarias', async () => {
+      // Una corrida programada (06:00/12:00) no le da 409 a "traer ahora".
+      await runJob(JobName.INDICES_FETCH, { today })
+      await api(adminToken)
+        .post('/automations/jobs/indices.fetch/run')
+        .send({})
+        .expect(202)
+      // Otra inmobiliaria, enseguida: el cooldown es global (se da por
+      // terminada la corrida para que no conteste "ya está corriendo").
+      await prisma.jobExecution.updateMany({
+        where: { status: 'RUNNING' },
+        data: { status: 'SUCCEEDED', finishedAt: new Date() },
+      })
+      const blocked = await api(adminBToken)
+        .post('/automations/jobs/indices.fetch/run')
+        .send({})
+        .expect(409)
+      expect(blocked.body.code).toBe('AUTOMATION_JOB_COOLDOWN')
+
+      // Se libera el reclamo vencido y dos pedidos simultáneos de dos
+      // inmobiliarias distintas: gana uno solo.
+      await prisma.idempotencyKey.deleteMany({
+        where: { scope: 'automations.global-manual-run' },
+      })
+      await prisma.jobExecution.deleteMany({})
+      const [a, b] = await Promise.all([
+        api(adminToken).post('/automations/jobs/indices.fetch/run').send({}),
+        api(adminBToken).post('/automations/jobs/indices.fetch/run').send({}),
+      ])
+      expect([a.status, b.status].sort()).toEqual([202, 409])
+    })
+
     it('cada inmobiliaria ve sólo lo suyo y lo global', async () => {
       await runJob(JobName.CONTRACTS_FINISH_EXPIRED, { today })
       await runJob(JobName.INDICES_FETCH, { today })
