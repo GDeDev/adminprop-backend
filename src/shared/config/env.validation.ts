@@ -818,6 +818,19 @@ export function validateEnv(
     }
   }
 
+  // El callback del OAuth redirige al backoffice: con Mercado Libre real y sin
+  // URL explícita, caer a CORS_ORIGINS[0] podría mandar al portal.
+  if (
+    !isLocalEnvironment(validated.NODE_ENV) &&
+    validated.LISTING_PUBLISHER_PROVIDER ===
+      ListingPublisherProvider.MercadoLibre &&
+    !validated.BACKOFFICE_BASE_URL
+  ) {
+    throw new Error(
+      `\n❌ BACKOFFICE_BASE_URL es obligatoria con LISTING_PUBLISHER_PROVIDER=mercadolibre y NODE_ENV=${validated.NODE_ENV}.\n`,
+    )
+  }
+
   if (validated.JWT_ACCESS_SECRET === validated.JWT_REFRESH_SECRET) {
     throw new Error(
       '\n❌ JWT_ACCESS_SECRET y JWT_REFRESH_SECRET no pueden ser iguales.\n' +

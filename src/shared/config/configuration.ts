@@ -232,6 +232,11 @@ const required = (value: string | undefined, name: string): string => {
   return value
 }
 
+function firstCorsOrigin(raw: string | undefined): string | null {
+  const origins = parseCorsOrigins(raw)
+  return Array.isArray(origins) ? (origins[0] ?? null) : null
+}
+
 function parseCorsOrigins(raw: string | undefined): string[] | boolean {
   if (!raw || raw.trim() === '') return false
   if (raw.trim() === '*') return true
@@ -471,7 +476,13 @@ export function configuration(): Configuration {
         process.env.LISTING_PUBLISHER_PROVIDER,
         ListingPublisherProvider.Fake,
       ) as ListingPublisherProvider,
-      backofficeBaseUrl: process.env.BACKOFFICE_BASE_URL || null,
+      // Sin BACKOFFICE_BASE_URL la vuelta del OAuth era una ruta relativa, que
+      // el navegador resolvía contra el host de la API. Cae al primer origen
+      // de CORS_ORIGINS (el backoffice va primero); con Mercado Libre fuera de
+      // desarrollo es obligatoria (validateEnv).
+      backofficeBaseUrl:
+        process.env.BACKOFFICE_BASE_URL?.trim() ||
+        firstCorsOrigin(process.env.CORS_ORIGINS),
       mercadolibre: {
         appId: process.env.MERCADOLIBRE_APP_ID || null,
         clientSecret: process.env.MERCADOLIBRE_CLIENT_SECRET || null,

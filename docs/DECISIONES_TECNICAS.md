@@ -1753,3 +1753,8 @@ Arreglos de la revisión de performance, seguridad y deuda de las Fases 21 y 24 
 - **Pendiente (necesita frontend y/o schema)**:
   - Atar el callback al usuario que lo inició: el callback debería redirigir al backoffice con `code` y `state`, y el backoffice completar con un `POST` autenticado (JWT) que compare `state.userId` con el usuario. Requiere una ruta nueva en el backoffice; no se hizo.
   - Rechazar una cuenta de Mercado Libre ya conectada en otra inmobiliaria: hace falta guardar el `user_id` de ML (columna nueva en `listing_channel_accounts`, aditiva) y una consulta entre tenants; hoy sólo se guarda el nickname (`accountLabel`), que puede faltar. No se hizo.
+
+### D-256 · Vuelta del OAuth sin `BACKOFFICE_BASE_URL`
+
+- **Contexto**: sin `BACKOFFICE_BASE_URL` el callback redirigía a `/configuracion/canales?...`, una ruta relativa que el navegador resolvía contra el host de la API.
+- **Decisión**: sin la variable se usa el primer origen de `CORS_ORIGINS` (por convención el backoffice va primero, como en `docs/ARRANQUE_LOCAL_BACKEND.md`). Con `LISTING_PUBLISHER_PROVIDER=mercadolibre` fuera de `development`/`test` es obligatoria: el arranque falla si falta.

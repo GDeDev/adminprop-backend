@@ -77,3 +77,22 @@ describe('configuration: secreto del throttle de apps/sites', () => {
     })
   })
 })
+
+describe('configuration: vuelta del OAuth al backoffice', () => {
+  const saved = { ...process.env }
+  afterEach(() => {
+    process.env = { ...saved }
+  })
+
+  it('sin BACKOFFICE_BASE_URL usa el primer origen de CORS_ORIGINS', () => {
+    delete process.env.BACKOFFICE_BASE_URL
+    process.env.CORS_ORIGINS = 'http://localhost:3001,http://localhost:3002'
+    expect(configuration().listings.backofficeBaseUrl).toBe(
+      'http://localhost:3001',
+    )
+    process.env.BACKOFFICE_BASE_URL = 'https://app.ejemplo.com'
+    expect(configuration().listings.backofficeBaseUrl).toBe(
+      'https://app.ejemplo.com',
+    )
+  })
+})

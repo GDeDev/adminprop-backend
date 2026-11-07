@@ -236,3 +236,27 @@ describe('validateEnv: NODE_ENV explícito y secretos de ejemplo (D-251)', () =>
     ).not.toThrow()
   })
 })
+
+describe('validateEnv: BACKOFFICE_BASE_URL con Mercado Libre', () => {
+  const production = {
+    ...VALID_ENV,
+    NODE_ENV: 'production',
+    SITES_PREVIEW_SECRET: 'p'.repeat(40),
+    LISTING_PUBLISHER_PROVIDER: 'mercadolibre',
+    MERCADOLIBRE_APP_ID: 'app',
+    MERCADOLIBRE_CLIENT_SECRET: 'secreto',
+    MERCADOLIBRE_REDIRECT_URI: 'https://api.ejemplo.com/cb',
+    APP_ENCRYPTION_KEY: 'a'.repeat(64),
+  }
+
+  // Antes, sin ella, la vuelta del OAuth era una ruta relativa al host de la API.
+  it('es obligatoria fuera de desarrollo', () => {
+    expect(() => validateEnv(production)).toThrow(/BACKOFFICE_BASE_URL/)
+    expect(() =>
+      validateEnv({
+        ...production,
+        BACKOFFICE_BASE_URL: 'https://app.ejemplo.com',
+      }),
+    ).not.toThrow()
+  })
+})
