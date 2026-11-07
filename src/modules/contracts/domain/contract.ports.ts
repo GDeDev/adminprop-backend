@@ -100,6 +100,10 @@ export interface ContractFilter {
   ownerId?: string
   /** Activos que terminan entre las dos fechas, inclusive (por vencer). */
   endDateBetween?: { from: IsoDate; to: IsoDate }
+  /** Sólo `listAll`: estos contratos. */
+  ids?: string[]
+  /** Sólo `listAll`: de estas propiedades. */
+  propertyIds?: string[]
 }
 
 /**

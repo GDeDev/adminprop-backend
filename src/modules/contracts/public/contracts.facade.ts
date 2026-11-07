@@ -243,6 +243,37 @@ export class ContractsFacade {
     }
   }
 
+  /**
+   * Inquilinos de varios contratos y de los contratos activos de varias
+   * propiedades, en dos consultas (B-P6: el aviso de servicios vencidos hacía
+   * una por servicio). Lo que no existe no aparece en el mapa.
+   */
+  async renterIds(input: {
+    contractIds: string[]
+    activePropertyIds: string[]
+  }): Promise<{
+    byContract: Map<string, string>
+    byActiveProperty: Map<string, string>
+  }> {
+    const contractIds = [...new Set(input.contractIds)]
+    const propertyIds = [...new Set(input.activePropertyIds)]
+    const [byId, active] = await Promise.all([
+      contractIds.length
+        ? this.contracts.listAll({ ids: contractIds })
+        : Promise.resolve([]),
+      propertyIds.length
+        ? this.contracts.listAll({
+            status: ContractStatus.ACTIVE,
+            propertyIds,
+          })
+        : Promise.resolve([]),
+    ])
+    return {
+      byContract: new Map(byId.map((c) => [c.id, c.renterId])),
+      byActiveProperty: new Map(active.map((c) => [c.propertyId, c.renterId])),
+    }
+  }
+
   async getActiveByProperty(
     propertyId: string,
   ): Promise<ActiveContractRef | null> {

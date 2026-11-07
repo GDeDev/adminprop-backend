@@ -45,12 +45,18 @@ export class ServiceOverdueNoticeJob implements AutomationJob {
 
     // El inquilino es el del contrato al que se vinculó el servicio; si no se
     // vinculó, el de la propiedad si hoy tiene un contrato activo.
+    // Dos consultas en total, no una por servicio (B-P6).
+    const { byContract, byActiveProperty } = await this.contracts.renterIds({
+      contractIds: overdue.flatMap((s) => (s.contractId ? [s.contractId] : [])),
+      activePropertyIds: overdue
+        .filter((s) => !s.contractId)
+        .map((s) => s.propertyId),
+    })
     const renterByService = new Map<string, string>()
     for (const service of overdue) {
       const renterId = service.contractId
-        ? (await this.contracts.find(service.contractId))?.renterId
-        : (await this.contracts.getActiveByProperty(service.propertyId))
-            ?.renterId
+        ? byContract.get(service.contractId)
+        : byActiveProperty.get(service.propertyId)
       if (renterId) renterByService.set(service.id, renterId)
     }
     const [renters, properties, serviceTypes] = await Promise.all([

@@ -147,6 +147,10 @@ export class ContractRepositoryImpl extends ContractRepository {
         ...(filter.propertyId ? { propertyId: filter.propertyId } : {}),
         ...(filter.renterId ? { renterId: filter.renterId } : {}),
         ...(filter.ownerId ? { ownerId: filter.ownerId } : {}),
+        ...(filter.ids ? { id: { in: filter.ids } } : {}),
+        ...(filter.propertyIds
+          ? { propertyId: { in: filter.propertyIds } }
+          : {}),
       },
       include: WITH_RENT_UPDATES,
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
