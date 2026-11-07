@@ -31,6 +31,7 @@ import type { Response } from 'express'
 import { Role, Roles } from '@/modules/auth/public'
 import { ApiErrorDto, ApiSuccessDto } from '@/shared/dtos/api-response.dto'
 import { EXPORT_CONTENT_TYPES, sendAttachment } from '@/shared/files/attachment'
+import { uploadLimits } from '@/shared/infra/uploads/upload-limits'
 import { PaginatedResult } from '@/shared/pagination'
 import { ApiPaginatedResponse } from '@/shared/pagination/api-paginated-response.decorator'
 import {
@@ -132,7 +133,9 @@ export class MigrationController {
   @Throttle(HEAVY_LIMIT)
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES } }),
+    // Topes de campos y partes además del tamaño: sin ellos multer acepta
+    // cientos de campos de texto en el mismo multipart.
+    FileInterceptor('file', { limits: uploadLimits(MAX_FILE_BYTES) }),
   )
   @ApiOperation({
     summary: 'Analizar un Excel (dry-run)',
