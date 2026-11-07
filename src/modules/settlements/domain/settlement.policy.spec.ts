@@ -228,6 +228,51 @@ describe('SettlementPolicy', () => {
     })
   })
 
+  describe('pago anulado ya liquidado (A-19, crítico 2, D-259)', () => {
+    const pct = {
+      feeMode: FeeMode.DEDUCTED,
+      feePercentage: '5.00',
+      feeAmount: null,
+      baseAmount: '100000.00',
+    }
+    const line = (paymentId: string, rentApplied: string) => ({
+      paymentId,
+      rentApplied,
+      lateFeeApplied: '0.00',
+      ownerChargesApplied: '0.00',
+    })
+
+    it('el honorario atribuible al 5 % de 100.000 es 5.000 y se descuenta el neto', () => {
+      const fee = SettlementPolicy.voidedPaymentFee(
+        pct,
+        [line('p', '100000.00')],
+        'p',
+        rules,
+      )
+      expect(fee).toBe('5000.00')
+      expect(
+        SettlementPolicy.voidedPaymentDeduction('100000.00', fee, true),
+      ).toBe('95000.00')
+      expect(
+        SettlementPolicy.voidedPaymentDeduction('100000.00', fee, false),
+      ).toBe('100000.00')
+    })
+
+    it('con fijo prorrateado, revierte exactamente lo que cobró la cuota por esa línea', () => {
+      // Fijo 10.000 sobre 300.000: con 200.000 cobrados son 6.666,67; sin la
+      // línea anulada de 100.000 quedan 3.333,33. Se revierten 3.333,34.
+      const fixed = { ...pct, feeAmount: '10000.00', baseAmount: '300000.00' }
+      expect(
+        SettlementPolicy.voidedPaymentFee(
+          fixed,
+          [line('a', '100000.00'), line('b', '100000.00')],
+          'b',
+          rules,
+        ),
+      ).toBe('3333.34')
+    })
+  })
+
   describe('neto y ajustes (4.3, A-16, A-20)', () => {
     const totals = {
       rentTotal: '100000.00',

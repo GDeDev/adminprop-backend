@@ -186,6 +186,40 @@ export const FeePolicy = {
     return { allocations, unallocated: toMoneyString(remaining) }
   },
 
+  /**
+   * Bajar un honorario a cobrar porque parte de lo que lo generó se anuló
+   * (A-19 sin descuento, D-259). Sin cobros que lo impidan, baja el importe
+   * (y se anula si llega a cero). Si ya se cobró más de lo que quedaría, no
+   * se toca el importe: queda para revisión manual, como al anular un pago
+   * con honorario cobrado.
+   */
+  reduceReceivable(
+    receivable: Pick<FeeReceivable, 'amount' | 'paidAmount' | 'status'>,
+    by: string,
+  ):
+    | { kind: 'none' }
+    | { kind: 'review' }
+    | { kind: 'void' }
+    | { kind: 'reduce'; amount: string; status: FeeReceivableStatus } {
+    if (
+      receivable.status === FeeReceivableStatus.VOIDED ||
+      compareMoney(by, ZERO) <= 0
+    ) {
+      return { kind: 'none' }
+    }
+    const left = subtractMoney(receivable.amount, by)
+    if (compareMoney(receivable.paidAmount, toMoneyString(left)) > 0) {
+      return { kind: 'review' }
+    }
+    if (left.lessThanOrEqualTo(0)) return { kind: 'void' }
+    const amount = toMoneyString(left)
+    return {
+      kind: 'reduce',
+      amount,
+      status: this.receivableStatus(amount, receivable.paidAmount),
+    }
+  },
+
   /** El estado que se guarda según lo cobrado. */
   receivableStatus(amount: string, paidAmount: string): FeeReceivableStatus {
     if (compareMoney(paidAmount, ZERO) <= 0) return FeeReceivableStatus.PENDING

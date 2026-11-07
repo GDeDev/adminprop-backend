@@ -62,6 +62,15 @@ export class FeeReceivableRepositoryImpl extends FeeReceivableRepository {
     return row ? receivableToDomain(row) : null
   }
 
+  async findByOriginSettlement(
+    settlementId: string,
+  ): Promise<FeeReceivable | null> {
+    const row = await this.prisma.db.feeReceivable.findFirst({
+      where: { originSettlementId: settlementId },
+    })
+    return row ? receivableToDomain(row) : null
+  }
+
   async list(
     filter: FeeReceivableFilter,
     page: PageArgs,

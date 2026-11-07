@@ -306,4 +306,79 @@ describe('Integridad de la plata (e2e, Postgres)', () => {
       })
     })
   })
+
+  describe('crítico 2: anular un pago ya liquidado revierte también su honorario (A-19, D-259)', () => {
+    it('honorario descontado: el ajuste es el neto y, si el inquilino vuelve a pagar, la inmobiliaria cobra el honorario una sola vez', async () => {
+      // Antes: el ajuste descontaba el bruto (100.000) y al volver a pagar la
+      // pendiente quedaba en −5.000: el propietario terminaba con 90.000 y la
+      // inmobiliaria con 10.000 de honorario por un solo mes.
+      const contract = await createContract()
+      await generate(previous)
+      const installment = await installmentOf(contract.id)
+      const paid = await pay(installment.id, { amount: '100000' }).expect(201)
+      const first = await waitForDraft(contract.id)
+      await api().post(`/settlements/${first}/confirm`).expect(200)
+      expect(await detail(first)).toMatchObject({ netAmount: '95000.00' })
+
+      await voidPayment(paid.body.data.payment.id).expect(200)
+      await waitFor(
+        async () => (await detail(first)).hasVoidedPayments === true,
+        { what: 'la liquidación marcada con el pago anulado' },
+      )
+      const second = await waitForDraft(contract.id)
+      await waitFor(async () => (await detail(second)).adjustments.length > 0, {
+        what: 'el ajuste A-19 en la pendiente',
+      })
+      expect(await detail(second)).toMatchObject({
+        adjustmentsTotal: '-95000.00',
+        netAmount: '-95000.00',
+      })
+
+      // El inquilino vuelve a pagar.
+      await pay(installment.id, { amount: '100000' }).expect(201)
+      await waitFor(
+        async () => (await detail(second)).rentTotal === '100000.00',
+        { what: 'la pendiente con el pago nuevo' },
+      )
+      expect(await detail(second)).toMatchObject({
+        rentTotal: '100000.00',
+        feeTotal: '5000.00',
+        adjustmentsTotal: '-95000.00',
+        netAmount: '0.00',
+      })
+    })
+
+    it('honorario a cargo del propietario (no descontado): el ajuste es el bruto y el honorario a cobrar se anula', async () => {
+      // Antes: el receivable de 5.000 de la liquidación seguía vivo y el
+      // propietario debía un honorario sobre un alquiler que nunca se cobró.
+      const contract = await createContract({ feeMode: 'OWNER_PAYS' })
+      await generate(previous)
+      const installment = await installmentOf(contract.id)
+      const paid = await pay(installment.id, { amount: '100000' }).expect(201)
+      const first = await waitForDraft(contract.id)
+      await api().post(`/settlements/${first}/confirm`).expect(200)
+      const receivable = await prisma.feeReceivable.findFirstOrThrow({
+        where: { originSettlementId: first },
+      })
+      expect(receivable.amount.toFixed(2)).toBe('5000.00')
+
+      await voidPayment(paid.body.data.payment.id).expect(200)
+      const second = await waitForDraft(contract.id)
+      await waitFor(async () => (await detail(second)).adjustments.length > 0, {
+        what: 'el ajuste A-19 en la pendiente',
+      })
+      expect(await detail(second)).toMatchObject({
+        adjustmentsTotal: '-100000.00',
+      })
+      await waitFor(
+        async () =>
+          (
+            await prisma.feeReceivable.findUniqueOrThrow({
+              where: { id: receivable.id },
+            })
+          ).status === 'VOIDED',
+        { what: 'el honorario a cobrar anulado' },
+      )
+    })
+  })
 })

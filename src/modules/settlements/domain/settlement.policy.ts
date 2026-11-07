@@ -22,6 +22,7 @@ import {
   CollectedPayment,
   Currency,
   FeeMode,
+  FeeTerms,
   isConfirmed,
   OwnerFeeRules,
   OwnerStatementTotals,
@@ -444,6 +445,52 @@ export const SettlementPolicy = {
       voided.lateFeeApplied,
       voided.ownerChargesApplied,
     ])
+  },
+
+  /**
+   * El honorario que la liquidación cobró por un pago que después se anuló
+   * (A-19, D-259): el de la cuota con todas sus líneas menos el de la cuota
+   * sin la línea anulada. Así se revierte exactamente lo que se cobró, con el
+   * mismo redondeo por cuota.
+   */
+  voidedPaymentFee(
+    terms: FeeTerms,
+    installmentLines: Pick<
+      CollectedPayment,
+      'paymentId' | 'rentApplied' | 'lateFeeApplied' | 'ownerChargesApplied'
+    >[],
+    voidedPaymentId: string,
+    rules: OwnerFeeRules,
+  ): string {
+    const sum = (lines: typeof installmentLines) => ({
+      rentApplied: sumMoney(lines.map((l) => l.rentApplied)),
+      lateFeeApplied: sumMoney(lines.map((l) => l.lateFeeApplied)),
+      ownerChargesApplied: sumMoney(lines.map((l) => l.ownerChargesApplied)),
+    })
+    const withLine = FeePolicy.feeForInstallment(
+      terms,
+      sum(installmentLines),
+      rules,
+    ).amount
+    const withoutLine = FeePolicy.feeForInstallment(
+      terms,
+      sum(installmentLines.filter((l) => l.paymentId !== voidedPaymentId)),
+      rules,
+    ).amount
+    const fee = subtractMoney(withLine, withoutLine)
+    return fee.isNegative() ? ZERO : toMoneyString(fee)
+  },
+
+  /**
+   * Lo que el ajuste A-19 descuenta en la próxima pendiente. Si el honorario
+   * se había descontado, el propietario recibió el bruto menos el honorario:
+   * se le descuenta eso (D-259). Antes se descontaba el bruto y la
+   * inmobiliaria se quedaba con el honorario de un alquiler que no cobró.
+   */
+  voidedPaymentDeduction(gross: string, fee: string, feeDeducted: boolean) {
+    if (!feeDeducted) return toMoneyString(gross)
+    const net = subtractMoney(gross, fee)
+    return net.isNegative() ? ZERO : toMoneyString(net)
   },
 
   /**

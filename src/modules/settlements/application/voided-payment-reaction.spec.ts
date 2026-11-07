@@ -1,4 +1,4 @@
-import { PaymentVoidedPayload } from '@/modules/billing/public'
+import { BillingFacade, PaymentVoidedPayload } from '@/modules/billing/public'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import {
   FeeReceivableStatus,
@@ -16,6 +16,7 @@ import {
   makeSettlement,
 } from '../testing/settlement.fixtures'
 import { SettlementDrafts } from './settlement-drafts'
+import { SettlementReferences } from './settlement-references'
 import { VoidedPaymentReaction } from './voided-payment-reaction'
 
 function payload(
@@ -49,6 +50,7 @@ function setup() {
   }
   const receivables = {
     findByOriginPayment: jest.fn().mockResolvedValue(null),
+    findByOriginSettlement: jest.fn().mockResolvedValue(null),
     update: jest.fn().mockResolvedValue(undefined),
   }
   const drafts = {
@@ -58,13 +60,24 @@ function setup() {
   const prisma = {
     transaction: jest.fn().mockImplementation((fn: () => unknown) => fn()),
   }
+  const billing = {
+    feeTermsForInstallments: jest.fn().mockResolvedValue(new Map()),
+  }
+  const references = {
+    feeRules: jest.fn().mockResolvedValue({
+      feeIncludesLateFees: false,
+      feeIncludesCharges: false,
+    }),
+  }
   const reaction = new VoidedPaymentReaction(
     settlements as unknown as SettlementRepository,
     receivables as unknown as FeeReceivableRepository,
     drafts as unknown as SettlementDrafts,
     prisma as unknown as PrismaService,
+    billing as unknown as BillingFacade,
+    references as unknown as SettlementReferences,
   )
-  return { reaction, settlements, receivables, drafts }
+  return { reaction, settlements, receivables, drafts, billing }
 }
 
 describe('VoidedPaymentReaction', () => {
@@ -243,6 +256,102 @@ describe('VoidedPaymentReaction', () => {
       drafts.draftForAdjustment.mockResolvedValue(null)
       await expect(reaction.handle(payload())).resolves.toBeUndefined()
       expect(settlements.addAdjustment).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('el honorario del pago anulado se revierte (crítico 2, D-259)', () => {
+    const terms = new Map([
+      [
+        'inst-1',
+        {
+          installmentId: 'inst-1',
+          period: '2026-09',
+          currency: 'ARS',
+          baseAmount: '100000.00',
+          feeMode: 'DEDUCTED',
+          feePercentage: '5.00',
+          feeAmount: null,
+        },
+      ],
+    ])
+    const confirmedWith = (feeDeducted: boolean) =>
+      makeSettlement({
+        id: 'settlement-1',
+        status: SettlementStatus.CONFIRMED,
+        feeDeducted,
+        payments: [
+          makePaymentLine({
+            paymentId: 'pay-1',
+            installmentId: 'inst-1',
+            rentApplied: '100000.00',
+          }),
+        ],
+      })
+
+    it('honorario descontado: descuenta el neto (100.000 − 5.000), no el bruto', async () => {
+      // Antes se descontaban 100.000: el propietario perdía el honorario que
+      // la inmobiliaria ya se había quedado.
+      const { reaction, settlements, drafts, billing } = setup()
+      billing.feeTermsForInstallments.mockResolvedValue(terms)
+      settlements.findById
+        .mockResolvedValueOnce(confirmedWith(true))
+        .mockResolvedValueOnce(makeSettlement({ id: 'draft' }))
+      drafts.draftForAdjustment.mockResolvedValue(
+        makeSettlement({ id: 'draft' }),
+      )
+      await reaction.handle(
+        payload({ lateFeeApplied: '0', chargesApplied: '0' }),
+      )
+      expect(settlements.addAdjustment).toHaveBeenCalledWith(
+        'draft',
+        expect.objectContaining({ amount: '95000.00' }),
+      )
+    })
+
+    it('sin descuento: descuenta el bruto y anula el honorario a cobrar de la liquidación', async () => {
+      const { reaction, settlements, drafts, billing, receivables } = setup()
+      billing.feeTermsForInstallments.mockResolvedValue(terms)
+      settlements.findById
+        .mockResolvedValueOnce(confirmedWith(false))
+        .mockResolvedValueOnce(makeSettlement({ id: 'draft' }))
+      drafts.draftForAdjustment.mockResolvedValue(
+        makeSettlement({ id: 'draft' }),
+      )
+      receivables.findByOriginSettlement.mockResolvedValue(
+        makeReceivable({ id: 'r-s', amount: '5000.00', paidAmount: '0.00' }),
+      )
+      await reaction.handle(payload())
+      expect(settlements.addAdjustment).toHaveBeenCalledWith(
+        'draft',
+        expect.objectContaining({ amount: '100000.00' }),
+      )
+      expect(receivables.update).toHaveBeenCalledWith('r-s', {
+        status: FeeReceivableStatus.VOIDED,
+        voidedAt: expect.any(Date),
+      })
+    })
+
+    it('sin descuento y con otras líneas: baja el honorario a cobrar en lo que aportaba el pago', async () => {
+      const { reaction, settlements, drafts, billing, receivables } = setup()
+      billing.feeTermsForInstallments.mockResolvedValue(terms)
+      const settlement = confirmedWith(false)
+      settlement.payments.push(
+        makePaymentLine({ installmentId: 'inst-1', rentApplied: '40000.00' }),
+      )
+      settlements.findById
+        .mockResolvedValueOnce(settlement)
+        .mockResolvedValueOnce(makeSettlement({ id: 'draft' }))
+      drafts.draftForAdjustment.mockResolvedValue(
+        makeSettlement({ id: 'draft' }),
+      )
+      receivables.findByOriginSettlement.mockResolvedValue(
+        makeReceivable({ id: 'r-s', amount: '7000.00', paidAmount: '1000.00' }),
+      )
+      await reaction.handle(payload())
+      expect(receivables.update).toHaveBeenCalledWith('r-s', {
+        amount: '2000.00',
+        status: FeeReceivableStatus.PARTIAL,
+      })
     })
   })
 

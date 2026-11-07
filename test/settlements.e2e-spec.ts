@@ -706,16 +706,18 @@ describe('Liquidaciones (e2e, Postgres)', () => {
       )
       expect(next).toBeDefined()
       const draft = await detail(next!.id)
+      // Se descuenta lo que el propietario recibió: el bruto menos el
+      // honorario del 5 % (D-259). Antes se descontaban los 100.000 enteros.
       expect(draft).toMatchObject({
         sequence: 2,
         rentTotal: '0.00',
-        adjustmentsTotal: '-100000.00',
-        netAmount: '-100000.00',
+        adjustmentsTotal: '-95000.00',
+        netAmount: '-95000.00',
       })
       expect(draft.adjustments).toHaveLength(1)
       expect(draft.adjustments[0]).toMatchObject({
         concept: 'OTHER_DEDUCTION',
-        amount: '100000.00',
+        amount: '95000.00',
         createdBy: null,
       })
       expect(draft.adjustments[0].description).toContain(

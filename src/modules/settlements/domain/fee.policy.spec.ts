@@ -132,6 +132,51 @@ describe('FeePolicy', () => {
     })
   })
 
+  describe('reduceReceivable (A-19 sin descuento, D-259)', () => {
+    it('baja el importe y recalcula el estado', () => {
+      expect(
+        FeePolicy.reduceReceivable(
+          receivable({ amount: '7000.00', paidAmount: '1000.00' }),
+          '5000.00',
+        ),
+      ).toEqual({
+        kind: 'reduce',
+        amount: '2000.00',
+        status: FeeReceivableStatus.PARTIAL,
+      })
+    })
+
+    it('si llega a cero sin cobros, se anula', () => {
+      expect(
+        FeePolicy.reduceReceivable(
+          receivable({ amount: '5000.00', paidAmount: '0.00' }),
+          '5000.00',
+        ),
+      ).toEqual({ kind: 'void' })
+    })
+
+    it('si ya se cobró más de lo que quedaría, queda para revisión', () => {
+      expect(
+        FeePolicy.reduceReceivable(
+          receivable({ amount: '5000.00', paidAmount: '3000.00' }),
+          '5000.00',
+        ),
+      ).toEqual({ kind: 'review' })
+    })
+
+    it('anulado o sin monto que bajar, no hace nada', () => {
+      expect(
+        FeePolicy.reduceReceivable(
+          receivable({ status: FeeReceivableStatus.VOIDED }),
+          '10.00',
+        ),
+      ).toEqual({ kind: 'none' })
+      expect(FeePolicy.reduceReceivable(receivable(), '0.00')).toEqual({
+        kind: 'none',
+      })
+    })
+  })
+
   describe('imputación de pagos de honorarios (3.3)', () => {
     it('va a los más viejos primero, cada uno hasta lo que le falta; el exceso queda sin imputar', () => {
       const old = receivable({ amount: '10000.00', paidAmount: '4000.00' })

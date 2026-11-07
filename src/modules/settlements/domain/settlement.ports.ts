@@ -276,6 +276,7 @@ export interface FeeReceivableFilter {
 }
 
 export interface FeeReceivableChanges {
+  amount?: string
   paidAmount?: string
   status?: FeeReceivableStatus
   needsReview?: boolean
@@ -289,6 +290,11 @@ export abstract class FeeReceivableRepository {
   abstract findById(id: string): Promise<FeeReceivable | null>
 
   abstract findByOriginPayment(paymentId: string): Promise<FeeReceivable | null>
+
+  /** El honorario a cobrar que nació al confirmar esta liquidación (no descontado). */
+  abstract findByOriginSettlement(
+    settlementId: string,
+  ): Promise<FeeReceivable | null>
 
   /** Más nuevos primero. */
   abstract list(

@@ -1774,3 +1774,10 @@ No se tocaron; son decisiones de producto o de alcance:
 - **H10, H12, H16, H19**: quedan como estaban en el informe OWASP, a decidir por el dueño.
 - **OAuth ML**: la atadura del callback al usuario y el rechazo de una cuenta ya conectada en otro tenant (ver D-255).
 - **Tokko por tenant**: la key propia de cada inmobiliaria (ver D-253).
+
+### D-259 · Pago anulado ya liquidado: se revierte también el honorario (A-19) — a confirmar con Micaela
+
+- **Contexto**: A-19 dice "la diferencia se descuenta en la próxima pendiente". Se descontaba el bruto del pago (alquiler + punitorio + cargos del propietario), pero el propietario había recibido el bruto menos el honorario: la inmobiliaria se quedaba con el honorario de un alquiler que no cobró, y si el inquilino volvía a pagar lo cobraba dos veces (revisión 2026-11-06, informe 01 crítico 2).
+- **Decisión**: el honorario se devuelve. Con honorario descontado (`DEDUCTED`) el ajuste automático es `bruto − honorario atribuible a esa línea` (el de la cuota con todas sus líneas menos el de la cuota sin la anulada, mismo redondeo). Sin descontar, el ajuste sigue siendo el bruto y el honorario a cobrar de la liquidación (`SETTLEMENT_NOT_DEDUCTED`) baja en el honorario atribuible; si llega a cero se anula, y si ya se cobró más de lo que quedaría no se toca y queda `needsReview` (como al anular un pago con honorario cobrado).
+- **Por qué esta**: es la que deja a los dos como si el pago no hubiera existido. La alternativa (la inmobiliaria se queda el honorario) cobra honorario sobre plata que nunca entró.
+- **Escenario**: 100.000 al 5 % descontado, confirmada y transferida (95.000). Se anula: ajuste de −95.000. El inquilino vuelve a pagar 100.000: la pendiente queda en 100.000 − 5.000 − 95.000 = 0. Total: propietario 95.000, inmobiliaria 5.000.
