@@ -19,6 +19,7 @@ import {
 } from '../domain/settlement'
 import {
   SettlementDraftExistsException,
+  SettlementNotPendingException,
   SettlementNothingToSettleException,
 } from '../domain/settlement.exceptions'
 import { SettlementRepository } from '../domain/settlement.ports'
@@ -117,8 +118,20 @@ export class SettlementDrafts {
   }
 
   /** `POST /settlements/:id/recalculate`: vuelve a tomar pagos y gastos; los ajustes quedan. */
-  async recalculate(settlement: Settlement): Promise<Settlement> {
-    SettlementPolicy.assertPending(settlement)
+  async recalculate(snapshot: Settlement): Promise<Settlement> {
+    SettlementPolicy.assertPending(snapshot)
+    // Lock y relectura dentro de la transacción del llamador. Antes un
+    // recálculo que leyó "pendiente" podía reescribir líneas y totales de una
+    // liquidación que otro request acababa de confirmar (C4).
+    if (!(await this.settlements.lockPending(snapshot.id))) {
+      const current = await this.settlements.findById(snapshot.id)
+      throw new SettlementNotPendingException(
+        snapshot.id,
+        current?.status ?? 'UNKNOWN',
+      )
+    }
+    const settlement =
+      (await this.settlements.findById(snapshot.id)) ?? snapshot
     const contract = await this.references.requireContract(
       settlement.contractId,
     )
@@ -153,7 +166,15 @@ export class SettlementDrafts {
     const contract = await this.contractOrNull(contractId)
     if (!contract) return null
     const existing = await this.settlements.findPendingByContract(contract.id)
-    if (existing) return this.recalculate(existing)
+    if (existing) {
+      try {
+        return await this.recalculate(existing)
+      } catch (error) {
+        // Se confirmó (o canceló) mientras tanto: el pago nuevo va a una
+        // pendiente nueva, como si no hubiera habido ninguna.
+        if (!(error instanceof SettlementNotPendingException)) throw error
+      }
+    }
     const computed = await this.compute(contract)
     if (computed.payments.length === 0) return null
     return this.persist(

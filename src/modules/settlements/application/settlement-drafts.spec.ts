@@ -136,6 +136,8 @@ function setup(
         makeSettlement({ ...data, id }),
       ),
     replaceLines: jest.fn().mockResolvedValue(undefined),
+    lockPending: jest.fn().mockResolvedValue(true),
+    findById: jest.fn().mockResolvedValue(null),
   }
   const billing = {
     listSettleablePayments: jest.fn().mockResolvedValue(payments),
@@ -404,6 +406,35 @@ describe('SettlementDrafts', () => {
           makeSettlement({ status: SettlementStatus.CONFIRMED }),
         ),
       ).rejects.toBeInstanceOf(SettlementNotPendingException)
+      expect(settlements.replaceLines).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('recalculate con una confirmación concurrente (C4)', () => {
+    // Antes el recálculo no tomaba el lock: si otro request confirmaba la
+    // liquidación en el medio, reescribía las líneas y los totales de una
+    // liquidación ya confirmada.
+    it('si al tomar el lock ya no está pendiente, no toca nada', async () => {
+      const { drafts, settlements } = setup([settleable()])
+      settlements.lockPending.mockResolvedValue(false)
+      settlements.findById.mockResolvedValue(
+        makeSettlement({ id: 's1', status: SettlementStatus.CONFIRMED }),
+      )
+      await expect(
+        drafts.recalculate(makeSettlement({ id: 's1' })),
+      ).rejects.toBeInstanceOf(SettlementNotPendingException)
+      expect(settlements.replaceLines).not.toHaveBeenCalled()
+      expect(settlements.update).not.toHaveBeenCalled()
+    })
+
+    it('el listener crea una pendiente nueva si la que había se confirmó en el medio', async () => {
+      const { drafts, settlements } = setup([settleable()])
+      settlements.findPendingByContract.mockResolvedValue(
+        makeSettlement({ id: 'old' }),
+      )
+      settlements.lockPending.mockResolvedValue(false)
+      const created = await drafts.ensureDraft('contract-1')
+      expect(created?.id).toBe('created')
       expect(settlements.replaceLines).not.toHaveBeenCalled()
     })
   })

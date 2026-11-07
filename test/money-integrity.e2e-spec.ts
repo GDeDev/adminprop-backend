@@ -467,4 +467,63 @@ describe('Integridad de la plata (e2e, Postgres)', () => {
       expect(response.body.code).toBe('CREDIT_NOT_AVAILABLE')
     })
   })
+
+  describe('C4: confirmar mientras se recalcula', () => {
+    it('una liquidación confirmada nunca queda con líneas de pagos que no marcó', async () => {
+      // Antes el recálculo no tomaba el lock de la liquidación: si leía
+      // "pendiente" justo antes de que otro la confirmara, reescribía sus
+      // líneas y totales ya confirmados con un pago que quedaba sin marcar.
+      const rounds = await Promise.all(
+        Array.from({ length: 4 }, async () => {
+          const contract = await createContract({ lateFeeGraceDays: 90 })
+          return contract
+        }),
+      )
+      await generate(previous)
+      for (const contract of rounds) {
+        const installment = await installmentOf(contract.id)
+        await pay(installment.id, { amount: '40000' }).expect(201)
+        await api()
+          .post('/settlements')
+          .send({ contractId: contract.id })
+          .expect(201)
+      }
+      await Promise.all(
+        rounds.map(async (contract) => {
+          const installment = await installmentOf(contract.id)
+          const id = (await pendingOf(contract.id))?.id as string
+          await pay(installment.id, { amount: '60000' }).expect(201)
+          await Promise.all([
+            api().post(`/settlements/${id}/recalculate`),
+            api().post(`/settlements/${id}/confirm`),
+          ])
+        }),
+      )
+      // Se deja correr al consumidor de installment-paid.
+      await new Promise((resolve) => setTimeout(resolve, 2500))
+      for (const contract of rounds) {
+        const all = await prisma.settlement.findMany({
+          where: { contractId: contract.id },
+          include: { payments: true },
+        })
+        const payments = await prisma.payment.findMany({
+          where: { contractId: contract.id, status: 'CONFIRMED' },
+        })
+        for (const s of all.filter((x) => x.status === 'CONFIRMED')) {
+          for (const line of s.payments) {
+            const payment = payments.find((p) => p.id === line.paymentId)
+            expect(payment?.settlementId).toBe(s.id)
+          }
+        }
+        // Cada pago está en una sola liquidación: confirmada (marcado) o
+        // pendiente (sin marcar todavía).
+        for (const payment of payments) {
+          const holders = all.filter((s) =>
+            s.payments.some((l) => l.paymentId === payment.id),
+          )
+          expect(holders).toHaveLength(1)
+        }
+      }
+    })
+  })
 })
