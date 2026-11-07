@@ -17,6 +17,8 @@ import { localMoment } from '@/shared/dates/zoned-time'
 import { PaginatedResult, paginateWith } from '@/shared/pagination'
 import {
   AlertNotFoundException,
+  GlobalJobCooldownException,
+  GlobalJobForbiddenException,
   InvalidJobPeriodException,
   JobAlreadyRunningException,
   JobNotFoundException,
@@ -28,6 +30,7 @@ import {
 import {
   findJobDefinition,
   IndexFetchStatus,
+  JobDefinition,
   JobExecutionStatus,
   JobName,
   JobScope,
@@ -157,6 +160,9 @@ export class RunJobHandler implements ICommandHandler<
 
     const tenantId =
       definition.scope === JobScope.GLOBAL ? null : requireTenant()
+    if (definition.scope === JobScope.GLOBAL) {
+      await this.assertGlobalManualRun(definition)
+    }
     const since = new Date(Date.now() - RUNNING_STALE_MINUTES * 60_000)
     if (
       await this.executions.findRecentRunning(definition.name, tenantId, since)
@@ -183,6 +189,21 @@ export class RunJobHandler implements ICommandHandler<
       },
     })
     return { executionId: execution!.id }
+  }
+
+  /**
+   * Un job global trabaja para todas las inmobiliarias (y el de mercado
+   * scrapea portales): antes lo disparaba sin límite cualquier ADMIN de
+   * cualquier tenant. Sólo los que lo permiten, y con un mínimo entre corridas
+   * contando las de todas las inmobiliarias (D-254).
+   */
+  private async assertGlobalManualRun(definition: JobDefinition) {
+    const cooldown = definition.tenantManualCooldownMinutes
+    if (!cooldown) throw new GlobalJobForbiddenException(definition.name)
+    const [last] = await this.executions.lastGlobal(definition.name, 1)
+    if (last && Date.now() - last.startedAt.getTime() < cooldown * 60_000) {
+      throw new GlobalJobCooldownException(definition.name, cooldown)
+    }
   }
 }
 

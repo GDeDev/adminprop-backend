@@ -53,6 +53,12 @@ export interface JobDefinition {
   scope: JobScope
   /** Horas locales (`HH:MM`) en que corre cada día, de menor a mayor. */
   times: string[]
+  /**
+   * Sólo para los `GLOBAL`: cada cuántos minutos, como mucho, lo puede correr a
+   * mano el administrador de una inmobiliaria. Sin valor, no puede (D-254): un
+   * job global trabaja para todas y lo dispararía cualquier tenant.
+   */
+  tenantManualCooldownMinutes?: number
 }
 
 export const JOB_CATALOG: JobDefinition[] = [
@@ -87,6 +93,8 @@ export const JOB_CATALOG: JobDefinition[] = [
       'Busca en el BCRA y el INDEC los meses de ICL e IPC que faltan. Un mes cargado no se pisa. Si la fuente falla, avisa.',
     scope: JobScope.GLOBAL,
     times: ['06:00', '12:00'],
+    // El botón «Traer ahora» de Configuración > Índices lo usa.
+    tenantManualCooldownMinutes: 30,
   },
   {
     name: JobName.PAYMENT_REMINDER,

@@ -3,7 +3,13 @@ import { MarketCategory, MarketSource, Role } from '@prisma/client'
 import request from 'supertest'
 
 import { seedBaseMasterData } from '../prisma/lib/master-data-seed'
+import { JobScheduler } from '../src/modules/automations/application/job-scheduler'
+import {
+  findJobDefinition,
+  JobTrigger,
+} from '../src/modules/automations/domain/job-catalog'
 import { ComparablesRefreshService } from '../src/modules/valuation/application/comparables-refresh.service'
+import { localMoment } from '../src/shared/dates/zoned-time'
 import {
   ComparableSourcePort,
   ComparableSourceRegistry,
@@ -771,10 +777,20 @@ describe('Tasación automática (e2e, Postgres)', () => {
       fake.failWith(new SourceParseError(Source.FAKE, 'roto'))
       await createProperty(adminToken, refsA.tolosa, refsA.casa)
 
+      // Un ADMIN de una inmobiliaria ya no puede disparar el job global de
+      // mercado (D-254); acá se encola como lo haría el horario.
       const res = await api(adminToken)
         .post('/automations/jobs/valuation.refresh-comparables/run')
         .send({})
-      expect([200, 202]).toContain(res.status)
+      expect(res.status).toBe(403)
+      expect(res.body.code).toBe('AUTOMATION_JOB_GLOBAL')
+      const definition = findJobDefinition('valuation.refresh-comparables')
+      if (!definition) throw new Error('falta el job en el catálogo')
+      await app.get(JobScheduler).enqueue(definition, null, {
+        triggeredBy: JobTrigger.SCHEDULE,
+        scheduledFor: localMoment().date,
+        slot: '03:00',
+      })
       await waitFor(
         async () =>
           (await prisma.jobExecution.count({
