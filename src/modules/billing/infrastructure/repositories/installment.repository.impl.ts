@@ -169,20 +169,24 @@ export class InstallmentRepositoryImpl extends InstallmentRepository {
     await this.prisma.db.installmentLateFeeDay.deleteMany({
       where: { installmentId },
     })
-    // Una fila por día y no un `createMany`: el `tenantId` lo completa la
-    // extensión sólo en altas de primer nivel.
-    for (const day of days) {
-      await this.prisma.db.installmentLateFeeDay.create({
-        data: {
-          installmentId,
-          day: toDateColumn(day.day),
-          dayNumber: day.dayNumber,
-          outstandingBase: day.outstandingBase,
-          dailyPercentage: day.dailyPercentage,
-          amount: day.amount,
-        } as Prisma.InstallmentLateFeeDayUncheckedCreateInput,
-      })
-    }
+    if (days.length === 0) return
+    // Un solo INSERT (B-P5): antes era uno por día dentro de la transacción del
+    // pago. `createMany` es un alta de primer nivel, así que la extensión de
+    // tenant igual completa y valida el `tenantId` de cada fila; va explícito
+    // para que el tipo `Unchecked` no dependa de eso.
+    const tenantId = RequestContext.tenantId
+    if (!tenantId) throw new Error('replaceFeeDays sin tenant en el contexto')
+    await this.prisma.db.installmentLateFeeDay.createMany({
+      data: days.map((day): Prisma.InstallmentLateFeeDayCreateManyInput => ({
+        tenantId,
+        installmentId,
+        day: toDateColumn(day.day),
+        dayNumber: day.dayNumber,
+        outstandingBase: day.outstandingBase,
+        dailyPercentage: day.dailyPercentage,
+        amount: day.amount,
+      })),
+    })
   }
 
   async addCharge(
