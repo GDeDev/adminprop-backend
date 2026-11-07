@@ -66,9 +66,11 @@ export class InstallmentRebaser {
     if (!history) return result
 
     const from = InstallmentRebaser.firstAffectedPeriod(effectiveFrom)
-    const candidates = (await this.installments.listAll({ contractId })).filter(
-      (installment) => installment.period >= from,
-    )
+    // El rango va en la consulta (B-P7): antes se traían todas las cuotas del
+    // contrato para descartar las viejas acá. El filtro queda por las dudas.
+    const candidates = (
+      await this.installments.listAll({ contractId, periodFrom: from })
+    ).filter((installment) => installment.period >= from)
     for (const installment of candidates) {
       // Del más nuevo al más viejo: el primero que ya regía el 1° del mes.
       const rent = history.find(

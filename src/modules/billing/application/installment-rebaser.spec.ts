@@ -79,6 +79,16 @@ describe('InstallmentRebaser', () => {
       expect(result.rebased).toEqual([])
     })
 
+    // Antes se traían todas las cuotas del contrato y se filtraban acá (B-P7).
+    it('pide a la base sólo las cuotas desde el primer mes afectado', async () => {
+      const { rebaser, repo } = setup()
+      await rebaser.rebase('contract-1', '2026-11-15')
+      expect(repo.listAll).toHaveBeenCalledWith({
+        contractId: 'contract-1',
+        periodFrom: '2026-12',
+      })
+    })
+
     it('las cuotas con pagos no se corrigen: se informan como desactualizadas', async () => {
       const conPago = makeInstallment({
         id: 'nov',
