@@ -38,15 +38,8 @@ export class VoidedPaymentReaction {
 
   async handle(payload: PaymentVoidedPayload): Promise<void> {
     await this.voidReceivable(payload)
-    if (!payload.settlementId) return
-    const settlement = await this.settlements.findById(payload.settlementId)
-    if (!settlement) {
-      this.logger.warn(
-        { settlementId: payload.settlementId, paymentId: payload.paymentId },
-        'Se anuló un pago de una liquidación que no existe',
-      )
-      return
-    }
+    const settlement = await this.locate(payload)
+    if (!settlement) return
     if (settlement.status === SettlementStatus.PENDING) {
       await this.prisma.transaction(() => this.drafts.recalculate(settlement))
       return
@@ -54,6 +47,33 @@ export class VoidedPaymentReaction {
     if (!isConfirmed(settlement)) return
 
     await this.deductInNextDraft(settlement, payload)
+  }
+
+  /**
+   * La liquidación donde está el pago. `payload.settlementId` sólo viene
+   * cuando ya se confirmó: una pendiente no marca sus pagos, así que antes
+   * esta reacción salía sin recalcularla y al confirmarla se le pagaba al
+   * propietario el pago anulado (crítico 1 / C1). Se busca por la línea y, si
+   * no está en ninguna, por la pendiente del contrato (por si el pago llegó a
+   * entrar en un cálculo que todavía no se guardó).
+   */
+  private async locate(
+    payload: PaymentVoidedPayload,
+  ): Promise<Settlement | null> {
+    if (payload.settlementId) {
+      const settlement = await this.settlements.findById(payload.settlementId)
+      if (!settlement) {
+        this.logger.warn(
+          { settlementId: payload.settlementId, paymentId: payload.paymentId },
+          'Se anuló un pago de una liquidación que no existe',
+        )
+      }
+      return settlement
+    }
+    return (
+      (await this.settlements.findContainingPayment(payload.paymentId)) ??
+      (await this.settlements.findPendingByContract(payload.contractId))
+    )
   }
 
   /**

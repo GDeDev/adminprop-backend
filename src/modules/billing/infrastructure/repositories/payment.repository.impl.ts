@@ -108,9 +108,10 @@ export class PaymentRepositoryImpl extends PaymentRepository {
   async markSettled(ids: string[], settlementId: string): Promise<number> {
     if (ids.length === 0) return 0
     // Sólo los libres: un pago no se liquida dos veces aunque dos
-    // liquidaciones lo pidan a la vez.
+    // liquidaciones lo pidan a la vez. Y sólo los confirmados: antes se
+    // marcaba también un pago anulado, y el conteo coincidía igual.
     const result = await this.prisma.db.payment.updateMany({
-      where: { id: { in: ids }, settlementId: null },
+      where: { id: { in: ids }, settlementId: null, status: 'CONFIRMED' },
       data: { settlementId },
     })
     return result.count

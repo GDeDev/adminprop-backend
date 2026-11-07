@@ -82,6 +82,34 @@ export class SettlementNotPendingException extends DomainException {
   }
 }
 
+/**
+ * Al confirmar, la pendiente ya no coincide con lo que se liquidaría hoy (un
+ * pago anulado, un gasto corregido, un pago nuevo). Se recalcula y se pide
+ * revisarla antes de confirmar.
+ */
+export class SettlementStaleException extends DomainException {
+  constructor(id: string) {
+    super(
+      'SETTLEMENT_STALE',
+      'La liquidación cambió desde el último cálculo (pagos o gastos nuevos, anulados o corregidos): se recalculó, revisala y volvé a confirmar',
+      DomainErrorKind.Conflict,
+      { id },
+    )
+  }
+}
+
+/** Los pagos o gastos de la liquidación ya no se pueden marcar como liquidados. */
+export class SettlementLinesChangedException extends DomainException {
+  constructor(id: string, what: 'payments' | 'expenses') {
+    super(
+      'SETTLEMENT_STALE',
+      'Un pago o un gasto de la liquidación cambió mientras se confirmaba: recalculala y volvé a confirmar',
+      DomainErrorKind.Conflict,
+      { id, what },
+    )
+  }
+}
+
 /** Transferir o consolidar sólo sobre una confirmada o transferida. */
 export class SettlementNotConfirmedException extends DomainException {
   constructor(id: string, status: string) {

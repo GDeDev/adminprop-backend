@@ -1,0 +1,309 @@
+import { INestApplication } from '@nestjs/common'
+import { Role } from '@prisma/client'
+import request from 'supertest'
+
+import { seedBaseMasterData } from '../prisma/lib/master-data-seed'
+import {
+  addDays,
+  addMonths,
+  periodOf,
+  todayIso,
+} from '../src/shared/dates/calendar-date'
+import { PrismaService } from '../src/shared/prisma/prisma.service'
+import { createTestApp, loginAs } from './utils/app'
+import { createTenant, createUser, resetDatabase } from './utils/database'
+import { waitFor } from './utils/wait-for'
+
+const PDF = Buffer.from('%PDF-1.4 comprobante')
+
+const today = todayIso()
+/** El mes pasado: sus fechas ya pasaron, así los pagos se fechan sin mirar qué día es hoy. */
+const previous = periodOf(addMonths(today, -1))
+const day = (n: number, inPeriod = previous) =>
+  `${inPeriod}-${String(n).padStart(2, '0')}`
+
+/**
+ * Integridad de la plata entre cobros y liquidaciones (revisión 2026-11-06,
+ * informes 01 y 02). Cada caso reproduce un escenario del informe con sus
+ * números: lo que se le transfiere al propietario tiene que ser lo que la
+ * inmobiliaria efectivamente cobró, menos el honorario que corresponde.
+ */
+describe('Integridad de la plata (e2e, Postgres)', () => {
+  const prisma = new PrismaService()
+  let app: INestApplication
+  let tenant: { id: string }
+  let adminToken: string
+  let refs: { tolosa: string; casa: string }
+
+  const api = (token = adminToken) => ({
+    get: (url: string) =>
+      request(app.getHttpServer())
+        .get(`/api/v1${url}`)
+        .set('Authorization', `Bearer ${token}`),
+    post: (url: string) =>
+      request(app.getHttpServer())
+        .post(`/api/v1${url}`)
+        .set('Authorization', `Bearer ${token}`),
+    patch: (url: string) =>
+      request(app.getHttpServer())
+        .patch(`/api/v1${url}`)
+        .set('Authorization', `Bearer ${token}`),
+  })
+
+  let counter = 0
+  const nextId = () => String(60_000_000 + ++counter)
+
+  const createOwner = async (): Promise<string> => {
+    const response = await api()
+      .post('/owners')
+      .send({ firstName: 'Juan', lastName: 'Pérez', nationalId: nextId() })
+      .expect(201)
+    return response.body.data.id
+  }
+
+  const createRenter = async (): Promise<string> => {
+    const response = await api()
+      .post('/renters')
+      .send({ firstName: 'Iván', lastName: 'López', nationalId: nextId() })
+      .expect(201)
+    return response.body.data.id
+  }
+
+  /**
+   * Contrato de 100.000 ARS, honorarios 5 % descontados, sin punitorio (gracia
+   * larga) y cobro por la inmobiliaria, salvo overrides.
+   */
+  const createContract = async (
+    overrides: Record<string, unknown> = {},
+    options: { renterId?: string; ownerId?: string } = {},
+  ) => {
+    const ownerId = options.ownerId ?? (await createOwner())
+    const property = await api()
+      .post('/properties')
+      .send({
+        address: `Calle ${++counter}`,
+        locationId: refs.tolosa,
+        propertyTypeId: refs.casa,
+        ownerId,
+      })
+      .expect(201)
+    const renterId = options.renterId ?? (await createRenter())
+    const response = await api()
+      .post('/contracts')
+      .send({
+        propertyId: property.body.data.id,
+        renterId,
+        startDate: addMonths(today, -2),
+        endDate: addDays(addMonths(today, 22), -1),
+        initialRent: '100000',
+        currency: 'ARS',
+        rentUpdateType: 'FIXED',
+        rentUpdateFrequency: 'QUARTERLY',
+        deposit: '100000',
+        hasSurety: false,
+        lateFeeGraceDays: 90,
+        ...overrides,
+      })
+      .expect(201)
+    return { id: response.body.data.id as string, ownerId, renterId }
+  }
+
+  const generate = async (forPeriod: string) => {
+    await api()
+      .post('/billing/installments/generate')
+      .send({ period: forPeriod })
+      .expect(200)
+  }
+
+  const installmentOf = async (contractId: string, forPeriod = previous) => {
+    const response = await api()
+      .get(`/billing/installments?contractId=${contractId}&period=${forPeriod}`)
+      .expect(200)
+    return response.body.data.data[0] as { id: string; status: string }
+  }
+
+  const pay = (installmentId: string, fields: Record<string, string>) => {
+    const req = api().post(`/billing/installments/${installmentId}/payments`)
+    for (const [key, value] of Object.entries({
+      paidCurrency: 'ARS',
+      method: 'TRANSFER',
+      paidAt: day(5),
+      ...fields,
+    })) {
+      req.field(key, value)
+    }
+    return req
+  }
+
+  const voidPayment = (paymentId: string) =>
+    api()
+      .post(`/billing/payments/${paymentId}/void`)
+      .send({ reason: 'Transferencia rechazada' })
+
+  const createExpense = async (contractId: string, amount: string) => {
+    const response = await api()
+      .post(`/contracts/${contractId}/advance-expenses`)
+      .field('amount', amount)
+      .field('description', 'Plomero')
+      .field('expenseDate', addDays(today, -3))
+      .attach('file', PDF, {
+        filename: 'ticket.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201)
+    return response.body.data.id as string
+  }
+
+  const settlementsOf = async (contractId: string) =>
+    (await api().get(`/settlements?contractId=${contractId}`).expect(200)).body
+      .data.data as { id: string; status: string }[]
+
+  const pendingOf = async (contractId: string) =>
+    (await settlementsOf(contractId)).find((s) => s.status === 'PENDING')
+
+  const waitForDraft = async (contractId: string) => {
+    await waitFor(async () => (await pendingOf(contractId)) !== undefined, {
+      what: `liquidación pendiente del contrato ${contractId}`,
+    })
+    const found = await pendingOf(contractId)
+    if (!found) throw new Error('sin pendiente')
+    return found.id
+  }
+
+  const detail = async (id: string) =>
+    (await api().get(`/settlements/${id}`).expect(200)).body.data
+
+  beforeAll(async () => {
+    await prisma.$connect()
+    app = await createTestApp()
+  })
+
+  afterAll(async () => {
+    await app.close()
+    await prisma.$disconnect()
+  })
+
+  beforeEach(async () => {
+    await resetDatabase(prisma)
+    tenant = await createTenant(prisma, 'tenant-money')
+    await seedBaseMasterData(prisma, tenant.id, { withSampleCities: true })
+    await createUser(prisma, {
+      tenantId: tenant.id,
+      email: 'admin@money.com',
+      role: Role.ADMIN,
+    })
+    adminToken = await loginAs(app, 'admin@money.com')
+    refs = {
+      tolosa: (
+        await prisma.location.findFirstOrThrow({
+          where: { tenantId: tenant.id, name: 'Tolosa' },
+        })
+      ).id,
+      casa: (
+        await prisma.propertyType.findFirstOrThrow({
+          where: { tenantId: tenant.id, name: 'Casa' },
+        })
+      ).id,
+    }
+  })
+
+  describe('crítico 1 / C1: la pendiente sigue a los pagos anulados y a los gastos corregidos', () => {
+    it('un pago anulado mientras la liquidación está pendiente no se le transfiere al propietario', async () => {
+      // Antes: la reacción a la anulación salía porque el pago no tenía
+      // settlementId (una pendiente no lo marca), la pendiente quedaba con
+      // neto 95.000 y al confirmarla se transferían por un pago anulado.
+      const contract = await createContract()
+      await generate(previous)
+      const installment = await installmentOf(contract.id)
+      const paid = await pay(installment.id, { amount: '100000' }).expect(201)
+      const paymentId = paid.body.data.payment.id as string
+      const id = await waitForDraft(contract.id)
+      expect(await detail(id)).toMatchObject({
+        rentTotal: '100000.00',
+        feeTotal: '5000.00',
+        netAmount: '95000.00',
+      })
+
+      await voidPayment(paymentId).expect(200)
+      // Se confirma enseguida, sin esperar a la reacción: o la reacción ya la
+      // recalculó (y se confirma vacía) o la confirmación la encuentra
+      // desactualizada (409). Nunca se confirma con los 95.000.
+      const first = await api().post(`/settlements/${id}/confirm`)
+      if (first.status === 409) {
+        expect(first.body.code).toBe('SETTLEMENT_STALE')
+      } else {
+        expect(first.status).toBe(200)
+      }
+      await waitFor(async () => (await detail(id)).payments.length === 0, {
+        what: 'la pendiente sin el pago anulado',
+      })
+      if ((await detail(id)).status === 'PENDING') {
+        await api().post(`/settlements/${id}/confirm`).expect(200)
+      }
+      expect(await detail(id)).toMatchObject({
+        status: 'CONFIRMED',
+        rentTotal: '0.00',
+        feeTotal: '0.00',
+        netAmount: '0.00',
+      })
+      const payment = await prisma.payment.findUniqueOrThrow({
+        where: { id: paymentId },
+      })
+      expect(payment.status).toBe('VOIDED')
+      expect(payment.settlementId).toBeNull()
+    })
+
+    it('la reacción a la anulación recalcula la pendiente sola', async () => {
+      const contract = await createContract()
+      await generate(previous)
+      const installment = await installmentOf(contract.id)
+      const paid = await pay(installment.id, { amount: '100000' }).expect(201)
+      const id = await waitForDraft(contract.id)
+
+      await voidPayment(paid.body.data.payment.id).expect(200)
+
+      await waitFor(async () => (await detail(id)).payments.length === 0, {
+        what: 'la pendiente recalculada por la anulación',
+      })
+      expect(await detail(id)).toMatchObject({
+        status: 'PENDING',
+        rentTotal: '0.00',
+        netAmount: '0.00',
+      })
+    })
+
+    it('un gasto corregido después de armar la pendiente no se descuenta con el monto viejo', async () => {
+      // Antes: el gasto de 50.000 corregido a 5.000 se seguía descontando
+      // entero y el propietario cobraba 45.000 de menos.
+      const contract = await createContract()
+      const expenseId = await createExpense(contract.id, '50000')
+      await generate(previous)
+      const installment = await installmentOf(contract.id)
+      await pay(installment.id, { amount: '100000' }).expect(201)
+      const id = await waitForDraft(contract.id)
+      expect(await detail(id)).toMatchObject({
+        expensesTotal: '50000.00',
+        netAmount: '45000.00',
+      })
+
+      await api()
+        .patch(`/advance-expenses/${expenseId}`)
+        .send({ amount: '5000' })
+        .expect(200)
+
+      const stale = await api().post(`/settlements/${id}/confirm`).expect(409)
+      expect(stale.body.code).toBe('SETTLEMENT_STALE')
+      // Quedó recalculada: el que la vuelve a abrir ve el monto nuevo.
+      expect(await detail(id)).toMatchObject({
+        status: 'PENDING',
+        expensesTotal: '5000.00',
+        netAmount: '90000.00',
+      })
+      await api().post(`/settlements/${id}/confirm`).expect(200)
+      expect(await detail(id)).toMatchObject({
+        status: 'CONFIRMED',
+        netAmount: '90000.00',
+      })
+    })
+  })
+})

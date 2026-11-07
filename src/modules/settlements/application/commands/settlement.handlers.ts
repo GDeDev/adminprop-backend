@@ -18,7 +18,9 @@ import {
 import {
   SettlementAdjustmentAlreadyVoidedException,
   SettlementAdjustmentNotFoundException,
+  SettlementLinesChangedException,
   SettlementNotPendingException,
+  SettlementStaleException,
   SettlementTransferAlreadyVoidedException,
   SettlementTransferNotFoundException,
 } from '../../domain/settlement.exceptions'
@@ -206,6 +208,7 @@ export class ConfirmSettlementHandler implements ICommandHandler<
     private readonly billing: BillingFacade,
     private readonly services: ServicesFacade,
     private readonly fees: FeeAccountService,
+    private readonly drafts: SettlementDrafts,
     private readonly prisma: PrismaService,
     private readonly eventBus: EventBus,
     private readonly views: SettlementViews,
@@ -214,67 +217,102 @@ export class ConfirmSettlementHandler implements ICommandHandler<
   async execute(
     command: ConfirmSettlementCommand,
   ): Promise<SettlementDetailView> {
-    const settlement = await this.references.requireSettlement(
+    const snapshot = await this.references.requireSettlement(
       command.settlementId,
     )
-    SettlementPolicy.assertPending(settlement)
+    SettlementPolicy.assertPending(snapshot)
     const confirmedById = this.references.requireUser()
     const confirmedAt = new Date()
 
-    const confirmed = await this.prisma.transaction(async () => {
-      // Primero se reserva el cambio de estado: el UPDATE toma el lock de la
-      // fila, así que un recálculo, una cancelación u otra confirmación
-      // simultáneos esperan, ven que ya no está pendiente y fallan. Antes se
-      // chequeaba "pendiente" fuera de la transacción y el UPDATE final no
-      // miraba el estado.
-      const claimed = await this.settlements.updateWhilePending(settlement.id, {
-        status: SettlementStatus.CONFIRMED,
-        confirmedAt,
-        confirmedById,
-      })
-      if (!claimed) await this.throwNotPending(settlement.id)
-      const paymentIds = settlement.payments.map((p) => p.paymentId)
-      const marked = await this.billing.markPaymentsSettled(
-        paymentIds,
-        settlement.id,
+    let confirmed: Settlement
+    try {
+      confirmed = await this.prisma.transaction(() =>
+        this.confirm(snapshot.id, confirmedById, confirmedAt),
       )
-      if (marked !== paymentIds.length) {
-        // No debería pasar (un pago sólo entra en una pendiente por
-        // contrato), pero si pasa conviene verlo en los logs.
-        this.logger.warn(
-          { settlementId: settlement.id, expected: paymentIds.length, marked },
-          'Algunos pagos de la liquidación ya estaban marcados por otra',
-        )
-      }
-      await this.services.markExpensesSettled(
-        settlement.expenses.map((e) => e.expenseId),
-        settlement.id,
-        confirmedAt,
-      )
-      if (
-        !settlement.feeDeducted &&
-        compareMoney(settlement.feeTotal, '0') > 0
-      ) {
-        await this.fees.accrue({
-          ownerId: settlement.ownerId,
-          contractId: settlement.contractId,
-          installmentId: null,
-          period: settlement.period,
-          currency: settlement.currency,
-          source: FeeReceivableSource.SETTLEMENT_NOT_DEDUCTED,
-          payer: FeePolicy.payerFor(settlement.feeMode),
-          originPaymentId: null,
-          originSettlementId: settlement.id,
-          amount: settlement.feeTotal,
-          feePercentage: settlement.feePercentage,
-          feeAmountFixed: settlement.feeAmountFixed,
-          baseAmount: settlement.feeBase,
+    } catch (error) {
+      if (error instanceof SettlementStaleException) {
+        // Se deja recalculada (en su propia transacción: la de confirmar se
+        // deshizo) para que el que la abra de nuevo vea los números de hoy.
+        await this.prisma.transaction(async () => {
+          const current = await this.settlements.findById(snapshot.id)
+          if (current?.status === SettlementStatus.PENDING) {
+            await this.drafts.recalculate(current)
+          }
         })
       }
-      return this.references.requireSettlement(settlement.id)
-    })
+      throw error
+    }
     this.eventBus.publish(new SettlementConfirmedEvent(confirmed))
     return this.views.detail(confirmed)
+  }
+
+  private async confirm(
+    id: string,
+    confirmedById: string,
+    confirmedAt: Date,
+  ): Promise<Settlement> {
+    // Lock de la fila antes de leer: un recálculo, una cancelación u otra
+    // confirmación simultáneos esperan. Las líneas y los totales se leen
+    // recién acá, no del snapshot de antes de la transacción (C4).
+    if (!(await this.settlements.lockPending(id))) {
+      await this.throwNotPending(id)
+    }
+    const settlement = await this.references.requireSettlement(id)
+    // Lo guardado tiene que ser lo que se liquidaría hoy. Antes se confirmaba
+    // tal cual: un pago anulado (o un gasto corregido) después de armarse la
+    // pendiente se le transfería igual al propietario (crítico 1 / C1).
+    const contract = await this.references.requireContract(
+      settlement.contractId,
+    )
+    if (
+      SettlementPolicy.isStale(settlement, await this.drafts.compute(contract))
+    ) {
+      throw new SettlementStaleException(id)
+    }
+    const claimed = await this.settlements.updateWhilePending(id, {
+      status: SettlementStatus.CONFIRMED,
+      confirmedAt,
+      confirmedById,
+    })
+    if (!claimed) await this.throwNotPending(id)
+    const paymentIds = settlement.payments.map((p) => p.paymentId)
+    const marked = await this.billing.markPaymentsSettled(paymentIds, id)
+    if (marked !== paymentIds.length) {
+      // Un pago se anuló (o lo tomó otra liquidación) entre el cálculo y el
+      // UPDATE: no se confirma con un pago que ya no vale.
+      this.logger.warn(
+        { settlementId: id, expected: paymentIds.length, marked },
+        'Un pago de la liquidación dejó de ser liquidable al confirmar',
+      )
+      throw new SettlementLinesChangedException(id, 'payments')
+    }
+    const expenseIds = settlement.expenses.map((e) => e.expenseId)
+    const markedExpenses = await this.services.markExpensesSettled(
+      expenseIds,
+      id,
+      confirmedAt,
+    )
+    if (markedExpenses !== expenseIds.length) {
+      throw new SettlementLinesChangedException(id, 'expenses')
+    }
+    if (!settlement.feeDeducted && compareMoney(settlement.feeTotal, '0') > 0) {
+      await this.fees.accrue({
+        ownerId: settlement.ownerId,
+        contractId: settlement.contractId,
+        installmentId: null,
+        period: settlement.period,
+        currency: settlement.currency,
+        source: FeeReceivableSource.SETTLEMENT_NOT_DEDUCTED,
+        payer: FeePolicy.payerFor(settlement.feeMode),
+        originPaymentId: null,
+        originSettlementId: settlement.id,
+        amount: settlement.feeTotal,
+        feePercentage: settlement.feePercentage,
+        feeAmountFixed: settlement.feeAmountFixed,
+        baseAmount: settlement.feeBase,
+      })
+    }
+    return this.references.requireSettlement(settlement.id)
   }
 
   private async throwNotPending(id: string): Promise<never> {

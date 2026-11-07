@@ -18,6 +18,7 @@ import {
   SettlementRepository,
   VoidData,
 } from '@/modules/settlements/domain/settlement.ports'
+import { RequestContext } from '@/shared/context/request-context'
 import { Period } from '@/shared/dates/calendar-date'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import {
@@ -68,6 +69,37 @@ export class SettlementRepositoryImpl extends SettlementRepository {
       include: SETTLEMENT_INCLUDE,
     })
     return row ? settlementToDomain(row) : null
+  }
+
+  async findContainingPayment(paymentId: string): Promise<Settlement | null> {
+    const line = await this.prisma.db.settlementPayment.findFirst({
+      where: { paymentId },
+      select: { settlementId: true },
+    })
+    return line ? this.findById(line.settlementId) : null
+  }
+
+  async lockPending(id: string): Promise<boolean> {
+    // SQL directo: Prisma no tiene FOR UPDATE. El tenant va a mano porque el
+    // SQL crudo no pasa por la extensión. Postgres vuelve a evaluar el estado
+    // después de esperar el lock: si otro la confirmó, no devuelve la fila.
+    const tenantId = requireTenant()
+    const rows = await this.prisma.db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM settlements
+      WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
+        AND status = 'PENDING'
+      FOR UPDATE
+    `
+    return rows.length === 1
+  }
+
+  async lock(id: string): Promise<void> {
+    const tenantId = requireTenant()
+    await this.prisma.db.$queryRaw`
+      SELECT id FROM settlements
+      WHERE id = ${id}::uuid AND tenant_id = ${tenantId}::uuid
+      FOR UPDATE
+    `
   }
 
   async maxSequence(
@@ -255,6 +287,13 @@ export class SettlementRepositoryImpl extends SettlementRepository {
     })
     return settlementToDomain(row)
   }
+}
+
+function requireTenant(): string {
+  const tenantId = RequestContext.tenantId
+  if (!tenantId)
+    throw new Error('Lock de liquidación sin tenant en el contexto')
+  return tenantId
 }
 
 function toWhere(filter: SettlementFilter): Prisma.SettlementWhereInput {

@@ -152,6 +152,82 @@ describe('SettlementPolicy', () => {
     })
   })
 
+  describe('isStale: lo guardado contra lo que se liquidaría hoy (crítico 1)', () => {
+    // Escenario del informe: pendiente con un pago de 100.000 al 5 % (neto
+    // 95.000). Se anula el pago y la pendiente no se recalcula: antes se
+    // confirmaba igual y se transferían 95.000 por un pago anulado.
+    const paid = collected({ paymentId: 'pay-p' })
+    const stored = () => {
+      const computed = SettlementPolicy.compute(
+        [paid],
+        [],
+        Currency.ARS,
+        rules,
+        fallback,
+      )
+      return {
+        ...computed,
+        payments: [{ ...paid, id: 'line-1' }],
+        expenses: [],
+      }
+    }
+
+    it('coincide si nada cambió', () => {
+      const computed = SettlementPolicy.compute(
+        [paid],
+        [],
+        Currency.ARS,
+        rules,
+        fallback,
+      )
+      expect(SettlementPolicy.isStale(stored(), computed)).toBe(false)
+    })
+
+    it('un pago anulado (ya no es liquidable) la deja desactualizada', () => {
+      const today = SettlementPolicy.compute(
+        [],
+        [],
+        Currency.ARS,
+        rules,
+        fallback,
+      )
+      expect(stored().feeTotal).toBe('5000.00')
+      expect(today.rentTotal).toBe('0.00')
+      expect(SettlementPolicy.isStale(stored(), today)).toBe(true)
+    })
+
+    it('un gasto corregido de 50.000 a 5.000 la deja desactualizada', () => {
+      const original = {
+        expenseId: 'exp-x',
+        description: 'Plomero',
+        expenseDate: '2026-10-02',
+        amount: '50000.00',
+        currency: Currency.ARS,
+      }
+      const before = SettlementPolicy.compute(
+        [paid],
+        [original],
+        Currency.ARS,
+        rules,
+        fallback,
+      )
+      const after = SettlementPolicy.compute(
+        [paid],
+        [{ ...original, amount: '5000.00' }],
+        Currency.ARS,
+        rules,
+        fallback,
+      )
+      const saved = {
+        ...before,
+        payments: [{ ...paid, id: 'line-1' }],
+        expenses: [{ ...original, id: 'line-2' }],
+      }
+      expect(SettlementPolicy.isStale(saved, before)).toBe(false)
+      expect(SettlementPolicy.isStale(saved, after)).toBe(true)
+    })
+  })
+
   describe('neto y ajustes (4.3, A-16, A-20)', () => {
     const totals = {
       rentTotal: '100000.00',

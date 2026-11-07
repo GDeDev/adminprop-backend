@@ -111,6 +111,23 @@ export abstract class SettlementRepository {
 
   abstract findPendingByContract(contractId: string): Promise<Settlement | null>
 
+  /**
+   * La liquidación (no cancelada) que tiene la línea de este pago. Una
+   * pendiente no marca `payment.settlementId` hasta confirmarse: la línea es
+   * la única forma de saber que el pago está en ella.
+   */
+  abstract findContainingPayment(paymentId: string): Promise<Settlement | null>
+
+  /**
+   * `SELECT ... FOR UPDATE` de la liquidación si sigue pendiente; `false` si
+   * no. Dentro de una transacción: serializa recálculo, confirmación,
+   * cancelación y ajustes de la misma liquidación.
+   */
+  abstract lockPending(id: string): Promise<boolean>
+
+  /** `SELECT ... FOR UPDATE` de la liquidación, en cualquier estado. */
+  abstract lock(id: string): Promise<void>
+
   /** La mayor `sequence` de (contrato, mes), o null si no hay ninguna. */
   abstract maxSequence(
     contractId: string,

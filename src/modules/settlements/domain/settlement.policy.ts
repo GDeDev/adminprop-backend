@@ -228,6 +228,74 @@ export const SettlementPolicy = {
     )
   },
 
+  /**
+   * ¿Lo guardado en la pendiente ya no es lo que se liquidaría hoy? Compara
+   * líneas (pago o gasto y sus importes) y totales. Al confirmar se exige que
+   * coincidan: un pago anulado o un gasto corregido después del último
+   * recálculo no pueden llegar al propietario con los números viejos.
+   */
+  isStale(
+    stored: Pick<
+      Settlement,
+      | 'payments'
+      | 'expenses'
+      | 'rentTotal'
+      | 'lateFeeTotal'
+      | 'ownerChargesTotal'
+      | 'serviceChargesTotal'
+      | 'feeBase'
+      | 'feeTotal'
+      | 'feeMode'
+      | 'expensesTotal'
+    >,
+    computed: SettlementComputation,
+  ): boolean {
+    const paymentKey = (p: {
+      paymentId: string
+      rentApplied: string
+      lateFeeApplied: string
+      ownerChargesApplied: string
+      serviceChargesApplied: string
+    }) =>
+      [
+        p.paymentId,
+        toMoneyString(p.rentApplied),
+        toMoneyString(p.lateFeeApplied),
+        toMoneyString(p.ownerChargesApplied),
+        toMoneyString(p.serviceChargesApplied),
+      ].join('|')
+    const expenseKey = (e: { expenseId: string; amount: string }) =>
+      `${e.expenseId}|${toMoneyString(e.amount)}`
+    const sameSet = (a: string[], b: string[]) =>
+      a.length === b.length &&
+      [...a].sort().join(';') === [...b].sort().join(';')
+    if (
+      !sameSet(
+        stored.payments.map(paymentKey),
+        computed.payments.map(paymentKey),
+      ) ||
+      !sameSet(
+        stored.expenses.map(expenseKey),
+        computed.expenses.map(expenseKey),
+      )
+    ) {
+      return true
+    }
+    const totals = [
+      'rentTotal',
+      'lateFeeTotal',
+      'ownerChargesTotal',
+      'serviceChargesTotal',
+      'feeBase',
+      'feeTotal',
+      'expensesTotal',
+    ] as const
+    return (
+      stored.feeMode !== computed.feeMode ||
+      totals.some((k) => compareMoney(stored[k], computed[k]) !== 0)
+    )
+  },
+
   /** Σ transferencias vigentes. */
   transferredTotal(settlement: Pick<Settlement, 'transfers'>): string {
     return sumMoney(activeTransfers(settlement).map((t) => t.amount))

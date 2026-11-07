@@ -42,6 +42,8 @@ function payload(
 function setup() {
   const settlements = {
     findById: jest.fn(),
+    findContainingPayment: jest.fn().mockResolvedValue(null),
+    findPendingByContract: jest.fn().mockResolvedValue(null),
     update: jest.fn().mockResolvedValue(undefined),
     addAdjustment: jest.fn().mockResolvedValue(undefined),
   }
@@ -72,6 +74,36 @@ describe('VoidedPaymentReaction', () => {
       await reaction.handle(payload({ settlementId: null }))
       expect(settlements.findById).not.toHaveBeenCalled()
       expect(drafts.recalculate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('pago en una pendiente que todavía no lo marcó (crítico 1)', () => {
+    // Una pendiente no completa payment.settlementId hasta confirmarse: el
+    // evento llega con settlementId null. Antes la reacción salía ahí, la
+    // pendiente seguía con el pago anulado y al confirmarla se transferían
+    // 95.000 por un pago que ya no existía.
+    it('la encuentra por la línea del pago y la recalcula', async () => {
+      const { reaction, settlements, drafts } = setup()
+      const pending = makeSettlement({
+        id: 'settlement-1',
+        payments: [makePaymentLine({ paymentId: 'pay-1' })],
+      })
+      settlements.findContainingPayment.mockResolvedValue(pending)
+      await reaction.handle(payload({ settlementId: null }))
+      expect(settlements.findContainingPayment).toHaveBeenCalledWith('pay-1')
+      expect(drafts.recalculate).toHaveBeenCalledWith(pending)
+      expect(settlements.addAdjustment).not.toHaveBeenCalled()
+    })
+
+    it('si no está en ninguna línea, recalcula la pendiente del contrato', async () => {
+      const { reaction, settlements, drafts } = setup()
+      const pending = makeSettlement({ id: 'settlement-1' })
+      settlements.findPendingByContract.mockResolvedValue(pending)
+      await reaction.handle(payload({ settlementId: null }))
+      expect(settlements.findPendingByContract).toHaveBeenCalledWith(
+        'contract-1',
+      )
+      expect(drafts.recalculate).toHaveBeenCalledWith(pending)
     })
   })
 
