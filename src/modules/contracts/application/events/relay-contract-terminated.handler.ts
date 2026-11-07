@@ -1,6 +1,7 @@
 import { EventsHandler, IEventHandler } from '@nestjs/cqrs'
 
 import {
+  CONTRACT_TERMINATED_BILLING_QUEUE,
   CONTRACT_TERMINATED_QUEUE,
   ContractTerminatedPayload,
 } from '@/modules/contracts/public/contract-events'
@@ -27,6 +28,7 @@ export class RelayContractTerminatedHandler implements IEventHandler<ContractTer
     }
     try {
       await this.queue.publish(CONTRACT_TERMINATED_QUEUE, payload)
+      await this.queue.publish(CONTRACT_TERMINATED_BILLING_QUEUE, payload)
     } catch (error) {
       // La rescisión ya está registrada; el PDF se pide a mano con la
       // regeneración si hace falta.

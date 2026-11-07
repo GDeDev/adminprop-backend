@@ -16,6 +16,7 @@ export type {
 } from './contracts.facade'
 export {
   CONTRACT_RENT_UPDATED_QUEUE,
+  CONTRACT_TERMINATED_BILLING_QUEUE,
   CONTRACT_TERMINATED_QUEUE,
 } from './contract-events'
 export type {

@@ -1788,3 +1788,15 @@ No se tocaron; son decisiones de producto o de alcance:
 - **Decisión**: `renter_credits.held_by` (migración aditiva `20261111100000_renter_credit_held_by`, con backfill desde el pago de origen) guarda quién tiene la plata. La aplicación hereda ese receptor: si lo tiene el propietario no se liquida y devenga honorario como cualquier cobro directo (`OwnerDirectFeeReaction`). Un saldo que tiene el propietario sólo se aplica a cuotas de su mismo contrato; a otro contrato da 409 `CREDIT_NOT_AVAILABLE` (sería plata de un propietario cubriendo el alquiler de otro).
 - **A confirmar**: si un saldo del propietario debería poder devolverse desde la inmobiliaria (hoy `refund` no mira `heldBy`) y si se quiere permitir moverlo entre contratos del mismo propietario.
 - **Frontend**: la vista del saldo trae `heldBy`; conviene mostrar "lo tiene el propietario".
+
+### D-261 · Pago con fecha anterior a otro que ya cobró punitorio — a confirmar con Micaela
+
+- **Contexto**: el punitorio de un día depende de qué pagos tienen fecha anterior. Un pago cargado después con fecha vieja bajaba el punitorio devengado por debajo del que ya había cobrado un pago posterior, y el excedente se perdía: no nacía saldo a favor y se liquidaba al propietario como punitorio (revisión 2026-11-06, alto 5; con base 100.000, gracia al 10 y 0,10 % diario: se cobraban 1.000 en vez de 592).
+- **Decisión**: se rechaza con 409 `PAYMENT_DATE_BEFORE_LATE_FEE_PAYMENT` un pago cuya fecha es anterior a la de un pago vigente de la misma cuota que imputó punitorio. El operador anula ese pago y los carga en orden; así cada uno se imputa contra el punitorio real y el exceso nace como saldo a favor. Es la opción que no deja plata cobrada de más en ningún lado; la alternativa (reimputar o generar un crédito automático) toca pagos ya liquidados.
+- **No cubre**: un ajuste manual de punitorio que lo baje por debajo de lo ya cobrado sigue sin generar saldo a favor.
+
+### D-262 · Rescisión: las cuotas de los meses siguientes dejan de deberse — a confirmar con Micaela
+
+- **Contexto**: rescindir no tocaba las cuotas ya generadas de meses posteriores. Seguían pendientes, corriendo punitorio y sumando en morosidad, aunque la multa ya contaba esos meses como canon futuro (revisión 2026-11-06, alto 7).
+- **Decisión** (anular vs. dejar sin vencer): cobros consume una copia del evento (`contract-terminated-billing`) y **borra** las cuotas de los meses posteriores al de la rescisión que no tienen ningún movimiento (pagos, aun anulados, cargos ni ajustes). Queda en la auditoría y, si la rescisión se deshiciera, generar el mes las vuelve a crear. Las que tienen movimientos no se tocan y se avisan en el log para revisarlas a mano. La cuota del mes de la rescisión se sigue debiendo entera.
+- **A confirmar**: si el mes de la rescisión debería prorratearse por días, y qué hacer con las cuotas posteriores que ya tienen pagos (devolver, aplicar a la multa).

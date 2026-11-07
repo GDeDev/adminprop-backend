@@ -1,9 +1,12 @@
 import { Injectable, OnModuleInit } from '@nestjs/common'
 
 import { InstallmentRebaser } from '@/modules/billing/application/installment-rebaser'
+import { InstallmentTerminationCloser } from '@/modules/billing/application/installment-termination-closer'
 import {
   CONTRACT_RENT_UPDATED_QUEUE,
+  CONTRACT_TERMINATED_BILLING_QUEUE,
   ContractRentUpdatedPayload,
+  ContractTerminatedPayload,
 } from '@/modules/contracts/public'
 import { QueuePort } from '@/platform/queue/queue.port'
 import { createLogger } from '@/shared/logging/root-logger'
@@ -20,6 +23,7 @@ export class ContractEventsConsumer implements OnModuleInit {
   constructor(
     private readonly queue: QueuePort,
     private readonly rebaser: InstallmentRebaser,
+    private readonly closer: InstallmentTerminationCloser,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -34,6 +38,15 @@ export class ContractEventsConsumer implements OnModuleInit {
             outdated: result.outdated.length,
           },
           'Base de cuotas corregida por un aumento',
+        )
+      },
+    )
+    await this.queue.consume<ContractTerminatedPayload>(
+      CONTRACT_TERMINATED_BILLING_QUEUE,
+      async (message) => {
+        await this.closer.close(
+          message.payload.contractId,
+          message.payload.notifiedAt,
         )
       },
     )

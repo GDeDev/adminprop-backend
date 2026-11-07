@@ -67,6 +67,18 @@ export class InstallmentRepositoryImpl extends InstallmentRepository {
     return row ? installmentToDomain(row) : null
   }
 
+  async deleteIfUntouched(id: string): Promise<boolean> {
+    const result = await this.prisma.db.installment.deleteMany({
+      where: {
+        id,
+        payments: { none: {} },
+        charges: { none: {} },
+        adjustments: { none: {} },
+      },
+    })
+    return result.count === 1
+  }
+
   async lockForUpdate(id: string): Promise<void> {
     // SQL directo: Prisma no tiene FOR UPDATE. El tenant se filtra a mano
     // porque el SQL crudo no pasa por la extensión de tenant.

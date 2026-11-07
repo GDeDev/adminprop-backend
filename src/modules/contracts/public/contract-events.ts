@@ -31,6 +31,17 @@ export const CONTRACT_TERMINATED_QUEUE: QueueDefinition = {
   retryDelaySeconds: 5,
 }
 
+/**
+ * Copia de `contract-terminated` para cobros (pg-boss entrega cada mensaje a
+ * un solo consumidor y documentos ya consume la otra): cierra las cuotas de
+ * los meses posteriores a la rescisión (revisión 2026-11-06, alto 7).
+ */
+export const CONTRACT_TERMINATED_BILLING_QUEUE: QueueDefinition = {
+  name: 'contract-terminated-billing',
+  retryLimit: 3,
+  retryDelaySeconds: 5,
+}
+
 export interface ContractTerminatedPayload {
   contractId: string
   /** Fecha de la notificación, `AAAA-MM-DD`. */

@@ -24,6 +24,7 @@ import { InstallmentCreditApplier } from '@/modules/billing/application/installm
 import { InstallmentGenerator } from '@/modules/billing/application/installment-generator'
 import { PaymentReceipts } from '@/modules/billing/application/payment-receipts'
 import { InstallmentRebaser } from '@/modules/billing/application/installment-rebaser'
+import { InstallmentTerminationCloser } from '@/modules/billing/application/installment-termination-closer'
 import { ContractEventsConsumer } from '../consumers/contract-events.consumer'
 import { IdempotencyService } from '@/shared/idempotency/idempotency.service'
 import { InstallmentRecalculator } from '@/modules/billing/application/installment-recalculator'
@@ -83,6 +84,7 @@ import { RenterCreditRepositoryImpl } from '../repositories/renter-credit.reposi
     InstallmentCreditApplier,
     InstallmentRecalculator,
     InstallmentRebaser,
+    InstallmentTerminationCloser,
     PaymentReceipts,
     ContractEventsConsumer,
     BillingFacade,

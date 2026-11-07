@@ -736,4 +736,53 @@ describe('Integridad de la plata (e2e, Postgres)', () => {
       ).toBe(0)
     })
   })
+
+  describe('alto 7: rescindir cierra las cuotas de los meses siguientes', () => {
+    it('la cuota ya generada de un mes posterior a la rescisión, sin pagos, deja de deberse', async () => {
+      // Antes la cuota del mes siguiente seguía pendiente y corriendo
+      // punitorio, aunque la multa ya contaba ese mes como canon futuro.
+      const contract = await createContract()
+      const current = periodOf(today)
+      const next = periodOf(addMonths(today, 1))
+      await generate(current)
+      await generate(next)
+      expect(await installmentOf(contract.id, next)).toBeDefined()
+
+      await api()
+        .post(`/contracts/${contract.id}/terminate`)
+        .send({ notifiedAt: today })
+        .expect(200)
+
+      await waitFor(
+        async () =>
+          (await prisma.installment.count({
+            where: { contractId: contract.id, period: next },
+          })) === 0,
+        { what: 'la cuota del mes siguiente anulada' },
+      )
+      // La del mes de la rescisión sigue: ese mes se debe.
+      expect(
+        await prisma.installment.count({
+          where: { contractId: contract.id, period: current },
+        }),
+      ).toBe(1)
+    })
+
+    it('una cuota posterior con pagos no se toca', async () => {
+      const contract = await createContract()
+      const next = periodOf(addMonths(today, 1))
+      await generate(next)
+      const installment = await installmentOf(contract.id, next)
+      await pay(installment.id, { amount: '1000', paidAt: today }).expect(201)
+
+      await api()
+        .post(`/contracts/${contract.id}/terminate`)
+        .send({ notifiedAt: today })
+        .expect(200)
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      expect(
+        await prisma.installment.count({ where: { id: installment.id } }),
+      ).toBe(1)
+    })
+  })
 })

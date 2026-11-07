@@ -145,6 +145,12 @@ export abstract class InstallmentRepository {
 
   abstract update(id: string, changes: InstallmentChanges): Promise<Installment>
 
+  /**
+   * Borra la cuota sólo si no tiene pagos (ni anulados), cargos ni ajustes
+   * de punitorio: `false` si tenía algo y no se tocó.
+   */
+  abstract deleteIfUntouched(id: string): Promise<boolean>
+
   /** Reemplaza el detalle diario congelado (vacío lo borra). */
   abstract replaceFeeDays(
     installmentId: string,
