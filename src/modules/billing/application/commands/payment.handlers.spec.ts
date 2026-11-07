@@ -115,10 +115,20 @@ function build(installment: Installment = installmentWithCharge()) {
     confirm: jest.fn(),
     void: jest.fn(),
   }
+  const listAvailable = jest.fn().mockResolvedValue([])
+  const findById = jest.fn()
   const credits = {
     create: jest.fn().mockResolvedValue(undefined),
-    listAvailable: jest.fn().mockResolvedValue([]),
-    findById: jest.fn(),
+    listAvailable,
+    // Dentro de la transacción se leen con lock; en los tests, lo mismo.
+    lockAvailable: jest.fn((...args: unknown[]) => listAvailable(...args)),
+    lock: jest.fn((id: string) => findById(id)),
+    consume: jest
+      .fn()
+      .mockImplementation(async (id: string) => makeCredit({ id })),
+    restore: jest.fn().mockResolvedValue(makeCredit()),
+    updateIfUntouched: jest.fn().mockResolvedValue(true),
+    findById,
     findByOriginPayment: jest.fn().mockResolvedValue(null),
     update: jest.fn().mockResolvedValue(makeCredit()),
   }
@@ -369,10 +379,9 @@ describe('RegisterPaymentHandler', () => {
       chargesApplied: '30000.00',
       creditGenerated: '0.00',
     })
-    expect(d.credits.update).toHaveBeenCalledWith('credit-a', {
-      remaining: '0.00',
-      status: CreditStatus.APPLIED,
-    })
+    // Resta relativa y condicional del saldo (alto 4 / C2).
+    expect(d.credits.lockAvailable).toHaveBeenCalled()
+    expect(d.credits.consume).toHaveBeenCalledWith('credit-a', '30000.00')
     // Aviso por el crédito aplicado y por el pago: dos.
     expect(d.eventBus.publish).toHaveBeenCalledTimes(2)
   })
@@ -391,10 +400,8 @@ describe('RegisterPaymentHandler', () => {
         ),
       ),
     )
-    expect(d.credits.update).toHaveBeenCalledWith('credit-a', {
-      remaining: '220000.00',
-      status: CreditStatus.AVAILABLE,
-    })
+    // 500.000 − 280.000 que se aplican = 220.000 que quedan.
+    expect(d.credits.consume).toHaveBeenCalledWith('credit-a', '280000.00')
   })
 
   it('una cuota sin saldo a la fecha del pago no admite otro pago', async () => {
@@ -655,10 +662,25 @@ describe('ApplyCreditHandler', () => {
     // Hoy 20/10: 10 días de punitorio = 100.000 + 200.000 + 30.000 = 330.000.
     expect(created(d, 0)).toMatchObject({ amount: '40000.00' })
     expect(created(d, 1)).toMatchObject({ amount: '290000.00' })
-    expect(d.credits.update).toHaveBeenCalledWith('c2', {
-      remaining: '610000.00',
-      status: CreditStatus.AVAILABLE,
-    })
+    expect(d.credits.consume).toHaveBeenCalledWith('c2', '290000.00')
+  })
+
+  it('si otro movimiento usó el saldo en el medio, falla y no deja la aplicación (C2)', async () => {
+    // Antes se escribía el remaining calculado en memoria: dos aplicaciones
+    // simultáneas del mismo saldo lo gastaban dos veces.
+    const d = build()
+    d.credits.listAvailable.mockResolvedValue([
+      makeCredit({ id: 'c1', remaining: '40000.00' }),
+    ])
+    d.credits.consume.mockResolvedValue(null)
+    await expect(
+      inUserContext(() =>
+        handler(d).execute(
+          new ApplyCreditCommand('inst-1', undefined, undefined),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(CreditNotAvailableException)
+    expect(d.eventBus.publish).not.toHaveBeenCalled()
   })
 
   it('sin saldo a favor disponible falla', async () => {
@@ -813,16 +835,42 @@ describe('VoidPaymentHandler', () => {
     const payment = makePayment({ id: 'p1', creditGenerated: '5000.00' })
     d.payments.findById.mockResolvedValue(payment)
     d.payments.void.mockResolvedValue(voidedOf(payment))
-    d.credits.findByOriginPayment.mockResolvedValue(
-      makeCredit({ id: 'cg', amount: '5000.00', remaining: '5000.00' }),
-    )
+    const generated = makeCredit({
+      id: 'cg',
+      amount: '5000.00',
+      remaining: '5000.00',
+    })
+    d.credits.findByOriginPayment.mockResolvedValue(generated)
+    d.credits.findById.mockResolvedValue(generated)
     await inUserContext(() =>
       handler(d).execute(new VoidPaymentCommand('p1', 'motivo')),
     )
-    expect(d.credits.update).toHaveBeenCalledWith('cg', {
+    expect(d.credits.lock).toHaveBeenCalledWith('cg')
+    expect(d.credits.updateIfUntouched).toHaveBeenCalledWith('cg', '5000.00', {
       remaining: '0.00',
       status: CreditStatus.VOIDED,
     })
+  })
+
+  it('si el saldo se usó entre la lectura y el lock, la anulación falla (C5)', async () => {
+    // Antes el chequeo de "saldo entero" iba fuera de la transacción: una
+    // aplicación simultánea lo gastaba y la anulación lo pisaba a VOIDED.
+    const d = build()
+    const payment = makePayment({ id: 'p1', creditGenerated: '5000.00' })
+    d.payments.findById.mockResolvedValue(payment)
+    d.payments.void.mockResolvedValue(voidedOf(payment))
+    d.credits.findByOriginPayment.mockResolvedValue(
+      makeCredit({ id: 'cg', amount: '5000.00', remaining: '5000.00' }),
+    )
+    d.credits.findById.mockResolvedValue(
+      makeCredit({ id: 'cg', amount: '5000.00', remaining: '0.00' }),
+    )
+    await expect(
+      inUserContext(() =>
+        handler(d).execute(new VoidPaymentCommand('p1', 'motivo')),
+      ),
+    ).rejects.toBeInstanceOf(PaymentCreditAlreadyUsedException)
+    expect(d.credits.updateIfUntouched).not.toHaveBeenCalled()
   })
 
   it('si el saldo a favor que generó ya se usó en parte, no se puede anular', async () => {
@@ -879,10 +927,12 @@ describe('VoidPaymentHandler', () => {
     await inUserContext(() =>
       handler(d).execute(new VoidPaymentCommand('p1', 'motivo')),
     )
-    expect(d.credits.update).toHaveBeenCalledWith('credit-a', {
-      remaining: '30000.10',
-      status: CreditStatus.AVAILABLE,
-    })
+    // Suma relativa con el saldo bloqueado (C5).
+    expect(d.credits.lock).toHaveBeenCalledWith('credit-a')
+    expect(d.credits.restore).toHaveBeenCalledWith(
+      'credit-a',
+      payment.amountInContractCurrency,
+    )
   })
 
   it('dos anulaciones simultáneas: la segunda falla sin tocar el crédito', async () => {
@@ -930,19 +980,23 @@ describe('RefundCreditHandler', () => {
   function handler(d: Deps) {
     return new RefundCreditHandler(
       d.credits as unknown as RenterCreditRepository,
+      d.prisma as unknown as PrismaService,
     )
   }
 
   it('devuelve un saldo disponible: queda en cero, con fecha, medio y notas', async () => {
     const d = build()
-    d.credits.findById.mockResolvedValue(makeCredit({ id: 'c1' }))
-    d.credits.update.mockResolvedValue(
-      makeCredit({
-        id: 'c1',
-        status: CreditStatus.REFUNDED,
-        remaining: '0.00',
-      }),
-    )
+    const available = makeCredit({ id: 'c1', remaining: '5000.00' })
+    d.credits.findById
+      .mockResolvedValueOnce(available)
+      .mockResolvedValueOnce(available)
+      .mockResolvedValue(
+        makeCredit({
+          id: 'c1',
+          status: CreditStatus.REFUNDED,
+          remaining: '0.00',
+        }),
+      )
     const view = await inUserContext(() =>
       handler(d).execute(
         new RefundCreditCommand(
@@ -953,7 +1007,7 @@ describe('RefundCreditHandler', () => {
         ),
       ),
     )
-    expect(d.credits.update).toHaveBeenCalledWith('c1', {
+    expect(d.credits.updateIfUntouched).toHaveBeenCalledWith('c1', '5000.00', {
       remaining: '0.00',
       status: CreditStatus.REFUNDED,
       refundedAt: '2026-10-18',
@@ -985,7 +1039,26 @@ describe('RefundCreditHandler', () => {
         ),
       ).rejects.toBeInstanceOf(CreditNotAvailableException)
     }
-    expect(d.credits.update).not.toHaveBeenCalled()
+    expect(d.credits.updateIfUntouched).not.toHaveBeenCalled()
+  })
+
+  it('si se aplicó entre la lectura y el lock, no se devuelve (C3)', async () => {
+    // Antes la devolución no tenía transacción ni condición: el inquilino
+    // recibía la plata y además la cuota quedaba cubierta con ese saldo.
+    const d = build()
+    d.credits.findById
+      .mockResolvedValueOnce(makeCredit({ id: 'c1' }))
+      .mockResolvedValueOnce(
+        makeCredit({ id: 'c1', status: CreditStatus.APPLIED }),
+      )
+    await expect(
+      inUserContext(() =>
+        handler(d).execute(
+          new RefundCreditCommand('c1', '2026-10-18', PaymentMethod.CASH, null),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(CreditNotAvailableException)
+    expect(d.credits.updateIfUntouched).not.toHaveBeenCalled()
   })
 
   it('un saldo inexistente falla', async () => {

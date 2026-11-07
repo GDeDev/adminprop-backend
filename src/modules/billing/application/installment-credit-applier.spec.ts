@@ -43,7 +43,7 @@ function setup(autoApply = true) {
     }),
   }
   const credits = {
-    listAvailable: jest.fn(async () => {
+    lockAvailable: jest.fn(async () => {
       calls.push(`credits(${where()})`)
       return [credit]
     }),

@@ -1,7 +1,7 @@
 import { EventBus } from '@nestjs/cqrs'
 
+import { CreditNotAvailableException } from '@/modules/billing/domain/billing.exceptions'
 import {
-  CreditStatus,
   Installment,
   Payment,
   PaymentKind,
@@ -18,7 +18,6 @@ import {
   PaymentPolicy,
 } from '@/modules/billing/domain/payment.policy'
 import { IsoDate } from '@/shared/dates/calendar-date'
-import { compareMoney, subtractMoney, toMoneyString } from '@/shared/money'
 import { PaymentConfirmedEvent } from './events/payment-events'
 
 /**
@@ -88,14 +87,16 @@ export async function applyCreditPlan(
       registeredById,
       notes: null,
     })
-    const left = toMoneyString(subtractMoney(credit.remaining, amount))
-    await deps.credits.update(credit.id, {
-      remaining: left,
-      status:
-        compareMoney(left, '0') === 0
-          ? CreditStatus.APPLIED
-          : CreditStatus.AVAILABLE,
-    })
+    // Resta condicional y relativa: antes se escribía un `remaining`
+    // absoluto calculado en memoria y dos aplicaciones a la vez del mismo
+    // saldo lo gastaban dos veces (alto 4 / C2). Los llamadores ya tienen el
+    // saldo bloqueado (`lockAvailable`); esto es la red por si no.
+    const consumed = await deps.credits.consume(credit.id, amount)
+    if (!consumed) {
+      throw new CreditNotAvailableException(
+        'otro movimiento usó el saldo a la vez; volvé a intentar',
+      )
+    }
     created.push(payment)
     remaining = PaymentPolicy.remainingAfter(remaining, allocation)
   }

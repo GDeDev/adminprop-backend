@@ -70,7 +70,7 @@ export class InstallmentCreditApplier {
         const balances = InstallmentPolicy.balances(current, today)
         if (compareMoney(balances.totalDue, '0') <= 0) return null
         const available = PaymentPolicy.usableCredits(
-          await this.credits.listAvailable(current.renterId, current.currency),
+          await this.credits.lockAvailable(current.renterId, current.currency),
           current,
         )
         const plan = PaymentPolicy.planCreditApplications(

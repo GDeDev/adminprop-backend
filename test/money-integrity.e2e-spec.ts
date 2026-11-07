@@ -526,4 +526,128 @@ describe('Integridad de la plata (e2e, Postgres)', () => {
       }
     })
   })
+
+  describe('alto 4 / C2 / C3 / C5: un saldo a favor no se gasta dos veces', () => {
+    const older = periodOf(addMonths(today, -2))
+    const current = periodOf(today)
+
+    /** Un inquilino con un saldo de 30.000 y dos cuotas abiertas. */
+    const withCredit = async () => {
+      const contract = await createContract()
+      await generate(older)
+      await generate(previous)
+      await generate(current)
+      const source = await installmentOf(contract.id, previous)
+      const over = await pay(source.id, {
+        amount: '130000',
+        applyCredit: 'false',
+      }).expect(201)
+      const credit = await prisma.renterCredit.findFirstOrThrow({
+        where: { originPaymentId: over.body.data.payment.id },
+      })
+      expect(credit.remaining.toFixed(2)).toBe('30000.00')
+      return {
+        contract,
+        credit,
+        originPaymentId: over.body.data.payment.id as string,
+        first: (await installmentOf(contract.id, older)).id,
+        second: (await installmentOf(contract.id, current)).id,
+      }
+    }
+
+    const applied = async (creditId: string) =>
+      (
+        await prisma.payment.findMany({
+          where: { creditId, kind: 'CREDIT_APPLICATION', status: 'CONFIRMED' },
+        })
+      ).reduce((sum, p) => sum + Number(p.amountInContractCurrency), 0)
+
+    it('dos aplicaciones a la vez sobre dos cuotas aplican 30.000 en total, no 60.000', async () => {
+      const { credit, first, second } = await withCredit()
+      const responses = await Promise.all([
+        api().post(`/billing/installments/${first}/apply-credit`).send({}),
+        api().post(`/billing/installments/${second}/apply-credit`).send({}),
+      ])
+      expect(responses.map((r) => r.status).sort()).toEqual([201, 409])
+      expect(await applied(credit.id)).toBe(30000)
+      const after = await prisma.renterCredit.findUniqueOrThrow({
+        where: { id: credit.id },
+      })
+      expect(after.remaining.toFixed(2)).toBe('0.00')
+      expect(after.status).toBe('APPLIED')
+    })
+
+    it('dos pagos con applyCredit a la vez no usan el mismo saldo', async () => {
+      const { credit, first, second } = await withCredit()
+      await Promise.all([
+        pay(first, { amount: '10000' }).expect(201),
+        pay(second, { amount: '10000' }).expect(201),
+      ])
+      expect(await applied(credit.id)).toBe(30000)
+    })
+
+    it('devolver el saldo mientras se aplica: o se devuelve o se aplica, nunca las dos', async () => {
+      const { credit, first } = await withCredit()
+      const [refund, apply] = await Promise.all([
+        api()
+          .post(`/billing/credits/${credit.id}/refund`)
+          .send({ refundedAt: today, method: 'CASH' }),
+        api().post(`/billing/installments/${first}/apply-credit`).send({}),
+      ])
+      const after = await prisma.renterCredit.findUniqueOrThrow({
+        where: { id: credit.id },
+      })
+      if (refund.status === 200 || refund.status === 201) {
+        expect(apply.status).toBe(409)
+        expect(await applied(credit.id)).toBe(0)
+        expect(after.status).toBe('REFUNDED')
+      } else {
+        expect(refund.status).toBe(409)
+        expect(apply.status).toBe(201)
+        expect(await applied(credit.id)).toBe(30000)
+        expect(after.status).toBe('APPLIED')
+      }
+    })
+
+    it('anular el pago que generó el saldo mientras se aplica: no quedan las dos cosas', async () => {
+      const { credit, first, originPaymentId } = await withCredit()
+      const [voided, apply] = await Promise.all([
+        voidPayment(originPaymentId),
+        api().post(`/billing/installments/${first}/apply-credit`).send({}),
+      ])
+      const statuses = [voided.status, apply.status]
+      expect(statuses.filter((s) => s === 200 || s === 201)).toHaveLength(1)
+      const after = await prisma.renterCredit.findUniqueOrThrow({
+        where: { id: credit.id },
+      })
+      if (voided.status === 200) {
+        expect(after.status).toBe('VOIDED')
+        expect(await applied(credit.id)).toBe(0)
+      } else {
+        expect(voided.body.code).toBe('PAYMENT_CREDIT_ALREADY_USED')
+        expect(await applied(credit.id)).toBe(30000)
+      }
+    })
+
+    it('anular dos aplicaciones del mismo saldo a la vez devuelve las dos al saldo', async () => {
+      const { credit, first, second } = await withCredit()
+      const a = await api()
+        .post(`/billing/installments/${first}/apply-credit`)
+        .send({ creditId: credit.id, amount: '10000' })
+        .expect(201)
+      const b = await api()
+        .post(`/billing/installments/${second}/apply-credit`)
+        .send({ creditId: credit.id, amount: '15000' })
+        .expect(201)
+      await Promise.all([
+        voidPayment(a.body.data.payment.id).expect(200),
+        voidPayment(b.body.data.payment.id).expect(200),
+      ])
+      const after = await prisma.renterCredit.findUniqueOrThrow({
+        where: { id: credit.id },
+      })
+      expect(after.remaining.toFixed(2)).toBe('30000.00')
+      expect(after.status).toBe('AVAILABLE')
+    })
+  })
 })

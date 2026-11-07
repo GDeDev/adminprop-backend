@@ -34,7 +34,7 @@ import { RequestContext } from '@/shared/context/request-context'
 import { errorMessage } from '@/shared/core/error-message'
 import { IsoDate, todayIso } from '@/shared/dates/calendar-date'
 import { createLogger } from '@/shared/logging/root-logger'
-import { compareMoney, subtractMoney, toMoneyString } from '@/shared/money'
+import { compareMoney, toMoneyString } from '@/shared/money'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { BillingReferences } from '../billing-references'
 import { applyCreditPlan, publishConfirmed } from '../credit-application'
@@ -196,7 +196,7 @@ export class RegisterPaymentHandler implements ICommandHandler<
         let creditApplications: Payment[] = []
         if (data.applyCredit) {
           const available = PaymentPolicy.usableCredits(
-            await this.credits.listAvailable(
+            await this.credits.lockAvailable(
               installment.renterId,
               installment.currency,
             ),
@@ -359,7 +359,7 @@ export class ApplyCreditHandler implements ICommandHandler<
         throw new InstallmentAlreadyPaidException(installment.id)
       }
       const available = PaymentPolicy.usableCredits(
-        await this.credits.listAvailable(
+        await this.credits.lockAvailable(
           installment.renterId,
           installment.currency,
         ),
@@ -472,16 +472,14 @@ export class VoidPaymentHandler implements ICommandHandler<
     const reason = InstallmentPolicy.normalizeReason(command.reason)
     const voidedById = requireUser()
 
-    const generated =
+    const found =
       compareMoney(payment.creditGenerated, '0') > 0
         ? await this.credits.findByOriginPayment(payment.id)
         : null
-    if (
-      generated &&
-      (generated.status !== CreditStatus.AVAILABLE ||
-        compareMoney(generated.remaining, generated.amount) !== 0)
-    ) {
-      throw new PaymentCreditAlreadyUsedException(generated.id)
+    // Falla rápido; la verificación que vale va adentro, con el saldo
+    // bloqueado.
+    if (found && !creditUntouched(found)) {
+      throw new PaymentCreditAlreadyUsedException(found.id)
     }
 
     const updated = await this.prisma.transaction(async () => {
@@ -495,24 +493,32 @@ export class VoidPaymentHandler implements ICommandHandler<
         voidReason: reason,
       })
       if (!voided) throw new PaymentAlreadyVoidedException(payment.id)
-      if (generated) {
-        await this.credits.update(generated.id, {
-          remaining: toMoneyString('0'),
-          status: CreditStatus.VOIDED,
-        })
+      if (found) {
+        // Con el saldo bloqueado y condicional: antes el chequeo de "saldo
+        // entero" iba fuera de la transacción y una aplicación simultánea lo
+        // gastaba mientras el pago que lo generó se anulaba (C5).
+        const generated = await this.credits.lock(found.id)
+        if (
+          !generated ||
+          !creditUntouched(generated) ||
+          !(await this.credits.updateIfUntouched(
+            generated.id,
+            generated.remaining,
+            { remaining: toMoneyString('0'), status: CreditStatus.VOIDED },
+          ))
+        ) {
+          throw new PaymentCreditAlreadyUsedException(found.id)
+        }
       }
       if (payment.kind === PaymentKind.CREDIT_APPLICATION && payment.creditId) {
-        const credit = await this.credits.findById(payment.creditId)
+        // Suma relativa con el saldo bloqueado: dos anulaciones de dos
+        // aplicaciones del mismo saldo ya no se pisan (C5).
+        const credit = await this.credits.lock(payment.creditId)
         if (credit) {
-          await this.credits.update(credit.id, {
-            remaining: toMoneyString(
-              subtractMoney(
-                credit.remaining,
-                `-${payment.amountInContractCurrency}`,
-              ),
-            ),
-            status: CreditStatus.AVAILABLE,
-          })
+          await this.credits.restore(
+            credit.id,
+            payment.amountInContractCurrency,
+          )
         }
       }
       return {
@@ -543,7 +549,10 @@ export class RefundCreditHandler implements ICommandHandler<
   RefundCreditCommand,
   RenterCreditView
 > {
-  constructor(private readonly credits: RenterCreditRepository) {}
+  constructor(
+    private readonly credits: RenterCreditRepository,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async execute(command: RefundCreditCommand): Promise<RenterCreditView> {
     const credit = await this.credits.findById(command.creditId)
@@ -565,16 +574,42 @@ export class RefundCreditHandler implements ICommandHandler<
       }
       throw error
     }
-    const refunded = await this.credits.update(credit.id, {
-      remaining: toMoneyString('0'),
-      status: CreditStatus.REFUNDED,
-      refundedAt,
-      refundMethod: command.method,
-      refundedById: requireUser(),
-      refundNotes: InstallmentPolicy.normalizeNotes(command.notes),
+    const refundedById = requireUser()
+    const refundNotes = InstallmentPolicy.normalizeNotes(command.notes)
+    // En transacción, con el saldo bloqueado y un UPDATE condicional: antes
+    // se devolvía un saldo que otro request estaba aplicando a la vez, y el
+    // inquilino recibía la plata y además la cuota quedaba cubierta (C3).
+    const refunded = await this.prisma.transaction(async () => {
+      const current = await this.credits.lock(credit.id)
+      if (
+        !current ||
+        current.status !== CreditStatus.AVAILABLE ||
+        !(await this.credits.updateIfUntouched(current.id, current.remaining, {
+          remaining: toMoneyString('0'),
+          status: CreditStatus.REFUNDED,
+          refundedAt,
+          refundMethod: command.method,
+          refundedById,
+          refundNotes,
+        }))
+      ) {
+        throw new CreditNotAvailableException(
+          'el saldo ya se aplicó, se devolvió o se anuló',
+        )
+      }
+      return this.credits.findById(current.id)
     })
+    if (!refunded) throw new CreditNotFoundException(command.creditId)
     return toCreditView(refunded)
   }
+}
+
+/** El saldo que generó un pago sigue entero: nadie lo aplicó ni devolvió. */
+function creditUntouched(credit: RenterCredit): boolean {
+  return (
+    credit.status === CreditStatus.AVAILABLE &&
+    compareMoney(credit.remaining, credit.amount) === 0
+  )
 }
 
 async function discard(

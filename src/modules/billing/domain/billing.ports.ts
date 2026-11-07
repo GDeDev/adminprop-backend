@@ -328,6 +328,39 @@ export abstract class RenterCreditRepository {
     currency: Currency,
   ): Promise<RenterCredit[]>
 
+  /**
+   * Como `listAvailable`, pero con `SELECT ... FOR UPDATE` de esos saldos:
+   * dentro de una transacción, dos aplicaciones (o aplicar y devolver, o
+   * aplicar y anular el pago de origen) del mismo saldo se serializan. El
+   * lock de la cuota no alcanzaba: el saldo es del inquilino, no de la cuota.
+   */
+  abstract lockAvailable(
+    renterId: string,
+    currency: Currency,
+  ): Promise<RenterCredit[]>
+
+  /** `SELECT ... FOR UPDATE` de un saldo y su estado después de esperar. */
+  abstract lock(id: string): Promise<RenterCredit | null>
+
+  /**
+   * Resta `amount` del saldo sólo si sigue disponible y le alcanza (UPDATE
+   * condicional y relativo). `null` si no: otro lo usó primero.
+   */
+  abstract consume(id: string, amount: string): Promise<RenterCredit | null>
+
+  /** Devuelve `amount` al saldo (anular una aplicación), en SQL relativo. */
+  abstract restore(id: string, amount: string): Promise<RenterCredit>
+
+  /**
+   * `changes` sólo si el saldo sigue disponible y con `remaining` igual a
+   * `expectedRemaining`. `false` si no (lo tocó otro).
+   */
+  abstract updateIfUntouched(
+    id: string,
+    expectedRemaining: string,
+    changes: RenterCreditChanges,
+  ): Promise<boolean>
+
   /** Todos los del inquilino, los más nuevos primero. */
   abstract listByRenter(renterId: string): Promise<RenterCredit[]>
 
