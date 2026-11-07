@@ -18,8 +18,10 @@ Las salvedades son de **configuración y documentación**, no de lógica:
 1. Sin `CORS_ORIGINS` en `dev_backend` **ni el login del backoffice entra**.
 2. Una variable de enum/`PORT`/TTL creada **vacía** en Doppler hace que la API
    no arranque (la regla "crear vacía" sirve solo para el resto).
-3. `SITES_SERVER_SECRET` no debe crearse (rompe la exención de tope de
-   `apps/sites`).
+3. `SITES_SERVER_SECRET` es opcional en local (B1 resuelto, D-231 y D-252): si se
+   crea, con el mismo valor en `dev_backend`, `dev_sites` y como
+   `API_SERVER_SECRET` en `dev_backoffice` y `dev_portal`; con él la API confía
+   en `X-Client-IP`.
 4. `npm run start:prod` y el Dockerfile apuntan a un archivo que no existe (no
    afecta el desarrollo con `start:dev`).
 5. Quedó sin probar todo lo que depende de Doppler, Docker, Windows, portal,
@@ -46,7 +48,7 @@ arranque.
 | `NEXT_PUBLIC_API_URL`                                | La API escucha en `3000` y el prefijo es `/api/v1`                                         | `http://localhost:3000/api/v1`                                                   | Coherente. Probado: con ese valor el backoffice funciona.                                                                                                                                                                                             |
 | `CORS_ORIGINS`                                       | "Sin definir, CORS cerrado"                                                                | "a confirmar qué valor trae `dev_backend`"                                       | **Resuelto aquí.** Debe ser `http://localhost:3001,http://localhost:3002` (con `localhost`, no `127.0.0.1`). Probado: sin él el login falla por CORS. El `.env.example` del backend trae `3000,5173` (del template), que no sirve para este frontend. |
 | `SITES_REVALIDATE_SECRET`                            | Secreto del aviso de publicación (`Authorization: Bearer`)                                 | Mismo nombre; prende `POST /api/revalidate`                                      | Coherente (mismo header Bearer en las dos puntas, leído en el código). Debe tener el **mismo valor** en `dev_backend` y en la config de sitios.                                                                                                       |
-| `SITES_SERVER_SECRET`                                | "Distinto del anterior", para `X-Sites-Secret`                                             | No existe en `apps/sites`: manda `SITES_REVALIDATE_SECRET` como `X-Sites-Secret` | **Incoherente.** Ver bug B1. La guía del frontend lo deja como "a confirmar"; queda confirmado.                                                                                                                                                       |
+| `SITES_SERVER_SECRET`                                | "Distinto del anterior", para `X-Sites-Secret`                                             | No existe en `apps/sites`: manda `SITES_REVALIDATE_SECRET` como `X-Sites-Secret` | **Resuelto** (D-231, D-252): opcional; la API acepta cualquiera de los dos y con él confía en `X-Client-IP`. Antes: incoherente, ver bug B1. La guía del frontend lo deja como "a confirmar"; queda confirmado.                                       |
 | `SITES_PREVIEW_SECRET`                               | Solo la usa la API (firma de vista previa y TXT de dominios); obligatoria en qa/producción | No la usa                                                                        | Coherente. En local la API usa un valor fijo de desarrollo.                                                                                                                                                                                           |
 | `SITES_BASE_DOMAIN` / `SITES_PROTOCOL`               | Opcionales, vacías                                                                         | Opcionales                                                                       | Coherente. Si se prueban subdominios, el mismo valor en las dos configs.                                                                                                                                                                              |
 | `SITES_CLIENT_IP_HEADER`, `SITES_TRUSTED_PROXY_HOPS` | No las lee                                                                                 | La guía dice que ninguna app las lee                                             | **La guía del frontend se equivoca**: las lee `apps/sites/src/lib/client-ip.ts` (IP del visitante para el tope de la API). Son opcionales; el default sirve en local.                                                                                 |
@@ -93,7 +95,11 @@ valor fijo y no secreto se pueden cargar directo; las secretas se generan con
 | `APP_ENCRYPTION_KEY`                  | No (solo CRM / tokens de portales)   | `openssl rand -hex 32`.                                                                                                  |
 | `SITES_BASE_DOMAIN`, `SITES_PROTOCOL` | No                                   | Vacías o sin crear; solo para probar subdominios.                                                                        |
 
-**No crear** (ni vacías): `SITES_SERVER_SECRET` (bug B1) y ninguna variable
+`SITES_SERVER_SECRET` es **opcional** (B1 resuelto): si se crea, mismo valor en
+`dev_backend`, `dev_sites` y como `API_SERVER_SECRET` en `dev_backoffice` y
+`dev_portal`; con él la API confía en `X-Client-IP` (D-252).
+
+**No crear** (ni vacías): ninguna variable
 `*_PROVIDER`, `TOKKO_SOURCE`, `PORT`, `NODE_ENV`, `JWT_*_TTL` salvo que tengan un
 valor válido. Con los defaults, en local la API usa almacenamiento en disco
 (`/files`), emails por consola, flags en memoria, Tokko de muestra, portales

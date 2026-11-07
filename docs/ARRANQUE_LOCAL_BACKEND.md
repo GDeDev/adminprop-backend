@@ -169,6 +169,14 @@ del template).
 > una sola `SITES_REVALIDATE_SECRET`, con el mismo valor en `dev_backend` y en la
 > config de sitios; `SITES_SERVER_SECRET` ya no rompe nada si se crea (vacía o
 > con valor). Ver D-231.
+>
+> **`SITES_SERVER_SECRET` y la IP real (D-252):** es **opcional en local**. Si se
+> crea, va con el mismo valor en `dev_backend`, en `dev_sites` y como
+> `API_SERVER_SECRET` en `dev_backoffice` y `dev_portal`. Con él, la API confía
+> en el header `X-Client-IP` que mandan esos servidores (sólo cuando viene junto
+> con un `X-Sites-Secret` válido), y el tope por IP y la auditoría ven la IP del
+> navegador en vez de la del servidor Next. Sin él todo funciona igual, con la IP
+> del servidor.
 > | `RESEND_WEBHOOK_SECRET` | Secreto Svix del webhook de Resend (`whsec_...`). | Lo entrega Resend. |
 
 ### Credenciales de terceros (solo si se activa el proveedor)
