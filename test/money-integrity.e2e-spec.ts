@@ -700,4 +700,40 @@ describe('Integridad de la plata (e2e, Postgres)', () => {
       })
     })
   })
+
+  describe('alto 6: devolución del depósito con dos deudas sobre la misma cuota', () => {
+    it('la suma de las deudas de una cuota no puede pasar lo que la cuota debe', async () => {
+      // Antes cada deuda se validaba sola contra el total de la cuota: dos de
+      // 60.000 sobre una cuota de 100.000 imputaban 120.000 de alquiler, el
+      // propietario cobraba 120.000 y el inquilino perdía 20.000.
+      const contract = await createContract({
+        startDate: addMonths(today, -3),
+        endDate: addDays(today, -1),
+        deposit: '150000',
+      })
+      await generate(previous)
+      const installment = await installmentOf(contract.id)
+      const debt = (description: string) => ({
+        concept: 'DEBT',
+        description,
+        amount: '60000',
+        installmentId: installment.id,
+      })
+      const response = await api()
+        .post(`/contracts/${contract.id}/deposit-return`)
+        .send({
+          returnedAt: today,
+          returnedAmount: '30000',
+          method: 'TRANSFER',
+          deductions: [debt('Alquiler'), debt('Saldo')],
+        })
+        .expect(400)
+      expect(response.body.code).toBe('DEPOSIT_RETURN_INVALID_DEDUCTION')
+      expect(
+        await prisma.payment.count({
+          where: { installmentId: installment.id },
+        }),
+      ).toBe(0)
+    })
+  })
 })

@@ -15,6 +15,7 @@ import {
 import {
   DepositReturnExistsException,
   InstallmentNotFoundException,
+  InvalidDepositDeductionException,
 } from '@/modules/billing/domain/billing.exceptions'
 import {
   DepositReturnRepository,
@@ -29,6 +30,7 @@ import { InstallmentPolicy } from '@/modules/billing/domain/installment.policy'
 import { PaymentPolicy } from '@/modules/billing/domain/payment.policy'
 import { RequestContext } from '@/shared/context/request-context'
 import { todayIso } from '@/shared/dates/calendar-date'
+import { compareMoney } from '@/shared/money'
 import { PrismaService } from '@/shared/prisma/prisma.service'
 import { BillingReferences } from '../billing-references'
 import { DepositReturnView, toDepositReturnView } from '../deposit-return.views'
@@ -97,43 +99,46 @@ export class RegisterDepositReturnHandler implements ICommandHandler<
     )
     const notes = InstallmentPolicy.normalizeNotes(data.notes)
 
-    // Las cuotas de las deudas se validan antes de abrir la transacción.
-    const debts = await Promise.all(
-      deductions.map(async (deduction) => {
-        if (
-          deduction.concept !== DepositDeductionConcept.DEBT ||
-          deduction.installmentId === null
-        ) {
-          return { deduction, installment: null }
-        }
-        const installment = await this.installments.findById(
-          deduction.installmentId,
-        )
-        if (!installment) {
-          throw new InstallmentNotFoundException(deduction.installmentId)
-        }
-        const balances = InstallmentPolicy.balances(installment, returnedAt)
-        DepositReturnPolicy.assertDebtFitsInstallment(
-          deduction,
-          {
-            contractId: installment.contractId,
-            currency: installment.currency,
-            totalDue: balances.totalDue,
-          },
-          contract,
-        )
-        return { deduction, installment }
-      }),
-    )
+    // Falla rápido, antes de abrir la transacción: la suma de las deudas de
+    // cada cuota contra lo que debe (alto 6). Antes cada deuda se validaba
+    // sola y dos sobre la misma cuota imputaban más alquiler que la base.
+    const debtTotals = DepositReturnPolicy.debtsByInstallment(deductions)
+    for (const [installmentId, amount] of debtTotals) {
+      const installment = await this.installments.findById(installmentId)
+      if (!installment) throw new InstallmentNotFoundException(installmentId)
+      DepositReturnPolicy.assertDebtFitsInstallment(
+        { amount },
+        {
+          contractId: installment.contractId,
+          currency: installment.currency,
+          totalDue: InstallmentPolicy.balances(installment, returnedAt)
+            .totalDue,
+        },
+        contract,
+      )
+    }
+    const debts = deductions.map((deduction) => ({
+      deduction,
+      installmentId:
+        deduction.concept === DepositDeductionConcept.DEBT
+          ? deduction.installmentId
+          : null,
+    }))
 
     const { created, payments } = await this.prisma.transaction(async () => {
       const payments: { payment: Payment; installment: Installment }[] = []
       const lines: (DeductionInput & { paymentId: string | null })[] = []
-      for (const { deduction, installment } of debts) {
-        if (!installment) {
+      for (const { deduction, installmentId } of debts) {
+        if (!installmentId) {
           lines.push({ ...deduction, paymentId: null })
           continue
         }
+        // Lock y relectura antes de cada imputación: la segunda deuda de la
+        // misma cuota se imputa contra lo que dejó la primera, y un pago
+        // registrado en paralelo espera (alto 6).
+        await this.installments.lockForUpdate(installmentId)
+        const installment = await this.installments.findById(installmentId)
+        if (!installment) throw new InstallmentNotFoundException(installmentId)
         const payment = await this.payFromDeposit(
           installment,
           deduction.amount,
@@ -182,6 +187,13 @@ export class RegisterDepositReturnHandler implements ICommandHandler<
   ): Promise<Payment> {
     const balances = InstallmentPolicy.balances(installment, paidAt)
     const allocation = PaymentPolicy.allocate(amount, balances, null)
+    if (compareMoney(allocation.creditGenerated, '0') > 0) {
+      // Entre la validación y el lock la cuota recibió otro pago: la deuda
+      // ya no entra entera y el excedente no puede quedar perdido.
+      throw new InvalidDepositDeductionException(
+        `el monto supera lo que debe la cuota (${balances.totalDue})`,
+      )
+    }
     return this.payments.create({
       installmentId: installment.id,
       contractId: installment.contractId,

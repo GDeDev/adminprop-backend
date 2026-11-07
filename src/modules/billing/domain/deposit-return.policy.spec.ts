@@ -21,6 +21,38 @@ const contract = {
 }
 
 describe('DepositReturnPolicy', () => {
+  describe('debtsByInstallment (alto 6)', () => {
+    // Dos deudas de 60.000 sobre una cuota de 100.000: antes cada una pasaba
+    // sola (60.000 ≤ 100.000) y se imputaban 120.000 de alquiler.
+    it('suma las deudas de cada cuota para validarlas juntas', () => {
+      const totals = DepositReturnPolicy.debtsByInstallment([
+        {
+          concept: DepositDeductionConcept.DEBT,
+          installmentId: 'i1',
+          amount: '60000.00',
+        },
+        {
+          concept: DepositDeductionConcept.DEBT,
+          installmentId: 'i1',
+          amount: '60000.00',
+        },
+        {
+          concept: DepositDeductionConcept.DAMAGE,
+          installmentId: null,
+          amount: '5000.00',
+        },
+      ])
+      expect([...totals]).toEqual([['i1', '120000.00']])
+      expect(() =>
+        DepositReturnPolicy.assertDebtFitsInstallment(
+          { amount: totals.get('i1') ?? '0' },
+          { contractId: 'c1', currency: Currency.ARS, totalDue: '100000.00' },
+          { id: 'c1', depositCurrency: Currency.ARS },
+        ),
+      ).toThrow(InvalidDepositDeductionException)
+    })
+  })
+
   describe('assertReturnable', () => {
     it('rechaza un contrato activo cuyo fin no pasó', () => {
       expect(() =>

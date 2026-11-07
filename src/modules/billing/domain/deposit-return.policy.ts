@@ -205,6 +205,26 @@ export const DepositReturnPolicy = {
   },
 
   /**
+   * Las deudas sumadas por cuota (alto 6): dos deducciones sobre la misma
+   * cuota se validan juntas contra lo que debe, no cada una por su lado.
+   */
+  debtsByInstallment(
+    deductions: Pick<DeductionInput, 'concept' | 'installmentId' | 'amount'>[],
+  ): Map<string, string> {
+    const totals = new Map<string, string>()
+    for (const d of deductions) {
+      if (d.concept !== DepositDeductionConcept.DEBT || !d.installmentId) {
+        continue
+      }
+      totals.set(
+        d.installmentId,
+        toMoneyString(addMoney(totals.get(d.installmentId) ?? '0', d.amount)),
+      )
+    }
+    return totals
+  },
+
+  /**
    * Una deuda imputada a una cuota se cobra con el depósito: la moneda tiene
    * que coincidir (no hay cotización en una devolución) y el monto no puede
    * superar lo que la cuota debe a esa fecha.
