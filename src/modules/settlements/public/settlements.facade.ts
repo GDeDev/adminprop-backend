@@ -169,14 +169,30 @@ export class SettlementsFacade {
     })
   }
 
-  /** De quién es la liquidación, para autorizar la descarga (Fase 15). */
-  async settlementOwnerId(id: string): Promise<string | null> {
-    return (await this.settlements.findById(id))?.ownerId ?? null
+  /**
+   * Si el propietario puede bajar el PDF de la liquidación (Fase 15): la misma
+   * regla que el portal, suya y confirmada o transferida. Antes alcanzaba con
+   * que fuera suya, y un borrador se bajaba por el endpoint de documentos
+   * aunque el portal no lo mostrara.
+   */
+  async isSettlementVisibleToOwner(
+    id: string,
+    ownerId: string,
+  ): Promise<boolean> {
+    return isVisibleTo(await this.settlements.findById(id), ownerId)
   }
 
-  /** De quién es el consolidado, para autorizar la descarga (Fase 15). */
-  async statementOwnerId(id: string): Promise<string | null> {
-    return (await this.statements.findById(id))?.ownerId ?? null
+  /** Lo mismo para el consolidado: suyo y cerrado, como en el portal. */
+  async isStatementVisibleToOwner(
+    id: string,
+    ownerId: string,
+  ): Promise<boolean> {
+    const statement = await this.statements.findById(id)
+    return (
+      statement !== null &&
+      statement.ownerId === ownerId &&
+      statement.status === StatementStatus.CLOSED
+    )
   }
 
   /**

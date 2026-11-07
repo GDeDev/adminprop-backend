@@ -44,11 +44,9 @@ export class DocumentAccess {
       if (!ownerId) return false
       switch (kind) {
         case DocumentKind.SETTLEMENT:
-          return (
-            (await this.settlements.settlementOwnerId(entityId)) === ownerId
-          )
+          return this.settlements.isSettlementVisibleToOwner(entityId, ownerId)
         case DocumentKind.OWNER_STATEMENT:
-          return (await this.settlements.statementOwnerId(entityId)) === ownerId
+          return this.settlements.isStatementVisibleToOwner(entityId, ownerId)
         case DocumentKind.TERMINATION_NOTICE:
           return (await this.contracts.parties(entityId))?.ownerId === ownerId
         default:
