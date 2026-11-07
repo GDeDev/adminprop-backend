@@ -538,7 +538,9 @@ export class ImportExecutor {
     try {
       await this.storage.delete(batch.fileKey)
     } catch (error) {
+      // La clave queda en el lote: el archivo sigue en el storage.
       this.logger.warn({ err: error }, 'No se pudo borrar el archivo del lote')
+      return
     }
     await this.batches.update(batch.id, { fileKey: null })
   }

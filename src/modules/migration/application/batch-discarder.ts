@@ -32,13 +32,15 @@ export class BatchDiscarder {
     if (moved && batch.fileKey) {
       try {
         await this.storage.delete(batch.fileKey)
+        // Sólo si se borró: con la clave en null, un archivo que quedó en el
+        // storage ya no tendría quién lo encuentre.
+        await this.batches.update(batch.id, { fileKey: null })
       } catch (error) {
         this.logger.warn(
           { err: error },
           'No se pudo borrar el archivo del lote',
         )
       }
-      await this.batches.update(batch.id, { fileKey: null })
     }
     return moved
   }

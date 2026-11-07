@@ -94,14 +94,22 @@ async function abandonBatch(
   fileKey: string | null,
 ): Promise<void> {
   const message = 'No se pudo iniciar el análisis: probá de nuevo en un rato'
+  // La clave se borra del lote sólo si el archivo se pudo borrar: si no, queda
+  // registrada y el archivo no se pierde de vista en el storage.
+  let remainingKey = fileKey
+  if (fileKey && deps.storage) {
+    remainingKey = await deps.storage.delete(fileKey).then(
+      () => null,
+      () => fileKey,
+    )
+  }
   try {
     await deps.batches.update(batchId, {
       status: ImportBatchStatus.FAILED,
       errorMessage: message,
-      fileKey: null,
+      fileKey: remainingKey,
     })
     if (jobId) await deps.jobs.fail(jobId, message)
-    if (fileKey) await deps.storage?.delete(fileKey)
   } catch {
     // Ya hay un error original para devolver; este es sólo la limpieza.
   }
@@ -148,7 +156,10 @@ export class StartExcelAnalysisHandler implements ICommandHandler<
     try {
       const stored = await this.storage.upload(
         file.buffer,
-        `migrations/${batch.id}.xlsx`,
+        // Con el tenant en la ruta, como el resto de los archivos (inventarios,
+        // comprobantes): sin él, los lotes de todas las inmobiliarias quedaban
+        // en la misma carpeta y sólo el adapter los separaba.
+        `migrations/${RequestContext.tenantId}/${batch.id}.xlsx`,
         {
           contentType:
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -240,6 +251,7 @@ export class UpdateImportRowHandler implements ICommandHandler<
     private readonly batches: ImportBatchRepository,
     private readonly rows: ImportRowRepository,
     private readonly views: ImportBatchViews,
+    private readonly audit: AuditFacade,
   ) {}
 
   async execute(command: UpdateImportRowCommand): Promise<ImportRowView> {
@@ -264,6 +276,23 @@ export class UpdateImportRowHandler implements ICommandHandler<
     const updated = await this.rows.update(row.id, {
       ...(excluded !== undefined ? { excluded } : {}),
       ...(resolution !== undefined ? { resolution } : {}),
+    })
+    // Excluir una fila o elegir pisar lo existente decide qué se importa: antes
+    // no quedaba rastro de quién lo cambió.
+    await this.audit.record({
+      action: 'UPDATE',
+      entity: 'ImportBatch',
+      entityId: batch.id,
+      summary: `Modificó la fila "${row.label}" de un lote de migración`,
+      changes: {
+        rowId: { after: row.id },
+        ...(excluded !== undefined && excluded !== row.excluded
+          ? { excluded: { before: row.excluded, after: excluded } }
+          : {}),
+        ...(resolution !== undefined && resolution !== row.resolution
+          ? { resolution: { before: row.resolution, after: resolution } }
+          : {}),
+      },
     })
     return this.views.row(updated)
   }
