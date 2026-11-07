@@ -204,7 +204,7 @@ el dueño cuando se despliega `apps/sites`) son las de URL/dominio; las que son
 
 `NODE_ENV` (`development` por defecto; `test`, `qa`, `production`), `APP_NAME`,
 `PORT` (3000), `LOG_LEVEL`, `SWAGGER_ENABLED` (por defecto prendido salvo
-producción), `BODY_LIMIT`, `TRUST_PROXY`, `SECRETS_PROVIDER`, `JWT_ACCESS_TTL`
+producción), `BODY_LIMIT`, `TRUST_PROXY`, `TRUST_PROXY_HOPS`, `SECRETS_PROVIDER`, `JWT_ACCESS_TTL`
 (15m), `JWT_REFRESH_TTL` (7d), `JWT_ISSUER`, `JWT_AUDIENCE`,
 `BCRYPT_SALT_ROUNDS` (12), `JWT_VALIDATE_USER_ON_REQUEST`,
 `LOGIN_MAX_FAILED_ATTEMPTS`, `LOGIN_LOCK_DURATION_MINUTES`, `THROTTLE_*`,

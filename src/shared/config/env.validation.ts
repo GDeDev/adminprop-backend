@@ -306,6 +306,18 @@ export class EnvironmentVariables {
   @IsBoolean()
   TRUST_PROXY?: boolean
 
+  /**
+   * Cantidad de proxies propios delante de la API (balanceador, CDN). Pisa a
+   * `TRUST_PROXY`. Contar de más deja que el cliente elija su IP con
+   * `X-Forwarded-For`; contar de menos hace que todos compartan la del proxy.
+   */
+  @toInt()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  TRUST_PROXY_HOPS?: number
+
   // ------------------------------------------------------------------------- Cola
   @IsOptional()
   @IsEnum(QueueProvider, {

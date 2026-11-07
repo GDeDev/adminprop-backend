@@ -23,7 +23,11 @@ export interface AppConfig {
   logLevel: string
   swaggerEnabled: boolean
   bodyLimit: string
-  trustProxy: boolean
+  /**
+   * Cuántos proxies propios hay delante (`trust proxy` de Express). 0 = ninguno:
+   * `req.ip` es la conexión directa (D-252).
+   */
+  trustProxyHops: number
 }
 
 export interface DatabaseConfig {
@@ -260,7 +264,13 @@ export function configuration(): Configuration {
         env === Environment.Development || env === Environment.Test,
       ),
       bodyLimit: str(process.env.BODY_LIMIT, '1mb'),
-      trustProxy: bool(process.env.TRUST_PROXY, isProduction),
+      // TRUST_PROXY_HOPS manda; si no está, TRUST_PROXY=true equivale a un salto
+      // (el comportamiento anterior).
+      trustProxyHops: process.env.TRUST_PROXY_HOPS
+        ? num(process.env.TRUST_PROXY_HOPS, 0)
+        : bool(process.env.TRUST_PROXY, isProduction)
+          ? 1
+          : 0,
     },
     database: {
       url: required(process.env.DATABASE_URL, 'DATABASE_URL'),

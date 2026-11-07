@@ -8,6 +8,7 @@ import { AppException } from '../../errors/app.exception'
 import { createLogger } from '@/shared/logging/root-logger'
 import { redactUrlQuery } from '@/shared/logging/redact-url'
 import { getCorrelationId } from '../../context/request-context.middleware'
+import { resolveClientIp } from '../http/client-ip'
 import {
   isTrustedServerSecret,
   SKIP_THROTTLE_FOR_TRUSTED_SERVER,
@@ -21,8 +22,9 @@ import {
  *
  * 1. **Cuenta por usuario cuando hay sesión.** Si no, todos los usuarios detrás
  *    de un mismo NAT corporativo comparten cupo.
- * 2. **Respeta el proxy.** Con `TRUST_PROXY=true`, `req.ips[0]` es el cliente
- *    real y no el balanceador; sin eso, todo el tráfico cuenta como una sola IP.
+ * 2. **Respeta el proxy y a los servidores propios.** La IP sale de
+ *    `resolveClientIp` (`TRUST_PROXY_HOPS` y `X-Client-IP` con el secreto de
+ *    servidor, D-252).
  * 3. **Responde en el formato de error de la API**, con `Retry-After`.
  */
 @Injectable()
@@ -65,9 +67,11 @@ export class AppThrottlerGuard extends ThrottlerGuard {
     const userId = req.user?.id
     if (userId) return `user:${userId}`
 
-    const forwarded =
-      Array.isArray(req.ips) && req.ips.length ? req.ips[0] : null
-    return `ip:${forwarded ?? req.ip ?? 'unknown'}`
+    const ip = resolveClientIp(
+      req,
+      this.config.get('sites', { infer: true }).serverSecrets,
+    )
+    return `ip:${ip ?? 'unknown'}`
   }
 
   protected override async throwThrottlingException(

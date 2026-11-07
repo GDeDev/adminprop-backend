@@ -130,8 +130,10 @@ function configureSecurity(
 
   // Detrás de un balanceador, sin esto `req.ip` es la IP del proxy y el rate
   // limiting contaría todo el tráfico como un solo cliente.
-  if (appConfig.trustProxy) {
-    app.set('trust proxy', 1)
+  // El número de saltos (y no `true`) para que un X-Forwarded-For inventado
+  // por el cliente no cuente como su IP (D-252).
+  if (appConfig.trustProxyHops > 0) {
+    app.set('trust proxy', appConfig.trustProxyHops)
   }
 
   // No regalar la tecnología del backend.
